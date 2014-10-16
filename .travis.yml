@@ -1,0 +1,24 @@
+# Utilize https://github.com/boombatower/git-squash-tags to squash
+# https://github.com/drupal/drupal and push to 7.x-squash branch.
+
+language: php
+
+php:
+  - 5.4
+
+env:
+  global:
+    secure: Xv3uVNHngDsF5752RMdow4jipXCN+UIVmX7foOJOMpHrBhOfNOKnR1VkCdlaWqCEaPACW76U4ew2rBFToAFowp06vpU+KfVDMg1f+rHTw1pEHStPDyIkxCjs7T2y0JMZI4/2EsWJVVfaael8LtIkrIn2fcEobRtiGAlxxtjhqI0=
+
+# http://stackoverflow.com/questions/18027115/committing-via-travis-ci-failing
+script:
+  - git config --global user.email "thor@boombatower.com"
+  - git config --global user.name "Supreme Commander Thor"
+  - git clone https://github.com/boombatower/git-squash-tags.git
+  - git clone --branch 7.x https://github.com/drupal/drupal.git
+  - cd drupal
+  - ../git-squash-tags/git-squash-tags
+  - git remote add boombatower https://github.com/boombatower/drupal-squash.git
+  - git config credential.helper "store --file=.git/credentials"
+  - echo "https://${GH_TOKEN}:@github.com" > .git/credentials
+  - git push -f boombatower 7.x-squash
