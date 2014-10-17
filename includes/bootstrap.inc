@@ -9,7 +9,7 @@
 /**
  * The current system version.
  */
-define('VERSION', '7.0-rc3');
+define('VERSION', '7.0-rc4');
 
 /**
  * Core API compatibility.
@@ -3057,7 +3057,7 @@ function &drupal_register_shutdown_function($callback = NULL) {
     $args = func_get_args();
     array_shift($args);
     // Save callback and arguments
-    $callbacks[] = array('callback' => $callback, 'arguments' => $args, 'cwd' => getcwd());
+    $callbacks[] = array('callback' => $callback, 'arguments' => $args, 'cwd' => DRUPAL_ROOT);
   }
   return $callbacks;
 }
