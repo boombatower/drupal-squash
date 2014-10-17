@@ -2,14 +2,9 @@
 // $Id$
 
 /**
- * Implement hook_menu().
+ * Implements hook_menu().
  */
 function system_test_menu() {
-  $items['admin/system-test/batch-theme'] = array(
-    'page callback' => 'system_test_batch_theme',
-    'access callback' => TRUE,
-    'type' => MENU_CALLBACK,
-  );    
   $items['system-test/sleep/%'] = array(
     'page callback' => 'system_test_sleep',
     'page arguments' => array(2),
@@ -102,34 +97,6 @@ function system_test_menu() {
   return $items;
 }
 
-/**
- * Menu callback; start a new batch for testing the batch progress page theme.
- */
-function system_test_batch_theme() {
-  $batch = array(
-    'operations' => array(
-      array('system_test_batch_theme_callback', array()),
-    ),
-  );
-  batch_set($batch);
-  // Force the batch to redirect to some page other than this one (to avoid an
-  // infinite loop).
-  batch_process('node');
-}
-
-/**
- * Batch callback function for testing the theme used by a batch.
- */
-function system_test_batch_theme_callback() {
-  // Because drupalGet() steps through the full progressive batch before
-  // returning control to the test function, we cannot test that the correct
-  // theme is being used on the batch processing page by viewing that page
-  // directly. Instead, we save the theme being used in a variable here, so
-  // that it can be loaded and inspected in the thread running the test.
-  global $theme;
-  variable_set('system_test_batch_theme_used', $theme);
-}
-
 function system_test_sleep($seconds) {
   sleep($seconds);
 }
@@ -175,7 +142,7 @@ function system_test_destination() {
 }
 
 /**
- * Implement hook_modules_installed().
+ * Implements hook_modules_installed().
  */
 function system_test_modules_installed($modules) {
   if (in_array('aggregator', $modules)) {
@@ -184,7 +151,7 @@ function system_test_modules_installed($modules) {
 }
 
 /**
- * Implement hook_modules_enabled().
+ * Implements hook_modules_enabled().
  */
 function system_test_modules_enabled($modules) {
   if (in_array('aggregator', $modules)) {
@@ -193,7 +160,7 @@ function system_test_modules_enabled($modules) {
 }
 
 /**
- * Implement hook_modules_disabled().
+ * Implements hook_modules_disabled().
  */
 function system_test_modules_disabled($modules) {
   if (in_array('aggregator', $modules)) {
@@ -202,7 +169,7 @@ function system_test_modules_disabled($modules) {
 }
 
 /**
- * Implement hook_modules_uninstalled().
+ * Implements hook_modules_uninstalled().
  */
 function system_test_modules_uninstalled($modules) {
   if (in_array('aggregator', $modules)) {
@@ -211,14 +178,14 @@ function system_test_modules_uninstalled($modules) {
 }
 
 /**
- * Implement hook_boot().
+ * Implements hook_boot().
  */
 function system_test_boot() {
   watchdog('system_test', 'hook_boot');
 }
 
 /**
- * Implement hook_init().
+ * Implements hook_init().
  */
 function system_test_init() {
   // Used by FrontPageTestCase to get the results of drupal_is_front_page().
@@ -228,14 +195,14 @@ function system_test_init() {
 }
 
 /**
- * Implement hook_exit().
+ * Implements hook_exit().
  */
 function system_test_exit() {
   watchdog('system_test', 'hook_exit');
 }
 
 /**
- * Implement hook_system_info_alter().
+ * Implements hook_system_info_alter().
  */
 function system_test_system_info_alter(&$info, $file, $type) {
   // We need a static otherwise the last test will fail to alter common_test.
@@ -251,6 +218,11 @@ function system_test_system_info_alter(&$info, $file, $type) {
       $info['hidden'] = FALSE;
       $info['version'] = '7.x-2.4-beta3';
     }
+  }
+
+  // Make the system_dependencies_test visible by default.
+  if ($file->name == 'system_dependencies_test') {
+    $info['hidden'] = FALSE;
   }
 }
 
@@ -282,7 +254,7 @@ function system_test_lock_exit() {
 }
 
 /**
- * Implement hook_page_build().
+ * Implements hook_page_build().
  */
 function system_test_page_build(&$page) {
   $menu_item = menu_get_item();

@@ -33,7 +33,7 @@ interface QueryConditionInterface {
    *   The comparison operator, such as =, <, or >=. It also accepts more complex
    *   options such as IN, LIKE, or BETWEEN. Defaults to IN if $value is an array
    *   = otherwise.
-   * @return
+   * @return QueryConditionInterface
    *   The called object.
    */
   public function condition($field, $value = NULL, $operator = NULL);
@@ -46,7 +46,7 @@ interface QueryConditionInterface {
    *   not ? placeholders.
    * @param $args
    *   An associative array of arguments.
-   * @return
+   * @return QueryConditionInterface
    *   The called object.
    */
   public function where($snippet, $args = array());
@@ -56,7 +56,7 @@ interface QueryConditionInterface {
    *
    * @param $field
    *   The name of the field to check.
-   * @return
+   * @return QueryConditionInterface
    *   The called object.
    */
   public function isNull($field);
@@ -66,7 +66,7 @@ interface QueryConditionInterface {
    *
    * @param $field
    *   The name of the field to check.
-   * @return
+   * @return QueryConditionInterface
    *   The called object.
    */
   public function isNotNull($field);
@@ -135,7 +135,7 @@ interface QueryAlterableInterface {
    *
    * @param $tag
    *   The tag to add.
-   * @return
+   * @return QueryAlterableInterface
    *   The called object.
    */
   public function addTag($tag);
@@ -183,7 +183,7 @@ interface QueryAlterableInterface {
    *   follows the same rules as any other PHP identifier.
    * @param $object
    *   The additional data to add to the query. May be any valid PHP variable.
-   * @return
+   * @return QueryAlterableInterface
    *   The called object.
    */
   public function addMetaData($key, $object);
@@ -203,8 +203,12 @@ interface QueryAlterableInterface {
  * Interface for a query that accepts placeholders.
  */
 interface QueryPlaceholderInterface {
+
   /**
-   * Returns the next placeholder for the query.
+   * Returns the next placeholder ID for the query.
+   *
+   * @return
+   *   The next available placeholder ID as an integer.
    */
   function nextPlaceholder();
 }
@@ -339,7 +343,7 @@ class InsertQuery extends Query {
    * @param $values
    *   An array of fields to insert into the database. The values must be
    *   specified in the same order as the $fields array.
-   * @return
+   * @return InsertQuery
    *   The called object.
    */
   public function fields(array $fields, array $values = array()) {
@@ -369,7 +373,7 @@ class InsertQuery extends Query {
    *
    * @param $values
    *   An array of values to add to the query.
-   * @return
+   * @return InsertQuery
    *   The called object.
    */
   public function values(array $values) {
@@ -402,7 +406,7 @@ class InsertQuery extends Query {
    * @param $fields
    *   An array of values for which to use the default values
    *   specified in the table definition.
-   * @return
+   * @return InsertQuery
    *   The called object.
    */
   public function useDefaults(array $fields) {
@@ -429,7 +433,7 @@ class InsertQuery extends Query {
    *
    * @param $delay
    *   If TRUE, this query is delay-safe and will run delayed on supported databases.
-   * @return
+   * @return InsertQuery
    *   The called object.
    */
   public function delay($delay = TRUE) {
@@ -628,7 +632,7 @@ class MergeQuery extends Query {
    * @param $values
    *   An array of fields to set into the database. The values must be
    *   specified in the same order as the $fields array.
-   * @return
+   * @return MergeQuery
    *   The called object.
    */
   public function fields(array $fields, array $values = array()) {
@@ -662,7 +666,7 @@ class MergeQuery extends Query {
    * @param $values
    *   An array of fields to set into the database. The values must be
    *   specified in the same order as the $fields array.
-   * @return
+   * @return MergeQuery
    *   The called object.
    */
   public function key(array $fields, array $values = array()) {
@@ -686,7 +690,7 @@ class MergeQuery extends Query {
    * @param $values
    *   An array of fields to set into the database. The values must be
    *   specified in the same order as the $fields array.
-   * @return
+   * @return MergeQuery
    *   The called object.
    */
   public function update(array $fields, array $values = array()) {
@@ -715,7 +719,7 @@ class MergeQuery extends Query {
    *   specified by the fields() method.
    *   Alternatively, the fields may be specified as a variable number of string
    *   parameters.
-   * @return
+   * @return MergeQuery
    *   The called object.
    */
   public function updateExcept($exclude_fields) {
@@ -742,7 +746,7 @@ class MergeQuery extends Query {
    * @param $arguments
    *   If specified, this is an array of key/value pairs for named placeholders
    *   corresponding to the expression.
-   * @return
+   * @return MergeQuery
    *   The called object.
    */
   public function expression($field, $expression, array $arguments = NULL) {
@@ -925,6 +929,7 @@ class DeleteQuery extends Query implements QueryConditionInterface {
     $query = 'DELETE FROM {' . $this->connection->escapeTable($this->table) . '} ';
 
     if (count($this->condition)) {
+
       $this->condition->compile($this->connection, $this);
       $query .= "\nWHERE " . $this->condition;
     }
@@ -1058,7 +1063,7 @@ class UpdateQuery extends Query implements QueryConditionInterface {
    * @param $fields
    *   An associative array of fields to write into the database. The array keys
    *   are the field names while the values are the values to which to set them.
-   * @return
+   * @return UpdateQuery
    *   The called object.
    */
   public function fields(array $fields) {
@@ -1080,7 +1085,7 @@ class UpdateQuery extends Query implements QueryConditionInterface {
    * @param $arguments
    *   If specified, this is an array of key/value pairs for named placeholders
    *   corresponding to the expression.
-   * @return
+   * @return UpdateQuery
    *   The called object.
    */
   public function expression($field, $expression, array $arguments = NULL) {
@@ -1234,6 +1239,8 @@ class DatabaseCondition implements QueryConditionInterface, Countable {
         }
         else {
           // It's a structured condition, so parse it out accordingly.
+          // Note that $condition['field'] will only be an object for a dependent
+          // DatabaseCondition object, not for a dependent subquery.
           if ($condition['field'] instanceof QueryConditionInterface) {
             // Compile the sub-condition recursively and add it to the list.
             $condition['field']->compile($connection, $queryPlaceholder);
@@ -1257,7 +1264,8 @@ class DatabaseCondition implements QueryConditionInterface, Countable {
             $operator += $operator_defaults;
 
             $placeholders = array();
-            if ($condition['value'] instanceof SelectQuery) {
+            if ($condition['value'] instanceof SelectQueryInterface) {
+              $condition['value']->compile($connection, $queryPlaceholder);
               $placeholders[] = (string)$condition['value'];
               $arguments += $condition['value']->arguments();
             }
@@ -1275,7 +1283,6 @@ class DatabaseCondition implements QueryConditionInterface, Countable {
               }
             }
             $condition_fragments[] = ' (' . $condition['field'] . ' ' . $operator['operator'] . ' ' . $operator['prefix'] . implode($operator['delimiter'], $placeholders) . $operator['postfix'] . ') ';
-
           }
         }
       }
@@ -1323,13 +1330,14 @@ class DatabaseCondition implements QueryConditionInterface, Countable {
       'NOT IN' => array('delimiter' => ', ', 'prefix' => ' (', 'postfix' => ')'),
       'IS NULL' => array('use_value' => FALSE),
       'IS NOT NULL' => array('use_value' => FALSE),
+      // Use backslash for escaping wildcard characters.
+      'LIKE' => array('postfix' => " ESCAPE '\\\\'"),
       // These ones are here for performance reasons.
       '=' => array(),
       '<' => array(),
       '>' => array(),
       '>=' => array(),
       '<=' => array(),
-      'LIKE' => array(),
     );
     if (isset($specials[$operator])) {
       $return = $specials[$operator];
@@ -1350,6 +1358,8 @@ class DatabaseCondition implements QueryConditionInterface, Countable {
 
 /**
  * Returns a new DatabaseCondition, set to "OR" all conditions together.
+ *
+ * @return DatabaseCondition
  */
 function db_or() {
   return new DatabaseCondition('OR');
@@ -1357,6 +1367,8 @@ function db_or() {
 
 /**
  * Returns a new DatabaseCondition, set to "AND" all conditions together.
+ *
+ * @return DatabaseCondition
  */
 function db_and() {
   return new DatabaseCondition('AND');
@@ -1364,6 +1376,8 @@ function db_and() {
 
 /**
  * Returns a new DatabaseCondition, set to "XOR" all conditions together.
+ *
+ * @return DatabaseCondition
  */
 function db_xor() {
   return new DatabaseCondition('XOR');
@@ -1374,6 +1388,7 @@ function db_xor() {
  *
  * @param
  *   The conjunction (AND, OR, XOR, etc.) to use on conditions.
+ * @return DatabaseCondition
  */
 function db_condition($conjunction) {
   return new DatabaseCondition($conjunction);

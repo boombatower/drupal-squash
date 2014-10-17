@@ -25,18 +25,18 @@ function search_view($type = 'node') {
     // Only perform search if there is non-whitespace search term:
     $results = '';
     if (trim($keys)) {
-      // Log the search keys:
-      watchdog('search', '%keys (@type).', array('%keys' => $keys, '@type' => module_invoke($type, 'search', 'name')), WATCHDOG_NOTICE, l(t('results'), 'search/' . $type . '/' . $keys));
+      // Log the search keys.
+      $info = search_get_info();
+      watchdog('search', 'Searched %type for %keys.', array('%keys' => $keys, '%type' => $info[$type]['title']), WATCHDOG_NOTICE, l(t('results'), 'search/' . $type . '/' . $keys));
 
-      // Collect the search results:
+      // Collect the search results.
       $results = search_data($keys, $type);
 
       // Construct the search form.
       $build['search_form'] = drupal_get_form('search_form', NULL, $keys, $type);
       $build['search_results'] = array(
         '#theme' => 'search_results_listing',
-        '#title' => empty($results) ? t('Your search yielded no results') : t('Search results'),
-        '#content' => empty($results) ? search_help('search#noresults', drupal_help_arg()) : $results,
+        '#content' => $results,
       );
 
       return $build;
@@ -77,8 +77,7 @@ function template_preprocess_search_results(&$variables) {
     $variables['search_results'] .= theme('search_result', array('result' => $result, 'type' => $variables['type']));
   }
   $variables['pager'] = theme('pager', array('tags' => NULL));
-  // Provide alternate search results template.
-  $variables['template_files'][] = 'search-results-' . $variables['type'];
+  $variables['theme_hook_suggestions'][] = 'search_results__' . $variables['type'];
 }
 
 /**
@@ -113,8 +112,7 @@ function template_preprocess_search_result(&$variables) {
   // Provide separated and grouped meta information..
   $variables['info_split'] = $info;
   $variables['info'] = implode(' - ', $info);
-  // Provide alternate search result template.
-  $variables['template_files'][] = 'search-result-' . $variables['type'];
+  $variables['theme_hook_suggestions'][] = 'search_result__' . $variables['type'];
 }
 
 /**

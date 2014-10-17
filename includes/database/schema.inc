@@ -183,7 +183,7 @@ abstract class DatabaseSchema implements QueryPlaceholderInterface {
    *   The name of the table to explode.
    * @param $operator
    *   The operator to apply on the 'table' part of the condition.
-   * @return
+   * @return QueryConditionInterface
    *   A DatabaseCondition object.
    */
   protected function buildTableNameCondition($table_name, $operator = '=') {
@@ -336,6 +336,18 @@ abstract class DatabaseSchema implements QueryPlaceholderInterface {
    *   The field to be altered.
    */
   abstract public function fieldSetNoDefault($table, $field);
+
+  /**
+   * Checks if an index exists.
+   *
+   * @param $table
+   *   Name of the table.
+   * @param $name
+   *   Name of the index.
+   * @return
+   *   Index name if the table exists. Otherwise FALSE.
+   */
+  abstract public function indexExists($table, $name);
 
   /**
    * Add a primary key.

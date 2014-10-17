@@ -7,20 +7,21 @@
  */
 
 /**
- * Implement hook_help().
+ * Implements hook_help().
  */
 function field_ui_help($path, $arg) {
   switch ($path) {
     case 'admin/help#field_ui':
-       $output = '';
-       $output .= '<p>' . t('The Field UI module provides an administrative interface for adding custom fields to content types, users, comments, and other types of data. In the case of content types, a few fields are provided by default, such as the "Summary and Body" field. The Field UI module lets administrators edit or delete the default fields attached to content, as well as create new fields for storing any additional information. Field configuration is accessible through tabs on the <a href="@content-types">content types administration page</a>. (See the <a href="@node-help">node module help page</a> for more information about content types.)', array('@content-types' => url('admin/content/types'), '@node-help' => url('admin/help/node'))) . '</p>';
-       $output .= '<p>' . t('When adding a custom field to a content type, you determine its type (whether it will contain text, numbers, lists, etc.) and how it will be displayed (either as a text field or text area, a select box, checkboxes, radio buttons, or an auto-complete text field). A field may have multiple values (i.e., a "person" may have multiple e-mail addresses) or a single value (i.e., an "employee" has a single employee identification number).') . '</p>';
-       $output .= '<p>' . t('Custom field types may be provided by additional modules. Drupal core includes the following field types:') . '</p>';
-       $output .= '<ul>';
-       $output .= '<li>' . t('<em>Number</em>: Adds numeric field types, in integer, decimal or floating point form. You may define a set of allowed inputs, or specify an allowable range of values. A variety of common formats for displaying numeric data are available.') . '</li>';
-       $output .= '<li>' . t("<em>Text</em>: Adds text field types. A text field may contain plain text only, or optionally, may use Drupal's input format filters to securely manage HTML output. Text input fields may be either a single line (text field), multiple lines (text area), or for greater input control, a select box, checkbox, or radio buttons. If desired, CCK can validate the input to a set of allowed values.") . '</li>';
-       $output .= '<li>' . t('<em>List</em>: Provides storage mechanisms to store a list of items. Usually these items are input through a select list, checkboxes, or radio buttons.') . '</li>';
-       $output .= '</ul>';
+      $output = '';
+      $output .= '<h3>' . t('About') . '</h3>';
+      $output .= '<p>' . t('The Field UI module provides an administrative user interface (UI) for adding custom fields to content types, users, comments, and other types of data. The field types are defined by other modules, and collected and managed by the <a href="@field">Field module</a>. For more information, see the online handbook entry for <a href="@field-ui">Field UI module</a>.', array('@field-ui' => 'http://drupal.org/handbook/modules/field-ui', '@field' => url('admin/help/field'))) . '</p>';
+      $output .= '<h3>' . t('Uses') . '</h3>';
+      $output .= '<dl>';
+      $output .= '<dt>' . t('Defining custom fields') . '</dt>';
+      $output .= '<dd>' . t('When adding a custom field, you need to determine whether the field type will contain text, numbers, lists, etc., as well as how it will be input (as a text field, text area, select box, checkboxes, radio buttons, etc.). A field may have a single value or multiple values. For example, an employee field might have a single employee identification number, whereas a phone number field might have multiple phone numbers.') . '</dd>';
+      $output .= '<dt>' . t('Adding fields to content types') . '</dt>';
+      $output .= '<dd>' . t("Some fields are provided by default when you create a content type, such as the Title and Body fields. The Field UI module lets administrators edit or delete the default fields attached to content, as well as create new fields for storing any additional information. Field configuration is accessible through tabs on each specific content type's configuration page, listed on the <a href='@content-types'>Content types administration page</a>. See the <a href='@node-help'>Node module help page</a> for more information about content types.", array('@content-types' => url('admin/structure/types'), '@node-help' => url('admin/help/node'))) . '</dd>';
+      $output .= '</dl>';
       return $output;
 
     case 'admin/reports/fields':
@@ -29,7 +30,7 @@ function field_ui_help($path, $arg) {
 }
 
 /**
- * Implement hook_menu().
+ * Implements hook_menu().
  */
 function field_ui_menu() {
   $items['admin/reports/fields'] = array(
@@ -116,7 +117,7 @@ function field_ui_menu() {
             'weight' => 2,
             'file' => 'field_ui.admin.inc',
           ) + $access;
-          $tabs = field_ui_build_modes_tabs($obj_type);
+          $tabs = field_ui_view_modes_tabs($obj_type);
           foreach ($tabs as $key => $tab) {
             $items["$path/display/$key"] = array(
               'title' => $tab['title'],
@@ -152,7 +153,7 @@ function field_ui_menu_label($instance) {
 }
 
 /**
- * Implement hook_theme().
+ * Implements hook_theme().
  */
 function field_ui_theme() {
   return array(
@@ -170,26 +171,26 @@ function field_ui_theme() {
 }
 
 /**
- * Group available build modes on tabs on the 'Manage display' page.
+ * Group available view modes on tabs on the 'Manage display' page.
  *
  * @todo Remove this completely and use vertical tabs?
  */
-function field_ui_build_modes_tabs($obj_type, $tab_selector = NULL) {
+function field_ui_view_modes_tabs($obj_type, $tab_selector = NULL) {
   $info = &drupal_static(__FUNCTION__);
 
   if (!isset($info[$obj_type])) {
-    $info[$obj_type] = module_invoke_all('field_ui_build_modes_tabs');
-    // Collect titles, and filter out non active modes.
-    $active_modes = field_build_modes($obj_type);
+    $info[$obj_type] = module_invoke_all('field_ui_view_modes_tabs', $obj_type);
+    // Filter out inactive modes.
+    $entity_info = entity_get_info($obj_type);
     foreach ($info[$obj_type] as $tab => $values) {
       $modes = array();
-      foreach ($info[$obj_type][$tab]['build modes'] as $mode) {
-        if (isset($active_modes[$mode])) {
-          $modes[$mode] = $active_modes[$mode];
+      foreach ($info[$obj_type][$tab]['view modes'] as $mode) {
+        if (isset($entity_info['view modes'][$mode])) {
+          $modes[] = $mode;
         }
       }
       if ($modes) {
-        $info[$obj_type][$tab]['build modes'] = $modes;
+        $info[$obj_type][$tab]['view modes'] = $modes;
       }
       else {
         unset($info[$obj_type][$tab]);
@@ -197,16 +198,16 @@ function field_ui_build_modes_tabs($obj_type, $tab_selector = NULL) {
     }
   }
   if ($tab_selector) {
-    return isset($info[$obj_type][$tab_selector]) ? $info[$obj_type][$tab_selector]['build modes'] : array();
+    return isset($info[$obj_type][$tab_selector]) ? $info[$obj_type][$tab_selector]['view modes'] : array();
   }
   return $info[$obj_type];
 }
 
 /**
- * Implement hook_field_ui_build_modes_tabs() on behalf of other core modules.
+ * Implements hook_field_ui_view_modes_tabs() on behalf of other core modules.
  *
  * @return
- *   An array describing the build modes defined by the module, grouped by tabs.
+ *   An array describing the view modes defined by the module, grouped by tabs.
  *
  * A module can add its render modes to a tab defined by another module.
  * Expected format:
@@ -214,7 +215,7 @@ function field_ui_build_modes_tabs($obj_type, $tab_selector = NULL) {
  *   array(
  *     'tab1' => array(
  *       'title' => t('The human-readable title of the tab'),
- *       'build modes' => array('mymodule_mode1', 'mymodule_mode2'),
+ *       'view modes' => array('mymodule_mode1', 'mymodule_mode2'),
  *     ),
  *     'tab2' => array(
  *       // ...
@@ -222,52 +223,60 @@ function field_ui_build_modes_tabs($obj_type, $tab_selector = NULL) {
  *   );
  * @endcode
  */
-function field_ui_field_ui_build_modes_tabs() {
+function field_ui_field_ui_view_modes_tabs() {
   $modes = array(
     'basic' => array(
       'title' => t('Basic'),
-      'build modes' => array('teaser', 'full'),
+      'view modes' => array('teaser', 'full'),
     ),
     'rss' => array(
       'title' => t('RSS'),
-      'build modes' => array('rss'),
+      'view modes' => array('rss'),
     ),
     'print' => array(
       'title' => t('Print'),
-      'build modes' => array('print'),
+      'view modes' => array('print'),
     ),
     'search' => array(
       'title' => t('Search'),
-      'build modes' => array('search_index', 'search_result'),
+      'view modes' => array('search_index', 'search_result'),
     ),
   );
   return $modes;
 }
 
 /**
- * Implement hook_field_attach_create_bundle().
+ * Implements hook_field_attach_create_bundle().
  */
-function field_ui_field_attach_create_bundle($bundle) {
+function field_ui_field_attach_create_bundle($obj_type, $bundle) {
   // When a new bundle is created, the menu needs to be rebuilt to add our
   // menu item tabs.
   variable_set('menu_rebuild_needed', TRUE);
 }
 
 /**
- * Implement hook_field_attach_rename_bundle().
+ * Implements hook_field_attach_rename_bundle().
  */
-function field_ui_field_attach_rename_bundle($bundle_old, $bundle_new) {
-  if ($bundle_old !== $bundle_new && $extra = variable_get("field_extra_weights_$bundle_old", array())) {
-    variable_set("field_extra_weights_$bundle_new", $extra);
-    variable_del("field_extra_weights_$bundle_old");
+function field_ui_field_attach_rename_bundle($obj_type, $bundle_old, $bundle_new) {
+  if ($bundle_old !== $bundle_new) {
+    $extra_weights = variable_get('field_extra_weights', array());
+    if (isset($info[$obj_type][$bundle_old])) {
+      $extra_weights[$obj_type][$bundle_new] = $extra_weights[$obj_type][$bundle_old];
+      unset($extra_weights[$obj_type][$bundle_old]);
+      variable_set('field_extra_weights', $extra_weights);
+    }
   }
 }
 
 /**
- * Implement hook_field_attach_delete_bundle().
+ * Implements hook_field_attach_delete_bundle().
  */
-function field_ui_field_attach_delete_bundle($bundle) {
-  variable_del('field_extra_weights_' . $bundle);
+function field_ui_field_attach_delete_bundle($obj_type, $bundle) {
+  $extra_weights = variable_get('field_extra_weights', array());
+  if (isset($extra_weights[$obj_type][$bundle])) {
+    unset($extra_weights[$obj_type][$bundle]);
+    variable_set('field_extra_weights', $extra_weights);
+  }
 }
 
 /**
@@ -305,3 +314,28 @@ function field_ui_inactive_instances($obj_type, $bundle_name = NULL) {
   }
   return $inactive;
 }
+
+/**
+ * Add a button Save and add fields to Create content type form.
+ */
+function field_ui_form_node_type_form_alter(&$form, $form_state) {
+  // We want to display the button only on add page.
+  if (empty($form['#node_type']->type)) {
+    $form['actions']['save_continue'] = array(
+      '#type' => 'submit',
+      '#value' => t('Save and add fields'),
+      '#weight' => 45,
+    );
+    $form['#submit'][] = 'field_ui_form_node_type_form_submit';
+  }
+}
+
+/**
+ * Redirect to manage fields form.
+ */
+function field_ui_form_node_type_form_submit($form, &$form_state) {
+  if ($form_state['clicked_button']['#parents'][0] === 'save_continue') {
+    $form_state['redirect'] = _field_ui_bundle_admin_path('node', $form_state['values']['type']) .'/fields';
+  }
+}
+

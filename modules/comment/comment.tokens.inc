@@ -7,7 +7,7 @@
  */
 
 /**
- * Implement hook_token_info().
+ * Implements hook_token_info().
  */
 function comment_token_info() {
   $type = array(
@@ -108,7 +108,7 @@ function comment_token_info() {
 }
 
 /**
- * Implement hook_tokens().
+ * Implements hook_tokens().
  */
 function comment_tokens($type, $tokens, array $data = array(), array $options = array()) {
   $url_options = array('absolute' => TRUE);
@@ -180,11 +180,12 @@ function comment_tokens($type, $tokens, array $data = array(), array $options = 
 
         // Comment related URLs.
         case 'url':
-          $replacements[$original] = url('comment/' . $comment->cid, array('absolute' => TRUE, 'fragment' => 'comment-' . $comment->cid));
+          $url_options['fragment']  = 'comment-' . $comment->cid;
+          $replacements[$original] = url('comment/' . $comment->cid, $url_options);
           break;
 
         case 'edit-url':
-          $replacements[$original] = url('comment/' . $comment->cid . '/edit', array('absolute' => TRUE));
+          $replacements[$original] = url('comment/' . $comment->cid . '/edit', $url_options);
           break;
 
         // Default values for the chained tokens handled below.
@@ -209,7 +210,7 @@ function comment_tokens($type, $tokens, array $data = array(), array $options = 
 
         case 'node':
           $node = node_load($comment->nid);
-          $title = $node->title[FIELD_LANGUAGE_NONE][0]['value'];
+          $title = $node->title;
           $replacements[$original] = $sanitize ? filter_xss($title) : $title;
           break;
       }

@@ -7,22 +7,26 @@
  */
 
 /**
- * Implement hook_help().
+ * Implements hook_help().
  */
 function simpletest_help($path, $arg) {
   switch ($path) {
     case 'admin/help#simpletest':
-      $output  = '<p>' . t('The SimpleTest module is a framework for running automated unit tests in Drupal. It can be used to verify a working state of Drupal before and after any code changes, or as a means for developers to write and execute tests for their modules.') . '</p>';
-      $output .= '<p>' . t('Visit <a href="@admin-simpletest">Testing</a> to display a list of available tests. For comprehensive testing, select <em>all</em> tests, or individually select tests for more targeted testing. Note that it might take several minutes for all tests to complete.)', array('@admin-simpletest' => url('admin/config/development/testing'))) . '</p>';
-      $output .= '<p>' . t('After the tests have run, a message will be displayed next to each test group indicating whether tests within it passed, failed, or had exceptions. A pass means that a test returned the expected results, while fail means that it did not. An exception normally indicates an error outside of the test, such as a PHP warning or notice. If there were fails or exceptions, the results are expanded, and the tests that had issues will be indicated in red or pink rows. Use these results to refine your code and tests until all tests return a pass.') . '</p>';
-      $output .= '<p>' . t('For more information on creating and modifying your own tests, see the <a href="@simpletest-api">SimpleTest API Documentation</a> in the Drupal handbook.', array('@simpletest-api' => 'http://drupal.org/simpletest')) . '</p>';
-      $output .= '<p>' . t('For more information, see the online handbook entry for <a href="@simpletest">SimpleTest module</a>.', array('@simpletest' => 'http://drupal.org/handbook/modules/simpletest')) . '</p>';
+      $output = '';
+      $output .= '<h3>' . t('About') . '</h3>';
+      $output .= '<p>' . t('The Testing module provides a framework for running automated unit tests. It can be used to verify a working state of Drupal before and after any code changes, or as a means for developers to write and execute tests for their modules. For more information, see the online handbook entry for <a href="@simpletest">Testing module</a>.', array('@simpletest' => 'http://drupal.org/handbook/modules/simpletest', '@blocks' => url('admin/structure/block'))) . '</p>';
+      $output .= '<h3>' . t('Uses') . '</h3>';
+      $output .= '<dl>';
+      $output .= '<dt>' . t('Running tests') . '</dt>';
+      $output .= '<dd>' . t('Visit the <a href="@admin-simpletest">Testing page</a> to display a list of available tests. For comprehensive testing, select <em>all</em> tests, or individually select tests for more targeted testing. Note that it might take several minutes for all tests to complete. For more information on creating and modifying your own tests, see the <a href="@simpletest-api">Testing API Documentation</a> in the Drupal handbook.', array('@simpletest-api' => 'http://drupal.org/simpletest', '@admin-simpletest' => url('admin/config/development/testing'))) . '</dd>';
+      $output .= '<dd>' . t('After the tests run, a message will be displayed next to each test group indicating whether tests within it passed, failed, or had exceptions. A pass means that the test returned the expected results, while fail means that it did not. An exception normally indicates an error outside of the test, such as a PHP warning or notice. If there were failures or exceptions, the results will be expanded to show details, and the tests that had failures or exceptions will be indicated in red or pink rows. You can then use these results to refine your code and tests, until all tests pass.') . '</dd>';
+      $output .= '</dl>';
       return $output;
   }
 }
 
 /**
- * Implement hook_menu().
+ * Implements hook_menu().
  */
 function simpletest_menu() {
   $items['admin/config/development/testing'] = array(
@@ -58,19 +62,19 @@ function simpletest_menu() {
 }
 
 /**
- * Implement hook_permission().
+ * Implements hook_permission().
  */
 function simpletest_permission() {
   return array(
     'administer unit tests' => array(
-      'title' => t('Administer unit tests'),
-      'description' => t('Manage and run automated testing. %warning', array('%warning' => t('Warning: Give to trusted roles only; this permission has security implications.'))),
+      'title' => t('Administer tests'),
+      'description' => drupal_placeholder(array('text' => t('Warning: Give to trusted roles only; this permission has security implications.'))),
     ),
   );
 }
 
 /**
- * Implement hook_theme().
+ * Implements hook_theme().
  */
 function simpletest_theme() {
   return array(
@@ -86,7 +90,7 @@ function simpletest_theme() {
 }
 
 /**
- * Implementation of hook_stream_wrappers().
+ * Implements hook_stream_wrappers().
  */
 function simpletest_test_stream_wrappers() {
   return array(
@@ -99,7 +103,7 @@ function simpletest_test_stream_wrappers() {
 }
 
 /**
- * Implement hook_js_alter().
+ * Implements hook_js_alter().
  */
 function simpletest_js_alter(&$javascript) {
   // Since SimpleTest is a special use case for the table select, stick the
@@ -161,13 +165,7 @@ function simpletest_run_tests($test_list, $reporter = 'drupal') {
 
   module_invoke_all('test_group_started');
 
-  // Normally, the forms portion of the batch API takes care of calling
-  // batch_process(), but in the process it saves the whole $form into the
-  // database (which is huge for the test selection form).
-  // By calling batch_process() directly, we skip that behavior and ensure
-  // that we don't exceed the size of data that can be sent to the database
-  // (max_allowed_packet on MySQL).
-  batch_process('admin/config/development/testing/results/' . $test_id);
+  return $test_id;
 }
 
 /**
@@ -237,7 +235,7 @@ function _simpletest_batch_finished($success, $results, $operations, $elapsed) {
 
 
     drupal_set_message(t('The test run did not successfully finish.'), 'error');
-    drupal_set_message(t('Please use the <em>Clean environment</em> button to clean-up temporary files and tables.'), 'warning');
+    drupal_set_message(t('Use the <em>Clean environment</em> button to clean-up temporary files and tables.'), 'warning');
   }
   module_invoke_all('test_group_finished');
 }
@@ -364,6 +362,8 @@ function simpletest_test_get_all() {
         uksort($tests, 'strnatcasecmp');
       }
 
+      // Allow modules extending core tests to disable originals.
+      drupal_alter('simpletest', $groups);
       cache_set('simpletest', $groups);
     }
   }
@@ -371,7 +371,7 @@ function simpletest_test_get_all() {
 }
 
 /**
- * Implementation of hook_registry_files_alter().
+ * Implements hook_registry_files_alter().
  *
  * Add the test files for disabled modules so that we get a list containing
  * all the avialable tests.
@@ -391,6 +391,35 @@ function simpletest_registry_files_alter(&$files, $modules) {
       }
     }
   }
+}
+
+/**
+ * Generate test file.
+ */
+function simpletest_generate_file($filename, $width, $lines, $type = 'binary-text') {
+  $size = $width * $lines - $lines;
+
+  // Generate random text
+  $text = '';
+  for ($i = 0; $i < $size; $i++) {
+    switch ($type) {
+      case 'text':
+        $text .= chr(rand(32, 126));
+        break;
+      case 'binary':
+        $text .= chr(rand(0, 31));
+        break;
+      case 'binary-text':
+      default:
+        $text .= rand(0, 1);
+        break;
+    }
+  }
+  $text = wordwrap($text, $width - 1, "\n", TRUE) . "\n"; // Add \n for symetrical file.
+
+  // Create filename.
+  file_put_contents(file_directory_path() . '/' . $filename . '.txt', $text);
+  return $filename;
 }
 
 /**
@@ -440,11 +469,11 @@ function simpletest_clean_database() {
  * Find all leftover temporary directories and remove them.
  */
 function simpletest_clean_temporary_directories() {
-  $files = scandir('public://');
+  $files = scandir('public://simpletest');
   $count = 0;
   foreach ($files as $file) {
-    $path = 'public://' . $file;
-    if (is_dir($path) && preg_match('/^simpletest\d+/', $file)) {
+    $path = 'public://simpletest/' . $file;
+    if (is_dir($path) && is_numeric($file)) {
       file_unmanaged_delete_recursive($path);
       $count++;
     }

@@ -9,7 +9,7 @@
 /**
  * The current system version.
  */
-define('VERSION', '7.0-dev');
+define('VERSION', '7.0-alpha1');
 
 /**
  * Core API compatibility.
@@ -24,7 +24,7 @@ define('DRUPAL_MINIMUM_PHP',    '5.2.0');
 /**
  * Minimum recommended value of PHP memory_limit.
  */
-define('DRUPAL_MINIMUM_PHP_MEMORY_LIMIT',    '16M');
+define('DRUPAL_MINIMUM_PHP_MEMORY_LIMIT',    '40M');
 
 /**
  * Minimum supported version of MySQL, if it is used.
@@ -37,8 +37,9 @@ define('DRUPAL_MINIMUM_MYSQL',  '5.0');
 define('DRUPAL_MINIMUM_PGSQL',  '8.3');
 
 /**
- * Indicates that the item should never be removed unless explicitly told to
- * using cache_clear_all() with a cache ID.
+ * Indicates that the item should never be removed unless explicitly selected.
+ *
+ * The item may be removed using cache_clear_all() with a cache ID.
  */
 define('CACHE_PERMANENT', 0);
 
@@ -177,6 +178,13 @@ define('DRUPAL_AUTHENTICATED_RID', 2);
  * http://en.wikipedia.org/wiki/Kilobyte.
  */
 define('DRUPAL_KILOBYTE', 1024);
+
+/**
+ * The language code used when no language is explicitly assigned.
+ *
+ * Defined by ISO639-2 for "Undetermined".
+ */
+define('LANGUAGE_NONE', 'und');
 
 /**
  * The type of language used to define the content language.
@@ -524,7 +532,7 @@ function drupal_settings_initialize() {
   global $base_url, $base_path, $base_root;
 
   // Export the following settings.php variables to the global namespace
-  global $databases, $db_prefix, $cookie_domain, $conf, $installed_profile, $update_free_access, $db_url, $is_https, $base_secure_url, $base_insecure_url;
+  global $databases, $db_prefix, $cookie_domain, $conf, $installed_profile, $update_free_access, $db_url, $drupal_hash_salt, $is_https, $base_secure_url, $base_insecure_url;
   $conf = array();
 
   if (file_exists(DRUPAL_ROOT . '/' . conf_path() . '/settings.php')) {
@@ -572,9 +580,10 @@ function drupal_settings_initialize() {
     // Otherwise use $base_url as session name, without the protocol
     // to use the same session identifiers across http and https.
     list( , $session_name) = explode('://', $base_url, 2);
-    // We escape the hostname because it can be modified by a visitor.
+    // HTTP_HOST can be modified by a visitor, but we already sanitized it
+    // in drupal_settings_initialize().
     if (!empty($_SERVER['HTTP_HOST'])) {
-      $cookie_domain = check_plain($_SERVER['HTTP_HOST']);
+      $cookie_domain = $_SERVER['HTTP_HOST'];
     }
   }
   // Strip leading periods, www., and port numbers from cookie domain.
@@ -651,12 +660,14 @@ function drupal_get_filename($type, $name, $filename = NULL) {
   // when a database connection fails.
   else {
     try {
-      $file = db_query("SELECT filename FROM {system} WHERE name = :name AND type = :type", array(':name' => $name, ':type' => $type))->fetchField();
-      if (file_exists($file)) {
-        $files[$type][$name] = $file;
+      if (function_exists('db_query')) {
+        $file = db_query("SELECT filename FROM {system} WHERE name = :name AND type = :type", array(':name' => $name, ':type' => $type))->fetchField();
+        if (file_exists($file)) {
+          $files[$type][$name] = $file;
+        }
       }
     }
-    catch (PDOException $e) {
+    catch (Exception $e) {
       // The database table may not exist because Drupal is not yet installed,
       // or the database might be down. We have a fallback for this case so we
       // hide the error completely.
@@ -668,21 +679,25 @@ function drupal_get_filename($type, $name, $filename = NULL) {
       $dir = $type . 's';
       if ($type == 'theme_engine') {
         $dir = 'themes/engines';
-        $mask = "/$name\.engine$/";
+        $extension = 'engine';
       }
       elseif ($type == 'theme') {
-        $mask = "/$name\.info$/";
+        $extension = 'info';
       }
       else {
-        $mask = "/$name\.$type$/";
+        $extension = $type;
       }
 
       if (!function_exists('drupal_system_listing')) {
         require_once DRUPAL_ROOT . '/includes/common.inc';
       }
-      $matches = drupal_system_listing($mask, $dir, 'name', 0);
-      if (!empty($matches[$name]->uri)) {
-        $files[$type][$name] = $matches[$name]->uri;
+      // Scan the appropriate directories for all files with the requested
+      // extension, not just the file we are currently looking for. This
+      // prevents unnecessary scans from being repeated when this function is
+      // called more than once in the same page request.
+      $matches = drupal_system_listing("/\.$extension$/", $dir, 'name', 0);
+      foreach ($matches as $matched_name => $file) {
+        $files[$type][$matched_name] = $file->uri;
       }
     }
   }
@@ -701,12 +716,12 @@ function drupal_get_filename($type, $name, $filename = NULL) {
  */
 function variable_initialize($conf = array()) {
   // NOTE: caching the variables improves performance by 20% when serving cached pages.
-  if ($cached = cache_get('variables', 'cache')) {
+  if ($cached = cache_get('variables', 'cache_bootstrap')) {
     $variables = $cached->data;
   }
   else {
     $variables = array_map('unserialize', db_query('SELECT name, value FROM {variable}')->fetchAllKeyed());
-    cache_set('variables', $variables);
+    cache_set('variables', $variables, 'cache_bootstrap');
   }
 
   foreach ($conf as $name => $value) {
@@ -750,7 +765,7 @@ function variable_set($name, $value) {
 
   db_merge('variable')->key(array('name' => $name))->fields(array('value' => serialize($value)))->execute();
 
-  cache_clear_all('variables', 'cache');
+  cache_clear_all('variables', 'cache_bootstrap');
 
   $conf[$name] = $value;
 }
@@ -769,7 +784,7 @@ function variable_del($name) {
   db_delete('variable')
     ->condition('name', $name)
     ->execute();
-  cache_clear_all('variables', 'cache');
+  cache_clear_all('variables', 'cache_bootstrap');
 
   unset($conf[$name]);
 }
@@ -832,7 +847,9 @@ function drupal_page_is_cacheable($allow_caching = NULL) {
  *   The name of the bootstrap hook we wish to invoke.
  */
 function bootstrap_invoke_all($hook) {
-  foreach (module_list(TRUE, TRUE) as $module) {
+  // _drupal_bootstrap_page_cache() already loaded the bootstrap modules, so we
+  // don't need to tell module_list() to reset its bootstrap list.
+  foreach (module_list(FALSE, TRUE) as $module) {
     drupal_load('module', $module);
     module_invoke($module, $hook);
   }
@@ -1276,6 +1293,8 @@ function request_uri() {
  *
  * @see watchdog_severity_levels()
  * @see hook_watchdog()
+ * @see DatabaseConnection::rollback()
+ * @see DatabaseTransaction::rollback()
  */
 function watchdog($type, $message, $variables = array(), $severity = WATCHDOG_NOTICE, $link = NULL) {
   global $user, $base_root;
@@ -1460,16 +1479,11 @@ function drupal_anonymous_user($session = '') {
  *   function called from drupal_bootstrap (recursion).
  * @return
  *   The most recently completed phase.
- *   
+ *
  */
 function drupal_bootstrap($phase = NULL, $new_phase = TRUE) {
-  $final_phase = &drupal_static(__FUNCTION__ . '_final_phase');
-  // When not recursing, store the phase name so it's not forgotten while
-  // recursing.
-  if ($new_phase) {
-    $final_phase = $phase;
-  }
-  $phases = &drupal_static(__FUNCTION__ . '_phases', array(
+  // Not drupal_static(), because does not depend on any run-time information.
+  static $phases = array(
     DRUPAL_BOOTSTRAP_CONFIGURATION,
     DRUPAL_BOOTSTRAP_PAGE_CACHE,
     DRUPAL_BOOTSTRAP_DATABASE,
@@ -1478,14 +1492,31 @@ function drupal_bootstrap($phase = NULL, $new_phase = TRUE) {
     DRUPAL_BOOTSTRAP_PAGE_HEADER,
     DRUPAL_BOOTSTRAP_LANGUAGE,
     DRUPAL_BOOTSTRAP_FULL,
-  ));
-  $completed_phase = &drupal_static(__FUNCTION__ . '_completed_phase', -1);
+  );
+  // Not drupal_static(), because the only legitimate API to control this is to
+  // call drupal_bootstrap() with a new phase parameter.
+  static $final_phase;
+  // Not drupal_static(), because it's impossible to roll back to an earlier
+  // bootstrap state.
+  static $stored_phase = -1;
 
+  // When not recursing, store the phase name so it's not forgotten while
+  // recursing.
+  if ($new_phase) {
+    $final_phase = $phase;
+  }
   if (isset($phase)) {
     // Call a phase if it has not been called before and is below the requested
     // phase.
-    while ($phases && $phase > $completed_phase && $final_phase > $completed_phase) {
+    while ($phases && $phase > $stored_phase && $final_phase > $stored_phase) {
       $current_phase = array_shift($phases);
+
+      // This function is re-entrant. Only update the completed phase when the
+      // current call actually resulted in a progress in the bootstrap process.
+      if ($current_phase > $stored_phase) {
+        $stored_phase = $current_phase;
+      }
+
       switch ($current_phase) {
         case DRUPAL_BOOTSTRAP_CONFIGURATION:
           _drupal_bootstrap_configuration();
@@ -1521,14 +1552,9 @@ function drupal_bootstrap($phase = NULL, $new_phase = TRUE) {
           _drupal_bootstrap_full();
           break;
       }
-      // This function is reentrant. Only update the completed phase when the
-      // current call actually resulted in a progress in the bootstrap process.
-      if ($current_phase > $completed_phase) {
-        $completed_phase = $current_phase;
-      }
     }
   }
-  return $completed_phase;
+  return $stored_phase;
 }
 
 /**
@@ -1550,7 +1576,10 @@ function _drupal_bootstrap_page_cache() {
 
   // Allow specifying special cache handlers in settings.php, like
   // using memcached or files for storing cache information.
-  require_once DRUPAL_ROOT . '/' . variable_get('cache_inc', 'includes/cache.inc');
+  require_once DRUPAL_ROOT . '/includes/cache.inc';
+  foreach (variable_get('cache_backends', array()) as $include) {
+    require_once DRUPAL_ROOT . '/' . $include;
+  }
   // Check for a cache mode force from settings.php.
   if (variable_get('page_cache_without_database')) {
     $cache_mode = CACHE_NORMAL;
@@ -1602,6 +1631,10 @@ function _drupal_bootstrap_database() {
   // Initialize the database system. Note that the connection
   // won't be initialized until it is actually requested.
   require_once DRUPAL_ROOT . '/includes/database/database.inc';
+
+  // Set Drupal's watchdog as the logging callback.
+  Database::setLoggingCallback('watchdog', WATCHDOG_NOTICE, WATCHDOG_ERROR);
+
   // Register autoload functions so that we can access classes and interfaces.
   spl_autoload_register('drupal_autoload_class');
   spl_autoload_register('drupal_autoload_interface');
@@ -2005,7 +2038,7 @@ function _registry_check_code($type, $name = NULL) {
 
   if (!isset($lookup_cache)) {
     $lookup_cache = array();
-    if ($cache = cache_get('lookup_cache', 'cache_registry')) {
+    if ($cache = cache_get('lookup_cache', 'cache_bootstrap')) {
       $lookup_cache = $cache->data;
     }
   }
@@ -2022,7 +2055,7 @@ function _registry_check_code($type, $name = NULL) {
   // changes to the lookup cache for this request.
   if ($type == REGISTRY_WRITE_LOOKUP_CACHE) {
     if ($cache_update_needed) {
-      cache_set('lookup_cache', $lookup_cache, 'cache_registry');
+      cache_set('lookup_cache', $lookup_cache, 'cache_bootstrap');
     }
     return;
   }
@@ -2069,8 +2102,22 @@ function _registry_check_code($type, $name = NULL) {
  * each interface or class in the database.
  */
 function registry_rebuild() {
+  system_rebuild_module_data();
+  registry_update();
+}
+
+/**
+ * Update the registry based on the latest files listed in the database.
+ *
+ * This function should be used when system_rebuild_module_data() does not need
+ * to be called, because it is already known that the list of files in the
+ * {system} table matches those in the file system.
+ *
+ * @see registry_rebuild()
+ */
+function registry_update() {
   require_once DRUPAL_ROOT . '/includes/registry.inc';
-  _registry_rebuild();
+  _registry_update();
 }
 
 /**
@@ -2079,6 +2126,102 @@ function registry_rebuild() {
 
 /**
  * Central static variable storage.
+ *
+ * All functions requiring a static variable to persist or cache data within
+ * a single page request are encouraged to use this function unless it is
+ * absolutely certain that the static variable will not need to be reset during
+ * the page request. By centralizing static variable storage through this
+ * function, other functions can rely on a consistent API for resetting any
+ * other function's static variables.
+ *
+ * Example:
+ * @code
+ * function language_list($field = 'language') {
+ *   $languages = &drupal_static(__FUNCTION__);
+ *   if (!isset($languages)) {
+ *     // If this function is being called for the first time after a reset,
+ *     // query the database and execute any other code needed to retrieve
+ *     // information about the supported languages.
+ *     ...
+ *   }
+ *   if (!isset($languages[$field])) {
+ *     // If this function is being called for the first time for a particular
+ *     // index field, then execute code needed to index the information already
+ *     // available in $languages by the desired field.
+ *     ...
+ *   }
+ *   // Subsequent invocations of this function for a particular index field
+ *   // skip the above two code blocks and quickly return the already indexed
+ *   // information.
+ *   return $languages[$field];
+ * }
+ * function locale_translate_overview_screen() {
+ *   // When building the content for the translations overview page, make
+ *   // sure to get completely fresh information about the supported languages.
+ *   drupal_static_reset('language_list');
+ *   ...
+ * }
+ * @endcode
+ *
+ * In a few cases, a function can have certainty that there is no legitimate
+ * use-case for resetting that function's static variable. This is rare,
+ * because when writing a function, it's hard to forecast all the situations in
+ * which it will be used. A guideline is that if a function's static variable
+ * does not depend on any information outside of the function that might change
+ * during a single page request, then it's ok to use the "static" keyword
+ * instead of the drupal_static() function.
+ *
+ * Example:
+ * @code
+ * function actions_do(...) {
+ *   // $stack tracks the number of recursive calls.
+ *   static $stack;
+ *   $stack++;
+ *   if ($stack > variable_get('actions_max_stack', 35)) {
+ *     ...
+ *     return;
+ *   }
+ *   ...
+ *   $stack--;
+ * }
+ * @endcode
+ *
+ * In a few cases, a function needs a resettable static variable, but the
+ * function is called many times (100+) during a single page request, so
+ * every microsecond of execution time that can be removed from the function
+ * counts. These functions can use a more cumbersome, but faster variant of
+ * calling drupal_static(). It works by storing the reference returned by
+ * drupal_static() in the calling function's own static variable, thereby
+ * removing the need to call drupal_static() for each iteration of the function.
+ * Conceptually, it replaces:
+ * @code
+ * $foo = &drupal_static(__FUNCTION__);
+ * @endcode
+ * with:
+ * @code
+ * // Unfortunately, this does not work.
+ * static $foo = &drupal_static(__FUNCTION__);
+ * @endcode
+ * However, the above line of code does not work, because PHP only allows static
+ * variables to be initializied by literal values, and does not allow static
+ * variables to be assigned to references.
+ * - http://php.net/manual/en/language.variables.scope.php#language.variables.scope.static
+ * - http://php.net/manual/en/language.variables.scope.php#language.variables.scope.references
+ * The example below shows the syntax needed to work around both limitations.
+ * For benchmarks and more information, @see http://drupal.org/node/619666.
+ *
+ * Example:
+ * @code
+ * function user_access($string, $account = NULL) {
+ *   // Use the advanced drupal_static() pattern, since this is called very often.
+ *   static $drupal_static_fast;
+ *   if (!isset($drupal_static_fast)) {
+ *     $drupal_static_fast['perm'] = &drupal_static(__FUNCTION__);
+ *   }
+ *   $perm = &$drupal_static_fast['perm'];
+ *   ...
+ * }
+ * @endcode
  *
  * @param $name
  *   Globally unique name for the variable. For a function with only one static,
@@ -2091,31 +2234,43 @@ function registry_rebuild() {
  *   TRUE to reset a specific named variable, or all variables if $name is NULL.
  *   Resetting every variable should only be used, for example, for running
  *   unit tests with a clean environment. Should be used only though via
- *   function drupal_static_reset().
+ *   function drupal_static_reset() and the return value should not be used in
+ *   this case.
  *
  * @return
- *   Returns a variable by reference if $reset is FALSE.
+ *   Returns a variable by reference.
+ *
+ * @see drupal_static_reset()
  */
 function &drupal_static($name, $default_value = NULL, $reset = FALSE) {
-  static $data = array();
-
-  // Reset a single value, or all values.
+  static $data = array(), $default = array();
+  if (!isset($name)) {
+    // All variables are reset. This needs to be done one at a time so that
+    // references returned by earlier invocations of drupal_static() also get
+    // reset.
+    foreach ($default as $name => $value) {
+      $data[$name] = $value;
+    }
+    // As the function returns a reference, the return should always be a
+    // variable.
+    return $data;
+  }
   if ($reset) {
-    if (isset($name)) {
-      unset($data[$name]);
+    // The reset means the default is loaded.
+    if (array_key_exists($name, $default)) {
+      $data[$name] = $default[$name];
     }
     else {
-      $data = array();
+      // Reset was called before a default is set and yet a variable must be
+      // returned.
+      return $data;
     }
-    // We must return a reference to a variable.
-    $dummy = NULL;
-    return $dummy;
   }
-
-  if (!isset($data[$name])) {
-    $data[$name] = $default_value;
+  elseif (!array_key_exists($name, $data)) {
+    // Store the default value internally and also copy it to the reference to
+    // be returned.
+    $default[$name] = $data[$name] = $default_value;
   }
-
   return $data[$name];
 }
 
@@ -2134,4 +2289,19 @@ function drupal_static_reset($name = NULL) {
  */
 function drupal_is_cli() {
   return (!isset($_SERVER['SERVER_SOFTWARE']) && (php_sapi_name() == 'cli' || (is_numeric($_SERVER['argc']) && $_SERVER['argc'] > 0)));
+}
+
+/**
+ * Formats text for emphasized display in a placeholder inside a sentence.
+ * Used automatically by t().
+ *
+ * @param $variables
+ *   An associative array containing:
+ *   - text: The text to format (plain-text).
+ *
+ * @return
+ *   The formatted text (html).
+ */
+function drupal_placeholder($variables) {
+  return '<em class="placeholder">' . check_plain($variables['text']) . '</em>';
 }

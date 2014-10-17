@@ -162,7 +162,7 @@ define('MENU_SUGGESTED_ITEM', MENU_VISIBLE_IN_BREADCRUMB | 0x0010);
  * parent item. An example is the path "node/52/edit", which performs the
  * "edit" task on "node/52".
  */
-define('MENU_LOCAL_TASK', MENU_IS_LOCAL_TASK);
+define('MENU_LOCAL_TASK', MENU_IS_LOCAL_TASK | MENU_VISIBLE_IN_BREADCRUMB);
 
 /**
  * Menu type -- The "default" local task, which is initially active.
@@ -170,7 +170,7 @@ define('MENU_LOCAL_TASK', MENU_IS_LOCAL_TASK);
  * Every set of local tasks should provide one "default" task, that links to the
  * same path as its parent when clicked.
  */
-define('MENU_DEFAULT_LOCAL_TASK', MENU_IS_LOCAL_TASK | MENU_LINKS_TO_PARENT);
+define('MENU_DEFAULT_LOCAL_TASK', MENU_IS_LOCAL_TASK | MENU_LINKS_TO_PARENT | MENU_VISIBLE_IN_BREADCRUMB);
 
 /**
  * Menu type -- An action specific to the parent, usually rendered as a link.
@@ -178,7 +178,7 @@ define('MENU_DEFAULT_LOCAL_TASK', MENU_IS_LOCAL_TASK | MENU_LINKS_TO_PARENT);
  * Local actions are menu items that describe actions on the parent item such
  * as adding a new user, taxonomy term, etc.
  */
-define('MENU_LOCAL_ACTION', MENU_IS_LOCAL_TASK | MENU_IS_LOCAL_ACTION);
+define('MENU_LOCAL_ACTION', MENU_IS_LOCAL_TASK | MENU_IS_LOCAL_ACTION | MENU_VISIBLE_IN_BREADCRUMB);
 
 /**
  * @} End of "Menu item types".
@@ -189,6 +189,14 @@ define('MENU_LOCAL_ACTION', MENU_IS_LOCAL_TASK | MENU_IS_LOCAL_ACTION);
  * @{
  * Flags for use in the "context" attribute of menu router items.
  */
+
+/**
+ * Internal menu flag: Invisible local task.
+ *
+ * This flag may be used for local tasks like "Delete", so custom modules and
+ * themes can alter the default context and expose the task by altering menu.
+ */
+define('MENU_CONTEXT_NONE', 0x0000);
 
 /**
  * Internal menu flag: Local task should be displayed in page context.
@@ -395,13 +403,17 @@ function menu_get_item($path = NULL, $router_item = NULL) {
     $original_map = arg(NULL, $path);
     $parts = array_slice($original_map, 0, MENU_MAX_PARTS);
     $ancestors = menu_get_ancestors($parts);
-    $router_item = db_select('menu_router')
-      ->fields('menu_router')
-      ->condition('path', $ancestors, 'IN')
-      ->orderBy('fit', 'DESC')
-      ->range(0, 1)
-      ->addTag('menu_get_item')
-      ->execute()->fetchAssoc();
+
+    // Since there is no limit to the length of $path, but the cids are
+    // restricted to 255 characters, use md5() to keep it short yet unique.
+    $cid = 'menu_item:' . md5($path);
+    if ($cached = cache_get($cid, 'cache_menu')) {
+      $router_item = $cached->data;
+    }
+    else {
+      $router_item = db_query_range('SELECT * FROM {menu_router} WHERE path IN (:ancestors) ORDER BY fit DESC', 0, 1, array(':ancestors' => $ancestors))->fetchAssoc();
+      cache_set($cid, $router_item, 'cache_menu');
+    }
     if ($router_item) {
       $map = _menu_translate($router_item, $original_map);
       $router_item['original_map'] = $original_map;
@@ -422,7 +434,7 @@ function menu_get_item($path = NULL, $router_item = NULL) {
 
 /**
  * Execute the page callback associated with the current path.
- * 
+ *
  * @param $path
  *   The drupal path whose handler is to be be executed. If set to NULL, then
  *   the current path is used.
@@ -909,11 +921,12 @@ function menu_tree_output($tree) {
       $data['localized_options']['attributes']['class'][] = 'active-trail';
     }
 
-    $element['#theme'] = 'menu_link';
+    // Allow menu-specific theme overrides.
+    $element['#theme'] = 'menu_link__' . $data['link']['menu_name'];
     $element['#attributes']['class'] = $class;
     $element['#title'] = $data['link']['title'];
     $element['#href'] = $data['link']['href'];
-    $element['#localized_options'] = !empty($data['localized_options']) ? $data['localized_options'] : array();
+    $element['#localized_options'] = !empty($data['link']['localized_options']) ? $data['link']['localized_options'] : array();
     $element['#below'] = $data['below'] ? menu_tree_output($data['below']) : $data['below'];
     $element['#original_link'] = $data['link'];
     // Index using the link's unique mlid.
@@ -923,7 +936,8 @@ function menu_tree_output($tree) {
     // Make sure drupal_render() does not re-order the links.
     $build['#sorted'] = TRUE;
     // Add the theme wrapper for outer markup.
-    $build['#theme_wrappers'][] = 'menu_tree';
+    // Allow menu-specific theme overrides.
+    $build['#theme_wrappers'][] = 'menu_tree__' . $data['link']['menu_name'];
   }
 
   return $build;
@@ -1438,7 +1452,20 @@ function theme_menu_local_task($variables) {
  */
 function theme_menu_local_action($variables) {
   $link = $variables['element']['#link'];
-  return '<li>' . l($link['title'], $link['href'], $link['localized_options']) . "</li>\n";
+
+  $output = '<li>';
+  if (isset($link['href'])) {
+    $output .= l($link['title'], $link['href'], isset($link['localized_options']) ? $link['localized_options'] : array());
+  }
+  elseif (!empty($link['localized_options']['html'])) {
+    $output .= $link['title'];
+  }
+  else {
+    $output .= check_plain($link['title']);
+  }
+  $output .= "</li>\n";
+
+  return $output;
 }
 
 /**
@@ -1468,11 +1495,6 @@ function menu_get_active_help() {
     // Lookup help for this path.
     if ($help = $function($router_path, $arg)) {
       $output .= $help . "\n";
-    }
-    // Add "more help" link on admin pages if the module provides a
-    // standalone help page.
-    if ($arg[0] == "admin" && user_access('access administration pages') && module_exists('help') && $function('admin/help#' . $arg[2], $empty_arg) && $help) {
-      $output .= theme("more_help_link", array('url' => url('admin/help/' . $arg[2])));
     }
   }
   return $output;
@@ -1790,6 +1812,11 @@ function menu_local_tasks($level = 0) {
       'root_path' => $root_path,
     );
   }
+  // @todo If there are no tabs, then there still can be actions; for example,
+  //   when added via hook_menu_local_tasks_alter().
+  elseif (!empty($data['actions']['output'])) {
+    return array('actions' => $data['actions']) + $empty;
+  }
   return $empty;
 }
 
@@ -1817,18 +1844,18 @@ function menu_local_tasks($level = 0) {
  *   rendering by theme_links(). For example, if $module is 'block' and the
  *   retrieved local task path argument is 'edit', then the resulting CSS class
  *   will be 'block-edit'.
- * @param $path
+ * @param $parent_path
  *   The static menu router path of the object to retrieve local tasks for, for
  *   example 'node' or 'admin/structure/block/manage'.
  * @param $args
- *   A list of of dynamic path arguments to append to $path to form the fully-
- *   qualified menu router path, for example array(123) for a certain node or
- *   array('system', 'navigation') for a certain block.
+ *   A list of dynamic path arguments to append to $parent_path to form the
+ *   fully-qualified menu router path, for example array(123) for a certain
+ *   node or array('system', 'navigation') for a certain block.
  *
  * @return
  *   A list of menu router items that are local tasks for the passed in path.
  *
- * @see system_preprocess()
+ * @see contextual_links_preprocess()
  */
 function menu_contextual_links($module, $parent_path, $args) {
   static $path_empty = array();
@@ -1859,6 +1886,7 @@ function menu_contextual_links($module, $parent_path, $args) {
     $data[$root_path] = db_select('menu_router', 'm')
       ->fields('m')
       ->condition('tab_parent', $router_item['tab_root'])
+      ->condition('context', MENU_CONTEXT_NONE, '<>')
       ->condition('context', MENU_CONTEXT_PAGE, '<>')
       ->orderBy('weight')
       ->orderBy('title')
@@ -2176,6 +2204,9 @@ function menu_cache_clear($menu_name = 'navigation') {
     register_shutdown_function('cache_clear_all', 'links:' . $menu_name . ':', 'cache_menu', TRUE);
     $cache_cleared[$menu_name] = 2;
   }
+
+  // Also clear the menu system static caches.
+  menu_reset_static_cache();
 }
 
 /**
@@ -2184,6 +2215,17 @@ function menu_cache_clear($menu_name = 'navigation') {
  */
 function menu_cache_clear_all() {
   cache_clear_all('*', 'cache_menu', TRUE);
+  menu_reset_static_cache();
+}
+
+/**
+ * Resets the menu system static cache.
+ */
+function menu_reset_static_cache() {
+  drupal_static_reset('menu_tree');
+  drupal_static_reset('menu_tree_all_data');
+  drupal_static_reset('menu_tree_page_data');
+  drupal_static_reset('menu_load_all');
 }
 
 /**
@@ -2209,19 +2251,27 @@ function menu_rebuild() {
     return FALSE;
   }
 
-  list($menu, $masks) = menu_router_build();
-  _menu_router_save($menu, $masks);
-  _menu_navigation_links_rebuild($menu);
-  // Clear the menu, page and block caches.
-  menu_cache_clear_all();
-  _menu_clear_page_cache();
+  $transaction = db_transaction();
 
-  if (defined('MAINTENANCE_MODE')) {
-    variable_set('menu_rebuild_needed', TRUE);
+  try {
+    list($menu, $masks) = menu_router_build();
+    _menu_router_save($menu, $masks);
+    _menu_navigation_links_rebuild($menu);
+    // Clear the menu, page and block caches.
+    menu_cache_clear_all();
+    _menu_clear_page_cache();
+
+    if (defined('MAINTENANCE_MODE')) {
+      variable_set('menu_rebuild_needed', TRUE);
+    }
+    else {
+      variable_del('menu_rebuild_needed');
+    }
   }
-  else {
-    variable_del('menu_rebuild_needed');
+  catch (Exception $e) {
+    $transaction->rollback('menu', $e->getMessage(), array(), WATCHDOG_ERROR);
   }
+
   lock_release('menu_rebuild');
   return TRUE;
 }
@@ -2278,11 +2328,13 @@ function menu_get_router() {
  * Builds a link from a router item.
  */
 function _menu_link_build($item) {
-  if ($item['type'] == MENU_CALLBACK) {
-    $item['hidden'] = -1;
-  }
-  elseif ($item['type'] == MENU_SUGGESTED_ITEM) {
+  // Suggested items are disabled by default.
+  if ($item['type'] == MENU_SUGGESTED_ITEM) {
     $item['hidden'] = 1;
+  }
+  // Hide all items that are not visible in the tree.
+  elseif (!($item['type'] & MENU_VISIBLE_IN_TREE)) {
+    $item['hidden'] = -1;
   }
   // Note, we set this as 'system', so that we can be sure to distinguish all
   // the menu links generated automatically from entries in {menu_router}.
@@ -2334,8 +2386,9 @@ function _menu_navigation_links_rebuild($menu) {
           $item['plid'] = $existing_item['plid'];
         }
         else {
-          // If it moved, put it at the top level in the new menu.
-          $item['plid'] = 0;
+          // It moved to a new menu. Let menu_link_save() try to find a new
+          // parent based on the path.
+          unset($item['plid']);
         }
         $item['has_children'] = $existing_item['has_children'];
         $item['updated'] = $existing_item['updated'];
@@ -2534,7 +2587,6 @@ function _menu_delete_item($item, $force = FALSE) {
  *   saved.
  */
 function menu_link_save(&$item) {
-
   drupal_alter('menu_link', $item);
 
   // This is the easiest way to handle the unique internal path '<front>',
@@ -2560,15 +2612,17 @@ function menu_link_save(&$item) {
     }
   }
 
+  // If we have a parent link ID, we use it to inherit 'menu_name' and 'depth'.
   if (isset($item['plid'])) {
     if ($item['plid']) {
       $parent = db_query("SELECT * FROM {menu_links} WHERE mlid = :mlid", array(':mlid' => $item['plid']))->fetchAssoc();
     }
+    // If the parent link ID is zero, then this link lives at the top-level.
     else {
-      // Don't bother with the query - mlid can never equal zero..
       $parent = FALSE;
     }
   }
+  // Otherwise, try to find a valid parent link for this link.
   else {
     $query = db_select('menu_links');
     // Only links derived from router items should have module == 'system', and
@@ -2576,10 +2630,9 @@ function menu_link_save(&$item) {
     if ($item['module'] == 'system') {
       $query->condition('module', 'system');
     }
-    else {
-      // If not derived from a router item, we respect the specified menu name.
-      $query->condition('menu_name', $item['menu_name']);
-    }
+    // We always respect the link's 'menu_name'; inheritance for router items is
+    // ensured in _menu_router_build().
+    $query->condition('menu_name', $item['menu_name']);
 
     // Find the parent - it must be unique.
     $parent_path = $item['link_path'];
@@ -2594,18 +2647,16 @@ function menu_link_save(&$item) {
       }
     } while ($parent === FALSE && $parent_path);
   }
-  if ($parent !== FALSE) {
+  // If a parent link was found, assign it and derive its menu.
+  if (!empty($parent['mlid'])) {
+    $item['plid'] = $parent['mlid'];
     $item['menu_name'] = $parent['menu_name'];
   }
-  $menu_name = $item['menu_name'];
-  // Menu callbacks need to be in the links table for breadcrumbs, but can't
-  // be parents if they are generated directly from a router item.
-  if (empty($parent['mlid']) || $parent['hidden'] < 0) {
-    $item['plid'] =  0;
-  }
+  // If no corresponding parent link was found, move the link to the top-level.
   else {
-    $item['plid'] = $parent['mlid'];
+    $item['plid'] = 0;
   }
+  $menu_name = $item['menu_name'];
 
   if (!$existing_item) {
     $item['mlid'] = db_insert('menu_links')
@@ -2627,15 +2678,17 @@ function menu_link_save(&$item) {
       ->execute();
   }
 
-  if (!$item['plid']) {
+  // Directly fill parents for top-level links.
+  if ($item['plid'] == 0) {
     $item['p1'] = $item['mlid'];
     for ($i = 2; $i <= MENU_MAX_DEPTH; $i++) {
       $item["p$i"] = 0;
     }
     $item['depth'] = 1;
   }
+  // Otherwise, ensure that this link's depth is not beyond the maximum depth
+  // and fill parents based on the parent link.
   else {
-    // Cannot add beyond the maximum depth.
     if ($item['has_children'] && $existing_item) {
       $limit = MENU_MAX_DEPTH - menu_link_children_relative_depth($existing_item) - 1;
     }
@@ -3043,8 +3096,24 @@ function _menu_router_build($callbacks) {
       $parent_path = implode('/', array_slice($item['_parts'], 0, $i));
       if (isset($menu[$parent_path])) {
 
-        $parent = $menu[$parent_path];
+        $parent = &$menu[$parent_path];
 
+        // If we have no menu name, try to inherit it from parent items.
+        if (!isset($item['menu_name'])) {
+          // If the parent item of this item does not define a menu name (and no
+          // previous iteration assigned one already), try to find the menu name
+          // of the parent item in the currently stored menu links.
+          if (!isset($parent['menu_name'])) {
+            $menu_name = db_query("SELECT menu_name FROM {menu_links} WHERE router_path = :router_path", array(':router_path' => $parent_path))->fetchField();
+            if ($menu_name) {
+              $parent['menu_name'] = $menu_name;
+            }
+          }
+          // If the parent item defines a menu name, inherit it.
+          if (!empty($parent['menu_name'])) {
+            $item['menu_name'] = $parent['menu_name'];
+          }
+        }
         if (!isset($item['tab_parent'])) {
           // Parent stores the parent of the path.
           $item['tab_parent'] = $parent_path;
@@ -3140,7 +3209,7 @@ function _menu_router_build($callbacks) {
  */
 function _menu_router_save($menu, $masks) {
   // Delete the existing router since we have some data to replace it.
-  db_delete('menu_router')->execute();
+  db_truncate('menu_router')->execute();
 
   // Prepare insert object.
   $insert = db_insert('menu_router')
@@ -3171,6 +3240,8 @@ function _menu_router_save($menu, $masks) {
       'file',
     ));
 
+  $num_records = 0;
+
   foreach ($menu as $path => $item) {
     // Fill in insert object values.
     $insert->values(array(
@@ -3199,8 +3270,15 @@ function _menu_router_save($menu, $masks) {
       'weight' => $item['weight'],
       'file' => $item['include file'],
     ));
+
+    // Execute in batches to avoid the memory overhead of all of those records
+    // in the query object.
+    if (++$num_records == 20) {
+      $insert->execute();
+      $num_records = 0;
+    }
   }
-  // Execute insert object.
+  // Insert any remaining records.
   $insert->execute();
   // Store the masks.
   variable_set('menu_masks', $masks);
@@ -3253,39 +3331,6 @@ function _menu_site_is_offline($check_only = FALSE) {
     }
   }
   return FALSE;
-}
-
-/**
- * Validates the path of a menu link being created or edited.
- *
- * @return
- *   TRUE if it is a valid path AND the current user has access permission,
- *   FALSE otherwise.
- */
-function menu_valid_path($form_item) {
-  global $menu_admin;
-  $item = array();
-  $path = $form_item['link_path'];
-  // We indicate that a menu administrator is running the menu access check.
-  $menu_admin = TRUE;
-  if ($path == '<front>' || url_is_external($path)) {
-    $item = array('access' => TRUE);
-  }
-  elseif (preg_match('/\/\%/', $path)) {
-    // Path is dynamic (ie 'user/%'), so check directly against menu_router table.
-    if ($item = db_query("SELECT * FROM {menu_router} where path = :path", array(':path' => $path))->fetchAssoc()) {
-      $item['link_path']  = $form_item['link_path'];
-      $item['link_title'] = $form_item['link_title'];
-      $item['external']   = FALSE;
-      $item['options'] = '';
-      _menu_link_translate($item);
-    }
-  }
-  else {
-    $item = menu_get_item($path);
-  }
-  $menu_admin = FALSE;
-  return $item && $item['access'];
 }
 
 /**

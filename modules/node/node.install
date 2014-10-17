@@ -7,7 +7,7 @@
  */
 
 /**
- * Implement hook_schema().
+ * Implements hook_schema().
  */
 function node_schema() {
   $schema['node'] = array(
@@ -369,6 +369,9 @@ function node_update_7000() {
     ->fields(array('module' => 'node_content'))
     ->condition('module', 'node')
     ->execute();
+
+  // Rename the module column to base.
+  db_change_field('node_type', 'module', 'base', array('type' => 'varchar', 'length' => 255, 'not null' => TRUE));
 }
 
 /**
@@ -434,6 +437,8 @@ function node_update_7005() {
  * Convert body and teaser from node properties to fields, and migrate status/comment/promote and sticky columns to the {node_revision} table.
  */
 function node_update_7006(&$context) {
+  taxonomy_update_7002();
+
   $context['#finished'] = 0;
 
   // Get node type info for every invocation.
@@ -443,9 +448,9 @@ function node_update_7006(&$context) {
   if (!isset($context['total'])) {
     // Initial invocation.
 
-    // Re-save node types to create title and body field instances.
+    // Re-save node types to create body field instances.
     foreach ($node_types as $type => $info) {
-      if ($info->has_title || $info->has_body) {
+      if ($info->has_body) {
         node_type_save($info);
       }
     }
@@ -460,6 +465,10 @@ function node_update_7006(&$context) {
   }
   else {
     // Subsequent invocations.
+
+    // Save the field IDs for field_sql_storage_field_storage_write().
+    $body_field = field_info_field('body');
+    $body_field_id = $body_field['id'];
 
     $found = FALSE;
     if ($context['total']) {
@@ -490,30 +499,29 @@ function node_update_7006(&$context) {
             'vid' => $revision->vid,
             'type' => $revision->type,
           );
-          $node->title[FIELD_LANGUAGE_NONE][0]['value'] = $revision->title;
+          $node->title = $revision->title;
           if (!empty($revision->teaser) && $revision->teaser != text_summary($revision->body)) {
-            $node->body[FIELD_LANGUAGE_NONE][0]['summary'] = $revision->teaser;
+            $node->body[LANGUAGE_NONE][0]['summary'] = $revision->teaser;
           }
           // Do this after text_summary() above.
           $break = '<!--break-->';
           if (substr($revision->body, 0, strlen($break)) == $break) {
             $revision->body = substr($revision->body, strlen($break));
           }
-          $node->body[FIELD_LANGUAGE_NONE][0]['value'] = $revision->body;
+          $node->body[LANGUAGE_NONE][0]['value'] = $revision->body;
           // Explicitly store the current default text format if the revision
           // did not have its own text format. Similar conversions for other
           // core modules are performed in filter_update_7005(), but we do this
           // one here since we are already migrating the data.
-          $node->body[FIELD_LANGUAGE_NONE][0]['format'] = !empty($revision->format) ? $revision->format : variable_get('filter_default_format', 1);
+          $node->body[LANGUAGE_NONE][0]['format'] = !empty($revision->format) ? $revision->format : variable_get('filter_default_format', 1);
           // This is a core update and no contrib modules are enabled yet, so
           // we can assume default field storage for a faster update.
-          field_sql_storage_field_storage_write('node', $node, FIELD_STORAGE_INSERT, array());
+          field_sql_storage_field_storage_write('node', $node, FIELD_STORAGE_INSERT, array($body_field_id));
         }
 
         // Migrate the status columns to the {node_revision} table.
         db_update('node_revision')
           ->fields(array(
-            'vid' => $revision->vid,
             'status' => $revision->status,
             'comment' => $revision->comment,
             'promote' => $revision->promote,
@@ -553,6 +561,26 @@ function node_update_7006(&$context) {
  */
 function node_update_7007() {
   db_drop_field('node_type', 'min_word_count');
+}
+
+/**
+ * Split the 'administer nodes' permission from 'access content overview'.
+ */
+function node_update_7008() {
+  $roles = user_roles(FALSE, 'administer nodes');
+  foreach ($roles as $rid => $role) {
+    user_role_grant_permissions($rid, array('access content overview'));
+  }
+}
+
+/**
+ * Convert node languages from the empty string to LANGUAGE_NONE.
+ */
+function node_update_7009() {
+  db_update('node')
+    ->fields(array('language' => LANGUAGE_NONE))
+    ->condition('language', '')
+    ->execute();
 }
 
 /**

@@ -9,12 +9,21 @@
       <div id="header">
         <div id="logo-floater">
         <?php if ($logo || $site_title): ?>
-          <h1><a href="<?php print $front_page ?>" title="<?php print $site_title ?>">
-          <?php if ($logo): ?>
-            <img src="<?php print $logo ?>" alt="<?php print $site_title ?>" id="logo" />
-          <?php endif; ?>
-          <?php print $site_html ?>
-          </a></h1>
+          <?php if ($title): ?>
+            <div id="branding"><strong><a href="<?php print $front_page ?>" title="<?php print $site_name_and_slogan ?>">
+            <?php if ($logo): ?>
+              <img src="<?php print $logo ?>" alt="<?php print $site_name_and_slogan ?>" id="logo" />
+            <?php endif; ?>
+            <?php print $site_html ?>
+            </a></strong></div>           
+          <?php else: /* Use h1 when the content title is empty */ ?>  
+            <h1 id="branding"><a href="<?php print $front_page ?>" title="<?php print $site_name_and_slogan ?>">
+            <?php if ($logo): ?>
+              <img src="<?php print $logo ?>" alt="<?php print $site_name_and_slogan ?>" id="logo" />
+            <?php endif; ?>
+            <?php print $site_html ?>
+            </a></h1>
+        <?php endif; ?>
         <?php endif; ?>
         </div>
 
@@ -31,11 +40,16 @@
       <div id="center"><div id="squeeze"><div class="right-corner"><div class="left-corner">
           <?php print $breadcrumb; ?>
           <?php if ($page['highlight']): ?><div id="highlight"><?php render($page['highlight']); ?></div><?php endif; ?>
+          <a id="main-content"></a>
           <?php if ($tabs): ?><div id="tabs-wrapper" class="clearfix"><?php endif; ?>
-          <?php if ($title): ?><h2<?php print $tabs ? ' class="with-tabs"' : '' ?>><?php print $title ?></h2><?php endif; ?>
+          <?php print render($title_prefix); ?>
+          <?php if ($title): ?>
+            <h1<?php print $tabs ? ' class="with-tabs"' : '' ?>><?php print $title ?></h1>
+          <?php endif; ?>
+          <?php print render($title_suffix); ?>
           <?php if ($tabs): ?><ul class="tabs primary"><?php print render($tabs) ?></ul></div><?php endif; ?>
           <?php if ($tabs2): ?><ul class="tabs secondary"><?php print render($tabs2) ?></ul><?php endif; ?>
-          <?php if ($show_messages && $messages): print $messages; endif; ?>
+          <?php print $messages; ?>
           <?php print render($page['help']); ?>
           <?php if ($action_links): ?><ul class="action-links"><?php print render($action_links); ?></ul><?php endif; ?>
           <div class="clearfix">

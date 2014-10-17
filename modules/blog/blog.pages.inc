@@ -44,7 +44,7 @@ function blog_page_user($account) {
 
   if (!empty($nids)) {
     $nodes = node_load_multiple($nids);
-    $build += node_build_multiple($nodes);
+    $build += node_view_multiple($nodes);
     $build['pager'] = array(
       '#theme' => 'pager',
       '#weight' => 5,
@@ -70,15 +70,6 @@ function blog_page_last() {
   global $user;
   $build = array();
 
-  if (user_access('create blog content')) {
-    $items[] = l(t('Create new blog entry.'), "node/add/blog");
-    $build['blog_actions'] = array(
-      '#items' => $items,
-      '#theme' => 'item_list',
-      '#weight' => -1,
-    );
-  }
-
   $query = db_select('node', 'n')->extend('PagerDefault');
   $nids = $query
     ->fields('n', array('nid', 'sticky', 'created'))
@@ -93,7 +84,7 @@ function blog_page_last() {
 
   if (!empty($nids)) {
     $nodes = node_load_multiple($nids);
-    $build += node_build_multiple($nodes);
+    $build += node_view_multiple($nodes);
     $build['pager'] = array(
       '#theme' => 'pager',
       '#weight' => 5,

@@ -15,27 +15,44 @@
 define('SHORTCUT_DEFAULT_SET_NAME', 'shortcut-set-1');
 
 /**
- * Implement hook_permission().
+ * Implements hook_help().
+ */
+function shortcut_help($path, $arg) {
+  switch ($path) {
+    case 'admin/help#shortcut':
+      $output = '<h3>' . t('About') . '</h3>';
+      $output .= '<p>' . t('The Shortcut module allows users to create sets of <em>shortcut</em> links to commonly-visited pages of the site. Shortcuts are contained within <em>sets</em>, and each user with <em>Select own shortcut set</em> permission can select a preferred set of shortcuts. For more information, see the online handbook entry for <a href="@shortcut">Shortcut module</a>.', array('@shortcut' => 'http://drupal.org/handbook/modules/shortcut/')) . '</p>';
+      $output .= '<h3>' . t('Uses') . '</h3>';
+      $output .= '<dl><dt>' . t('Creating and modifying shortcuts and sets') . '</dt>';
+      $output .= '<dd>' . t('Users with the appropriate permissions can manage shortcut sets, choose a preferred shortcut set, and edit the shortcuts within sets from the <a href="@shortcuts">Shortcuts administration page</a>.', array('@shortcuts' => url('admin/config/system/shortcut'))) . '</dd>';
+      $output .= '<dt>' . t('Adding and removing shortcuts') . '</dt>';
+      $output .= '<dd>' . t('The Shortcut module creates an add/remove link for each page on your site; the link lets you add or remove the current page from the currently-enabled set of shortcuts (if your theme displays it). The core Seven administration theme displays this link next to the page title, as a small + or - sign. If you click on the + sign, you will add that page to your preferred set of shortcuts. If the page is already part of your shortcut set, the link will be a - sign, and will allow you to remove the current page from your shortcut set.') . '</dd>';
+      $output .= '<dt>' . t('Displaying shortcuts') . '</dt>';
+      $output .= '<dd>' . t('You can display your shortcuts by enabling the Shortcuts block on the <a href="@blocks">Blocks administration page</a>. Certain administrative modules also display your shortcuts; for example, the core <a href="@toolbar-help">Toolbar module</a> displays them near the top of the page, along with an <em>Edit shortcuts</em> link.', array('@blocks' => url('admin/structure/block'), '@toolbar-help' => url('admin/help/toolbar'))) . '</dd>';
+      $output .= '</dl>';
+      return $output;
+  }
+}
+
+/**
+ * Implements hook_permission().
  */
 function shortcut_permission() {
   return array(
     'administer shortcuts' => array(
       'title' => t('Administer shortcuts'),
-      'description' => t('Manage all shortcut and shortcut sets.'),
     ),
     'customize shortcut links' => array(
-      'title' => t('Customize shortcut links'),
-      'description' => t("Edit, add and delete the links in shortcut set the user is using."),
+      'title' => t('Edit own shortcuts'),
     ),
     'switch shortcut sets' => array(
-      'title' => t('Choose a different shortcut set'),
-      'description' => t('Choose which set of shortcuts are displayed for the user.')
+      'title' => t('Select own shortcut set'),
     ),
   );
 }
 
 /**
- * Implement hook_menu().
+ * Implements hook_menu().
  */
 function shortcut_menu() {
   $items['admin/config/system/shortcut'] = array(
@@ -47,7 +64,7 @@ function shortcut_menu() {
     'file' => 'shortcut.admin.inc',
   );
   $items['admin/config/system/shortcut/%shortcut_set'] = array(
-    'title' => 'Customize shortcuts',
+    'title' => 'Edit shortcuts',
     'page callback' => 'drupal_get_form',
     'page arguments' => array('shortcut_set_customize', 4),
     'access callback' => 'shortcut_set_edit_access',
@@ -104,14 +121,10 @@ function shortcut_menu() {
 }
 
 /**
- * Implement hook_theme().
+ * Implements hook_theme().
  */
 function shortcut_theme() {
   return array(
-    'shortcut_set_switch' => array(
-      'render element' => 'form',
-      'file' => 'shortcut.admin.inc',
-    ),
     'shortcut_set_customize' => array(
       'render element' => 'form',
       'file' => 'shortcut.admin.inc',
@@ -120,7 +133,7 @@ function shortcut_theme() {
 }
 
 /**
- * Implement hook_block_info().
+ * Implements hook_block_info().
  */
 function shortcut_block_info() {
   $blocks['shortcuts']['info'] = t('Shortcuts');
@@ -131,7 +144,7 @@ function shortcut_block_info() {
 }
 
 /**
- * Implement hook_block_view().
+ * Implements hook_block_view().
  */
 function shortcut_block_view($delta = '') {
   if ($delta == 'shortcuts') {
@@ -250,15 +263,14 @@ function shortcut_set_save(&$shortcut_set) {
     $shortcut_set->set_name = shortcut_set_get_unique_name();
     $return = drupal_write_record('shortcut_set', $shortcut_set);
   }
-  // If links were provided for the set, save them, replacing any that were
-  // there before.
+  // If links were provided for the set, save them.
   if (isset($shortcut_set->links)) {
-    menu_delete_links($shortcut_set->set_name);
     foreach ($shortcut_set->links as &$link) {
       // Do not specifically associate these links with the shortcut module,
       // since other modules may make them editable via the menu system.
       // However, we do need to specify the correct menu name.
       $link['menu_name'] = $shortcut_set->set_name;
+      $link['plid'] = 0;
       menu_link_save($link);
     }
     // Make sure that we have a return value, since if the links were updated
@@ -333,6 +345,7 @@ function shortcut_set_assign_user($shortcut_set, $account) {
     ->key(array('uid' => $account->uid))
     ->fields(array('set_name' => $shortcut_set->set_name))
     ->execute();
+  drupal_static_reset('shortcut_current_displayed_set');
 }
 
 /**
@@ -378,14 +391,18 @@ function shortcut_current_displayed_set($account = NULL) {
   // If none was found, try to find a shortcut set that is explicitly assigned
   // to this user.
   $query = db_select('shortcut_set', 's');
-  $query->fields('s');
+  $query->addField('s', 'set_name');
   $query->join('shortcut_set_users', 'u', 's.set_name = u.set_name');
   $query->condition('u.uid', $account->uid);
-  $shortcut_set = $query->execute()->fetchObject();
+  $shortcut_set_name = $query->execute()->fetchField();
+  if ($shortcut_set_name) {
+    $shortcut_set = shortcut_set_load($shortcut_set_name);
+  }
   // Otherwise, use the default set.
-  if (!$shortcut_set) {
+  else { 
     $shortcut_set = shortcut_default_set($account);
   }
+
   $shortcut_sets[$account->uid] = $shortcut_set;
   return $shortcut_set;
 }
@@ -504,9 +521,9 @@ function shortcut_renderable_links($shortcut_set = NULL) {
 }
 
 /**
- * Implement hook_page_build().
+ * Implements hook_preprocess_page().
  */
-function shortcut_page_build(&$page) {
+function shortcut_preprocess_page(&$variables) {
   if (shortcut_set_edit_access()) {
     $link = $_GET['q'];
     $query_parameters = drupal_get_query_parameters();
@@ -516,22 +533,60 @@ function shortcut_page_build(&$page) {
     $query = array(
      'link' => $link,
      'name' => drupal_get_title(),
-     'token' => drupal_get_token('shortcut-add-link'),
     );
     $query += drupal_get_destination();
 
     $shortcut_set = shortcut_current_displayed_set();
-    $link_text = shortcut_set_switch_access() ? t('Add to %shortcut_set shortcuts', array('%shortcut_set' => $shortcut_set->title)) : t('Add to shortcuts');
-    $page['add_to_shortcuts'] = array(
-     '#prefix' => '<div class="add-to-shortcuts">',
-     '#type' => 'link',
-     '#title' => '<span class="icon"></span><span class="text">' . $link_text . '</span>',
-     '#href' => 'admin/config/system/shortcut/' . $shortcut_set->set_name . '/add-link-inline',
-     '#options' => array('query' => $query, 'html' => TRUE),
-     '#suffix' => '</div>',
-    );
-  }
 
+    // Check if $link is already a shortcut and set $link_mode accordingly.
+    foreach ($shortcut_set->links as $shortcut) {
+      if ($link == $shortcut['link_path']) {
+        $mlid = $shortcut['mlid'];
+        break;
+      }
+    }
+    $link_mode = isset($mlid) ? "remove" : "add";
+
+    if ($link_mode == "add") {
+      $query['token'] = drupal_get_token('shortcut-add-link');
+      $link_text = shortcut_set_switch_access() ? t('Add to %shortcut_set shortcuts', array('%shortcut_set' => $shortcut_set->title)) : t('Add to shortcuts');
+      $link_path = 'admin/config/system/shortcut/' . $shortcut_set->set_name . '/add-link-inline';
+    }
+    else {
+      $query['mlid'] = $mlid;
+      $link_text = shortcut_set_switch_access() ? t('Remove from %shortcut_set shortcuts', array('%shortcut_set' => $shortcut_set->title)) : t('Remove from shortcuts');
+      $link_path = 'admin/config/system/shortcut/link/' . $mlid . '/delete';
+    }
+
+    if (theme_get_setting('shortcut_module_link')) {
+      $variables['title_suffix']['add_or_remove_shortcut'] = array(
+        '#attached' => array('css' => array(drupal_get_path('module', 'shortcut') . '/shortcut.css')),
+        '#prefix' => '<div class="add-or-remove-shortcuts ' . $link_mode . '-shortcut">',
+        '#type' => 'link',
+        '#title' => '<span class="icon"></span><span class="text">' . $link_text . '</span>',
+        '#href' => $link_path,
+        '#options' => array('query' => $query, 'html' => TRUE),
+        '#suffix' => '</div>',
+      );
+    }
+  }
+}
+
+/**
+ * Implements hook_page_alter().
+ */
+function shortcut_page_alter(&$page) {
+  if (isset($page['page_top']['toolbar'])) {
+    // If the toolbar is available, add a pre-render function to display the
+    // current shortcuts in the toolbar drawer.
+    $page['page_top']['toolbar']['#pre_render'][] = 'shortcut_toolbar_pre_render';
+  }
+}
+
+/**
+ * Pre-render function for adding shortcuts to the toolbar drawer.
+ */
+function shortcut_toolbar_pre_render($toolbar) {
   $links = shortcut_renderable_links();
   $links['#attached'] = array('css' => array(drupal_get_path('module', 'shortcut') . '/shortcut.css'));
   $links['#prefix'] = '<div class="toolbar-shortcuts">';
@@ -541,9 +596,9 @@ function shortcut_page_build(&$page) {
   if (shortcut_set_edit_access($shortcut_set)) {
     $configure_link = array(
       '#type' => 'link',
-      '#title' => t('edit shortcuts'),
+      '#title' => t('Edit shortcuts'),
       '#href' => 'admin/config/system/shortcut/' . $shortcut_set->set_name,
-      '#options' => array('attributes' => array('id' => 'toolbar-customize')),
+      '#options' => array('attributes' => array('id' => 'edit-shortcuts')),
     );
   }
 
@@ -552,14 +607,7 @@ function shortcut_page_build(&$page) {
     'configure' => $configure_link,
   );
 
-  $page['toolbar_drawer'] = $drawer;
+  $toolbar['toolbar_drawer'][] = $drawer;
+  return $toolbar;
 }
 
-/**
- * Implement hook_preprocess_page().
- */
-function shortcut_preprocess_page(&$variables) {
-  if (isset($variables['page']['add_to_shortcuts'])) {
-    $variables['add_to_shortcuts'] = drupal_render($variables['page']['add_to_shortcuts']);
-  }
-}

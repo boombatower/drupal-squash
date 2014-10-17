@@ -27,7 +27,7 @@
  * extracting the archive, and verifying the contents. If there are any
  * errors, the user is redirected back to the first page with the error
  * messages. If all downloads were extacted and verified, the user is instead
- * redirected to admin/update/confirm, a landing page which reminds them to
+ * redirected to admin/update/ready, a landing page which reminds them to
  * backup their database and asks if they want to put the site offline during
  * the upgrade. Once the user presses the "Install updates" button, they are
  * redirected to authorize.php to supply their web root file access
@@ -61,7 +61,7 @@ function update_manager_update_form($form, $form_state = array(), $context) {
   $available = update_get_available(TRUE);
   if (empty($available)) {
     $form['message'] = array(
-      '#markup' => t('There was a problem getting update information. Please try again later.'),
+      '#markup' => t('There was a problem getting update information. Try again later.'),
     );
     return $form;
   }
@@ -332,8 +332,9 @@ function update_manager_download_batch_finished($success, $results) {
     drupal_set_message(theme('item_list', $error_list), 'error');
   }
   elseif ($success) {
+    drupal_set_message(t('Updates downloaded successfully.'));
     $_SESSION['update_manager_update_projects'] = $results['projects'];
-    drupal_goto('admin/update/confirm');
+    drupal_goto('admin/update/ready');
   }
   else {
     // Ideally we're catching all Exceptions, so they should never see this,
@@ -343,7 +344,7 @@ function update_manager_download_batch_finished($success, $results) {
 }
 
 /**
- * Build the form to confirm that an update should proceed (after downloading).
+ * Build the form when the site is ready to update (after downloading).
  *
  * This form is an intermediary step in the automated update workflow. It is
  * presented to the site administrator after all the required updates have
@@ -353,41 +354,22 @@ function update_manager_download_batch_finished($success, $results) {
  * After this step, the user is redirected to authorize.php to enter their
  * file transfer credentials and attempt to complete the update.
  */
-function update_manager_confirm_update_form($form, &$form_state) {
-  $form['information']['#weight'] = -100;
-  $form['information']['backup_header'] = array(
-    '#prefix' => '<h3>',
-    '#markup' => t('Step 1: Backup your site'),
-    '#suffix' => '</h3>',
+function update_manager_update_ready_form($form, &$form_state) {
+  $form['backup'] = array(
+    '#prefix' => '<strong>',
+    '#markup' => t('Back up your database and site before you continue. <a href="@backup_url">Learn how</a>.', array('@backup_url' => url('http://drupal.org/node/22281'))),
+    '#suffix' => '</strong>',
   );
 
-  $form['information']['backup_message'] = array(
-    '#prefix' => '<p>',
-    '#markup' => t('We do not currently have a web based backup tool. <a href="@backup_url">Learn more about how to take a backup</a>.', array('@backup_url' => url('http://drupal.org/node/22281'))),
-    '#suffix' => '</p>',
-  );
-
-  $form['information']['maint_header'] = array(
-    '#prefix' => '<h3>',
-    '#markup' => t('Step 2: Enter maintenance mode'),
-    '#suffix' => '</h3>',
-  );
-
-  $form['information']['maint_message'] = array(
-    '#prefix' => '<p>',
-    '#markup' => t('It is strongly recommended that you put your site into maintenance mode while performing an update.'),
-    '#suffix' => '</p>',
-  );
-
-  $form['information']['site_offline'] = array(
-    '#title' => t('Perform updates with site in maintenance mode'),
+  $form['site_offline'] = array(
+    '#title' => t('Perform updates with site in maintenance mode (strongly recommended)'),
     '#type' => 'checkbox',
     '#default_value' => TRUE,
   );
 
   $form['submit'] = array(
     '#type' => 'submit',
-    '#value' => t('Install updates'),
+    '#value' => t('Continue'),
     '#weight' => 100,
   );
 
@@ -407,7 +389,7 @@ function update_manager_confirm_update_form($form, &$form_state) {
  * @see system_authorized_init()
  * @see system_authorized_get_url()
  */
-function update_manager_confirm_update_form_submit($form, &$form_state) {
+function update_manager_update_ready_form_submit($form, &$form_state) {
   if ($form_state['values']['site_offline'] == TRUE) {
     variable_set('site_offline', TRUE);
   }
@@ -489,14 +471,14 @@ function update_manager_install_form($form, &$form_state, $context) {
   }
   $form['help_text'] = array(
     '#prefix' => '<p>',
-    '#markup' => t('To install a new module or theme, either paste the URL of an archive file you wish to install, or upload the archive file that you have downloaded. You can find <a href="@module_url">modules</a> and <a href="@theme_url">themes</a> at <a href="@drupal_org_url">http://drupal.org</a>. The following archive extensions are supported: %extensions', array('@module_url' => 'http://drupal.org/project/modules', '@theme_url' => 'http://drupal.org/project/themes', '@drupal_org_url' => 'http://drupal.org', '%extensions' => implode(', ', $extensions))),
+    '#markup' => t('To install a new module or theme, either enter the URL of an archive file you wish to install, or upload the archive file that you have downloaded. You can find <a href="@module_url">modules</a> and <a href="@theme_url">themes</a> at <a href="@drupal_org_url">http://drupal.org</a>. The following archive extensions are supported: %extensions', array('@module_url' => 'http://drupal.org/project/modules', '@theme_url' => 'http://drupal.org/project/themes', '@drupal_org_url' => 'http://drupal.org', '%extensions' => implode(', ', $extensions))),
     '#suffix' => '</p>',
   );
 
   $form['project_url'] = array(
     '#type' => 'textfield',
-    '#title' => t('URL'),
-    '#description' => t('Paste the URL to a Drupal module or theme archive to install it (e.g http://ftp.drupal.org/files/projects/projectname.tar.gz).'),
+    '#title' => t('Install from a URL'),
+    '#description' => t('For example: %url', array('%url' => 'http://ftp.drupal.org/files/projects/name.tar.gz')),
   );
 
   $form['information'] = array(
@@ -507,8 +489,8 @@ function update_manager_install_form($form, &$form_state, $context) {
 
   $form['project_upload'] = array(
     '#type' => 'file',
-    '#title' => t('Upload a module or theme'),
-    '#description' => t('Upload a Drupal module or theme archive to install it.'),
+    '#title' => t('Upload a module or theme archive to install'),
+    '#description' => t('For example: %filename from your local computer', array('%filename' => 'name.tar.gz')),
   );
 
   $form['submit'] = array(
@@ -554,7 +536,7 @@ function update_manager_install_form_submit($form, &$form_state) {
     $field = 'project_url';
     $local_cache = update_manager_file_get($form_state['values']['project_url']);
     if (!$local_cache) {
-      form_set_error($field, t('Unable to retreive Drupal project from %url.', array('%url' => $form_state['values']['project_url'])));
+      form_set_error($field, t('Unable to retrieve Drupal project from %url.', array('%url' => $form_state['values']['project_url'])));
       return;
     }
   }
@@ -703,7 +685,7 @@ function update_manager_archive_extract($file, $directory) {
 function update_manager_archive_verify($project, $archive_file, $directory) {
   $failures = module_invoke_all('verify_update_archive', $project, $archive_file, $directory);
   if (!empty($failures)) {
-    throw new Exception(t('Unable to extact %file', array('%file' => $file)));
+    throw new Exception(t('Unable to extract %file', array('%file' => $file)));
   }
 }
 

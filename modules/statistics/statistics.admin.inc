@@ -35,14 +35,11 @@ function statistics_recent_hits() {
       l(t('details'), "admin/reports/access/$log->aid"));
   }
 
-  if (empty($rows)) {
-    $rows[] = array(array('data' => t('No statistics available.'), 'colspan' => 4));
-  }
-
   $build['statistics_table'] = array(
     '#theme' => 'table',
     '#header' => $header,
     '#rows' => $rows,
+    '#empty' => t('No statistics available.'),
   );
   $build['statistics_pager'] = array('#theme' => 'pager');
   return $build;
@@ -59,7 +56,7 @@ function statistics_top_pages() {
     array('data' => t('Total page generation time'), 'field' => 'total_time')
   );
 
-  $query = db_select('accesslog', array('target' => 'slave'))->extend('PagerDefault')->extend('TableSort');
+  $query = db_select('accesslog', 'a', array('target' => 'slave'))->extend('PagerDefault')->extend('TableSort');
   $query->addExpression('COUNT(path)', 'hits');
   // MAX(title) avoids having empty node titles which otherwise causes duplicates in the top pages list
   $query->addExpression('MAX(title)', 'title');
@@ -67,12 +64,12 @@ function statistics_top_pages() {
   $query->addExpression('SUM(timer)', 'total_time');
 
   $query
-    ->fields('accesslog', array('path'))
+    ->fields('a', array('path'))
     ->groupBy('path')
     ->limit(30)
     ->orderByHeader($header);
 
-  $count_query = db_select('accesslog', array('target' => 'slave'));
+  $count_query = db_select('accesslog', 'a', array('target' => 'slave'));
   $count_query->addExpression('COUNT(DISTINCT path)');
   $query->setCountQuery($count_query);
 
@@ -82,15 +79,12 @@ function statistics_top_pages() {
     $rows[] = array($page->hits, _statistics_format_item($page->title, $page->path), t('%time ms', array('%time' => round($page->average_time))), format_interval(round($page->total_time / 1000)));
   }
 
-  if (empty($rows)) {
-    $rows[] = array(array('data' => t('No statistics available.'), 'colspan' => 4));
-  }
-
   drupal_set_title(t('Top pages in the past %interval', array('%interval' => format_interval(variable_get('statistics_flush_accesslog_timer', 259200)))), PASS_THROUGH);
   $build['statistics_top_pages_table'] = array(
     '#theme' => 'table',
     '#header' => $header,
     '#rows' => $rows,
+    '#empty' => t('No statistics available.'),
   );
   $build['statistics_top_pages_pager'] = array('#theme' => 'pager');
   return $build;
@@ -136,15 +130,12 @@ function statistics_top_visitors() {
     $rows[] = array($account->hits, ($account->uid ? theme('username', array('account' => $account)) : $account->hostname), format_interval(round($account->total / 1000)), (user_access('block IP addresses') && !$account->uid) ? $ban_link : '');
   }
 
-  if (empty($rows)) {
-    $rows[] = array(array('data' => t('No statistics available.'), 'colspan' => 4));
-  }
-
   drupal_set_title(t('Top visitors in the past %interval', array('%interval' => format_interval(variable_get('statistics_flush_accesslog_timer', 259200)))), PASS_THROUGH);
   $build['statistics_top_visitors_table'] = array(
     '#theme' => 'table',
     '#header' => $header,
     '#rows' => $rows,
+    '#empty' => t('No statistics available.'),
   );
   $build['statistics_top_visitors_pager'] = array('#theme' => 'pager');
   return $build;
@@ -173,7 +164,7 @@ function statistics_top_referrers() {
     ->limit(30)
     ->orderByHeader($header);
 
-  $count_query = db_select('accesslog', array('target' => 'slave'));
+  $count_query = db_select('accesslog', 'a', array('target' => 'slave'));
   $count_query->addExpression('COUNT(DISTINCT url)');
   $count_query
     ->where('LOWER(url) NOT LIKE :host', array(':host' => '%' . $_SERVER['HTTP_HOST'] . '%'))
@@ -186,14 +177,11 @@ function statistics_top_referrers() {
     $rows[] = array($referrer->hits, _statistics_link($referrer->url), t('@time ago', array('@time' => format_interval(REQUEST_TIME - $referrer->last))));
   }
 
-  if (empty($rows)) {
-    $rows[] = array(array('data' => t('No statistics available.'), 'colspan' => 3));
-  }
-
   $build['statistics_top_referrers_table'] = array(
     '#theme' => 'table',
     '#header' => $header,
     '#rows' => $rows,
+    '#empty' => t('No statistics available.'),
   );
   $build['statistics_top_referrers_pager'] = array('#theme' => 'pager');
   return $build;

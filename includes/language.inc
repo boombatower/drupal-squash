@@ -223,7 +223,7 @@ function language_negotiation_info() {
       'callbacks' => array('language' => 'language_from_default'),
       'weight' => 10,
       'name' => t('Default'),
-      'description' => t('The default site language (@language_name) is used.', array('@language_name' => language_default()->native)),
+      'description' => t('Use the default site language (@language_name).', array('@language_name' => language_default()->native)),
     );
 
     // Let other modules alter the list of language providers.
@@ -380,7 +380,7 @@ function language_fallback_get_candidates($type = LANGUAGE_TYPE_CONTENT) {
     }
 
     $fallback_candidates = array_keys($fallback_candidates);
-    $fallback_candidates[] = FIELD_LANGUAGE_NONE;
+    $fallback_candidates[] = LANGUAGE_NONE;
 
     // Let other modules hook in and add/change candidates.
     drupal_alter('language_fallback_candidates', $fallback_candidates);

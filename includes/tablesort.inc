@@ -37,6 +37,8 @@ class TableSort extends SelectQueryExtender {
    * @see theme_table()
    * @param $header
    *   Table header array.
+   * @return SelectQueryInterface
+   *   The called object.
    */
   public function orderByHeader(Array $header) {
     $this->header = $header;
@@ -219,7 +221,7 @@ function tablesort_cell($cell, $header, $ts, $i) {
  *   page request except for those pertaining to table sorting.
  */
 function tablesort_get_query_parameters() {
-  return drupal_get_query_parameters($_REQUEST, array_merge(array('q', 'sort', 'order'), array_keys($_COOKIE)));
+  return drupal_get_query_parameters($_GET, array('q', 'sort', 'order'));
 }
 
 /**

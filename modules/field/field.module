@@ -57,7 +57,7 @@ module_load_include('inc', 'field', 'field.form');
  *   pluggable back-end storage system for actual field data. The
  *   default implementation, field_sql_storage.module, stores field data
  *   in the local SQL database.
-
+ *
  * - @link field_purge Field API bulk data deletion @endlink. Cleans
  *   up after bulk deletion operations such as field_delete_field()
  *   and field_delete_instance().
@@ -68,13 +68,6 @@ module_load_include('inc', 'field', 'field.form');
  * unlimited number of values.
  */
 define('FIELD_CARDINALITY_UNLIMITED', -1);
-
-/**
- * The language code assigned to untranslatable fields.
- *
- * Defined by ISO639-2 for "No linguistic content / Not applicable".
- */
-define('FIELD_LANGUAGE_NONE', 'zxx');
 
 /**
  * TODO
@@ -136,25 +129,52 @@ class FieldException extends Exception {}
 class FieldUpdateForbiddenException extends FieldException {}
 
 /**
- * Implement hook_flush_caches.
+ * Implements hook_flush_caches().
  */
 function field_flush_caches() {
   return array('cache_field');
 }
 
 /**
- * Implement hook_help().
+ * Implements hook_help().
  */
 function field_help($path, $arg) {
   switch ($path) {
     case 'admin/help#field':
-      $output = '<p>' . t('The Field API allows custom data fields to be attached to Drupal objects and takes care of storing, loading, editing, and rendering field data. Any object type (node, user, etc.) can use the Field API to make itself "fieldable" and thus allow fields to be attached to it.') . '</p>';
+      $output = '';
+      $output .= '<h3>' . t('About') . '</h3>';
+      $output .= '<p>' . t('The Field module allows custom data fields to be attached to Drupal <em>objects</em> (content nodes, users, taxonomy vocabularies, etc.) and takes care of storing, loading, editing, and rendering field data. Most users will not interact with the Field module directly, but will instead use the <a href="@field-ui-help">Field UI module</a> user interface. Module developers can use the Field API to make new objects "fieldable" and thus allow fields to be attached to their objects. For more information, see the online handbook entry for <a href="@field">Field module</a>.', array('@field-ui-help' => url('admin/help/field_ui'), '@field' => 'http://drupal.org/handbook/modules/field')) . '</p>';
+      $output .= '<h3>' . t('Uses') . '</h3>';
+      $output .= '<dl>';
+      $output .= '<dt>' . t('Enabling field types') . '</dt>';
+      $output .= '<dd>' . t('The Field module provides the infrastructure for fields and field attachment; the field types and input widgets themselves are provided by additional modules. Some of the modules are required; the optional modules can be enabled from the <a href="@modules">Modules administration page</a>. Drupal core includes the following field type modules: Number (required), Text (required), List (required), Taxonomy (optional), Image (optional), and File (optional); the required Options module provides input widgets for other field modules. Additional fields and widgets may be provided by contributed modules, which you can find in the <a href="@contrib">contributed module section of Drupal.org</a>. Currently enabled field and input widget modules:', array('@modules' => url('admin/modules'), '@contrib' => 'http://drupal.org/project/modules', '@options' => url('admin/help/options')));
+
+      // Make a list of all widget and field modules currently enabled, in
+      // order by displayed module name (module names are not translated).
+      $items = array();
+      $info = system_get_info('module');
+      $modules = array_merge(module_implements('field_info'), module_implements('field_widget_info'));
+      $modules = array_unique($modules);
+      sort($modules);
+      foreach ($modules as $module) {
+        $display = $info[$module]['name'];
+        if (module_hook($module, 'help')) {
+          $items['items'][] = l($display, 'admin/help/' . $module);
+        }
+        else {
+          $items['items'][] = $display;
+        }
+      }
+      $output .= theme('item_list', $items) . '</dd>';
+      $output .= '<dt>' . t('Managing field data storage') . '</dt>';
+      $output .= '<dd>' . t('Developers of field modules can either use the default <a href="@sql-store">Field SQL storage module</a> to store data for their fields, or a contributed or custom module developed using the <a href="@storage-api">field storage API</a>.', array('@storage-api' => 'http://api.drupal.org/api/group/field_storage/7', '@sql-store' => url('admin/help/field_sql_storage'))) . '</dd>';
+      $output .= '</dl>';
       return $output;
   }
 }
 
 /**
- * Implement hook_theme().
+ * Implements hook_theme().
  */
 function field_theme() {
   $path = drupal_get_path('module', 'field') . '/theme';
@@ -168,20 +188,12 @@ function field_theme() {
       'render element' => 'element',
     ),
   );
-  $field_formatters = field_info_formatter_types(NULL);
-  foreach ($field_formatters as $key => $field_formatter) {
-    $items['field_formatter_' . $key] = array(
-      'render element' => 'element',
-    );
-    if (isset($field_formatter['theme'])) {
-      $items['field_formatter_' . $key] += $field_formatter['theme'];
-    }
-  }
+
   return $items;
 }
 
 /**
- * Implement hook_cron().
+ * Implements hook_cron().
  *
  * Purges some deleted Field API data, if any exists.
  */
@@ -191,14 +203,14 @@ function field_cron() {
 }
 
 /**
- * Implement hook_modules_installed().
+ * Implements hook_modules_installed().
  */
 function field_modules_installed($modules) {
   field_cache_clear();
 }
 
 /**
- * Implement hook_modules_uninstalled().
+ * Implements hook_modules_uninstalled().
  */
 function field_modules_uninstalled($modules) {
   module_load_include('inc', 'field', 'field.crud');
@@ -209,7 +221,7 @@ function field_modules_uninstalled($modules) {
 }
 
 /**
- * Implement hook_modules_enabled().
+ * Implements hook_modules_enabled().
  */
 function field_modules_enabled($modules) {
   foreach ($modules as $module) {
@@ -219,7 +231,7 @@ function field_modules_enabled($modules) {
 }
 
 /**
- * Implement hook_modules_disabled().
+ * Implements hook_modules_disabled().
  */
 function field_modules_disabled($modules) {
   foreach ($modules as $module) {
@@ -291,23 +303,22 @@ function field_get_default_value($obj_type, $object, $field, $instance, $langcod
 }
 
 /**
- * Helper function to filter out empty values.
+ * Helper function to filter out empty field values.
  *
- * On order to keep marker rows in the database, the function ensures
- * that the right number of 'all columns NULL' values is kept.
+ * @param $field
+ *   The field definition.
+ * @param $items
+ *   The field values to filter.
  *
- * @param array $field
- * @param array $items
- * @return array
- *   returns filtered and adjusted item array
- *
- * TODO D7: poorly named...
+ * @return
+ *   The array of items without empty field values. The function also renumbers
+ *   the array keys to ensure sequential deltas.
  */
-function field_set_empty($field, $items) {
+function _field_filter_items($field, $items) {
   $function = $field['module'] . '_field_is_empty';
-  // We ensure the function is loaded, but explicitly break if it is missing.
   function_exists($function);
   foreach ((array) $items as $delta => $item) {
+    // Explicitly break if the function is undefined.
     if ($function($item, $field)) {
       unset($items[$delta]);
     }
@@ -357,52 +368,56 @@ function _field_sort_items_value_helper($a, $b) {
 }
 
 /**
- * Registry of available build modes.
- */
-function field_build_modes($obj_type) {
-  $info = &drupal_static(__FUNCTION__, array());
-
-  if (!isset($info[$obj_type])) {
-    $info[$obj_type] = module_invoke_all('field_build_modes', $obj_type);
-  }
-  return $info[$obj_type];
-}
-
-/**
  * Registry of pseudo-field components in a given bundle.
  *
- * @param $bundle_name
+ * @param $obj_type
+ *   The type of $object; e.g. 'node' or 'user'.
+ * @param $bundle
  *   The bundle name.
  * @return
  *   The array of pseudo-field elements in the bundle.
  */
-function field_extra_fields($bundle_name) {
+function field_extra_fields($obj_type, $bundle) {
   $info = &drupal_static(__FUNCTION__, array());
 
   if (empty($info)) {
-    $info = array();
-    $bundles = field_info_bundles();
-    foreach ($bundles as $bundle => $bundle_label) {
-      // Gather information about non-field object additions.
-      $extra = module_invoke_all('field_extra_fields', $bundle);
-      drupal_alter('field_extra_fields', $extra, $bundle);
+    $info = (array) module_invoke_all('field_extra_fields');
+    drupal_alter('field_extra_fields', $info);
 
-      // Add saved weights.
-      foreach (variable_get("field_extra_weights_$bundle", array()) as $key => $value) {
-        // Some stored entries might not exist anymore, for instance if uploads
-        // have been disabled or vocabularies were deleted.
-        if (isset($extra[$key])) {
-          $extra[$key]['weight'] = $value;
+    // Add saved weights. The array is keyed by object type, bundle and
+    // element name.
+    $extra_weights = variable_get('field_extra_weights', array());
+    foreach ($extra_weights as $obj_type_name => $bundles) {
+      foreach ($bundles as $bundle_name => $weights) {
+        foreach ($weights as $key => $value) {
+          if (isset($info[$obj_type_name][$bundle_name][$key])) {
+            $info[$obj_type_name][$bundle_name][$key]['weight'] = $value;
+          }
         }
       }
-      $info[$bundle] = $extra;
     }
   }
-  if (array_key_exists($bundle_name, $info)) {
-    return $info[$bundle_name];
-  }
-  else {
-    return array();
+
+  return isset($info[$obj_type][$bundle]) ? $info[$obj_type][$bundle]: array();
+}
+
+/**
+ * Retrieve the user-defined weight for a 'pseudo-field' component.
+ *
+ * @param $obj_type
+ *   The type of $object; e.g. 'node' or 'user'.
+ * @param $bundle
+ *   The bundle name.
+ * @param $pseudo_field
+ *   The name of the 'pseudo-field'.
+ * @return
+ *   The weight for the 'pseudo-field', respecting the user settings stored by
+ *   field.module.
+ */
+function field_extra_field_weight($obj_type, $bundle, $pseudo_field) {
+  $extra = field_extra_fields($obj_type, $bundle);
+  if (isset($extra[$pseudo_field])) {
+    return $extra[$pseudo_field]['weight'];
   }
 }
 
@@ -426,7 +441,7 @@ function _field_extra_weights_pre_render($elements) {
 }
 
 /**
- * Clear the field info and field date caches.
+ * Clear the field info and field data caches.
  */
 function field_cache_clear() {
   cache_clear_all('*', 'cache_field', TRUE);
@@ -554,45 +569,103 @@ function field_format($obj_type, $object, $field, $item, $formatter_type = NULL,
 }
 
 /**
- * Return a single field, fully themed with label and multiple values.
+ * Returns a renderable array for the value of a single field in an object.
  *
- * To be used by third-party code (Views, Panels...) that needs to output
- * an isolated field. Do *not* use inside node templates, use
- * render($content[FIELD_NAME]) instead.
+ * The resulting output is a fully themed field with label and multiple values.
  *
- * The field will be displayed using the display options (label display,
- * formatter settings...) specified in the $instance structure for the given
- * build mode: $instance['display'][$build_mode].
+ * This function can be used by third-party modules that need to output an
+ * isolated field.
+ * - Do not use inside node (or other entities) templates, use
+ *   render($content[FIELD_NAME]) instead.
+ * - Do not use to display all fields in an object, use
+ *   field_attach_prepare_view() and field_attach_view() instead.
  *
+ * The function takes care of invoking the prepare_view steps. It also respects
+ * field access permissions.
+ *
+ * @param $obj_type
+ *   The type of $object; e.g. 'node' or 'user'.
  * @param $object
- *   The object containing the field to display. Must at least contain the id key,
- *   revision key (if applicable), bundle key, and the field data.
- * @param $field
- *   The field structure.
- * @param $instance
- *   The instance structure for $field on $object's bundle.
- * @param $build_mode
- *   Build mode, e.g. 'full', 'teaser'...
+ *   The object containing the field to display. Must at least contain the id
+ *   key and the field data to display.
+ * @param $field_name
+ *   The name of the field to display.
+ * @param $display
+ *   Can be either:
+ *   - The name of a view mode. The field will be displayed according to the
+ *     display settings specified for this view mode in the $instance
+ *     definition for the field in the object's bundle.
+ *     If no display settings are found for the view mode, the settings for
+ *     the 'full' view mode will be used.
+ *   - An array of display settings, as found in the 'display' entry of
+ *     $instance definitions. The following kay/value pairs are allowed:
+ *     - label: (string) Position of the label. The default 'field' theme
+ *       implementation supports the values 'inline', 'above' and 'hidden'.
+ *       Defaults to 'above'.
+ *     - type: (string) The formatter to use. Defaults to the
+ *       'default_formatter' for the field type, specified in
+ *       hook_field_info(). The default formatter will also be used if the
+ *       requested formatter is not available.
+ *     - settings: (array) Settings specific to the formatter. Defaults to the
+ *       formatter's default settings, specified in
+ *       hook_field_formatter_info().
+ *     - weight: (float) The weight to assign to the renderable element.
+ *       Defaults to 0.
+ * @param $langcode
+ *   (Optional) The language the field values are to be shown in. The site's
+ *   current language fallback logic will be applied no values are available
+ *   for the language. If no language is provided the current language will be
+ *   used.
  * @return
- *   The themed output for the field.
+ *   A renderable array for the field value.
  */
-function field_view_field($obj_type, $object, $field, $instance, $build_mode = 'full') {
-  $output = '';
-  if (isset($object->$field['field_name'])) {
-    $items = $object->$field['field_name'];
+function field_view_field($obj_type, $object, $field_name, $display = array(), $langcode = NULL) {
+  $output = array();
 
-    // One-field equivalent to _field_invoke('sanitize').
-    $function = $field['module'] . '_field_sanitize';
-    if (function_exists($function)) {
-      $function($obj_type, $object, $field, $instance, $items);
-      $object->$field['field_name'] = $items;
+  if ($field = field_info_field($field_name)) {
+    if (is_array($display)) {
+      // When using custom display settings, fill in default values.
+      $display = _field_info_prepare_instance_display($field, $display);
+    }
+    else {
+      // When using a view mode, make sure we have settings for it, or fall
+      // back to the 'full' view mode.
+      list(, , $bundle) = entity_extract_ids($obj_type, $object);
+      $instance = field_info_instance($obj_type, $field_name, $bundle);
+      if (!isset($instance['display'][$display])) {
+        $display = 'full';
+      }
     }
 
-    $view = field_default_view($obj_type, $object, $field, $instance, $items, $build_mode);
-    // TODO : what about hook_field_attach_view ?
+    // Hook invocations are done through the _field_invoke() functions in
+    // 'single field' mode, to reuse the language fallback logic.
+    $options = array('field_name' => $field_name, 'language' => field_multilingual_valid_language($langcode, FALSE));
+    $null = NULL;
+    list($id) = entity_extract_ids($obj_type, $object);
 
-    $output = $view[$field['field_name']];
+    // First let the field types do their preparation.
+    _field_invoke_multiple('prepare_view', $obj_type, array($id => $object), $display, $null, $options);
+    // Then let the formatters do their own specific massaging.
+    _field_invoke_multiple_default('prepare_view', $obj_type, array($id => $object), $display, $null, $options);
+    // Build the renderable array.
+    $result = _field_invoke_default('view', $obj_type, $object, $display, $null, $options);
+
+    // Invoke hook_field_attach_view_alter() to tet other modules alter the
+    // renderable array, as in a full field_attach_view() execution.
+    $context = array(
+      'obj_type' => $obj_type,
+      'object' => $object,
+      'view_mode' => '_custom',
+      'langcode' => $langcode,
+    );
+    drupal_alter('field_attach_view', $result, $context);
+
+    if (isset($result[$field_name])) {
+      $output = $result[$field_name];
+      $output['#attached']['css'][] = drupal_get_path('module', 'field') . '/theme/field.css';
+    }
   }
+
   return $output;
 }
 
@@ -631,13 +704,14 @@ function field_has_data($field) {
 function field_access($op, $field, $obj_type, $object = NULL, $account = NULL) {
   global $user;
 
-  if (is_null($account)) {
+  if (!isset($account)) {
     $account = $user;
   }
 
-  $field_access = module_invoke_all('field_access', $op, $field, $obj_type, $object, $account);
-  foreach ($field_access as $value) {
-    if ($value === FALSE) {
+  foreach (module_implements('field_access') as $module) {
+    $function = $module . '_field_access';
+    $access = $function($op, $field, $obj_type, $object, $account);
+    if ($access === FALSE) {
       return FALSE;
     }
   }
@@ -673,47 +747,47 @@ function field_extract_bundle($obj_type, $bundle) {
  */
 function template_preprocess_field(&$variables) {
   $element = $variables['element'];
-  list(, , $bundle) = entity_extract_ids($element['#object_type'], $element['#object']);
-  $instance = field_info_instance($element['#object_type'], $element['#field_name'], $bundle);
-  $field = field_info_field($element['#field_name']);
 
-  $field_type_css = strtr($field['type'], '_', '-');
-  $field_name_css = strtr($field['field_name'], '_', '-');
+  // @todo Convert to using drupal_html_class() after benchmarking the impact of
+  //   doing so.
+  $field_type_css = strtr($element['#field_type'], '_', '-');
+  $field_name_css = strtr($element['#field_name'], '_', '-');
 
-  // If the formatter is multiple, the template sees only one 'item', which
-  // will include all values.
-  $items = $element['#formatter_single'] ? $element['items'] : array($element['items']);
+  // Prepare an $items variable that the template can simply loop on.
+  // Filter out non-children properties that might have been added if the
+  // renderable array has gone through form_builder().
+  $items = array_intersect_key($element, array_flip(element_children($element)));
 
   $additions = array(
     'object' => $element['#object'],
-    'field' => $field,
-    'instance' => $instance,
-    'build_mode' => $element['#build_mode'],
+    'view_mode' => $element['#view_mode'],
     'items' => $items,
-    'field_type' => $field['type'],
-    'field_name' => $field['field_name'],
+    'field_type' => $element['#field_type'],
+    'field_name' => $element['#field_name'],
     'field_type_css' => $field_type_css,
     'field_name_css' => $field_name_css,
-    'label' => $element['#title'],
+    'label' => check_plain($element['#title']),
     'label_display' => $element['#label_display'],
     'label_hidden' => $element['#label_display'] == 'hidden',
     'field_language' => $element['#language'],
-    'field_translatable' => $field['translatable'],
+    'field_translatable' => $element['#field_translatable'],
     'classes_array' => array(
+      'field',
       'field-name-' . $field_name_css,
       'field-type-' . $field_type_css,
       'field-label-' . $element['#label_display'],
     ),
-    'template_files' => array(
+    'theme_hook_suggestions' => array(
       'field',
-      'field-' . $element['#field_name'],
-      'field-' . $bundle,
-      'field-' . $element['#field_name'] . '-' . $bundle,
+      'field__' . $element['#field_name'],
+      'field__' . $element['#bundle'],
+      'field__' . $element['#field_name'] . '__' . $element['#bundle'],
     ),
   );
   $variables = array_merge($variables, $additions);
 
   // Initialize attributes for each item.
+  $variables['item_attributes_array'] = array();
   foreach ($variables['items'] as $delta => $item) {
     $variables['item_attributes_array'][$delta] = array();
   }

@@ -945,6 +945,27 @@ class DatabaseDeleteTruncateTestCase extends DatabaseTestCase {
   }
 
   /**
+   * Confirm that we can use a subselect in a delete successfully.
+   */
+  function testSubselectDelete() {
+    $num_records_before = db_query('SELECT COUNT(*) FROM {test_task}')->fetchField();
+    $pid_to_delete = db_query("SELECT * FROM {test_task} WHERE task = 'sleep'")->fetchField();
+
+    $subquery = db_select('test', 't')
+      ->fields('t', array('id'))
+      ->condition('t.id', array($pid_to_delete), 'IN');
+    $delete = db_delete('test_task')
+      ->condition('task', 'sleep')
+      ->condition('pid', $subquery, 'IN');
+
+    $num_deleted = $delete->execute();
+    $this->assertEqual($num_deleted, 1, t("Deleted 1 record."));
+
+    $num_records_after = db_query('SELECT COUNT(*) FROM {test_task}')->fetchField();
+    $this->assertEqual($num_records_before, $num_records_after + $num_deleted, t('Deletion adds up.'));
+  }
+
+  /**
    * Confirm that we can delete a single record successfully.
    */
   function testSimpleDelete() {
@@ -1511,7 +1532,33 @@ class DatabaseSelectSubqueryTestCase extends DatabaseTestCase {
   }
 
   /**
-   * Test that we can use a subquery in a FROM clause.
+   * Test that we can use a subquery in a FROM clause with a limit.
+   */
+  function testFromSubquerySelectWithLimit() {
+    // Create a subquery, which is just a normal query object.
+    $subquery = db_select('test_task', 'tt');
+    $subquery->addField('tt', 'pid', 'pid');
+    $subquery->addField('tt', 'task', 'task');
+    $subquery->orderBy('priority', 'DESC');
+    $subquery->range(0, 1);
+
+    // Create another query that joins against the virtual table resulting
+    // from the subquery.
+    $select = db_select($subquery, 'tt2');
+    $select->join('test', 't', 't.id=tt2.pid');
+    $select->addField('t', 'name');
+
+    // The resulting query should be equivalent to:
+    // SELECT t.name
+    // FROM (SELECT tt.pid AS pid, tt.task AS task FROM test_task tt ORDER BY priority DESC LIMIT 1 OFFSET 0) tt
+    //   INNER JOIN test t ON t.id=tt.pid
+    $people = $select->execute()->fetchCol();
+
+    $this->assertEqual(count($people), 1, t('Returned the correct number of rows.'));
+  }
+
+  /**
+   * Test that we can use a subquery in a WHERE clause.
    */
   function testConditionSubquerySelect() {
     // Create a subquery, which is just a normal query object.
@@ -1831,6 +1878,34 @@ class DatabaseSelectComplexTestCase extends DatabaseTestCase {
     $record = $query->execute()->fetch();
     $this->assertEqual($record->$name_field, 'George', t('Correct data retrieved.'));
     $this->assertEqual($record->$age_field, 27, t('Correct data retrieved.'));
+  }
+
+  /**
+   * Test that countQuery properly removes 'all_fields' statements and
+   * ordering clauses.
+   */
+  function testCountQueryRemovals() {
+    $query = db_select('test');
+    $query->fields('test');
+    $query->orderBy('name');
+    $count = $query->countQuery();
+
+    // Check that the 'all_fields' statement is handled properly.
+    $tables = $query->getTables();
+    $this->assertEqual($tables['test']['all_fields'], 1, t('Query correctly sets \'all_fields\' statement.'));
+    $tables = $count->getTables();
+    $this->assertFalse(isset($tables['test']['all_fields']), t('Count query correctly unsets \'all_fields\' statement.'));
+
+    // Check that the ordering clause is handled properly.
+    $orderby = $query->getOrderBy();
+    $this->assertEqual($orderby['name'], 'ASC', t('Query correctly sets ordering clause.'));
+    $orderby = $count->getOrderBy();
+    $this->assertFalse(isset($orderby['name']), t('Count query correctly unsets ordering caluse.'));
+
+    // Make sure that the count query works.
+    $count = $count->execute()->fetchField();
+
+    $this->assertEqual($count, 4, t('Counted the correct number of records.'));
   }
 
   /**
@@ -2568,6 +2643,63 @@ class DatabaseAnsiSyntaxTestCase extends DatabaseTestCase {
     ));
     $this->assertIdentical($result->fetchField(), 'The age of John is 25.', t('Field ANSI Concat works.'));
   }
+
+  /**
+   * Test escaping of LIKE wildcards.
+   */
+  function testLikeEscape() {
+    db_insert('test')
+      ->fields(array(
+        'name' => 'Ring_',
+      ))
+      ->execute();
+
+    // Match both "Ringo" and "Ring_".
+    $num_matches = db_select('test', 't')
+      ->condition('name', 'Ring_', 'LIKE')
+      ->countQuery()
+      ->execute()
+      ->fetchField();
+    $this->assertIdentical($num_matches, '2', t('Found 2 records.'));
+    // Match only "Ring_" using a LIKE expression with no wildcards.
+    $num_matches = db_select('test', 't')
+      ->condition('name', db_like('Ring_'), 'LIKE')
+      ->countQuery()
+      ->execute()
+      ->fetchField();
+    $this->assertIdentical($num_matches, '1', t('Found 1 record.'));
+  }
+
+  /**
+   * Test LIKE query containing a backslash.
+   */
+  function testLikeBackslash() {
+    db_insert('test')
+      ->fields(array('name'))
+      ->values(array(
+        'name' => 'abcde\f',
+      ))
+      ->values(array(
+        'name' => 'abc%\_',
+      ))
+      ->execute();
+
+    // Match both rows using a LIKE expression with two wildcards and a verbatim
+    // backslash.
+    $num_matches = db_select('test', 't')
+      ->condition('name', 'abc%\\\\_', 'LIKE')
+      ->countQuery()
+      ->execute()
+      ->fetchField();
+    $this->assertIdentical($num_matches, '2', t('Found 2 records.'));
+    // Match only the former using a LIKE expression with no wildcards.
+    $num_matches = db_select('test', 't')
+      ->condition('name', db_like('abc%\_'), 'LIKE')
+      ->countQuery()
+      ->execute()
+      ->fetchField();
+    $this->assertIdentical($num_matches, '1', t('Found 1 record.'));
+  }
 }
 
 /**
@@ -2776,49 +2908,6 @@ class DatabaseTransactionTestCase extends DatabaseTestCase {
   }
 
   /**
-   * Test that a database that claims to support transactions will return a transaction object.
-   *
-   * If the active connection does not support transactions, this test does nothing.
-   */
-  function testTransactionsSupported() {
-    try {
-      $connection = Database::getConnection();
-      if ($connection->supportsTransactions()) {
-
-        // Start a "required" transaction. This should fail if we do
-        // this on a database that does not actually support transactions.
-        $txn = db_transaction(TRUE);
-      }
-      $this->pass('Transaction started successfully.');
-    }
-    catch (TransactionsNotSupportedException $e) {
-      $this->fail("Exception thrown when it shouldn't have been.");
-    }
-  }
-
-  /**
-   * Test that a database that doesn't support transactions fails correctly.
-   *
-   * If the active connection supports transactions, this test does nothing.
-   */
-  function testTransactionsNotSupported() {
-    try {
-      $connection = Database::getConnection();
-      if (!$connection->supportsTransactions()) {
-
-        // Start a "required" transaction. This should fail if we do this
-        // on a database that does not actually support transactions, and
-        // the current database does claim to NOT support transactions.
-        $txn = db_transaction(TRUE);
-        $this->fail('No transaction failure registered.');
-      }
-    }
-    catch (TransactionsNotSupportedException $e) {
-      $this->pass('Exception thrown for unsupported transactions.');
-    }
-  }
-
-  /**
    * Test transaction rollback on a database that supports transactions.
    *
    * If the active connection does not support transactions, this test does nothing.
@@ -3022,4 +3111,51 @@ class DatabaseNextIdCase extends DrupalWebTestCase {
     $result = db_next_id(1000);
     $this->assertEqual($result, 1001, t('Sequence provides a larger number than the existing ID.'));
   }
+}
+
+/**
+ * Tests the empty pseudo-statement class.
+ */
+class DatabaseEmptyStatementTestCase extends DrupalWebTestCase {
+  function getInfo() {
+    return array(
+      'name' => t('Empty statement'),
+      'description' => t('Test the empty pseudo-statement class.'),
+      'group' => t('Database'),
+    );
+  }
+
+  /**
+   * Test that the empty result set behaves as empty.
+   */
+  function testEmpty() {
+    $result = new DatabaseStatementEmpty();
+
+    $this->assertTrue($result instanceof DatabaseStatementInterface, t('Class implements expected interface'));
+    $this->assertNull($result->fetchObject(), t('Null result returned.'));
+  }
+
+  /**
+   * Test that the empty result set iterates safely.
+   */
+  function testEmptyIteration() {
+    $result = new DatabaseStatementEmpty();
+
+    foreach ($result as $record) {
+      $this->fail(t('Iterating empty result set should not iterate.'));
+      return;
+    }
+
+    $this->pass(t('Iterating empty result set skipped iteration.'));
+  }
+
+  /**
+   * Test that the empty result set mass-fetches in an expected way.
+   */
+  function testEmptyFetchAll() {
+    $result = new DatabaseStatementEmpty();
+
+    $this->assertEqual($result->fetchAll(), array(), t('Empty array returned from empty result set.'));
+  }
+
 }

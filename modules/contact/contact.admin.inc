@@ -24,8 +24,8 @@ function contact_category_list() {
   // Loop through the categories and add them to the table.
   foreach ($categories as $category) {
     $rows[] = array(
-      $category->category,
-      $category->recipients,
+      check_plain($category->category),
+      check_plain($category->recipients),
       ($category->selected ? t('Yes') : t('No')),
       l(t('Edit'), 'admin/structure/contact/edit/' . $category->cid),
       l(t('Delete'), 'admin/structure/contact/delete/' . $category->cid),
@@ -97,7 +97,8 @@ function contact_category_edit_form($form, &$form_state, array $category = array
     '#type' => 'value',
     '#value' => $category['cid'],
   );
-  $form['submit'] = array(
+  $form['actions'] = array('#type' => 'container', '#attributes' => array('class' => array('form-actions')));
+  $form['actions']['submit'] = array(
     '#type' => 'submit',
     '#value' => t('Save'),
   );

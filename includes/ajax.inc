@@ -366,8 +366,13 @@ function ajax_deliver($page_callback_result) {
  *   None. Additional code is added to the header of the page using
  *   drupal_add_js().
  */
-function ajax_process_form($element) {
+function ajax_process_form($element, &$form_state) {
   $js_added = &drupal_static(__FUNCTION__, array());
+
+  // Nothing to do if there is neither a callback nor a path.
+  if (!(isset($element['#ajax']['callback']) || isset($element['#ajax']['path']))) {
+    return $element;
+  }
 
   // Add a reasonable default event handler if none was specified.
   if (isset($element['#ajax']) && !isset($element['#ajax']['event'])) {
@@ -403,41 +408,48 @@ function ajax_process_form($element) {
 
   // Adding the same JavaScript settings twice will cause a recursion error,
   // we avoid the problem by checking if the JavaScript has already been added.
-  if (!isset($js_added[$element['#id']]) && (isset($element['#ajax']['callback']) || isset($element['#ajax']['path'])) && isset($element['#ajax']['event'])) {
-    drupal_add_library('system', 'form');
-    $element['#attached']['js'][] = 'misc/ajax.js';
+  if (!isset($js_added[$element['#id']]) && isset($element['#ajax']['event'])) {
+    $element['#attached']['library'][] = array('system', 'form');
+    $element['#attached']['js']['misc/ajax.js'] = array('weight' => JS_LIBRARY + 2);
 
-    $ajax_binding = array(
-      'url'      => isset($element['#ajax']['callback']) ? url('system/ajax') : url($element['#ajax']['path']),
-      'event'    => $element['#ajax']['event'],
-      'keypress' => empty($element['#ajax']['keypress']) ? NULL : $element['#ajax']['keypress'],
-      'wrapper'  => empty($element['#ajax']['wrapper']) ? NULL : $element['#ajax']['wrapper'],
-      'selector' => empty($element['#ajax']['selector']) ? '#' . $element['#id'] : $element['#ajax']['selector'],
-      'effect'   => empty($element['#ajax']['effect']) ? 'none' : $element['#ajax']['effect'],
-      'speed'    => empty($element['#ajax']['effect']) ? 'none' : $element['#ajax']['effect'],
-      'method'   => empty($element['#ajax']['method']) ? 'replace' : $element['#ajax']['method'],
-      'progress' => empty($element['#ajax']['progress']) ? array('type' => 'throbber') : $element['#ajax']['progress'],
-      'button'   => isset($element['#executes_submit_callback']) ? array($element['#name'] => $element['#value']) : FALSE,
+    $settings = $element['#ajax'];
+
+    // Assign default settings.
+    $settings += array(
+      'selector' => '#' . $element['#id'],
+      'effect' => 'none',
+      'speed' => 'none',
+      'method' => 'replace',
+      'progress' => array('type' => 'throbber'),
       'formPath' => implode('/', $element['#array_parents']),
     );
 
-    // Convert a simple #ajax['progress'] type string into an array.
-    if (is_string($ajax_binding['progress'])) {
-      $ajax_binding['progress'] = array('type' => $ajax_binding['progress']);
+    // Process special settings.
+    $settings['url'] = isset($settings['path']) ? url($settings['path']) : url('system/ajax');
+    unset($settings['path']);
+    $settings['button'] = isset($element['#executes_submit_callback']) ? array($element['#name'] => $element['#value']) : FALSE;
+
+    // Convert a simple #ajax['progress'] string into an array.
+    if (is_string($settings['progress'])) {
+      $settings['progress'] = array('type' => $settings['progress']);
     }
     // Change progress path to a full URL.
-    if (isset($ajax_binding['progress']['path'])) {
-      $ajax_binding['progress']['url'] = url($ajax_binding['progress']['path']);
+    if (isset($settings['progress']['path'])) {
+      $settings['progress']['url'] = url($settings['progress']['path']);
+      unset($settings['progress']['path']);
     }
     // Add progress.js if we're doing a bar display.
-    if ($ajax_binding['progress']['type'] == 'bar') {
-      drupal_add_js('misc/progress.js', array('cache' => FALSE));
+    if ($settings['progress']['type'] == 'bar') {
+      $element['#attached']['js']['misc/progress.js'] = array('cache' => FALSE);
     }
 
-    drupal_add_js(array('ajax' => array($element['#id'] => $ajax_binding)), 'setting');
+    // @todo This is incompatible with drupal_render() caching, but cannot be
+    //   assigned to #attached, because AJAX callbacks render the form in a way
+    //   so that #attached settings are not taken over.
+    drupal_add_js(array('ajax' => array($element['#id'] => $settings)), 'setting');
 
     $js_added[$element['#id']] = TRUE;
-    $element['#cache'] = TRUE;
+    $form_state['cache'] = TRUE;
   }
   return $element;
 }
@@ -720,7 +732,7 @@ function ajax_command_changed($selector, $asterisk = '') {
   return array(
     'command' => 'changed',
     'selector' => $selector,
-    'star' => $asterisk,
+    'asterisk' => $asterisk,
   );
 }
 
@@ -755,8 +767,9 @@ function ajax_command_css($selector, $argument) {
 /**
  * Creates a Drupal AJAX 'settings' command.
  *
- * The 'settings' command instructs the client to extend Drupal.settings with
- * the given array.
+ * The 'settings' command instructs the client either to use the given array as
+ * the settings for ajax-loaded content or to extend Drupal.settings with the
+ * given array, depending on the value of the $merge parameter.
  *
  * This command is implemented by Drupal.ajax.prototype.commands.settings()
  * defined in misc/ajax.js.
@@ -765,14 +778,20 @@ function ajax_command_css($selector, $argument) {
  *   An array of key/value pairs to add to the settings. This will be utilized
  *   for all commands after this if they do not include their own settings
  *   array.
+ * @param $merge
+ *   Whether or not the passed settings in $argument should be merged into the
+ *   global Drupal.settings on the page. By default (FALSE), the settings that
+ *   are passed to Drupal.attachBehaviors will not include the global
+ *   Drupal.settings.
  *
  * @return
  *   An array suitable for use with the ajax_render() function.
  */
-function ajax_command_settings($argument) {
+function ajax_command_settings($argument, $merge = FALSE) {
   return array(
     'command' => 'settings',
     'settings' => $argument,
+    'merge' => $merge,
   );
 }
 
@@ -792,7 +811,7 @@ function ajax_command_settings($argument) {
  *   The name or key (in the key value pair) of the data attached to this
  *   selector.
  * @param $value
- *  The value of the data. Not just limited to strings can be any format.
+ *   The value of the data. Not just limited to strings can be any format.
  *
  * @return
  *   An array suitable for use with the ajax_render() function.

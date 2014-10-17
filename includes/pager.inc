@@ -127,8 +127,8 @@ class PagerDefault extends SelectQueryExtender {
    * The count query may be specified manually or, by default, taken from the
    * query we are extending.
    *
-   * @return
-   *   A count SelectQueryInterface object.
+   * @return SelectQueryInterface
+   *   A count query object.
    */
   protected function getCountQuery() {
     if ($this->customCountQuery) {
@@ -180,7 +180,7 @@ class PagerDefault extends SelectQueryExtender {
 function pager_get_query_parameters() {
   $query = &drupal_static(__FUNCTION__);
   if (!isset($query)) {
-    $query = drupal_get_query_parameters($_REQUEST, array_merge(array('q', 'page'), array_keys($_COOKIE)));
+    $query = drupal_get_query_parameters($_GET, array('q', 'page'));
   }
   return $query;
 }
@@ -540,7 +540,7 @@ function pager_load_array($value, $element, $old_array) {
   $new_array = $old_array;
   // Look for empty elements.
   for ($i = 0; $i < $element; $i++) {
-    if (!$new_array[$i]) {
+    if (empty($new_array[$i])) {
       // Load found empty element with 0.
       $new_array[$i] = 0;
     }

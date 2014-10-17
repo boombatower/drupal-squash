@@ -18,12 +18,12 @@
  *   Preprocess functions can reformat it by calling format_date() with the
  *   desired parameters on the $comment->changed variable.
  * - $new: New comment marker.
+ * - $permalink: Comment permalink.
  * - $picture: Authors picture.
  * - $signature: Authors signature.
  * - $status: Comment status. Possible values are:
  *   comment-unpublished, comment-published or comment-preview.
  * - $title: Linked title.
- * - $contextual_links (array): An array of contextual links for the comment.
  * - $classes: String of classes that can be used to style contextually through
  *   CSS. It can be manipulated through the variable $classes_array from
  *   preprocess functions. The default values can be one or more of the following:
@@ -35,6 +35,12 @@
  *   - comment-unpublished: An unpublished comment visible only to administrators.
  *   - comment-by-viewer: Comment by the user currently viewing the page.
  *   - comment-new: New comment since last the visit.
+ * - $title_prefix (array): An array containing additional output populated by
+ *   modules, intended to be displayed in front of the main title tag that
+ *   appears in the template.
+ * - $title_suffix (array): An array containing additional output populated by
+ *   modules, intended to be displayed after the main title tag that appears in
+ *   the template.
  *
  * These two variables are provided for context:
  * - $comment: Full comment object.
@@ -51,19 +57,18 @@
  */
 ?>
 <div class="<?php print $classes; ?> clearfix"<?php print $attributes; ?>>
-  <?php if ($contextual_links): ?>
-    <?php print render($contextual_links); ?>
-  <?php endif; ?>
-
   <?php print $picture ?>
 
   <?php if ($new): ?>
     <span class="new"><?php print $new ?></span>
   <?php endif; ?>
 
+  <?php print render($title_prefix); ?>
   <h3<?php print $title_attributes; ?>><?php print $title ?></h3>
+  <?php print render($title_suffix); ?>
 
   <div class="submitted">
+    <?php print $permalink; ?>
     <?php
       print t('Submitted by !username on !datetime.',
         array('!username' => $author, '!datetime' => $created));

@@ -215,7 +215,8 @@ function drupal_session_initialize() {
  * @ingroup php_wrappers
  */
 function drupal_session_start() {
-  if (!drupal_session_started()) {
+  // Command line clients do not support cookies nor sessions.
+  if (!drupal_session_started() && !drupal_is_cli()) {
     // Save current session data before starting it, as PHP will destroy it.
     $session_data = isset($_SESSION) ? $_SESSION : NULL;
 
@@ -310,35 +311,11 @@ function drupal_session_regenerate() {
 }
 
 /**
- * Counts how many users are active on the site.
- *
- * Counts how many users have sessions which have been active since the
- * specified time. Can count either anonymous sessions or
- * authenticated sessions.
- *
- * @param int $timestamp.
- *   A Unix timestamp. Users who have been active since this time will be
- *   counted. The default is 0, which counts all existing sessions.
- * @param boolean $anonymous
- *   TRUE counts only anonymous users.
- *   FALSE counts only authenticated users.
- * @return int
- *   The number of users with sessions.
- */
-function drupal_session_count($timestamp = 0, $anonymous = TRUE) {
-  $query = db_select('sessions');
-  $query->addExpression('COUNT(sid)', 'count');
-  $query->condition('timestamp', $timestamp, '>=');
-  $query->condition('uid', 0, $anonymous ? '=' : '>');
-  return $query->execute()->fetchField();
-}
-
-/**
  * Session handler assigned by session_set_save_handler().
  *
  * Cleanup a specific session.
  *
- * @param string $sid
+ * @param $sid
  *   Session ID.
  */
 function _drupal_session_destroy($sid) {
@@ -380,7 +357,7 @@ function _drupal_session_delete_cookie($name, $force_insecure = FALSE) {
 /**
  * End a specific user's session(s).
  *
- * @param string $uid
+ * @param $uid
  *   User ID.
  */
 function drupal_session_destroy_uid($uid) {
@@ -394,7 +371,7 @@ function drupal_session_destroy_uid($uid) {
  *
  * Cleanup stalled sessions.
  *
- * @param int $lifetime
+ * @param $lifetime
  *   The value of session.gc_maxlifetime, passed by PHP.
  *   Sessions not updated for more than $lifetime seconds will be removed.
  */

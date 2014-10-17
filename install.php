@@ -240,7 +240,7 @@ function install_begin_request(&$install_state) {
   require_once DRUPAL_ROOT . '/modules/system/system.install';
   require_once DRUPAL_ROOT . '/includes/common.inc';
   require_once DRUPAL_ROOT . '/includes/file.inc';
-  require_once DRUPAL_ROOT . '/includes/path.inc';
+  require_once DRUPAL_ROOT . '/' . variable_get('path_inc', 'includes/path.inc');
 
   // Load module basics (needed for hook invokes).
   include_once DRUPAL_ROOT . '/includes/module.inc';
@@ -251,11 +251,9 @@ function install_begin_request(&$install_state) {
 
   include_once DRUPAL_ROOT . '/includes/entity.inc';
   $module_list['system']['filename'] = 'modules/system/system.module';
-  $module_list['filter']['filename'] = 'modules/filter/filter.module';
   $module_list['user']['filename'] = 'modules/user/user.module';
   module_list(TRUE, FALSE, FALSE, $module_list);
   drupal_load('module', 'system');
-  drupal_load('module', 'filter');
   drupal_load('module', 'user');
 
   // Load the cache infrastructure using a "fake" cache implementation that
@@ -269,7 +267,6 @@ function install_begin_request(&$install_state) {
   // suspect, due to the fact that Drupal is not fully set up yet.
   require_once DRUPAL_ROOT . '/includes/cache.inc';
   require_once DRUPAL_ROOT . '/includes/cache-install.inc';
-  $conf['cache_inc'] = 'includes/cache.inc';
   $conf['cache_default_class'] = 'DrupalFakeCache';
 
   // Prepare for themed output, if necessary. We need to run this at the
@@ -794,7 +791,7 @@ function install_verify_settings() {
   global $db_prefix, $databases;
 
   // Verify existing settings (if any).
-  if (!empty($databases)) {
+  if (!empty($databases) && install_verify_pdo()) {
     $database = $databases['default']['default'];
     drupal_static_reset('conf_path');
     $settings_file = './' . conf_path(FALSE) . '/settings.php';
@@ -804,6 +801,13 @@ function install_verify_settings() {
     }
   }
   return FALSE;
+}
+
+/**
+ * Verify PDO library.
+ */
+function install_verify_pdo() {
+  return extension_loaded('pdo');
 }
 
 /**
@@ -836,36 +840,31 @@ function install_settings_form($form, &$form_state, &$install_state) {
     throw new Exception(st('Your web server does not appear to support any common database types. Check with your hosting provider to see if they offer any databases that <a href="@drupal-databases">Drupal supports</a>.', array('@drupal-databases' => 'http://drupal.org/node/270#database')));
   }
   else {
-    $form['basic_options'] = array(
-      '#type' => 'fieldset',
-      '#title' => st('Basic options'),
-    );
-
-    $form['basic_options']['driver'] = array(
+    $form['driver'] = array(
       '#type' => 'radios',
       '#title' => st('Database type'),
       '#required' => TRUE,
       '#options' => $drivers,
       '#default_value' => !empty($database['driver']) ? $database['driver'] : current(array_keys($drivers)),
-      '#description' => st('The type of database your @drupal data will be stored in.', array('@drupal' => drupal_install_profile_name())),
+      '#description' => st('The type of database your @drupal data will be stored in.', array('@drupal' => drupal_install_profile_distribution_name())),
     );
     if (count($drivers) == 1) {
-      $form['basic_options']['driver']['#disabled'] = TRUE;
-      $form['basic_options']['driver']['#description'] .= ' ' . st('Your PHP configuration only supports the %driver database type so it has been automatically selected.', array('%driver' => current($drivers)));
+      $form['driver']['#disabled'] = TRUE;
+      $form['driver']['#description'] .= ' ' . st('Your PHP configuration only supports the %driver database type so it has been automatically selected.', array('%driver' => current($drivers)));
     }
 
     // Database name
-    $form['basic_options']['database'] = array(
+    $form['database'] = array(
       '#type' => 'textfield',
       '#title' => st('Database name'),
       '#default_value' => empty($database['database']) ? '' : $database['database'],
       '#size' => 45,
       '#required' => TRUE,
-      '#description' => st('The name of the database your @drupal data will be stored in. It must exist on your server before @drupal can be installed.', array('@drupal' => drupal_install_profile_name())),
+      '#description' => st('The name of the database your @drupal data will be stored in. It must exist on your server before @drupal can be installed.', array('@drupal' => drupal_install_profile_distribution_name())),
     );
 
     // Database username
-    $form['basic_options']['username'] = array(
+    $form['username'] = array(
       '#type' => 'textfield',
       '#title' => st('Database username'),
       '#default_value' => empty($database['username']) ? '' : $database['username'],
@@ -873,7 +872,7 @@ function install_settings_form($form, &$form_state, &$install_state) {
     );
 
     // Database password
-    $form['basic_options']['password'] = array(
+    $form['password'] = array(
       '#type' => 'password',
       '#title' => st('Database password'),
       '#default_value' => empty($database['password']) ? '' : $database['password'],
@@ -912,16 +911,17 @@ function install_settings_form($form, &$form_state, &$install_state) {
     );
 
     // Table prefix
-    $db_prefix = ($profile == 'default') ? 'drupal_' : $profile . '_';
+    $db_prefix = ($profile == 'standard') ? 'drupal_' : $profile . '_';
     $form['advanced_options']['db_prefix'] = array(
       '#type' => 'textfield',
       '#title' => st('Table prefix'),
       '#default_value' => '',
       '#size' => 45,
-      '#description' => st('If more than one application will be sharing this database, enter a table prefix such as %prefix for your @drupal site here.', array('@drupal' => drupal_install_profile_name(), '%prefix' => $db_prefix)),
+      '#description' => st('If more than one application will be sharing this database, enter a table prefix such as %prefix for your @drupal site here.', array('@drupal' => drupal_install_profile_distribution_name(), '%prefix' => $db_prefix)),
     );
 
-    $form['save'] = array(
+    $form['actions'] = array('#type' => 'container', '#attributes' => array('class' => array('form-actions')));
+    $form['actions']['save'] = array(
       '#type' => 'submit',
       '#value' => st('Save and continue'),
     );
@@ -963,7 +963,7 @@ function install_database_errors($database, $settings_file) {
   $database_types = drupal_detect_database_types();
   $driver = $database['driver'];
   if (!isset($database_types[$driver])) {
-    $errors['driver'] = st("In your %settings_file file you have configured @drupal to use a %driver server, however your PHP installation currently does not support this database type.", array('%settings_file' => $settings_file, '@drupal' => drupal_install_profile_name(), '%driver' => $database['driver']));
+    $errors['driver'] = st("In your %settings_file file you have configured @drupal to use a %driver server, however your PHP installation currently does not support this database type.", array('%settings_file' => $settings_file, '@drupal' => drupal_install_profile_distribution_name(), '%driver' => $database['driver']));
   }
   else {
     // Run tasks associated with the database type. Any errors are caught in the
@@ -975,7 +975,7 @@ function install_database_errors($database, $settings_file) {
 
     try {
       db_run_tasks($database['driver']);
-    } 
+    }
     catch (DatabaseTaskException $e) {
       // These are generic errors, so we do not have any specific key of the
       // database connection array to attach them to; therefore, we just put
@@ -1000,6 +1000,10 @@ function install_settings_form_submit($form, &$form_state) {
   );
   $settings['db_prefix'] = array(
     'value'    => $form_state['values']['db_prefix'],
+    'required' => TRUE,
+  );
+  $settings['drupal_hash_salt'] = array(
+    'value'    => sha1(drupal_random_bytes(64)),
     'required' => TRUE,
   );
   drupal_rewrite_settings($settings);
@@ -1096,7 +1100,7 @@ function install_select_profile_form($form, &$form_state, $profile_files) {
   foreach ($profile_files as $profile) {
     // TODO: is this right?
     include_once DRUPAL_ROOT . '/' . $profile->uri;
-    
+
     $details = install_profile_info($profile->name);
     $profiles[$profile->name] = $details;
 
@@ -1106,20 +1110,35 @@ function install_select_profile_form($form, &$form_state, $profile_files) {
     $names[$profile->name] = $name;
   }
 
-  // Display radio buttons alphabetically by human-readable name.
+  // Display radio buttons alphabetically by human-readable name, but always
+  // put the core profiles first (if they are present in the filesystem).
   natcasesort($names);
+  if (isset($names['minimal'])) {
+    // If the expert ("Minimal") core profile is present, put it in front of
+    // any non-core profiles rather than including it with them alphabetically,
+    // since the other profiles might be intended to group together in a
+    // particular way.
+    $names = array('minimal' => $names['minimal']) + $names;
+  }
+  if (isset($names['standard'])) {
+    // If the default ("Standard") core profile is present, put it at the very
+    // top of the list. This profile will have its radio button pre-selected,
+    // so we want it to always appear at the top.
+    $names = array('standard' => $names['standard']) + $names;
+  }
 
   foreach ($names as $profile => $name) {
     $form['profile'][$name] = array(
       '#type' => 'radio',
-      '#value' => 'default',
+      '#value' => 'standard',
       '#return_value' => $profile,
       '#title' => $name,
       '#description' => isset($profiles[$profile]['description']) ? $profiles[$profile]['description'] : '',
       '#parents' => array('profile'),
     );
   }
-  $form['submit'] =  array(
+  $form['actions'] = array('#type' => 'container', '#attributes' => array('class' => array('form-actions')));
+  $form['actions']['submit'] =  array(
     '#type' => 'submit',
     '#value' => st('Save and continue'),
   );
@@ -1153,13 +1172,23 @@ function install_select_locale(&$install_state) {
   $profilename = $install_state['parameters']['profile'];
   $locales = install_find_locales($profilename);
   $install_state['locales'] += $locales;
+
+  if (!empty($_POST['locale'])) {
+    foreach ($locales as $locale) {
+      if ($_POST['locale'] == $locale->name) {
+        $install_state['parameters']['locale'] = $locale->name;
+        return;
+      }
+    }
+  }
+
   if (empty($install_state['parameters']['locale'])) {
     // If only the built-in (English) language is available, and we are using
     // the default profile and performing an interactive installation, inform
     // the user that the installer can be localized. Otherwise we assume the
     // user knows what he is doing.
     if (count($locales) == 1) {
-      if ($profilename == 'default' && $install_state['interactive']) {
+      if ($profilename == 'standard' && $install_state['interactive']) {
         drupal_set_title(st('Choose language'));
         if (!empty($install_state['parameters']['localize'])) {
           $output = '<p>' . st('With the addition of an appropriate translation package, this installer is capable of proceeding in another language of your choice. To install and use Drupal in a language other than English:') . '</p>';
@@ -1171,7 +1200,8 @@ function install_select_locale(&$install_state) {
           $output .= '<ul><li><a href="install.php?profile=' . $profilename . '&amp;locale=en">' . st('Continue installation in English') . '</a></li><li><a href="install.php?profile=' . $profilename . '">' . st('Return to choose a language') . '</a></li></ul>';
         }
         else {
-          $output = '<ul><li><a href="install.php?profile=' . $profilename . '&amp;locale=en">' . st('Install Drupal in English') . '</a></li><li><a href="install.php?profile=' . $profilename . '&amp;localize=true">' . st('Learn how to install Drupal in other languages') . '</a></li></ul>';
+          include_once DRUPAL_ROOT . '/includes/form.inc';
+          $output = drupal_render(drupal_get_form('install_select_locale_form', $locales, $profilename));
         }
         return $output;
       }
@@ -1196,15 +1226,6 @@ function install_select_locale(&$install_state) {
         }
       }
 
-      if (!empty($_POST['locale'])) {
-        foreach ($locales as $locale) {
-          if ($_POST['locale'] == $locale->name) {
-            $install_state['parameters']['locale'] = $locale->name;
-            return;
-          }
-        }
-      }
-
       // We still don't have a locale, so display a form for selecting one.
       // Only do this in the case of interactive installations, since this is
       // not a real form with submit handlers (the database isn't even set up
@@ -1213,7 +1234,7 @@ function install_select_locale(&$install_state) {
       if ($install_state['interactive']) {
         drupal_set_title(st('Choose language'));
         include_once DRUPAL_ROOT . '/includes/form.inc';
-        return drupal_render(drupal_get_form('install_select_locale_form', $locales));
+        return drupal_render(drupal_get_form('install_select_locale_form', $locales, $profilename));
       }
       else {
         throw new Exception(st('Sorry, you must select a language to continue the installation.'));
@@ -1225,7 +1246,7 @@ function install_select_locale(&$install_state) {
 /**
  * Form API array definition for language selection.
  */
-function install_select_locale_form($form, &$form_state, $locales) {
+function install_select_locale_form($form, &$form_state, $locales, $profilename = 'standard') {
   include_once DRUPAL_ROOT . '/includes/iso.inc';
   $languages = _locale_get_predefined_list();
   foreach ($locales as $locale) {
@@ -1237,14 +1258,20 @@ function install_select_locale_form($form, &$form_state, $locales) {
     $form['locale'][$locale->name] = array(
       '#type' => 'radio',
       '#return_value' => $locale->name,
-      '#default_value' => $locale->name == 'en',
+      '#default_value' => $locale->name == 'en' ? 'en' : '',
       '#title' => $name . ($locale->name == 'en' ? ' ' . st('(built-in)') : ''),
       '#parents' => array('locale')
     );
   }
-  $form['submit'] =  array(
+  if ($profilename == 'standard') {
+    $form['help'] = array(
+      '#markup' => '<p><a href="install.php?profile=' . $profilename . '&amp;localize=true">' . st('Learn how to install Drupal in other languages') . '</a></p>',
+    );
+  }
+  $form['actions'] = array('#type' => 'container', '#attributes' => array('class' => array('form-actions')));
+  $form['actions']['submit'] =  array(
     '#type' => 'submit',
-    '#value' => st('Select language'),
+    '#value' => st('Save and continue'),
   );
   return $form;
 }
@@ -1319,7 +1346,7 @@ function install_profile_modules(&$install_state) {
   }
   $batch = array(
     'operations' => $operations,
-    'title' => st('Installing @drupal', array('@drupal' => drupal_install_profile_name())),
+    'title' => st('Installing @drupal', array('@drupal' => drupal_install_profile_distribution_name())),
     'error_message' => st('The installation has encountered an error.'),
   );
   return $batch;
@@ -1377,8 +1404,6 @@ function install_configure_form($form, &$form_state, &$install_state) {
     drupal_set_message(st('All necessary changes to %dir and %file have been made. They have been set to read-only for security.', array('%dir' => $settings_dir, '%file' => $settings_file)));
   }
 
-  // Add JavaScript validation.
-  _user_password_dynamic_validation();
   drupal_add_js(drupal_get_path('module', 'system') . '/system.js');
   // Add JavaScript time zone detection.
   drupal_add_js('misc/timezone.js');
@@ -1433,13 +1458,10 @@ function install_import_locales_remaining(&$install_state) {
  *   A message informing the user that the installation is complete.
  */
 function install_finished(&$install_state) {
-  drupal_set_title(st('@drupal installation complete', array('@drupal' => drupal_install_profile_name())), PASS_THROUGH);
+  drupal_set_title(st('@drupal installation complete', array('@drupal' => drupal_install_profile_distribution_name())), PASS_THROUGH);
   $messages = drupal_set_message();
-  $output = '<p>' . st('Congratulations, @drupal has been successfully installed.', array('@drupal' => drupal_install_profile_name())) . '</p>';
-  $output .= '<p>' . (isset($messages['error']) ? st('Review the messages above before continuing on to <a href="@url">your new site</a>.', array('@url' => url(''))) : st('You may now visit <a href="@url">your new site</a>.', array('@url' => url('')))) . '</p>';
-  if (module_exists('help')) {
-    $output .= '<p>' . st('For more information on configuring Drupal, refer to the <a href="@help">help section</a>.', array('@help' => url('admin/help'))) . '</p>';
-  }
+  $output = '<p>' . st('Congratulations, you installed @drupal!', array('@drupal' => drupal_install_profile_distribution_name())) . '</p>';
+  $output .= '<p>' . (isset($messages['error']) ? st('Review the messages above before visiting <a href="@url">your new site</a>.', array('@url' => url(''))) : st('<a href="@url">Visit your new site</a>.', array('@url' => url('')))) . '</p>';
 
   // Rebuild the module and theme data, in case any newly-installed modules
   // need to modify it via hook_system_info_alter(). We need to clear the
@@ -1487,7 +1509,7 @@ function _install_module_batch($module, $module_name, &$context) {
   // loaded by drupal_bootstrap in subsequent batch requests, and other
   // modules possibly depending on it can safely perform their installation
   // steps.
-  module_enable(array($module));
+  module_enable(array($module), FALSE);
   $context['results'][] = $module;
   $context['message'] = st('Installed %module module.', array('%module' => $module_name));
 }
@@ -1525,7 +1547,7 @@ function install_check_requirements($install_state) {
         'title'       => st('Settings file'),
         'value'       => st('The settings file does not exist.'),
         'severity'    => REQUIREMENT_ERROR,
-        'description' => st('The @drupal installer requires that you create a settings file as part of the installation process. Copy the %default_file file to %file. More details about installing Drupal are available in <a href="@install_txt">INSTALL.txt</a>.', array('@drupal' => drupal_install_profile_name(), '%file' => $file, '%default_file' => $conf_path . '/default.settings.php', '@install_txt' => base_path() . 'INSTALL.txt')),
+        'description' => st('The @drupal installer requires that you create a settings file as part of the installation process. Copy the %default_file file to %file. More details about installing Drupal are available in <a href="@install_txt">INSTALL.txt</a>.', array('@drupal' => drupal_install_profile_distribution_name(), '%file' => $file, '%default_file' => $conf_path . '/default.settings.php', '@install_txt' => base_path() . 'INSTALL.txt')),
       );
     }
     else {
@@ -1538,7 +1560,7 @@ function install_check_requirements($install_state) {
           'title'       => st('Settings file'),
           'value'       => st('The settings file is not writable.'),
           'severity'    => REQUIREMENT_ERROR,
-          'description' => st('The @drupal installer requires write permissions to %file during the installation process. If you are unsure how to grant file permissions, consult the <a href="@handbook_url">online handbook</a>.', array('@drupal' => drupal_install_profile_name(), '%file' => $file, '@handbook_url' => 'http://drupal.org/server-permissions')),
+          'description' => st('The @drupal installer requires write permissions to %file during the installation process. If you are unsure how to grant file permissions, consult the <a href="@handbook_url">online handbook</a>.', array('@drupal' => drupal_install_profile_distribution_name(), '%file' => $file, '@handbook_url' => 'http://drupal.org/server-permissions')),
         );
       }
       else {
@@ -1655,19 +1677,13 @@ function _install_configure_form($form, &$form_state, &$install_state) {
     '#weight' => 15,
   );
 
-  $form['submit'] = array(
+  $form['actions'] = array('#type' => 'container', '#attributes' => array('class' => array('form-actions')));
+  $form['actions']['submit'] = array(
     '#type' => 'submit',
     '#value' => st('Save and continue'),
     '#weight' => 15,
   );
 
-  // Allow the profile to alter this form. $form_state isn't available
-  // here, but to conform to the hook_form_alter() signature, we pass
-  // an empty array.
-  $hook_form_alter = $install_state['parameters']['profile'] . '_form_alter';
-  if (function_exists($hook_form_alter)) {
-    $hook_form_alter($form, array(), 'install_configure');
-  }
   return $form;
 }
 
@@ -1699,8 +1715,8 @@ function install_configure_form_submit($form, &$form_state) {
 
   // Enable update.module if this option was selected.
   if ($form_state['values']['update_status_module'][1]) {
-    drupal_install_modules(array('update'));
- 
+    module_enable(array('update'), FALSE);
+
     // Add the site maintenance account's email address to the list of
     // addresses to be notified when updates are available, if selected.
     if ($form_state['values']['update_status_module'][2]) {

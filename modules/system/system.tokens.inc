@@ -10,7 +10,7 @@
  */
 
 /**
- * Implement hook_token_info().
+ * Implements hook_token_info().
  */
 function system_token_info() {
   $types['site'] = array(
@@ -148,7 +148,7 @@ function system_token_info() {
 }
 
 /**
- * Implement hook_tokens().
+ * Implements hook_tokens().
  */
 function system_tokens($type, $tokens, array $data = array(), array $options = array()) {
   $url_options = array('absolute' => TRUE);
@@ -283,7 +283,7 @@ function system_tokens($type, $tokens, array $data = array(), array $options = a
         case 'node':
           if ($nid = $file->nid) {
             $node = node_load($file->nid);
-            $replacements[$original] = $sanitize ? filter_xss($node->title[FIELD_LANGUAGE_NONE][0]['value']) : $node->title[FIELD_LANGUAGE_NONE][0]['value'];
+            $replacements[$original] = $sanitize ? filter_xss($node->title) : $node->title;
           }
           break;
 

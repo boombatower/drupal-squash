@@ -6,7 +6,7 @@
  */
 Drupal.behaviors.dashboard = {
   attach: function () {
-    $('#dashboard').prepend('<div class="customize"><ul class="action-links"><a href="#">' + Drupal.t('Customize') + '</a></ul><div class="canvas"></div></div>');
+    $('#dashboard').prepend('<div class="customize"><ul class="action-links"><a href="#">' + Drupal.t('Customize dashboard') + '</a></ul><div class="canvas"></div></div>');
     $('#dashboard .customize .action-links a').click(Drupal.behaviors.dashboard.enterCustomizeMode);
     if ($('#dashboard .region .block').length == 0) {
       Drupal.settings.dashboard.launchCustomize = true;
@@ -23,7 +23,7 @@ Drupal.behaviors.dashboard = {
       // If the region is empty
       if ($('.block', this).length == 0) {
         // Check if we are in customize mode and grab the correct empty text
-        if ($('#dashboard').hasClass('customize_mode')) {
+        if ($('#dashboard').hasClass('customize-mode')) {
           empty_text = Drupal.settings.dashboard.emptyRegionTextActive;
         } else {
           empty_text = Drupal.settings.dashboard.emptyRegionTextInactive;
@@ -44,7 +44,7 @@ Drupal.behaviors.dashboard = {
    * Enter "customize" mode by displaying disabled blocks.
    */
   enterCustomizeMode: function () {
-    $('#dashboard').addClass('customize_mode');
+    $('#dashboard').addClass('customize-mode');
     Drupal.behaviors.dashboard.addPlaceholders();
     // Hide the customize link
     $('#dashboard .customize .action-links').hide();
@@ -56,7 +56,7 @@ Drupal.behaviors.dashboard = {
    * Exit "customize" mode by simply forcing a page refresh.
    */
   exitCustomizeMode: function () {
-    $('#dashboard').removeClass('customize_mode');
+    $('#dashboard').removeClass('customize-mode');
     Drupal.behaviors.dashboard.addPlaceholders();
     location.href = Drupal.settings.dashboard.dashboard;
   },
@@ -65,8 +65,8 @@ Drupal.behaviors.dashboard = {
    * Helper for enterCustomizeMode; sets up drag-and-drop and close button.
    */
   setupDrawer: function () {
-    $('div.customize .canvas-content').prepend('<input type="button" class="form-submit" value="' + Drupal.t('Done') + '"></input>');
     $('div.customize .canvas-content input').click(Drupal.behaviors.dashboard.exitCustomizeMode);
+    $('div.customize .canvas-content').append('<a class="button" href="">' + Drupal.t('Done') + '</a>');
 
     // Initialize drag-and-drop.
     var regions = $('#dashboard div.region');
@@ -76,7 +76,7 @@ Drupal.behaviors.dashboard = {
       cursorAt: {top:0},
       dropOnEmpty: true,
       items: '>div.block, div.disabled-block',
-      opacity: 0.8,
+      opacity: 1,
       helper: 'block-dragging',
       placeholder: 'block-placeholder clearfix',
       start: Drupal.behaviors.dashboard.start,

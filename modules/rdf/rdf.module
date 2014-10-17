@@ -7,6 +7,19 @@
  */
 
 /**
+ * Implement hook_help().
+ */
+function rdf_help($path, $arg) {
+  switch ($path) {
+    case 'admin/help#rdf':
+      $output = '';
+      $output .= '<h3>' . t('About') . '</h3>';
+      $output .= '<p>' . t('The RDF module enriches your content with metadata to let other applications (e.g. search engines, aggregators) better understand its relationships and attributes. This semantically enriched, machine-readable RDF output for Drupal sites uses the <a href="@rdfa">RDFa specification</a>. Other modules can define mappings of their data to RDFa properties, and the RDF module makes the data available to the theme. The core Drupal modules define RDF mappings for their information, and the core Drupal themes output the RDF meta-data information along with the human-readable visual information. For more information, see the online handbook entry for <a href="@rdf">RDF module</a>.', array('@rdfa' => 'http://www.w3.org/TR/xhtml-rdfa-primer/', '@rdf' => 'http://drupal.org/handbook/modules/rdf')) . '</p>';
+      return $output;
+  }
+}
+
+/**
  * @defgroup rdf RDFa API
  * @{
  * Functions to describe entities and bundles for RDFa.
@@ -163,8 +176,7 @@ function rdf_mapping_save(&$mapping) {
     ))
     ->execute();
 
-  cache_clear_all('entity_info', 'cache');
-  drupal_static_reset('entity_get_info');
+  entity_info_cache_clear();
 
   return $status;
 }
@@ -224,14 +236,13 @@ function rdf_rdfa_attributes($mapping, $data = NULL) {
     // literal text.
     case 'property':
       $attributes['property'] = $mapping['predicates'];
-      if (isset($mapping['callback']) && isset($data)) {
+      // Convert $data to a specific format as per the callback function.
+      if (isset($data) && isset($mapping['callback']) && function_exists($mapping['callback'])) {
         $callback = $mapping['callback'];
-        if (function_exists($callback)) {
-          $attributes['content'] = $callback($data);
-        }
-        if (isset($mapping['datatype'])) {
-          $attributes['datatype'] = $mapping['datatype'];
-        }
+        $attributes['content'] = $callback($data);
+      }
+      if (isset($mapping['datatype'])) {
+        $attributes['datatype'] = $mapping['datatype'];
       }
       break;
   }
@@ -258,8 +269,7 @@ function rdf_rdfa_attributes($mapping, $data = NULL) {
 function rdf_modules_installed($modules) {
   // We need to clear the caches of entity_info as this is not done right
   // during the tests. see http://drupal.org/node/594234
-  cache_clear_all('entity_info', 'cache');
-  drupal_static_reset('entity_get_info');
+  entity_info_cache_clear();
 
   foreach ($modules as $module) {
     $function = $module . '_rdf_mapping';
@@ -394,7 +404,7 @@ function rdf_preprocess_node(&$variables) {
     if (!empty($variables['node']->rdf_mapping['title']['predicates'])) {
       $element['#attributes']['property'] = $variables['node']->rdf_mapping['title']['predicates'];
     }
-    drupal_add_html_head($element, 'rdf_node');
+    drupal_add_html_head($element, 'rdf_node_title');
   }
 
   // Adds RDFa markup for the date.
@@ -402,22 +412,46 @@ function rdf_preprocess_node(&$variables) {
     $date_attributes_array = rdf_rdfa_attributes($variables['rdf_mapping']['created'], $variables['created']);
     $variables['rdf_template_variable_attributes_array']['date'] = $date_attributes_array;
   }
+  // Adds RDFa markup for the relation between the node and its author.
+  if (!empty($variables['rdf_mapping']['uid'])) {
+    $variables['rdf_template_variable_attributes_array']['name']['rel'] = $variables['rdf_mapping']['uid']['predicates'];
+  }
+
+  // Adds RDFa markup annotating the number of comments a node has.
+  if (isset($variables['node']->comment_count) && !empty($variables['node']->rdf_mapping['comment_count']['predicates'])) {
+    // Annotates the 'x comments' link in teaser view.
+    if (isset($variables['content']['links']['comment']['#links']['comment_comments'])) {
+      $comment_count_attributes['property'] = $variables['node']->rdf_mapping['comment_count']['predicates'];
+      $comment_count_attributes['content'] = $variables['node']->comment_count;
+      $variables['content']['links']['comment']['#links']['comment_comments']['attributes'] += $comment_count_attributes;
+    }
+    // In full node view, the number of comments is not displayed by
+    // node.tpl.php so it is expressed in RDFa in the <head> tag.
+    if ($variables['page'] && user_access('access comments')) {
+      $element = array(
+        '#tag' => 'meta',
+        '#attributes' => array(
+          'about' => $variables['node_url'],
+          'property' => $variables['node']->rdf_mapping['comment_count']['predicates'],
+          'content' => $variables['node']->comment_count,
+        ),
+      );
+      drupal_add_html_head($element, 'rdf_node_comment_count');
+    }
+  }
 }
 
 /**
  * Implements MODULE_preprocess_HOOK().
  */
 function rdf_preprocess_field(&$variables) {
-  $entity_type = $variables['element']['#object_type'];
-  $instance = $variables['instance'];
-  $mapping = rdf_mapping_load($entity_type, $instance['bundle']);
-  $field_name = $instance['field_name'];
+  $element = $variables['element'];
+  $mapping = rdf_mapping_load($element['#object_type'], $element['#bundle']);
+  $field_name = $element['#field_name'];
 
   if (!empty($mapping) && !empty($mapping[$field_name])) {
-    foreach ($variables['items'] as $delta => $item) {
-      if (!empty($item['#item'])) {
-        $variables['item_attributes_array'][$delta] = rdf_rdfa_attributes($mapping[$field_name], $item['#item']);
-      }
+    foreach ($element['#items'] as $delta => $item) {
+      $variables['item_attributes_array'][$delta] = rdf_rdfa_attributes($mapping[$field_name], $item);
     }
   }
 }
@@ -440,49 +474,48 @@ function rdf_preprocess_user_profile(&$variables) {
  * Implements MODULE_preprocess_HOOK().
  */
 function rdf_preprocess_username(&$variables) {
-  $account = $variables['account'];
-  if (!empty($account->rdf_mapping['name'])) {
-    if ($account->uid != 0) {
-      // The following RDFa construct allows to fit all the needed information
-      // into the a tag and avoids having to wrap it with an extra span.
+  // $variables['account'] is a pseudo account object, and as such, does not
+  // contain the rdf mappings for the user; in the case of nodes and comments,
+  // it contains the mappings for the node or comment object instead. However
+  // while the rdf mappings are available from a full user_load(), this should
+  // be avoided for performance reasons. Since the type and bundle for
+  // users is already known, call rdf_mapping_load() directly.
+  $rdf_mapping = rdf_mapping_load('user', 'user');
 
-      // An RDF resource for the user is created with the 'about' attribute and
-      // the profile URI is used to identify this resource. Even if the user
-      // profile is not accessible, we generate its URI regardless in order to
-      // be able to identify the user in RDF.
-      $variables['attributes_array']['about'] = url('user/' . $account->uid);
-      // The 'typeof' attribute specifies the RDF type(s) of this resource. They
-      // are defined in the 'rdftype' property of the user object RDF mapping.
-      // Since the full user object is not available in $variables, it needs to
-      // be loaded. This is due to the collision between the node and user
-      // when they are merged into $account and some properties are overridden.
-      $variables['attributes_array']['typeof'] = user_load($account->uid)->rdf_mapping['rdftype'];
-
-      // The first thing we are describing is the relation between the user and
-      // the parent resource (e.g. a node). Because the set of predicate link
-      // the parent to the user, we must use the 'rev' RDFa attribute to specify
-      // that the relationship is reverse.
-      if (!empty($account->rdf_mapping['uid']['predicates'])) {
-        $variables['attributes_array']['rev'] = $account->rdf_mapping['uid']['predicates'];
-        // We indicate the parent identifier in the 'resource' attribute,
-        // typically this is the entity URI. This is the object in RDF.
-        $parent_uri = '';
-        if (!empty($account->path['source'])) {
-          $parent_uri = url($account->path['source']);
-        }
-        elseif (!empty($account->cid)) {
-          $parent_uri = url('comment/' . $account->cid, array('fragment' => 'comment-' . $account->cid));
-        }
-        $variables['attributes_array']['resource'] = $parent_uri;
-      }
-
-      // The second information we annotate is the name of the user with the
-      // 'property' attribute. We do not need to specify the RDF object here
-      // because it's the value inside the a tag which will be used
-      // automatically according to the RDFa parsing rules.
-      $variables['attributes_array']['property'] = $account->rdf_mapping['name']['predicates'];
-    }
+  // An RDF resource for the user is created with the 'about' attribute and
+  // the profile URI is used to identify this resource. Even if the user
+  // profile is not accessible, we generate its URI regardless in order to
+  // be able to identify the user in RDF. We do not use this attribute for
+  // the anonymous user because we do not have a user profile URI for it (only
+  // a homepage which cannot be used as user profile in RDF).
+  if ($variables['uid'] > 0) {
+    $variables['attributes_array']['about'] = url('user/' . $variables['uid']);
   }
+
+  // The remaining attributes are defined by RDFa as lists
+  // (http://www.w3.org/TR/rdfa-syntax/#rdfa-attributes). Therefore, merge
+  // rather than override, so as not to clobber values set by earlier
+  // preprocess functions.
+  $attributes = array();
+
+  // The 'typeof' attribute specifies the RDF type(s) of this resource. They
+  // are defined in the 'rdftype' property of the user RDF mapping.
+  if (!empty($rdf_mapping['rdftype'])) {
+    $attributes['typeof'] = $rdf_mapping['rdftype'];
+  }
+
+  // Annotate the user name in RDFa. The attribute 'property' is used here
+  // because the user name is a literal.
+  if (!empty($rdf_mapping['name'])) {
+    $attributes['property'] = $rdf_mapping['name']['predicates'];
+  }
+
+  // Add the homepage RDFa markup if present.
+  if (!empty($variables['homepage']) && !empty($rdf_mapping['homepage'])) {
+    $attributes['rel'] = $rdf_mapping['homepage']['predicates'];
+  }
+
+  $variables['attributes_array'] = array_merge_recursive($variables['attributes_array'], $attributes);
 }
 
 /**
@@ -502,6 +535,10 @@ function rdf_preprocess_comment(&$variables) {
   if (!empty($comment->rdf_mapping['created'])) {
     $date_attributes_array = rdf_rdfa_attributes($comment->rdf_mapping['created'], $comment->created);
     $variables['rdf_template_variable_attributes_array']['created'] = $date_attributes_array;
+  }
+  // Adds RDFa markup for the relation between the comment and its author.
+  if (!empty($comment->rdf_mapping['uid'])) {
+    $variables['rdf_template_variable_attributes_array']['author']['rel'] = $comment->rdf_mapping['uid']['predicates'];
   }
   if (!empty($comment->rdf_mapping['title'])) {
     // Adds RDFa markup to the subject of the comment. Because the RDFa markup is
@@ -537,15 +574,23 @@ function rdf_preprocess_comment(&$variables) {
 }
 
 /**
- * Implements MODULE_preprocess_HOOK().
+ * Implements hook_field_attach_view_alter().
  */
-function rdf_preprocess_field_formatter_taxonomy_term_link(&$variables) {
-  $term = $variables['element']['#item']['taxonomy_term'];
-  if (!empty($term->rdf_mapping['rdftype'])) {
-    $variables['link_options']['attributes']['typeof'] = $term->rdf_mapping['rdftype'];
-  }
-  if (!empty($term->rdf_mapping['name']['predicates'])) {
-    $variables['link_options']['attributes']['property'] = $term->rdf_mapping['name']['predicates'];
+function rdf_field_attach_view_alter(&$output, $context) {
+  // Append term mappings on displayed taxonomy links.
+  foreach (element_children($output) as $field_name) {
+    $element = &$output[$field_name];
+    if ($element['#field_type'] == 'taxonomy_term_reference' && $element['#formatter'] == 'taxonomy_term_reference_link') {
+      foreach ($element['#items'] as $delta => $item) {
+        $term = $item['taxonomy_term'];
+        if (!empty($term->rdf_mapping['rdftype'])) {
+          $element[$delta]['#options']['attributes']['typeof'] = $term->rdf_mapping['rdftype'];
+        }
+        if (!empty($term->rdf_mapping['name']['predicates'])) {
+          $element[$delta]['#options']['attributes']['property'] = $term->rdf_mapping['name']['predicates'];
+        }
+      }
+    }
   }
 }
 
@@ -620,8 +665,8 @@ function theme_rdf_template_variable_wrapper($variables) {
  * Sometimes it is useful to export data which is not semantically present in
  * the HTML output. For example, a hierarchy of comments is visible for a human
  * but not for machines because this hiearchy is not present in the DOM tree.
- * We can express it in RDFa via empty span tags. These won't be visible and
- * will give machines extra information about the content and its structure.
+ * We can express it in RDFa via empty span tags. These aren't visible and give
+ * machines extra information about the content and its structure.
  *
  * @param $variables
  *   An associative array containing:
@@ -630,13 +675,7 @@ function theme_rdf_template_variable_wrapper($variables) {
  *     element.
  *
  * @return
- *   A string of HTML containing markup that can be understood by an RDF parser.
- *
- * Tip for themers: while this default implementation results in valid markup
- * for the XHTML+RDFa doctype, you may need to override this in your theme to be
- * valid for doctypes that don't support empty spans. Or, if empty spans create
- * visual problems in your theme, you may want to override this to set a
- * class on them, and apply a CSS rule of display:none for that class.
+ *   A string of HTML containing markup that can be understood by RDFa parsers.
  *
  * @see rdf_process()
  *
@@ -645,7 +684,14 @@ function theme_rdf_template_variable_wrapper($variables) {
 function theme_rdf_metadata($variables) {
   $output = '';
   foreach ($variables['metadata'] as $attributes) {
-    $output .= '<span' . drupal_attributes($attributes) . ' />';
+    // Add a class, so developers viewing html source have a reference for why
+    // there are empty spans in the document. Also can be used to set a CSS
+    // display:none rule in a theme where empty spans affect display.
+    $attributes['class'][] = 'rdf-meta';
+    // XHTML+RDFa doctype allows either <span></span> or <span />, but for
+    // maximum browser compatibility, W3C recommends the former when serving
+    // pages using the text/html media type: http://www.w3.org/TR/xhtml1/#C_3.
+    $output .= '<span' . drupal_attributes($attributes) . '></span>';
   }
   return $output;
 }

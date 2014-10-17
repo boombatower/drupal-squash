@@ -16,7 +16,7 @@ function path_admin_overview($keys = NULL) {
   // Add the filter form above the overview table.
   $build['path_admin_filter_form'] = drupal_get_form('path_admin_filter_form', $keys);
   // Enable language column if locale is enabled or if we have any alias with language
-  $alias_exists = (bool) db_query_range('SELECT 1 FROM {url_alias} WHERE language <> :language', 0, 1, array(':language' => ''))->fetchField();
+  $alias_exists = (bool) db_query_range('SELECT 1 FROM {url_alias} WHERE language <> :language', 0, 1, array(':language' => LANGUAGE_NONE))->fetchField();
   $multilanguage = (module_exists('locale') || $alias_exists);
 
   $header = array(
@@ -61,15 +61,11 @@ function path_admin_overview($keys = NULL) {
     $rows[] = $row;
   }
 
-  if (empty($rows)) {
-    $empty_message = $keys ? t('No URL aliases found.') : t('No URL aliases available. <a href="@link">Add alias</a>.', array('@link' => url('admin/config/search/path/add'))) ;
-    $rows[] = array(array('data' => $empty_message, 'colspan' => ($multilanguage ? 5 : 4)));
-  }
-
   $build['path_table'] = array(
     '#theme' => 'table',
     '#header' => $header,
-    '#rows' => $rows
+    '#rows' => $rows,
+    '#empty' => t('No URL aliases available. <a href="@link">Add alias</a>.', array('@link' => url('admin/config/search/path/add'))),
   );
   $build['path_pager'] = array('#theme' => 'pager');
 
@@ -98,7 +94,7 @@ function path_admin_edit($path = array()) {
  * @see path_admin_form_validate()
  * @see path_admin_form_submit()
  */
-function path_admin_form($form, &$form_state, $path = array('source' => '', 'alias' => '', 'language' => '', 'pid' => NULL)) {
+function path_admin_form($form, &$form_state, $path = array('source' => '', 'alias' => '', 'language' => LANGUAGE_NONE, 'pid' => NULL)) {
   $form['source'] = array(
     '#type' => 'textfield',
     '#title' => t('Existing system path'),
@@ -155,7 +151,7 @@ function path_admin_form_validate($form, &$form_state) {
   $alias = $form_state['values']['alias'];
   $pid = isset($form_state['values']['pid']) ? $form_state['values']['pid'] : 0;
   // Language is only set if locale module is enabled, otherwise save for all languages.
-  $language = isset($form_state['values']['language']) ? $form_state['values']['language'] : '';
+  $language = isset($form_state['values']['language']) ? $form_state['values']['language'] : LANGUAGE_NONE;
 
   $has_alias = db_query("SELECT COUNT(alias) FROM {url_alias} WHERE pid <> :pid AND alias = :alias AND language = :language", array(
       ':pid' => $pid,
@@ -167,8 +163,7 @@ function path_admin_form_validate($form, &$form_state) {
   if ($has_alias) {
     form_set_error('alias', t('The alias %alias is already in use in this language.', array('%alias' => $alias)));
   }
-  $item = menu_get_item($source);
-  if (!$item || !$item['access']) {
+  if (!drupal_valid_path($source)) {
     form_set_error('source', t("The path '@link_path' is either invalid or you do not have access to it.", array('@link_path' => $source)));
   }
 }

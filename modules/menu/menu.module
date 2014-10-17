@@ -13,39 +13,43 @@
 define('MENU_MAX_MENU_NAME_LENGTH_UI', 27);
 
 /**
- * Implement hook_help().
+ * Implements hook_help().
  */
 function menu_help($path, $arg) {
   switch ($path) {
     case 'admin/help#menu':
-      $output = '<p>' . t("The menu module provides an interface to control and customize Drupal's powerful menu system. Menus are a hierarchical collection of links used to navigate a website.  Each menu is rendered in a block that may be positioned and displayed using Drupal's flexible block system. Five menus are provided by Drupal and are always present: <em>Navigation</em>, <em>Management</em>, <em>User menu</em>, <em>Main menu</em>, and <em>Secondary menu</em>. The <em>Management</em> menu contains links for administration and content creation, while the <em>Navigation</em> menu is the default location for site navigation links created by newly enabled modules. Both of these are often displayed in either the left or right sidebar. Most Drupal themes also provide support for the <em>Main links</em> and <em>Secondary links</em>, by displaying them in either the header or footer of each page. The <em>Main menu</em> is the default source for the <em>Main links</em> and the <em>User menu</em> is the default source for the <em>Secondary links</em>.  By default, the <em>User menu</em> has links to take the current user to their account or allow them to log out, while the <em>Main menu</em> and <em>Secondary menu</em> contain no menu links but may be configured to contain custom menu items specific to your site. You may create an unlimited number of additional menus, each of which will automatically have an associated block.") . '</p>';
-      $output .= '<p>' . t('The <a href="@menu">menus page</a> displays all menus currently available on your site. Select a menu from this list to add or edit a menu link, or to rearrange links within the menu. Create new menus using the <a href="@add-menu">add menu page</a> (the block containing a new menu must also be enabled on the <a href="@blocks">blocks administration page</a>).', array('@menu' => url('admin/structure/menu'), '@add-menu' => url('admin/structure/menu/add'), '@blocks' => url('admin/structure/block'))) . '</p>';
-      $output .= '<p>' . t('For more information, see the online handbook entry for <a href="@menu">Menu module</a>.', array('@menu' => 'http://drupal.org/handbook/modules/menu/')) . '</p>';
+      $output = '';
+      $output .= '<h3>' . t('About') . '</h3>';
+      $output .= '<p>' . t('The Menu module provides an interface for managing menus. A menu is a hierarchical collection of links, which can be within or external to the site, generally used for navigation. Each menu is rendered in a block that can be enabled and positioned through the <a href="@blocks"">Blocks administration page</a>. You can view and manage menus on the <a href="@menus">Menus administration page</a>. For more information, see the online handbook entry for the <a href="@menu">Menu module</a>.', array('@blocks' => url('admin/structure/block'), '@menus' => url('admin/structure/menu'), '@menu' => 'http://drupal.org/handbook/modules/menu/')) . '</p>';
+      $output .= '<h3>' . t('Uses') . '</h3>';
+      $output .= '<dl>';
+      $output .= '<dt>' . t('Managing menus') . '</dt>';
+      $output .= '<dd>' . t('Users with the <em>Administer menus and menu items</em> permission can add, edit and delete custom menus on the <a href="@menu">Menus administration page</a>. Custom menus can be special site menus, menus of external links, or any combination of internal and external links. You may create an unlimited number of additional menus, each of which will automatically have an associated block. By selecting <em>list links</em>, you can add, edit, or delete links for a given menu. The links listing page provides a drag-and-drop interface for controlling the order of links, and creating a hierarchy within the menu.', array('@menu' => url('admin/structure/menu'), '@add-menu' => url('admin/structure/menu/add'))) . '</dd>';
+      $output .= '<dt>' . t('Displaying menus') . '</dt>';
+      $output .= '<dd>' . t('After you have created a menu, you must enable and position the associated block on the <a href="@blocks">Blocks administration page</a>.', array('@blocks' => url('admin/structure/block'))) . '</dd>';
+      $output .= '</dl>';
       return $output;
     case 'admin/structure/menu/add':
-      return '<p>' . t('Enter the name for your new menu. Remember to enable the newly created block in the <a href="@blocks">blocks administration page</a>.', array('@blocks' => url('admin/structure/block'))) . '</p>';
-    case 'admin/structure/menu/item/add':
-      return '<p>' . t('Enter the title and path for your new menu link.') . '</p>';
+      return '<p>' . t('You can enable the newly-created block for this menu on the <a href="@blocks">Blocks administration page</a>.', array('@blocks' => url('admin/structure/block'))) . '</p>';
   }
   if ($path == 'admin/structure/menu' && module_exists('block')) {
-    return '<p>' . t('Each menu has a corresponding block that is managed on the <a href="@blocks">blocks administration page</a>.', array('@blocks' => url('admin/structure/block'))) . '</p>';
+    return '<p>' . t('Each menu has a corresponding block that is managed on the <a href="@blocks">Blocks administration page</a>.', array('@blocks' => url('admin/structure/block'))) . '</p>';
   }
 }
 
 /**
- * Implement hook_permission().
+ * Implements hook_permission().
  */
 function menu_permission() {
   return array(
     'administer menu' => array(
-      'title' => t('Administer menu'),
-      'description' => t('Manage menus and menu items.'),
+      'title' => t('Administer menus and menu items'),
     ),
   );
 }
 
 /**
- * Implement hook_menu().
+ * Implements hook_menu().
  */
 function menu_menu() {
   $items['admin/structure/menu'] = array(
@@ -153,7 +157,7 @@ function menu_menu() {
 }
 
 /**
- * Implement hook_theme().
+ * Implements hook_theme().
  */
 function menu_theme() {
   return array(
@@ -169,7 +173,7 @@ function menu_theme() {
 }
 
 /**
- * Implement hook_enable().
+ * Implements hook_enable().
  *
  * Add a link for each custom menu.
  */
@@ -209,9 +213,32 @@ function menu_overview_title($menu) {
  *
  * @param $menu_name
  *   The unique name of a custom menu to load.
+ * @return
+ *   Array defining the custom menu, or FALSE if the menu doesn't exist.
  */
 function menu_load($menu_name) {
-  return db_query("SELECT * FROM {menu_custom} WHERE menu_name = :menu", array(':menu' => $menu_name))->fetchAssoc();
+  $all_menus = menu_load_all();
+  return isset($all_menus[$menu_name]) ? $all_menus[$menu_name] : FALSE;
+}
+
+/**
+ * Load all custom menu data.
+ *
+ * @return
+ *   Array of custom menu data.
+ */
+function menu_load_all() {
+  $custom_menus = &drupal_static(__FUNCTION__);
+  if (!isset($custom_menus)) {
+    if ($cached = cache_get('menu_custom', 'cache_menu')) {
+      $custom_menus = $cached->data;
+    }
+    else {
+      $custom_menus = db_query('SELECT * FROM {menu_custom}')->fetchAllAssoc('menu_name', PDO::FETCH_ASSOC);
+      cache_set('menu_custom', $custom_menus, 'cache_menu');
+    }
+  }
+  return $custom_menus;
 }
 
 /**
@@ -238,6 +265,7 @@ function menu_save($menu) {
       'description' => $menu['description'],
     ))
     ->execute();
+  menu_cache_clear_all();
 
   // Since custom menus are keyed by name and their machine-name cannot be
   // changed, there is no real differentiation between inserting and updating a
@@ -286,6 +314,7 @@ function menu_delete($menu) {
     ->condition('menu_name', $menu['menu_name'])
     ->execute();
 
+  menu_cache_clear_all();
   module_invoke_all('menu_delete', $menu);
 }
 
@@ -343,8 +372,8 @@ function menu_parent_options_js() {
     }
   }
   $options = _menu_get_options(menu_get_menus(), $available_menus, array('mlid' => 0));
-  error_log( var_export( $options, 1) );
-  print drupal_json_output($options);
+
+  drupal_json_output($options);
 }
 
 /**
@@ -393,19 +422,27 @@ function _menu_parents_recurse($tree, $menu_name, $indent, &$options, $exclude, 
 }
 
 /**
- * Reset a system-defined menu item.
+ * Reset a system-defined menu link.
  */
-function menu_reset_item($item) {
-  $new_item = _menu_link_build(menu_get_item($item['router_path']));
+function menu_reset_item($link) {
+  // To reset the link to its original values, we need to retrieve its
+  // definition from hook_menu(). Otherwise, for example, the link's menu would
+  // not be reset, because properties like the original 'menu_name' are not
+  // stored anywhere else. Since resetting a link happens rarely and this is a
+  // one-time operation, retrieving the full menu router does no harm.
+  $menu = menu_get_router();
+  $router_item = $menu[$link['router_path']];
+  $new_link = _menu_link_build($router_item);
+  // Merge existing menu link's ID and 'has_children' property.
   foreach (array('mlid', 'has_children') as $key) {
-    $new_item[$key] = $item[$key];
+    $new_link[$key] = $link[$key];
   }
-  menu_link_save($new_item);
-  return $new_item;
+  menu_link_save($new_link);
+  return $new_link;
 }
 
 /**
- * Implement hook_block_info().
+ * Implements hook_block_info().
  */
 function menu_block_info() {
   $menus = menu_get_menus(FALSE);
@@ -422,7 +459,7 @@ function menu_block_info() {
 }
 
 /**
- * Implement hook_block_view().
+ * Implements hook_block_view().
  */
 function menu_block_view($delta = '') {
   $menus = menu_get_menus(FALSE);
@@ -436,7 +473,7 @@ function menu_block_view($delta = '') {
 }
 
 /**
- * Implement hook_block_view_alter().
+ * Implements hook_block_view_alter().
  */
 function menu_block_view_alter(&$data, $block) {
   // Add contextual links for system menu blocks.
@@ -449,14 +486,14 @@ function menu_block_view_alter(&$data, $block) {
 }
 
 /**
- * Implement hook_node_insert().
+ * Implements hook_node_insert().
  */
 function menu_node_insert($node) {
   menu_node_save($node);
 }
 
 /**
- * Implement hook_node_update().
+ * Implements hook_node_update().
  */
 function menu_node_update($node) {
   menu_node_save($node);
@@ -478,7 +515,7 @@ function menu_node_save($node) {
       $link['link_path'] = "node/$node->nid";
       // If not already set, use the node's title as link title attribute.
       if (empty($link['options']['attributes']['title']) && !$link['customized']) {
-        $link['options']['attributes']['title'] = trim($node->title[FIELD_LANGUAGE_NONE][0]['value']);
+        $link['options']['attributes']['title'] = trim($node->title);
       }
       if (!menu_link_save($link)) {
         drupal_set_message(t('There was an error saving the menu link.'), 'error');
@@ -488,7 +525,7 @@ function menu_node_save($node) {
 }
 
 /**
- * Implement hook_node_delete().
+ * Implements hook_node_delete().
  */
 function menu_node_delete($node) {
   // Delete all menu module links that point to this node.
@@ -499,7 +536,7 @@ function menu_node_delete($node) {
 }
 
 /**
- * Implement hook_node_prepare().
+ * Implements hook_node_prepare().
  */
 function menu_node_prepare($node) {
   if (empty($node->menu)) {
@@ -551,7 +588,7 @@ function _menu_parent_depth_limit($item) {
 }
 
 /**
- * Implement hook_form_alter(). Adds menu item fields to the node form.
+ * Implements hook_form_alter(). Adds menu item fields to the node form.
  */
 function menu_form_alter(&$form, $form_state, $form_id) {
   if (!empty($form['#node_edit_form'])) {
@@ -642,7 +679,7 @@ function menu_node_form_submit($form, &$form_state) {
 }
 
 /**
- * Implement hook_form_FORM_ID_alter() for the node type form.
+ * Implements hook_form_FORM_ID_alter() for the node type form.
  * Adds menu options to the node type form.
  */
 function menu_form_node_type_form_alter(&$form, $form_state) {
@@ -698,16 +735,14 @@ function menu_form_node_type_form_alter(&$form, $form_state) {
  *   titles as the values.
  */
 function menu_get_menus($all = TRUE) {
-  $system_menus = array_keys(menu_list_system_menus());
-  $query = db_select('menu_custom');
-  $query->addTag('translatable');
-  $query->addField('menu_custom', 'menu_name', 'menu_name');
-  $query->addField('menu_custom', 'title', 'title');
-  if (!$all) {
-    $query->condition('menu_name', $system_menus, 'NOT IN');
+  if ($custom_menus = menu_load_all()) {
+    if (!$all) {
+      $custom_menus = array_diff_key($custom_menus, menu_list_system_menus());
+    }
+    foreach ($custom_menus as $menu_name => $menu) {
+      $custom_menus[$menu_name] = t($menu['title']);
+    }
+    asort($custom_menus);
   }
-  $query->orderBy('title');
-
-  return $query->execute()->fetchAllKeyed();
+  return $custom_menus;
 }
-

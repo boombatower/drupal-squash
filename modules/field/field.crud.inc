@@ -149,11 +149,11 @@
  *     - module (string, read-only)
  *         The name of the module that implements the widget type.
  * - display (array)
- *     A sub-array of key/value pairs identifying build modes and the way the
- *     field values should be displayed in each build mode.
+ *     A sub-array of key/value pairs identifying view modes and the way the
+ *     field values should be displayed in each mode.
  *     - full (array)
  *         A sub-array of key/value pairs of the display options to be used
- *         when the field is being displayed in the "full" build mode.
+ *         when the field is being displayed in the "full" view mode.
  *         - label (string)
  *             Position of the label. 'inline', 'above' and 'hidden' are the
  *             values recognized by the default 'field' theme implementation.
@@ -164,12 +164,12 @@
  *             the formatter.
  *        - weight (float)
  *            The weight of the field relative to the other object components
- *            displayed in this build mode.
+ *            displayed in this view mode.
  *         - module (string, read-only)
  *             The name of the module which implements the display formatter.
  *     - teaser
  *         - ...
- *     - other_build_mode
+ *     - other_mode
  *        - ...
  *
  * Bundles are represented by two strings, an entity type and a bundle name.
@@ -194,13 +194,13 @@
  */
 
 /**
- * Create a field.
+ * Creates a field.
  *
  * This function does not bind the field to any bundle; use
  * field_create_instance() for that.
  *
  * @param $field
- *   A field structure. The field_name and type properties are required.
+ *   A field definition array. The field_name and type properties are required.
  *   Other properties, if omitted, will be given the following default values:
  *   - cardinality: 1
  *   - locked: FALSE
@@ -219,7 +219,7 @@
  *     - settings: each omitted setting is given the default value specified in
  *       hook_field_storage_info().
  * @return
- *   The $field structure with the id property filled in.
+ *   The $field array with the id property filled in.
  * @throw
  *   FieldException
  */
@@ -360,8 +360,8 @@ function field_create_field($field) {
   return $field;
 }
 
-/*
- * Update a field.
+/**
+ * Updates a field.
  *
  * Any module may forbid any update for any reason. For example, the
  * field's storage module might forbid an update if it would change
@@ -423,7 +423,7 @@ function field_update_field($field) {
 
   // Tell the storage engine to update the field. Do this before
   // saving the new definition since it still might fail.
-  module_invoke(variable_get('field_storage_module', 'field_sql_storage'), 'field_storage_update_field', $field, $prior_field, $has_data);
+  module_invoke(variable_get('field_storage_default', 'field_sql_storage'), 'field_storage_update_field', $field, $prior_field, $has_data);
 
   // Save the new field definition. @todo: refactor with
   // field_create_field.
@@ -447,8 +447,9 @@ function field_update_field($field) {
 }
 
 /**
- * Read a single field record directly from the database. Generally,
- * you should use the field_info_field() instead.
+ * Reads a single field record directly from the database.
+ *
+ * Generally, you should use the field_info_field() instead.
  *
  * This function will not return deleted fields. Use
  * field_read_fields() instead for this purpose.
@@ -461,7 +462,7 @@ function field_update_field($field) {
  *   $include_additional['include_inactive'] to TRUE will override this
  *   behavior.
  * @return
- *   A field structure, or FALSE.
+ *   A field definition array, or FALSE.
  */
 function field_read_field($field_name, $include_additional = array()) {
   $fields = field_read_fields(array('field_name' => $field_name), $include_additional);
@@ -469,7 +470,7 @@ function field_read_field($field_name, $include_additional = array()) {
 }
 
 /**
- * Read in fields that match an array of conditions.
+ * Reads in fields that match an array of conditions.
  *
  * @param array $params
  *   An array of conditions to match against.
@@ -481,7 +482,7 @@ function field_read_field($field_name, $include_additional = array()) {
  *   behavior.
  * @return
  *   An array of fields matching $params. If
- *   $include_additional['include_deletd'] is TRUE, the array is keyed
+ *   $include_additional['include_deleted'] is TRUE, the array is keyed
  *   by field id, otherwise it is keyed by field name.
  */
 function field_read_fields($params = array(), $include_additional = array()) {
@@ -536,8 +537,7 @@ function field_read_fields($params = array(), $include_additional = array()) {
 }
 
 /**
- * Mark a field for deletion, including all its instances and all data
- * associated with it.
+ * Marks a field and its instances and data for deletion.
  *
  * @param $field_name
  *   The field name to delete.
@@ -573,7 +573,7 @@ function field_delete_field($field_name) {
  * Creates an instance of a field, binding it to a bundle.
  *
  * @param $instance
- *   A field instance structure. The field_name, object_type and
+ *   A field instance definition array. The field_name, object_type and
  *   bundle properties are required. Other properties, if omitted,
  *   will be given the following default values:
  *   - label: the field name
@@ -588,14 +588,14 @@ function field_delete_field($field_name) {
  *     - settings: each omitted setting is given the default value specified in
  *       hook_field_widget_info().
  *   - display:
- *     Settings for the 'full' build mode will be added, and each build mode
- *     will be completed with the follwong default values:
+ *     Settings for the 'full' view mode will be added, and each view mode
+ *     will be completed with the following default values:
  *     - label: 'above'
  *     - type: the default formatter specified in hook_field_info().
  *     - settings: each omitted setting is given the default value specified in
  *       hook_field_formatter_info().
  * @return
- *   The $instance structure with the id property filled in.
+ *   The $instance array with the id property filled in.
  * @throw
  *   FieldException
  */
@@ -621,7 +621,7 @@ function field_create_instance($instance) {
 
   // TODO: Check that the widget type is known and can handle the field type ?
   // TODO: Check that the formatters are known and can handle the field type ?
-  // TODO: Check that the display build modes are known for the object type ?
+  // TODO: Check that the display view modes are known for the object type ?
   // Those checks should probably happen in _field_write_instance() ?
   // Problem : this would mean that a UI module cannot update an instance with a disabled formatter.
 
@@ -645,11 +645,11 @@ function field_create_instance($instance) {
   return $instance;
 }
 
-/*
- * Update an instance of a field.
+/**
+ * Updates an instance of a field.
  *
  * @param $instance
- *   An associative array represeting an instance structure. The required
+ *   An associative array representing an instance structure. The required
  *   keys and values are:
  *     field_name: The name of an existing field.
  *     bundle: The bundle this field belongs to.
@@ -684,7 +684,7 @@ function field_update_instance($instance) {
 }
 
 /**
- * Store an instance record in the field configuration database.
+ * Stores an instance record in the field configuration database.
  *
  * @param $instance
  *   An instance structure.
@@ -722,23 +722,23 @@ function _field_write_instance($instance, $update = FALSE) {
   $instance['widget']['module'] = $widget_type['module'];
   $instance['widget']['settings'] += field_info_widget_settings($instance['widget']['type']);
 
-  // Make sure there is at least display info for the 'full' build mode.
+  // Make sure there is at least display info for the 'full' view mode.
   $instance['display'] += array(
     'full' => array(),
   );
-  // Set default display settings for each build mode.
-  foreach ($instance['display'] as $build_mode => $display) {
-    $instance['display'][$build_mode] += array(
+  // Set default display settings for each view mode.
+  foreach ($instance['display'] as $view_mode => $display) {
+    $instance['display'][$view_mode] += array(
       'label' => 'above',
       // TODO: what if no 'default_formatter' specified ?
       'type' => $field_type['default_formatter'],
       'settings' => array(),
       'weight' => 0,
     );
-    $formatter_type = field_info_formatter_types($instance['display'][$build_mode]['type']);
+    $formatter_type = field_info_formatter_types($instance['display'][$view_mode]['type']);
     // TODO : 'hidden' will raise PHP warnings.
-    $instance['display'][$build_mode]['module'] = $formatter_type['module'];
-    $instance['display'][$build_mode]['settings'] += field_info_formatter_settings($instance['display'][$build_mode]['type']);
+    $instance['display'][$view_mode]['module'] = $formatter_type['module'];
+    $instance['display'][$view_mode]['settings'] += field_info_formatter_settings($instance['display'][$view_mode]['type']);
   }
 
   // The serialized 'data' column contains everything from $instance that does
@@ -768,8 +768,9 @@ function _field_write_instance($instance, $update = FALSE) {
 }
 
 /**
- * Read a single instance record directly from the database. Generally,
- * you should use the field_info_instance() instead.
+ * Reads a single instance record directly from the database.
+ *
+ * Generally, you should use the field_info_instance() instead.
  *
  * This function will not return deleted instances. Use
  * field_read_instances() instead for this purpose.
@@ -795,7 +796,7 @@ function field_read_instance($obj_type, $field_name, $bundle, $include_additiona
 }
 
 /**
- * Read in field instances that match an array of conditions.
+ * Reads in field instances that match an array of conditions.
  *
  * @param $param
  *   An array of properties to use in selecting a field
@@ -848,8 +849,7 @@ function field_read_instances($params = array(), $include_additional = array()) 
 }
 
 /**
- * Mark a field instance for deletion, including all data associated with
- * it.
+ * Marks a field instance and its data for deletion.
  *
  * @param $instance
  *   An instance structure.
@@ -877,7 +877,7 @@ function field_delete_instance($instance) {
  * @} End of "defgroup field_crud".
  */
 
-/*
+/**
  * @defgroup field_purge Field API bulk data deletion
  * @{
  * Clean up after Field API bulk deletion operations.
@@ -945,7 +945,7 @@ function field_delete_instance($instance) {
  */
 
 /**
- * Purge some deleted Field API data, instances, or fields.
+ * Purges a batch of deleted Field API data, instances, or fields.
  *
  * This function will purge deleted field data on up to a specified maximum
  * number of objects and then return. If a deleted field instance with no
@@ -1002,7 +1002,7 @@ function field_purge_batch($batch_size) {
 }
 
 /**
- * Purge the field data for a single field on a single pseudo-object.
+ * Purges the field data for a single field on a single pseudo-object.
  *
  * This is basically the same as field_attach_delete() except it only applies
  * to a single field. The object itself is not being deleted, and it is quite
@@ -1034,7 +1034,7 @@ function field_purge_data($obj_type, $object, $field, $instance) {
 }
 
 /**
- * Purge a field instance record from the database.
+ * Purges a field instance record from the database.
  *
  * This function assumes all data for the instance has already been purged, and
  * should only be called by field_purge_batch().
@@ -1059,7 +1059,7 @@ function field_purge_instance($instance) {
 }
 
 /**
- * Purge a field record from the database.
+ * Purges a field record from the database.
  *
  * This function assumes all instances for the field has already been purged,
  * and should only be called by field_purge_batch().

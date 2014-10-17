@@ -180,7 +180,7 @@ class BootstrapPageCacheTestCase extends DrupalWebTestCase {
 
   /**
    * Test page compression.
-   * 
+   *
    * The test should pass even if zlib.output_compression is enabled in php.ini,
    * .htaccess or similar, or if compression is done outside PHP, e.g. by the
    * mod_deflate Apache module.
@@ -339,7 +339,7 @@ class BootstrapGetFilenameTestCase extends DrupalUnitTestCase {
     $this->assertIdentical(drupal_get_filename('theme_engine', 'phptemplate'), 'themes/engines/phptemplate/phptemplate.engine', t('Retrieve theme engine location.'));
 
     // Retrieving a file that is definitely not stored in the database.
-    $this->assertIdentical(drupal_get_filename('profile', 'default'), 'profiles/default/default.profile', t('Retrieve install profile location.'));
+    $this->assertIdentical(drupal_get_filename('profile', 'standard'), 'profiles/standard/standard.profile', t('Retrieve install profile location.'));
   }
 }
 
@@ -356,7 +356,7 @@ class BootstrapTimerTestCase extends DrupalUnitTestCase {
   /**
    * Test timer_read() to ensure it properly accumulates time when the timer
    * started and stopped multiple times.
-   * @return 
+   * @return
    */
   function testTimer() {
     timer_start('test');
@@ -372,5 +372,44 @@ class BootstrapTimerTestCase extends DrupalUnitTestCase {
     $timer = timer_stop('test');
     $this->assertTrue(timer_read('test') >= 4000, t('Timer measured 4 seconds of sleeping after being stopped for a second time.'));
     $this->assertEqual($timer['count'], 2, t('Timer counted 2 instances of being started.'));
+  }
+}
+
+/**
+ * Test that resetting static variables works.
+ */
+class BootstrapResettableStaticTestCase extends DrupalUnitTestCase {
+
+  public static function getInfo() {
+    return array(
+      'name' => 'Resettable static variables test',
+      'description' => 'Test that drupal_static() and drupal_static_reset() work.',
+      'group' => 'Bootstrap',
+    );
+  }
+
+  /**
+   * Test that a variable reference returned by drupal_static() gets reset when
+   * drupal_static_reset() is called. 
+   */
+  function testDrupalStatic() {
+    $name = __CLASS__ . '_' . __METHOD__;
+    $var = &drupal_static($name, 'foo');
+    $this->assertEqual($var, 'foo', t('Variable returned by drupal_static() was set to its default.'));
+
+    // Call the specific reset and the global reset each twice to ensure that
+    // multiple resets can be issued without odd side effects.
+    $var = 'bar';
+    drupal_static_reset($name);
+    $this->assertEqual($var, 'foo', t('Variable was reset after first invocation of name-specific reset.'));
+    $var = 'bar';
+    drupal_static_reset($name);
+    $this->assertEqual($var, 'foo', t('Variable was reset after second invocation of name-specific reset.'));
+    $var = 'bar';
+    drupal_static_reset();
+    $this->assertEqual($var, 'foo', t('Variable was reset after first invocation of global reset.'));
+    $var = 'bar';
+    drupal_static_reset();
+    $this->assertEqual($var, 'foo', t('Variable was reset after second invocation of global reset.'));
   }
 }

@@ -136,6 +136,15 @@ interface DrupalQueueInterface {
   public function deleteItem($item);
 
   /**
+   * Release an item that the worker could not process, so another
+   * worker can come in and process it before the timeout expires.
+   *
+   * @param $item
+   * @return boolean
+   */
+  public function releaseItem($item);
+
+  /**
    * Create a queue.
    *
    * Called during installation and should be used to perform any necessary
@@ -170,13 +179,17 @@ class SystemQueue implements DrupalQueueInterface {
   }
 
   public function createItem($data) {
-    $record = new stdClass();
-    $record->name = $this->name;
-    $record->data = $data;
-    // We cannot rely on REQUEST_TIME because many items might be created by a
-    // single request which takes longer than 1 second.
-    $record->created = time();
-    return drupal_write_record('queue', $record) !== FALSE;
+    // During a Drupal 6.x to 7.x update, drupal_get_schema() does not contain
+    // the queue table yet, so we cannot rely on drupal_write_record().
+    $query = db_insert('queue')
+      ->fields(array(
+        'name' => $this->name,
+        'data' => serialize($data),
+        // We cannot rely on REQUEST_TIME because many items might be created
+        // by a single request which takes longer than 1 second.
+        'created' => time(),
+      ));
+    return (bool) $query->execute();
   }
 
   public function numberOfItems() {
@@ -216,6 +229,15 @@ class SystemQueue implements DrupalQueueInterface {
     }
   }
 
+  public function releaseItem($item) {
+    $update = db_update('queue')
+      ->fields(array(
+        'expire' => 0,
+      ))
+      ->condition('item_id', $item->item_id);
+      return $update->execute();
+  }
+
   public function deleteItem($item) {
     db_delete('queue')
       ->condition('item_id', $item->item_id)
@@ -232,6 +254,79 @@ class SystemQueue implements DrupalQueueInterface {
     db_delete('queue')
       ->condition('name', $this->name)
       ->execute();
+  }
+}
+
+/**
+ * Static queue implementation.
+ *
+ * This allows "undelayed" variants of processes relying on the Queue
+ * interface. The queue data resides in memory. It should only be used for
+ * items that will be queued and dequeued within a given page request.
+ */
+class MemoryQueue implements DrupalQueueInterface {
+  /**
+   * The queue data.
+   *
+   * @var array
+   */
+  protected $queue;
+
+  /**
+   * Counter for item ids.
+   *
+   * @var int
+   */
+  protected $id_sequence;
+
+  public function __construct($name) {
+    $this->queue = array();
+    $this->id_sequence = 0;
+  }
+
+  public function createItem($data) {
+    $item = new stdClass();
+    $item->item_id = $this->id_sequence++;
+    $item->data = $data;
+    $item->created = time();
+    $item->expire = 0;
+    $this->queue[$item->item_id] = $item;
+  }
+
+  public function numberOfItems() {
+    return count($this->queue);
+  }
+
+  public function claimItem($lease_time = 30) {
+    foreach ($this->queue as $key => $item) {
+      if ($item->expire == 0) {
+        $item->expire = time() + $lease_time;
+        $this->queue[$key] = $item;
+        return $item;
+      }
+    }
+    return FALSE;
+  }
+
+  public function deleteItem($item) {
+    unset($this->queue[$item->item_id]);
+  }
+
+  public function releaseItem($item) {
+    if (isset($this->queue[$item->item_id]) && $this->queue[$item->item_id]->expire != 0) {
+      $this->queue[$item->item_id]->expire = 0;
+      return TRUE;
+    }
+    return FALSE;
+  }
+
+  public function createQueue() {
+    // Nothing needed here.
+  }
+
+  public function deleteQueue() {
+    $this->queue = array();
+    $this->id_sequence = 0;
   }
 }
 

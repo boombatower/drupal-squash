@@ -32,7 +32,7 @@ h1 {
   font-size: 170%;
 }
 
-h2 {
+h2, #center h1 {
   font-size: 160%;
   line-height: 130%;
 }
@@ -291,6 +291,31 @@ table .form-button, table .form-submit {
 }
 
 /**
+ * Skip link
+ */
+#skip-link a:link, #skip-link a:visited {
+  font-weight: bold; 
+  background: #fff; 
+  padding: 0px 5px;
+  text-decoration: none;
+  font-size: 80%;
+  text-align: right;
+  top: -99em;
+  left: auto;
+  position: absolute;
+}
+
+#skip-link a:hover, #skip-link a:focus, #skip-link a:active  {
+  height: auto;
+  width: auto;
+  overflow: visible;
+  top:0;
+  left:0;
+  position: fixed;
+  z-index: 1000;
+}
+
+/**
  * Layout
  */
 .region-header {
@@ -341,9 +366,24 @@ table .form-button, table .form-submit {
   background: #edf5fa url(images/body.png) repeat-x 50% 0;
 }
 
+/* Set container widths when we are using the "fixed width" option. */
 #wrapper #container {
+  width: 560px;
   margin: 0 auto;
   padding: 0 20px;
+}
+
+body.one-sidebar #wrapper #container {
+  width: 770px;
+}
+
+body.two-sidebars #wrapper #container {
+  width: 980px;
+}
+
+/* Unset container width when we are using the "fluid width" option. */
+body.fluid-width #wrapper #container {
+  width: auto;
   max-width: 1270px;
 }
 
@@ -355,18 +395,18 @@ table .form-button, table .form-submit {
   position: absolute;
 }
 
-#wrapper #container #header h1, #wrapper #container #header h1 a:link, #wrapper #container #header h1 a:visited {
+#branding, #branding a:link, #branding a:visited {
   line-height: 120px;
   position: relative;
   z-index: 2;
   white-space: nowrap;
 }
 
-#wrapper #container #header h1 span {
+#branding span {
   font-weight: bold;
 }
 
-#wrapper #container #header h1 img {
+#branding img {
   padding-top: 14px;
   padding-right: 20px; /* LTR */
   float: left; /* LTR */
@@ -501,14 +541,21 @@ body.two-sidebars .region-footer {
 /**
  * Header
  */
-#wrapper #container #header h1, #wrapper #container #header h1 a:link, #wrapper #container #header h1 a:visited {
+div#branding {
+  font-family: Helvetica,Arial,sans-serif;
+}
+
+div#branding strong {
+   font-weight: normal;
+}
+
+#branding, #branding a:link, #branding a:visited {
   color: #fff;
-  font-weight: normal;
   text-shadow: #1659ac 0px 1px 3px;
   font-size: 1.5em;
 }
 
-#wrapper #container #header h1 a:hover {
+#branding a:hover {
   text-decoration: none;
 }
 
@@ -525,6 +572,16 @@ body.two-sidebars .region-footer {
   background-color: #fff;
   border: 1px solid #e0e5fb;
   margin-bottom: 2em;
+}
+
+/* Don't display any header elements when within the overlay, and adjust the
+   page height accordingly. */
+body.overlay #header * {
+  display: none;
+}
+
+body.overlay {
+  margin-top: -80px;
 }
 
 /**
@@ -617,7 +674,7 @@ ul.secondary {
   margin: -0.2em -26px 1em;
   padding: 0 26px 0.6em;
 }
-h2.with-tabs {
+h1.with-tabs {
   float: left; /* LTR */
   margin: 0 2em 0 0; /* LTR */
   padding: 0;
@@ -806,17 +863,6 @@ tr.even td.menu-disabled {
   cursor: default;
   padding: 2px;
   margin: 0;
-}
-
-/**
- * Contextual links.
- */
-.contextual-links-region-active {
-  outline: #027AC6 dashed 1px;
-}
-.block ul.contextual-links {
-  margin: 0;
-  padding: 0;
 }
 
 /**
@@ -1041,6 +1087,13 @@ tr.taxonomy-term-divider-top {
 
 tr.taxonomy-term-divider-bottom {
   border-top: 1px dotted #CCC;
+}
+
+.theme-selector h3 {
+  margin: 10px 0;
+}
+.theme-selector .operations li {
+  list-style-image: none;
 }
 
 /**

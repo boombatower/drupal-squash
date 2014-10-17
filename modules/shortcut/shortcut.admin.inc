@@ -78,7 +78,8 @@ function shortcut_set_switch($form, &$form_state, $account = NULL) {
     'js' => array(drupal_get_path('module', 'shortcut') . '/shortcut.admin.js'),
   );
 
-  $form['submit'] = array(
+  $form['actions'] = array('#type' => 'container', '#attributes' => array('class' => array('form-actions')));
+  $form['actions']['submit'] = array(
     '#type' => 'submit', 
     '#value' => t('Save configuration'),
   );
@@ -111,10 +112,10 @@ function shortcut_set_switch_submit($form, &$form_state) {
     if ($account->uid == $user->uid) {
       // Only administrators can create new shortcut sets, so we know they have
       // access to switch back.
-      drupal_set_message(t('Your are now using the new %set_name shortcut set. You can customize it from this page or <a href="@switch-url">switch back to a different one.</a>', $replacements));
+      drupal_set_message(t('You are now using the new %set_name shortcut set. You can edit it from this page or <a href="@switch-url">switch back to a different one.</a>', $replacements));
     }
     else {
-      drupal_set_message(t('%user is now using a new shortcut set called %set_name. You can customize it from this page.', $replacements));
+      drupal_set_message(t('%user is now using a new shortcut set called %set_name. You can edit it from this page.', $replacements));
     }
     $form_state['redirect'] = 'admin/config/system/shortcut/' . $set->set_name;
   }
@@ -130,25 +131,6 @@ function shortcut_set_switch_submit($form, &$form_state) {
 
   // Assign the shortcut set to the provided user account.
   shortcut_set_assign_user($set, $account);
-}
-
-/**
- * Theme function for the form that switches shortcut sets.
- *
- * @param $variables
- *   An associative array containing:
- *   - form: An array representing the form.
- * @return
- *   A themed HTML string representing the content of the form.
- *
- * @ingroup themeable
- * @see shortcut_set_switch()
- */
-function theme_shortcut_set_switch($variables) {
-  $form = $variables['form'];
-  // Render the textfield for adding a new set inline with the radio button.
-  $form['set']['new']['#title'] = t('New set: !textfield', array('!textfield' => drupal_render($form['new'])));
-  return drupal_render_children($form);
 }
 
 /**
@@ -214,7 +196,8 @@ function shortcut_set_customize($form, &$form_state, $shortcut_set) {
     'js' => array(drupal_get_path('module', 'shortcut') . '/shortcut.admin.js'),
   );
 
-  $form['submit'] = array(
+  $form['actions'] = array('#type' => 'container', '#attributes' => array('class' => array('form-actions')));
+  $form['actions']['submit'] = array(
     '#type' => 'submit', 
     '#value' => t('Save Changes'),
   );

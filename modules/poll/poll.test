@@ -57,9 +57,9 @@ class PollTestCase extends DrupalWebTestCase {
     $already_submitted_choices = array_slice($choices, 0, $index);
     $new_choices = array_values(array_slice($choices, $index, $max_new_choices));
 
-    $langcode = FIELD_LANGUAGE_NONE;
+    $langcode = LANGUAGE_NONE;
     $edit = array(
-      "title[$langcode][0][value]" => $title
+      "title" => $title
     );
     foreach ($already_submitted_choices as $k => $text) {
       $edit['choice[chid:' . $k . '][chtext]'] = $text;
@@ -332,37 +332,18 @@ class PollJSAddChoice extends DrupalWebTestCase {
     $web_user = $this->drupalCreateUser(array('create poll content', 'access content'));
     $this->drupalLogin($web_user);
     $this->drupalGet('node/add/poll');
-    $langcode = FIELD_LANGUAGE_NONE;
+    $langcode = LANGUAGE_NONE;
     $edit = array(
-      "title[$langcode][0][value]" => $this->randomName(),
+      "title" => $this->randomName(),
       'choice[new:0][chtext]' => $this->randomName(),
       'choice[new:1][chtext]' => $this->randomName(),
     );
 
-    // @TODO: the framework should make it possible to submit a form to a
-    // different URL than its action or the current. For now, we can just force
-    // it.
-    $this->additionalCurlOptions[CURLOPT_URL] = url('system/ajax', array('absolute' => TRUE));
-    $this->drupalPost(NULL, $edit, t('More choices'));
-    unset($this->additionalCurlOptions[CURLOPT_URL]);
+    // Press 'add choice' button through AJAX, and place the expected HTML result
+    // as the tested content.
+    $commands = $this->drupalPostAJAX(NULL, $edit, 'poll_more');
+    $this->content = $commands[1]['data'];
 
-    // The response is drupal_json_output, so we need to undo some escaping.
-    $commands = json_decode(str_replace(array('\x3c', '\x3e', '\x26'), array("<", ">", "&"), $this->drupalGetContent()));
-
-    // The JSON response will be two AJAX commands. The first is a settings
-    // command and the second is the replace command.
-    $settings = reset($commands);
-    $replace = next($commands);
-
-    $this->assertTrue(is_object($settings), t('The response settings command is an object'));
-    $this->assertTrue(is_object($replace), t('The response replace command is an object'));
-
-    // This replace data is valid HTML so we will can reuse everything we have
-    // for HTML pages.
-    $this->content = $replace->data;
-
-    // Needs to be emptied out so the new content will be parsed.
-    $this->elements = '';
     $this->assertFieldByName('choice[chid:0][chtext]', $edit['choice[new:0][chtext]'], t('Field !i found', array('!i' => 0)));
     $this->assertFieldByName('choice[chid:1][chtext]', $edit['choice[new:1][chtext]'], t('Field !i found', array('!i' => 1)));
     $this->assertFieldByName('choice[new:0][chtext]', '', t('Field !i found', array('!i' => 2)));

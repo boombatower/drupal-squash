@@ -190,7 +190,8 @@ function simpletest_test_form_submit($form, &$form_state) {
     }
   }
   if (count($tests_list) > 0 ) {
-    simpletest_run_tests($tests_list, 'drupal');
+    $test_id = simpletest_run_tests($tests_list, 'drupal');
+    $form_state['redirect'] = 'admin/config/development/testing/results/' . $test_id;
   }
   else {
     drupal_set_message(t('No test(s) selected.'), 'error');
@@ -430,7 +431,7 @@ function simpletest_settings_form($form, &$form_state) {
   $form['general']['simpletest_clear_results'] = array(
     '#type' => 'checkbox',
     '#title' => t('Clear results after each complete test suite run'),
-    '#description' => t('By default SimpleTest will clear the results after they have been viewed on the results page, but in some cases it may be useful to leave the results in the database. The results can then be viewed at <em>admin/config/development/testing/[test_id]</em>. The test ID can be found in the database, simpletest table, or kept track of when viewing the results the first time. Additionally, some modules may provide more analaysis or features that require this setting to be disabled.'),
+    '#description' => t('By default SimpleTest will clear the results after they have been viewed on the results page, but in some cases it may be useful to leave the results in the database. The results can then be viewed at <em>admin/config/development/testing/[test_id]</em>. The test ID can be found in the database, simpletest table, or kept track of when viewing the results the first time. Additionally, some modules may provide more analysis or features that require this setting to be disabled.'),
     '#default_value' => variable_get('simpletest_clear_results', TRUE),
   );
   $form['general']['simpletest_verbose'] = array(
@@ -442,18 +443,33 @@ function simpletest_settings_form($form, &$form_state) {
 
   $form['httpauth'] = array(
     '#type' => 'fieldset',
-    '#title' => t('HTTP authentication credentials'),
+    '#title' => t('HTTP authentication'),
     '#description' => t('HTTP auth settings to be used by the SimpleTest browser during testing. Useful when the site requires basic HTTP authentication.'),
+    '#collapsible' => TRUE,
+    '#collapsed' => TRUE,
   );
-  $form['httpauth']['simpletest_username'] = array(
+  $form['httpauth']['simpletest_httpauth_method'] = array(
+    '#type' => 'select',
+    '#title' => t('Method'),
+    '#options' => array(
+      CURLAUTH_BASIC => t('Basic'),
+      CURLAUTH_DIGEST => t('Digest'),
+      CURLAUTH_GSSNEGOTIATE => t('GSS negotiate'),
+      CURLAUTH_NTLM => t('NTLM'),
+      CURLAUTH_ANY => t('Any'),
+      CURLAUTH_ANYSAFE => t('Any safe'),
+    ),
+    '#default_value' => variable_get('simpletest_httpauth_method', CURLAUTH_BASIC),
+  );
+  $form['httpauth']['simpletest_httpauth_username'] = array(
     '#type' => 'textfield',
     '#title' => t('Username'),
-    '#default_value' => variable_get('simpletest_username', ''),
+    '#default_value' => variable_get('simpletest_httpauth_username', ''),
   );
-  $form['httpauth']['simpletest_password'] = array(
+  $form['httpauth']['simpletest_httpauth_password'] = array(
     '#type' => 'textfield',
     '#title' => t('Password'),
-    '#default_value' => variable_get('simpletest_password', ''),
+    '#default_value' => variable_get('simpletest_httpauth_password', ''),
   );
 
   return system_settings_form($form);

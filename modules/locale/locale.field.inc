@@ -16,7 +16,7 @@ function locale_field_node_form_update_field_language($form, &$form_state, $rese
   $node = (object) $form_state['values'];
   $available_languages = field_multilingual_content_languages();
   // @todo: Unify language neutral language codes.
-  $selected_language = empty($node->language) ? FIELD_LANGUAGE_NONE : $node->language;
+  $selected_language = empty($node->language) ? LANGUAGE_NONE : $node->language;
   list(, , $bundle) = entity_extract_ids('node', $node);
 
   foreach (field_info_instances('node', $bundle) as $instance) {
@@ -52,7 +52,7 @@ function locale_field_fallback_view(&$output, $context) {
 
     // If the items array is empty then we have a missing field translation.
     // @todo: Verify this assumption.
-    if (isset($output[$field_name]) && empty($output[$field_name]['items'])) {
+    if (isset($output[$field_name]) && count(element_children($output[$field_name])) == 0) {
       if (!isset($fallback_candidates)) {
         require_once DRUPAL_ROOT . '/includes/language.inc';
         $fallback_candidates = language_fallback_get_candidates();
@@ -65,7 +65,7 @@ function locale_field_fallback_view(&$output, $context) {
           // Cache fallback values per language as fields might have different
           // fallback values.
           if (!isset($fallback_values[$langcode])) {
-            $fallback_values[$langcode] = field_attach_view($context['obj_type'], $context['object'], $context['build_mode'], $langcode);
+            $fallback_values[$langcode] = field_attach_view($context['obj_type'], $context['object'], $context['view_mode'], $langcode);
           }
           // We are done, skip to the next field.
           $output[$field_name] = $fallback_values[$langcode][$field_name];

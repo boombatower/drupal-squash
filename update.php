@@ -194,7 +194,7 @@ function update_info_page() {
   $output .= "<li>Install your new files in the appropriate location, as described in the handbook.</li>\n";
   $output .= "</ol>\n";
   $output .= "<p>When you have performed the steps above, you may proceed.</p>\n";
-  $output .= '<form method="post" action="update.php?op=selection&amp;token=' . $token . '"><p><input type="submit" value="Continue" /></p></form>';
+  $output .= '<form method="post" action="update.php?op=selection&amp;token=' . $token . '"><p><input type="submit" value="Continue" class="form-submit" /></p></form>';
   $output .= "\n";
   return $output;
 }
@@ -203,7 +203,7 @@ function update_access_denied_page() {
   drupal_add_http_header('403 Forbidden');
   watchdog('access denied', 'update.php', NULL, WATCHDOG_WARNING);
   drupal_set_title('Access denied');
-  return '<p>Access denied. You are not authorized to access this page. Please log in using either an account with the <em>administer software updates</em> permission or the site maintenance account (the account you created during installation). If you cannot log in, you will have to edit <code>settings.php</code> to bypass this access check. To do this:</p>
+  return '<p>Access denied. You are not authorized to access this page. Log in using either an account with the <em>administer software updates</em> permission or the site maintenance account (the account you created during installation). If you cannot log in, you will have to edit <code>settings.php</code> to bypass this access check. To do this:</p>
 <ol>
  <li>With a text editor find the settings.php file on your system. From the main Drupal directory that you installed all the files into, go to <code>sites/your_site_name</code> if such directory exists, or else to <code>sites/default</code> which applies otherwise.</li>
  <li>There is a line inside your settings.php file that says <code>$update_free_access = FALSE;</code>. Change it to <code>$update_free_access = TRUE;</code>.</li>
@@ -278,7 +278,7 @@ function update_check_requirements() {
     update_task_list('requirements');
     drupal_set_title('Requirements problem');
     $status_report = theme('status_report', array('requirements' => $requirements));
-    $status_report .= 'Please check the error messages and <a href="' . request_uri() . '">try again</a>.';
+    $status_report .= 'Check the error messages and <a href="' . check_url(request_uri()) . '">try again</a>.';
     print theme('update_page', array('content' => $status_report));
     exit();
   }
@@ -294,6 +294,7 @@ require_once DRUPAL_ROOT . '/includes/bootstrap.inc';
 require_once DRUPAL_ROOT . '/includes/update.inc';
 require_once DRUPAL_ROOT . '/includes/common.inc';
 require_once DRUPAL_ROOT . '/includes/entity.inc';
+require_once DRUPAL_ROOT . '/includes/unicode.inc';
 update_prepare_d7_bootstrap();
 
 // Determine if the current user has access to run update.php.
@@ -311,10 +312,8 @@ if (empty($op) && update_access_allowed()) {
   // Load module basics.
   include_once DRUPAL_ROOT . '/includes/module.inc';
   $module_list['system']['filename'] = 'modules/system/system.module';
-  $module_list['filter']['filename'] = 'modules/filter/filter.module';
   module_list(TRUE, FALSE, FALSE, $module_list);
   drupal_load('module', 'system');
-  drupal_load('module', 'filter');
 
   // Reset the module_implements() cache so that any new hook implementations
   // in updated code are picked up.

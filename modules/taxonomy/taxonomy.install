@@ -7,7 +7,7 @@
  */
 
 /**
- * Implement hook_uninstall().
+ * Implements hook_uninstall().
  */
 function taxonomy_uninstall() {
   // Remove variables.
@@ -16,7 +16,7 @@ function taxonomy_uninstall() {
 }
 
 /**
- * Implement hook_schema().
+ * Implements hook_schema().
  */
 function taxonomy_schema() {
   $schema['taxonomy_term_data'] = array(
@@ -72,6 +72,7 @@ function taxonomy_schema() {
     'indexes' => array(
       'taxonomy_tree' => array('vid', 'weight', 'name'),
       'vid_name' => array('vid', 'name'),
+      'name' => array('name'),
     ),
   );
 
@@ -132,14 +133,6 @@ function taxonomy_schema() {
         'size' => 'big',
         'description' => 'Description of the vocabulary.',
         'translatable' => TRUE,
-      ),
-      'relations' => array(
-        'type' => 'int',
-        'unsigned' => TRUE,
-        'not null' => TRUE,
-        'default' => 0,
-        'size' => 'tiny',
-        'description' => 'Whether or not related terms are enabled within the vocabulary. (0 = disabled, 1 = enabled)',
       ),
       'hierarchy' => array(
         'type' => 'int',
@@ -215,26 +208,30 @@ function taxonomy_schema() {
 }
 
 /**
- * Add vocabulary machine_name column.
+ * Add {vocabulary}.machine_name column.
  */
 function taxonomy_update_7002() {
-  $field = array(
-    'type' => 'varchar',
-    'length' => 255,
-    'not null' => TRUE,
-    'default' => '',
-    'description' => 'The vocabulary machine name.',
-  );
+  if (!variable_get('taxonomy_update_7002_done', FALSE)) {
+    $field = array(
+      'type' => 'varchar',
+      'length' => 255,
+      'not null' => TRUE,
+      'default' => '',
+      'description' => 'The vocabulary machine name.',
+    );
 
-  db_add_field('taxonomy_vocabulary', 'machine_name', $field);
+    db_add_field('taxonomy_vocabulary', 'machine_name', $field);
 
-  foreach (taxonomy_get_vocabularies() as $vid => $vocabulary) {
-    $machine_name = 'vocabulary_' . $vid;
-    db_update('taxonomy_vocabulary')
-      ->fields(array('machine_name' => 'vocabulary_' . $vid))
-      ->condition('vid', $vid)
-      ->execute();
-    field_attach_create_bundle('taxonomy_term', $machine_name);
+    foreach (taxonomy_get_vocabularies() as $vid => $vocabulary) {
+      $machine_name = 'vocabulary_' . $vid;
+      db_update('taxonomy_vocabulary')
+        ->fields(array('machine_name' => 'vocabulary_' . $vid))
+        ->condition('vid', $vid)
+        ->execute();
+      field_attach_create_bundle('taxonomy_term', $machine_name);
+    }
+
+    variable_set('taxonomy_update_7002_done', TRUE);
   }
 }
 
@@ -316,7 +313,7 @@ function taxonomy_update_7004() {
     $field_name = 'taxonomy_' . $vocabulary->machine_name;
     $field = array(
       'field_name' => $field_name,
-      'type' => 'taxonomy_term',
+      'type' => 'taxonomy_term_reference',
       'cardinality' => $vocabulary->multiple || $vocabulary->tags ? FIELD_CARDINALITY_UNLIMITED : 1,
       'settings' => array(
         'required' => $vocabulary->required ? TRUE : FALSE,
@@ -335,6 +332,7 @@ function taxonomy_update_7004() {
         'label' => $vocabulary->name,
         'field_name' => $field_name,
         'bundle' => $bundle,
+        'object_type' => 'node',
         'description' => $vocabulary->help,
         'widget' => array(
           'type' => $vocabulary->tags ? 'taxonomy_autocomplete' : 'select',
@@ -416,7 +414,7 @@ function taxonomy_update_7005(&$sandbox) {
 }
 
 /**
- * Add vocabulary machine_name column.
+ * Add {taxonomy_term_data}.format column.
  */
 function taxonomy_update_7006() {
   db_add_field('taxonomy_term_data', 'format', array(
@@ -426,5 +424,12 @@ function taxonomy_update_7006() {
     'default' => 0,
     'description' => 'The {filter_format}.format of the description.',
   ));
+}
+
+/**
+ * Add index on {taxonomy_term_data}.name column to speed up taxonomy_get_term_by_name().
+ */
+function taxonomy_update_7007() {
+  db_add_index('taxonomy_term_data', 'name', array('name'));
 }
 

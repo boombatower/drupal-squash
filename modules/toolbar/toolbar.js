@@ -7,12 +7,15 @@
 Drupal.behaviors.admin = {
   attach: function(context) {
 
-    // Set the intial state of the toolbar.
+    // Set the initial state of the toolbar.
     $('#toolbar', context).once('toolbar', Drupal.admin.toolbar.init);
 
     // Toggling toolbar drawer.
-    $('#toolbar span.toggle', context).once('toolbar-toggle').click(function() {
+    $('#toolbar a.toggle', context).once('toolbar-toggle').click(function(e) {
       Drupal.admin.toolbar.toggle();
+      // As the toolbar is an overlay displaced region, overlay should be
+      // notified of it's height change to adapt its position.
+      $(window).triggerHandler('resize.overlay-event');
       return false;
     });
   }
@@ -38,50 +41,66 @@ Drupal.admin.toolbar.init = function() {
   else {
     Drupal.admin.toolbar.expand();
   }
-}
+};
 
 /**
  * Collapse the admin toolbar.
  */
 Drupal.admin.toolbar.collapse = function() {
+  var toggle_text = Drupal.t('Open the drawer');
   $('#toolbar div.toolbar-drawer').addClass('collapsed');
-  $('#toolbar span.toggle').removeClass('toggle-active');
-  $('body').removeClass('toolbar-drawer');
+  $('#toolbar a.toggle')
+    .removeClass('toggle-active')
+    .attr('title',  toggle_text)
+    .html(toggle_text);
+  $('body').removeClass('toolbar-drawer').css('paddingTop', $('#toolbar').outerHeight());
   $.cookie(
-    'Drupal.admin.toolbar.collapsed', 
-    1, 
-    {path: Drupal.settings.basePath}
+    'Drupal.admin.toolbar.collapsed',
+    1,
+    {
+      path: Drupal.settings.basePath,
+      // The cookie should "never" expire.
+      expires: 36500
+    }
   );
-}
+};
 
 /**
  * Expand the admin toolbar.
  */
 Drupal.admin.toolbar.expand = function() {
+  var toggle_text = Drupal.t('Close the drawer');
   $('#toolbar div.toolbar-drawer').removeClass('collapsed');
-  $('#toolbar span.toggle').addClass('toggle-active');
-  $('body').addClass('toolbar-drawer');
+  $('#toolbar a.toggle')
+    .addClass('toggle-active')
+    .attr('title',  toggle_text)
+    .html(toggle_text);
+  $('body').addClass('toolbar-drawer').css('paddingTop', $('#toolbar').outerHeight());
   $.cookie(
-    'Drupal.admin.toolbar.collapsed', 
-    0, 
-    {path: Drupal.settings.basePath}
+    'Drupal.admin.toolbar.collapsed',
+    0,
+    {
+      path: Drupal.settings.basePath,
+      // The cookie should "never" expire.
+      expires: 36500
+    }
   );
-}
+};
 
 /**
  * Toggle the admin toolbar.
  */
 Drupal.admin.toolbar.toggle = function() {
-  if ($('#toolbar .toolbar-drawer').is('.collapsed')) {
+  if ($('#toolbar div.toolbar-drawer').hasClass('collapsed')) {
     Drupal.admin.toolbar.expand();
   }
   else {
     Drupal.admin.toolbar.collapse();
   }
-}
+};
 
 Drupal.admin.toolbar.height = function() {
   return $("#toolbar").height();
-}
+};
 
 })(jQuery);

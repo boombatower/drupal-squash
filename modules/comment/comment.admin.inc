@@ -67,31 +67,40 @@ function comment_admin_overview($form, &$form_state, $arg) {
   );
 
   $query = db_select('comment', 'c')->extend('PagerDefault')->extend('TableSort');
-  $query->join('users', 'u', 'u.uid = c.uid');
   $query->join('node', 'n', 'n.nid = c.nid');
-  $query->addField('u', 'name', 'registered_name');
   $query->addField('n', 'title', 'node_title');
   $result = $query
-    ->fields('c', array('subject', 'nid', 'cid', 'comment', 'changed', 'status', 'name', 'homepage'))
-    ->fields('u', array('uid'))
+    ->fields('c', array('cid', 'subject', 'name', 'changed'))
     ->condition('c.status', $status)
     ->limit(50)
     ->orderByHeader($header)
     ->execute();
+	
+  $cids = array();
 
+  // We collect a sorted list of node_titles during the query to attach to the
+  // comments later.
+  foreach ($result as $row) {
+    $cids[] = $row->cid;
+    $node_titles[] = $row->node_title;
+  }
+  $comments = comment_load_multiple($cids);
 
   // Build a table listing the appropriate comments.
   $options = array();
   $destination = drupal_get_destination();
 
-  foreach ($result as $comment) {
+  foreach ($comments as $comment) {
+    // Remove the first node title from the node_titles array and attach to
+    // the comment.
+    $comment->node_title = array_shift($node_titles);
     $options[$comment->cid] = array(
       'subject' => array(
         'data' => array(
           '#type' => 'link',
           '#title' => $comment->subject,
           '#href' => 'comment/' . $comment->cid,
-          '#options' => array('attributes' => array('title' => truncate_utf8($comment->comment, 128)), 'fragment' => 'comment-' . $comment->cid),
+          '#options' => array('attributes' => array('title' => truncate_utf8($comment->comment_body[LANGUAGE_NONE][0]['value'], 128)), 'fragment' => 'comment-' . $comment->cid),
         ),
       ),
       'author' => theme('username', array('account' => $comment)),
@@ -133,8 +142,7 @@ function comment_admin_overview_validate($form, &$form_state) {
   $form_state['values']['comments'] = array_diff($form_state['values']['comments'], array(0));
   // We can't execute any 'Update options' if no comments were selected.
   if (count($form_state['values']['comments']) == 0) {
-    form_set_error('', t('Please select one or more comments to perform the update on.'));
-    drupal_goto('admin/content/comment');
+    form_set_error('', t('Select one or more comments to perform the update on.'));
   }
 }
 
@@ -146,7 +154,7 @@ function comment_admin_overview_validate($form, &$form_state) {
  */
 function comment_admin_overview_submit($form, &$form_state) {
   $operations = comment_operations();
-  if ($operations[$form_state['values']['operation']][1]) {
+  if (!empty($operations[$form_state['values']['operation']][1])) {
     // Extract the appropriate database query operation.
     $query = $operations[$form_state['values']['operation']][1];
     foreach ($form_state['values']['comments'] as $cid => $value) {

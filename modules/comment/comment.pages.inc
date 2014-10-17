@@ -29,7 +29,7 @@
  */
 function comment_reply($node, $pid = NULL) {
   // Set the breadcrumb trail.
-  drupal_set_breadcrumb(array(l(t('Home'), NULL), l($node->title[FIELD_LANGUAGE_NONE][0]['value'], 'node/' . $node->nid)));
+  drupal_set_breadcrumb(array(l(t('Home'), NULL), l($node->title, 'node/' . $node->nid)));
   $op = isset($_POST['op']) ? $_POST['op'] : '';
   $build = array();
 
@@ -65,7 +65,7 @@ function comment_reply($node, $pid = NULL) {
           $comment->node_type = 'comment_node_' . $node->type;
           field_attach_load('comment', array($comment->cid => $comment));
           $comment->name = $comment->uid ? $comment->registered_name : $comment->name;
-          $build['comment_parent'] = comment_build($comment, $node);
+          $build['comment_parent'] = comment_view($comment, $node);
         }
         else {
           drupal_set_message(t('The comment you are replying to does not exist.'), 'error');
@@ -74,7 +74,7 @@ function comment_reply($node, $pid = NULL) {
       }
       // This is the case where the comment is in response to a node. Display the node.
       elseif (user_access('access content')) {
-        $build['comment_node'] = node_build($node);
+        $build['comment_node'] = node_view($node);
       }
 
       // Should we show the reply box?
@@ -108,7 +108,6 @@ function comment_reply($node, $pid = NULL) {
  */
 function comment_approve($comment) {
   $comment->status = COMMENT_PUBLISHED;
-  $comment->comment_format = $comment->format;
   comment_save($comment);
 
   drupal_set_message(t('Comment approved.'));

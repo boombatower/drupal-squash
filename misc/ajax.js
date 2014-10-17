@@ -26,6 +26,7 @@ Drupal.behaviors.AJAX = {
         var element_settings = settings.ajax[base];
 
         $(element_settings.selector).each(function () {
+          element_settings.element = this;
           Drupal.ajax[base] = new Drupal.ajax(base, this, element_settings);
         });
 
@@ -285,7 +286,7 @@ Drupal.ajax.prototype.getEffect = function (response) {
   }
 
   return effect;
-}
+};
 
 /**
  * Handler for the form redirection error.
@@ -395,10 +396,22 @@ Drupal.ajax.prototype.commands = {
   },
 
   /**
+   * Command to provide the jQuery css() function.
+   */
+  css: function (ajax, response, status) {
+    $(response.selector).css(response.argument);
+  },
+
+  /**
    * Command to set the settings that will be used for other commands in this response.
    */
   settings: function (ajax, response, status) {
-    ajax.settings = response.settings;
+    if (response.merge) {
+      $.extend(true, Drupal.settings, response.settings);
+    }
+    else {
+      ajax.settings = response.settings;
+    }
   },
 
   /**

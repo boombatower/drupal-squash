@@ -55,17 +55,19 @@ function hook_hook_info() {
  *
  * @return
  *   An array whose keys are entity type names and whose values identify
- *   properties of those types that the  system needs to know about:
- *   - name: The human-readable name of the type.
+ *   properties of those types that the system needs to know about:
+ *   - label: The human-readable name of the type.
  *   - controller class: The name of the class that is used to load the objects.
- *     The class has to implement the DrupalEntityController interface. Leave
- *     blank to use the DefaultDrupalEntityController implementation.
- *   - base table: (used by DefaultDrupalEntityController) The name of the
+ *     The class has to implement the DrupalEntityControllerInterface interface.
+ *     Leave blank to use the DrupalDefaultEntityController implementation.
+ *   - base table: (used by DrupalDefaultEntityController) The name of the
  *     entity type's base table.
- *   - static cache: (used by DefaultDrupalEntityController) FALSE to disable
+ *   - static cache: (used by DrupalDefaultEntityController) FALSE to disable
  *     static caching of entities during a page request. Defaults to TRUE.
  *   - load hook: The name of the hook which should be invoked by
  *     DrupalDefaultEntityController:attachLoad(), for example 'node_load'.
+ *   - path callback: A function taking an entity as argument and returning the
+ *     path to the entity.
  *   - fieldable: Set to TRUE if you want your entity type to be fieldable.
  *   - object keys: An array describing how the Field API can extract the
  *     information it needs from the objects of the type. Elements:
@@ -109,24 +111,77 @@ function hook_hook_info() {
  *       - access callback: As in hook_menu(). 'user_access' will be assumed if
  *         no value is provided.
  *       - access arguments: As in hook_menu().
+ *   - view modes: An array describing the view modes for the entity type. View
+ *     modes let entities be displayed differently depending on the context.
+ *     For instance, a node can be displayed differently on its own page
+ *     ('full' mode), on the home page or taxonomy listings ('teaser' mode), or
+ *     in an RSS feed ('rss' mode). Modules taking part in the display of the
+ *     entity (notably the Field API) can adjust their behavior depending on
+ *     the requested view mode. Keys of the array are view mode names. Each
+ *     view mode is described by an array with the following key/value pairs:
+ *     - label: The human-readable name of the view mode
  */
 function hook_entity_info() {
   $return = array(
     'node' => array(
-      'name' => t('Node'),
+      'label' => t('Node'),
       'controller class' => 'NodeController',
       'base table' => 'node',
-      'id key' => 'nid',
-      'revision key' => 'vid',
+      'revision table' => 'node_revision',
+      'path callback' => 'node_path',
       'fieldable' => TRUE,
-      'bundle key' => 'type',
+      'object keys' => array(
+        'id' => 'nid',
+        'revision' => 'vid',
+        'bundle' => 'type',
+      ),
+      'bundle keys' => array(
+        'bundle' => 'type',
+      ),
       // Node.module handles its own caching.
       // 'cacheable' => FALSE,
-      // Bundles must provide human readable name so
-      // we can create help and error messages about them.
-      'bundles' => node_type_get_names(),
+      'bundles' => array(),
+      'view modes' => array(
+        'full' => array(
+          'label' => t('Full node'),
+        ),
+        'teaser' => array(
+          'label' => t('Teaser'),
+        ),
+        'rss' => array(
+          'label' => t('RSS'),
+        ),
+      ),
     ),
   );
+
+  // Search integration is provided by node.module, so search-related
+  // view modes for nodes are defined here and not in search.module.
+  if (module_exists('search')) {
+    $return['node']['view modes'] += array(
+      'search_index' => array(
+        'label' => t('Search index'),
+      ),
+      'search_result' => array(
+        'label' => t('Search result'),
+      ),
+    );
+  }
+
+  // Bundles must provide a human readable name so we can create help and error
+  // messages, and the path to attach Field admin pages to.
+  foreach (node_type_get_names() as $type => $name) {
+    $return['node']['bundles'][$type] = array(
+      'label' => $name,
+      'admin' => array(
+        'path' => 'admin/structure/types/manage/%node_type',
+        'real path' => 'admin/structure/types/manage/' . str_replace('_', '-', $type),
+        'bundle argument' => 4,
+        'access arguments' => array('administer content types'),
+      ),
+    );
+  }
+
   return $return;
 }
 
@@ -161,7 +216,75 @@ function hook_entity_info_alter(&$entity_info) {
  */
 function hook_entity_load($entities, $type) {
   foreach ($entities as $entity) {
-    $entity->foo = mymodule_add_something($entity, $entity_type);
+    $entity->foo = mymodule_add_something($entity, $type);
+  }
+}
+
+/**
+ * Define administrative paths.
+ *
+ * Modules may specify whether or not the paths they define in hook_menu() are
+ * to be considered administrative. Other modules may use this information to
+ * display those pages differently (e.g. in a modal overlay, or in a different
+ * theme).
+ *
+ * To change the administrative status of menu items defined in another module's
+ * hook_menu(), modules should implement hook_admin_paths_alter().
+ *
+ * @return
+ *   An associative array. For each item, the key is the path in question, in
+ *   a format acceptable to drupal_match_path(). The value for each item should
+ *   be TRUE (for paths considered administrative) or FALSE (for non-
+ *   administrative paths).
+ *
+ * @see hook_menu()
+ * @see drupal_match_path()
+ * @see hook_admin_paths_alter()
+ */
+function hook_admin_paths() {
+  $paths = array(
+    'mymodule/*/add' => TRUE,
+    'mymodule/*/edit' => TRUE,
+  );
+  return $paths;
+}
+
+/**
+ * Redefine administrative paths defined by other modules.
+ *
+ * @param $paths
+ *   An associative array of administrative paths, as defined by implementations
+ *   of hook_admin_paths().
+ *
+ * @see hook_admin_paths()
+ */
+function hook_admin_paths_alter(&$paths) {
+  // Treat all user pages as administrative.
+  $paths['user'] = TRUE;
+  $paths['user/*'] = TRUE;
+  // Treat the forum topic node form as a non-administrative page.
+  $paths['node/add/forum'] = FALSE;
+}
+
+/**
+ * Act on entities as they are being prepared for view.
+ *
+ * Allows you to operate on multiple entities as they are being prepared for
+ * view. Only use this if attaching the data during the entity_load() phase
+ * is not appropriate, for example when attaching other 'entity' style objects.
+ *
+ * @param $entities
+ *   The entities keyed by entity ID.
+ * @param $type
+ *   The type of entities being loaded (i.e. node, user, comment).
+ */
+function hook_entity_prepare_view($entities, $type) {
+  // Load a specific node into the user object for later theming.
+  if ($type == 'user') {
+    $nodes = mymodule_get_user_nodes(array_keys($entities));
+    foreach ($entities as $uid => $entity) {
+      $entity->user_node = $nodes[$uid];
+    }
   }
 }
 
@@ -274,6 +397,8 @@ function hook_cron_queue_info() {
  *  - "#pre_render": array of callback functions taking $element and $form_state.
  *  - "#post_render": array of callback functions taking $element and $form_state.
  *  - "#submit": array of callback functions taking $form and $form_state.
+ *  - "#title_display": optional string indicating if and how #title should be
+ *    displayed, see theme_form_element() and theme_form_element_label().
  *
  * @see hook_element_info_alter()
  * @see system_element_info()
@@ -1081,6 +1206,44 @@ function hook_xmlrpc() {
 }
 
 /**
+ * Alter the definition of XML-RPC methods before they are called.
+ *
+ * This hook lets at module modify the callback definition for already
+ * declared XML-RPC methods, when they are being invoked by a client.
+ *
+ * This hook is invoked by xmlrpc.php. The method definitions are
+ * passed in by reference. Each element of the $methods array is one
+ * callback definition returned by a module from hook_xmlrpc. Additional
+ * methods may be added, or existing items altered.
+ *
+ * Modules implementing this hook must take care of the fact that
+ * hook_xmlrpc allows two distinct and incompatible formats for callback
+ * definition, so module must be prepared to handle either format for
+ * each callback being altered.
+ *
+ * @see hook_xmlrpc()
+ *
+ * @param $methods
+ *   Associative array of method callback definitions returned from
+ *   hook_xmlrpc.
+ */
+function hook_xmlrpc_alter(&$methods) {
+
+  // Direct update for methods defined the simple way
+  $methods['drupal.login'] = 'mymodule_login';
+
+  // Lookup update for methods defined the complex way
+  foreach ($methods as $key => &$method) {
+    if (!is_int($key)) {
+      continue;
+    }
+    if ($method[0] == 'drupal.site.ping') {
+      $method[1] = 'mymodule_directory_ping';
+    }
+  }
+}
+
+/**
  * Log an event message
  *
  * This hook allows modules to route log events to custom destinations, such as
@@ -1216,7 +1379,7 @@ function hook_mail($key, &$message, $params) {
       '%uid' => $node->uid,
       '%node_url' => url('node/' . $node->nid, array('absolute' => TRUE)),
       '%node_type' => node_type_get_name($node),
-      '%title' => $node->title[FIELD_LANGUAGE_NONE][0]['value'],
+      '%title' => $node->title,
       '%teaser' => $node->teaser,
       '%body' => $node->body,
     );
@@ -1706,7 +1869,7 @@ function hook_requirements($phase) {
     }
     else {
       $requirements['cron'] = array(
-        'description' => $t('Cron has not run. It appears cron jobs have not been setup on your system. Please check the help pages for <a href="@url">configuring cron jobs</a>.', array('@url' => 'http://drupal.org/cron')),
+        'description' => $t('Cron has not run. It appears cron jobs have not been setup on your system. Check the help pages for <a href="@url">configuring cron jobs</a>.', array('@url' => 'http://drupal.org/cron')),
         'severity' => REQUIREMENT_ERROR,
         'value' => $t('Never run'),
       );
@@ -1973,7 +2136,10 @@ function hook_install() {
  *   to the user. If no message is returned, no message will be presented to the
  *   user.
  */
-function hook_update_N(&$sandbox = NULL) {
+function hook_update_N(&$sandbox) {
+  // For non-multipass updates, the signature can simply be;
+  // function hook_update_N() {
+
   // For most updates, the following is sufficient.
   db_add_field('mytable1', 'newcol', array('type' => 'int', 'not null' => TRUE, 'description' => 'My new integer column.'));
 
@@ -2094,7 +2260,7 @@ function hook_disable() {
  *   files found in each enabled module's info file and the core includes
  *   directory. The array is keyed by the file path and contains an array of
  *   the related module's name and weight as used internally by
- *   _registry_rebuild() and related functions.
+ *   _registry_update() and related functions.
  *
  *   For example:
  *   @code
@@ -2104,17 +2270,17 @@ function hook_disable() {
  *     );
  *   @endcode
  * @param $modules
- *   List of all the modules provided as returned by drupal_system_listing().
- *   The list also contains the .info file information in the property 'info'.
- *   An additional 'dir' property has been added to the module information
- *   which provides the path to the directory in which the module resides. The
- *   example shows how to take advantage of the property both properties.
+ *   An array containing all module information stored in the {system} table.
+ *   Each element of the array also contains the module's .info file
+ *   information in the property 'info'. An additional 'dir' property has been
+ *   added to the module information which provides the path to the directory
+ *   in which the module resides. The example shows how to take advantage of
+ *   both properties.
  *
- * @see _registry_rebuild()
- * @see drupal_system_listing()
+ * @see _registry_update()
  * @see simpletest_test_get_all()
  */
-function hook_registry_files_alter(&$files, $module_cache) {
+function hook_registry_files_alter(&$files, $modules) {
   foreach ($modules as $module) {
     // Only add test files for disabled modules, as enabled modules should
     // already include any test files they provide.
@@ -2670,6 +2836,23 @@ function hook_page_delivery_callback_alter(&$callback) {
 }
 
 /**
+ * Alters theme operation links.
+ *
+ * @param $theme_groups
+ *   An associative array containing groups of themes.
+ *
+ * @see system_themes_page()
+ */
+function hook_system_themes_page_alter(&$theme_groups) {
+  foreach ($theme_groups as $state => &$group) {
+    foreach($theme_groups[$state] as &$theme) {
+      // Add a foo link to each list of theme operations.
+      $theme->operations[] = l(t('Foo'), 'admin/appearance/foo', array('query' => array('theme' => $theme->name)));
+    }
+  }
+}
+
+/**
  * Alters inbound URL requests.
  *
  * @param $path
@@ -2745,6 +2928,162 @@ function hook_username_alter(&$name, $account) {
   if (isset($account->uid)) {
     $name = t('User !uid', array('!uid' => $account->uid));
   }
+}
+
+/**
+ * Provide replacement values for placeholder tokens.
+ *
+ * @param $type
+ *   The type of token being replaced. 'node', 'user', and 'date' are common.
+ * @param $tokens
+ *   An array of tokens to be replaced, keyed by the literal text of the token
+ *   as it appeared in the source text.
+ * @param $data
+ *   (optional) An associative array of objects to be used when generating replacement
+ *   values.
+ * @param $options
+ *   (optional) A associative array of options to control the token
+ *   replacement process. Common options are:
+ *   - 'language' A language object to be used when generating locale-sensitive
+ *     tokens.
+ *   - 'sanitize' A boolean flag indicating that tokens should be sanitized for
+ *     display to a web browser.
+ *
+ * @return
+ *   An associative array of replacement values, keyed by the original 'raw'
+ *   tokens that were found in the source text. For example:
+ *   $results['[node:title]'] = 'My new node';
+ */
+function hook_tokens($type, $tokens, array $data = array(), array $options = array()) {
+  $url_options = array('absolute' => TRUE);
+  if (isset($options['language'])) {
+    $url_options['language'] = $options['language'];
+    $language_code = $options['language']->language;
+  }
+  else {
+    $language_code = NULL;
+  }
+  $sanitize = !empty($options['sanitize']);
+
+  $replacements = array();
+
+  if ($type == 'node' && !empty($data['node'])) {
+    $node = $data['node'];
+
+    foreach ($tokens as $name => $original) {
+      switch ($name) {
+        // Simple key values on the node.
+        case 'nid':
+          $replacements[$original] = $node->nid;
+          break;
+
+        case 'title':
+          $replacements[$original] = $sanitize ? check_plain($node->title) : $node->title;
+          break;
+
+        case 'edit-url':
+          $replacements[$original] = url('node/' . $node->nid . '/edit', $url_options);
+          break;
+
+        // Default values for the chained tokens handled below.
+        case 'author':
+          $name = ($node->uid == 0) ? variable_get('anonymous', t('Anonymous')) : $node->name;
+          $replacements[$original] = $sanitize ? filter_xss($name) : $name;
+          break;
+
+        case 'created':
+          $replacements[$original] = format_date($node->created, 'medium', '', NULL, $language_code);
+          break;
+      }
+    }
+
+    if ($author_tokens = token_find_with_prefix($tokens, 'author')) {
+      $author = user_load($node->uid);
+      $replacements += token_generate('user', $author_tokens, array('user' => $author), $options);
+    }
+
+    if ($created_tokens = token_find_with_prefix($tokens, 'created')) {
+      $replacements += token_generate('date', $created_tokens, array('date' => $node->created), $options);
+    }
+  }
+
+  return $replacements;
+}
+
+/**
+ * Provide metadata about available placeholder tokens and token types.
+ *
+ * @return
+ *   An associative array of available tokens and token types, each containing
+ *   the raw name of the token or type, its user-friendly name, and a verbose
+ *   description.
+ *
+ * @see hook_token_info_alter()
+ */
+function hook_token_info() {
+  $type = array(
+    'name' => t('Nodes'),
+    'description' => t('Tokens related to individual nodes.'),
+    'needs-data' => 'node',
+  );
+
+  // Core tokens for nodes.
+  $node['nid'] = array(
+    'name' => t("Node ID"),
+    'description' => t("The unique ID of the node."),
+  );
+  $node['title'] = array(
+    'name' => t("Title"),
+    'description' => t("The title of the node."),
+  );
+  $node['edit-url'] = array(
+    'name' => t("Edit URL"),
+    'description' => t("The URL of the node's edit page."),
+  );
+
+  // Chained tokens for nodes.
+  $node['created'] = array(
+    'name' => t("Date created"),
+    'description' => t("The date the node was posted."),
+    'type' => 'date',
+  );
+  $node['author'] = array(
+    'name' => t("Author"),
+    'description' => t("The author of the node."),
+    'type' => 'user',
+  );
+
+  return array(
+    'types' => array('node' => $type),
+    'tokens' => array('node' => $node),
+  );
+}
+
+/**
+ * Alter the metadata about available placeholder tokens and token types.
+ *
+ * @param $data
+ *   The associative array of token definitions from hook_token_info().
+ *
+ * @see hook_token_info()
+ */
+function hook_token_info_alter(&$data) {
+  // Modify description of node tokens for our site.
+  $node['nid'] = array(
+    'name' => t("Node ID"),
+    'description' => t("The unique ID of the article."),
+  );
+  $node['title'] = array(
+    'name' => t("Title"),
+    'description' => t("The title of the article."),
+  );
+
+  // Chained tokens for nodes.
+  $node['created'] = array(
+    'name' => t("Date created"),
+    'description' => t("The date the article was posted."),
+    'type' => 'date',
+  );
 }
 
 /**

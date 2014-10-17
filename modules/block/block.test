@@ -99,7 +99,7 @@ class BlockTestCase extends DrupalWebTestCase {
     $this->drupalGet('admin/structure/block/manage/block/' . $bid . '/configure');
     $this->assertNoText(t('Block body'));
     $this->drupalPost('admin/structure/block/manage/block/' . $bid . '/configure', array(), t('Save block'));
-    $this->assertNoText(t('Please ensure that each block description is unique.'));
+    $this->assertNoText(t('Ensure that each block description is unique.'));
 
     // Confirm that the custom block is still being displayed using configured text format.
     $this->drupalGet('node');
@@ -111,17 +111,17 @@ class BlockTestCase extends DrupalWebTestCase {
    */
   function testBlockVisibility() {
     $block = array();
-    
+
     // Create a random title for the block
     $title = $this->randomName(8);
-    
+
     // Create the custom block
     $custom_block = array();
     $custom_block['info'] = $this->randomName(8);
     $custom_block['title'] = $title;
     $custom_block['body'] = $this->randomName(32);
     $this->drupalPost('admin/structure/block/add', $custom_block, t('Save block'));
-    
+
     $bid = db_query("SELECT bid FROM {block_custom} WHERE info = :info", array(':info' => $custom_block['info']))->fetchField();
     $block['module'] = 'block';
     $block['delta'] = $bid;
@@ -235,9 +235,9 @@ class NonDefaultBlockAdmin extends DrupalWebTestCase {
    * Test non-default theme admin.
    */
   function testNonDefaultBlockAdmin() {
-    $admin_user = $this->drupalCreateUser(array('administer blocks', 'administer site configuration'));
+    $admin_user = $this->drupalCreateUser(array('administer blocks', 'administer themes'));
     $this->drupalLogin($admin_user);
-    $this->drupalPost('admin/appearance', array('status[stark]' => 1), t('Save configuration'));
+    theme_enable(array('stark'));
     $this->drupalGet('admin/structure/block/list/stark');
   }
 }
@@ -253,13 +253,13 @@ class NewDefaultThemeBlocks extends DrupalWebTestCase {
       'group' => 'Block',
     );
   }
-  
+
   /**
    * Check the enabled Garland blocks are correctly copied over.
    */
   function testNewDefaultThemeBlocks() {
     // Create administrative user.
-    $admin_user = $this->drupalCreateUser(array('administer site configuration'));
+    $admin_user = $this->drupalCreateUser(array('administer themes'));
     $this->drupalLogin($admin_user);
 
     // Ensure no other theme's blocks are in the block table yet.
@@ -277,7 +277,8 @@ class NewDefaultThemeBlocks extends DrupalWebTestCase {
 
     // Turn on the Stark theme and ensure that it contains all of the blocks
     // that Garland did.
-    $this->drupalPost('admin/appearance', array('theme_default' => 'stark'), t('Save configuration'));
+    theme_enable(array('stark'));
+    variable_set('theme_default', 'stark');
     $result = db_query("SELECT * FROM {block} WHERE theme='stark'");
     foreach ($result as $block) {
       unset($block->theme, $block->bid);
@@ -297,13 +298,13 @@ class BlockAdminThemeTestCase extends DrupalWebTestCase {
       'group' => 'Block',
     );
   }
-  
+
   /**
    * Check for the accessibility of the admin theme on the  block admin page.
    */
   function testAdminTheme() {
     // Create administrative user.
-    $admin_user = $this->drupalCreateUser(array('administer blocks', 'administer site configuration'));
+    $admin_user = $this->drupalCreateUser(array('administer blocks', 'administer themes'));
     $this->drupalLogin($admin_user);
 
     // Ensure that access to block admin page is denied when theme is disabled.

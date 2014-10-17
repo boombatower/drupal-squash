@@ -56,8 +56,11 @@ class DrupalAlterTestCase extends DrupalWebTestCase {
 
 /**
  * Tests for URL generation functions.
+ *
+ * url() calls module_implements(), which may issue a db query, which requires
+ * inheriting from a web test case rather than a unit test case.
  */
-class CommonURLUnitTest extends DrupalUnitTestCase {
+class CommonURLUnitTest extends DrupalWebTestCase {
   public static function getInfo() {
     return array(
       'name' => 'URL generation tests',
@@ -70,23 +73,9 @@ class CommonURLUnitTest extends DrupalUnitTestCase {
    * Confirm that invalid text given as $path is filtered.
    */
   function testLXSS() {
-    global $conf;
     $text = $this->randomName();
     $path = "<SCRIPT>alert('XSS')</SCRIPT>";
-    // Regardless of whether there is a theme override of theme_link() or not,
-    // unless the 'theme_link' configuration variable is FALSE, l() will
-    // attempt to initialize the theme system in order to determine if
-    // the link needs to be themed. However, drupal_theme_initialize() requires
-    // a database query, which doesn't work in the context of unit tests,
-    // because simpletest sets up a table prefix, but doesn't generate the
-    // corresponding prefixed tables. We need to either circumvent theme system
-    // initialization, or make CommonURLUnitTest inherit from DrupalWebTestCase.
-    // Since our goal in this unit test is specifically to test the default
-    // implementation, we choose the former.
-    $theme_link_saved = isset($conf['theme_link']) ? $conf['theme_link'] : NULL;
-    $conf['theme_link'] = FALSE;
     $link = l($text, $path);
-    $conf['theme_link'] = $theme_link_saved;
     $sanitized_path = check_url(url($path));
     $this->assertTrue(strpos($link, $sanitized_path) !== FALSE, t('XSS attack @path was filtered', array('@path' => $path)));
   }
@@ -601,16 +590,14 @@ class CascadingStylesheetsTestCase extends DrupalWebTestCase {
     $expected = 'font-size:254px;';
 
     // Create a node, using the PHP filter that tests drupal_add_css().
+    $php_format_id = db_query_range('SELECT format FROM {filter_format} WHERE name = :name', 0, 1, array(':name' => 'PHP code'))->fetchField();
     $settings = array(
       'type' => 'page',
       'body' => array(
-        FIELD_LANGUAGE_NONE => array(
+        LANGUAGE_NONE => array(
           array(
             'value' => t('This tests the inline CSS!') . "<?php drupal_add_css('$css', 'inline'); ?>",
-            // The "PHP code" format is always the most recent one added, since
-            // the PHP module was enabled in the setUp() method of the current
-            // test.
-            'format' => db_query("SELECT MAX(format) FROM {filter_format}")->fetchField(),
+            'format' => $php_format_id,
           ),
         ),
       ),
@@ -631,13 +618,13 @@ class CascadingStylesheetsTestCase extends DrupalWebTestCase {
     drupal_add_css(drupal_get_path('module', 'simpletest') . '/simpletest.css');
     // A few system CSS files, ordered in a strange way.
     $system_path = drupal_get_path('module', 'system');
-    drupal_add_css($system_path . '/defaults.css', array('weight' => CSS_SYSTEM));
+    drupal_add_css($system_path . '/system-behavior.css', array('weight' => CSS_SYSTEM));
     drupal_add_css($system_path . '/system.css', array('weight' => CSS_SYSTEM - 10));
     drupal_add_css($system_path . '/system-menus.css', array('weight' => CSS_SYSTEM));
 
     $expected = array(
       $system_path . '/system.css',
-      $system_path . '/defaults.css',
+      $system_path . '/system-behavior.css',
       $system_path . '/system-menus.css',
       drupal_get_path('module', 'simpletest') . '/simpletest.css',
     );
@@ -770,7 +757,9 @@ class CascadingStylesheetsUnitTest extends DrupalUnitTestCase {
    *
    * This can be enhanced by adding additional CSS files with variant test cases.
    * Currently, this is specifically testing to make sure that whitespace
-   * is treated with adequate respect (not arbitrarily removing linefeeds).
+   * is treated with adequate respect (see http://drupal.org/node/472820) and
+   * that image paths in imported files are preserved (see
+   * http://drupal.org/node/265719).
    */
   function testLoadCssBasic() {
     // Array of files to test living in 'simpletest/files/css_test_files/'.
@@ -779,6 +768,7 @@ class CascadingStylesheetsUnitTest extends DrupalUnitTestCase {
     // - Optimized expected content: name.css.optimized.css
     $testfiles = array(
       'css_input_without_import.css',
+      'css_input_with_import.css'
     );
     $path = drupal_get_path('module', 'simpletest') . '/files/css_test_files';
     foreach ($testfiles as $file) {
@@ -1470,24 +1460,88 @@ class DrupalDataApiTest extends DrupalWebTestCase {
   }
 
   function setUp() {
-    parent::setUp('taxonomy');
+    parent::setUp('database_test');
   }
 
   /**
    * Test the drupal_write_record() API function.
    */
   function testDrupalWriteRecord() {
-    // Insert an object record for a table with a single-field primary key.
-    $vocabulary = new stdClass();
-    $vocabulary->name = 'test';
-    $insert_result = drupal_write_record('taxonomy_vocabulary', $vocabulary);
+    // Insert a record - no columns allow NULL values.
+    $person = new stdClass();
+    $person->name = 'John';
+    $person->unknown_column = 123;
+    $insert_result = drupal_write_record('test', $person);
     $this->assertTrue($insert_result == SAVED_NEW, t('Correct value returned when a record is inserted with drupal_write_record() for a table with a single-field primary key.'));
-    $this->assertTrue(isset($vocabulary->vid), t('Primary key is set on record created with drupal_write_record().'));
+    $this->assertTrue(isset($person->id), t('Primary key is set on record created with drupal_write_record().'));
+    $this->assertIdentical($person->age, 0, t('Age field set to default value.'));
+    $this->assertIdentical($person->job, 'Undefined', t('Job field set to default value.'));
 
-    // Update the initial record after changing a property.
-    $vocabulary->name = 'testing';
-    $update_result = drupal_write_record('taxonomy_vocabulary', $vocabulary, array('vid'));
+    // Verify that the record was inserted.
+    $result = db_query("SELECT * FROM {test} WHERE id = :id", array(':id' => $person->id))->fetchObject();
+    $this->assertIdentical($result->name, 'John', t('Name field set.'));
+    $this->assertIdentical($result->age, '0', t('Age field set to default value.'));
+    $this->assertIdentical($result->job, 'Undefined', t('Job field set to default value.'));
+    $this->assertFalse(isset($result->unknown_column), t('Unknown column was ignored.'));
+
+    // Update the newly created record.
+    $person->name = 'Peter';
+    $person->age = 27;
+    $person->job = NULL;
+    $update_result = drupal_write_record('test', $person, array('id'));
     $this->assertTrue($update_result == SAVED_UPDATED, t('Correct value returned when a record updated with drupal_write_record() for table with single-field primary key.'));
+
+    // Verify that the record was updated.
+    $result = db_query("SELECT * FROM {test} WHERE id = :id", array(':id' => $person->id))->fetchObject();
+    $this->assertIdentical($result->name, 'Peter', t('Name field set.'));
+    $this->assertIdentical($result->age, '27', t('Age field set.'));
+    $this->assertIdentical($result->job, '', t('Job field set and cast to string.'));
+
+    // Try to insert NULL in columns that does not allow this.
+    $person = new stdClass();
+    $person->name = 'Ringo';
+    $person->age = NULL;
+    $person->job = NULL;
+    $insert_result = drupal_write_record('test', $person);
+    $this->assertTrue(isset($person->id), t('Primary key is set on record created with drupal_write_record().'));
+    $result = db_query("SELECT * FROM {test} WHERE id = :id", array(':id' => $person->id))->fetchObject();
+    $this->assertIdentical($result->name, 'Ringo', t('Name field set.'));
+    $this->assertIdentical($result->age, '0', t('Age field set.'));
+    $this->assertIdentical($result->job, '', t('Job field set.'));
+
+    // Insert a record - the "age" column allows NULL.
+    $person = new stdClass();
+    $person->name = 'Paul';
+    $person->age = NULL;
+    $insert_result = drupal_write_record('test_null', $person);
+    $this->assertTrue(isset($person->id), t('Primary key is set on record created with drupal_write_record().'));
+    $result = db_query("SELECT * FROM {test_null} WHERE id = :id", array(':id' => $person->id))->fetchObject();
+    $this->assertIdentical($result->name, 'Paul', t('Name field set.'));
+    $this->assertIdentical($result->age, NULL, t('Age field set.'));
+
+    // Insert a record - do not specify the value of a column that allows NULL.
+    $person = new stdClass();
+    $person->name = 'Meredith';
+    $insert_result = drupal_write_record('test_null', $person);
+    $this->assertTrue(isset($person->id), t('Primary key is set on record created with drupal_write_record().'));
+    $this->assertIdentical($person->age, 0, t('Age field set to default value.'));
+    $result = db_query("SELECT * FROM {test_null} WHERE id = :id", array(':id' => $person->id))->fetchObject();
+    $this->assertIdentical($result->name, 'Meredith', t('Name field set.'));
+    $this->assertIdentical($result->age, '0', t('Age field set to default value.'));
+
+    // Update the newly created record.
+    $person->name = 'Mary';
+    $person->age = NULL;
+    $update_result = drupal_write_record('test_null', $person, array('id'));
+    $result = db_query("SELECT * FROM {test_null} WHERE id = :id", array(':id' => $person->id))->fetchObject();
+    $this->assertIdentical($result->name, 'Mary', t('Name field set.'));
+    $this->assertIdentical($result->age, NULL, t('Age field set.'));
+
+    // Run an update query where no field values are changed. The database
+    // layer should return zero for number of affected rows, but
+    // db_write_record() should still return SAVED_UPDATED.
+    $update_result = drupal_write_record('test_null', $person, array('id'));
+    $this->assertTrue($update_result == SAVED_UPDATED, t('Correct value returned when a valid update is run without changing any values.'));
 
     // Insert an object record for a table with a multi-field primary key.
     $node_access = new stdClass();
@@ -1572,6 +1626,29 @@ class DrupalErrorCollectionUnitTest extends DrupalWebTestCase {
     if (isset($message)) {
       $this->assertEqual($error['message'], $message, t("Message was %message", array('%message' => $message)));
     }
+  }
+}
+
+/**
+ * Test the drupal_parse_info_file() API function.
+ */
+class ParseInfoFilesTestCase extends DrupalWebTestCase {
+  public static function getInfo() {
+    return array(
+      'name' => 'Parsing .info files',
+      'description' => 'Tests parsing .info files.',
+      'group' => 'System',
+    );
+  }
+
+  /**
+   * Parse an example .info file an verify the results.
+   */
+  function testParseInfoFile() {
+    $info_values = drupal_parse_info_file(drupal_get_path('module', 'simpletest') . '/tests/common_test_info.txt');
+    $this->assertEqual($info_values['simple_string'], 'A simple string', t('Simple string value was parsed correctly.'), t('System'));
+    $this->assertEqual($info_values['simple_constant'], WATCHDOG_INFO, t('Constant value was parsed correctly.'), t('System'));
+    $this->assertEqual($info_values['double_colon'], 'dummyClassName::', t('Value containing double-colon was parsed correctly.'), t('System'));
   }
 }
 
@@ -1698,5 +1775,62 @@ class DrupalAttributesUnitTest extends DrupalUnitTestCase {
 
     // Verify empty attributes array is rendered.
     $this->assertIdentical(drupal_attributes(array()), '', t('Empty attributes array.'));
+  }
+}
+
+/**
+ * Tests converting PHP variables to JSON strings and back.
+ */
+class DrupalJSONTest extends DrupalUnitTestCase {
+  public static function getInfo() {
+    return array(
+      'name' => 'JSON',
+      'description' => 'Perform unit tests on the drupal_json_encode() and drupal_json_decode() functions.',
+      'group' => 'System',
+    );
+  }
+
+  /**
+   * Tests converting PHP variables to JSON strings and back.
+   */
+  function testJSON() {
+    // Setup a string with the full ASCII table.
+    // @todo: Add tests for non-ASCII characters and Unicode.
+    $str = '';
+    for ($i=0; $i < 128; $i++) {
+      $str .= chr($i);
+    }
+    // Characters that must be escaped.
+    $html_unsafe = array('<', '>', '&');
+    $html_unsafe_escaped = array('\u003c', '\u003e', '\u0026');
+
+    // Verify there aren't character encoding problems with the source string.
+    $this->assertIdentical(strlen($str), 128, t('A string with the full ASCII table has the correct length.'));
+    foreach ($html_unsafe as $char) {
+      $this->assertTrue(strpos($str, $char) > 0, t('A string with the full ASCII table includes @s.', array('@s' => $char)));
+    }
+
+    // Verify that JSON encoding produces a string with all of the characters.
+    $json = drupal_json_encode($str);
+    $this->assertTrue(strlen($json) > strlen($str), t('A JSON encoded string is larger than the source string.'));
+
+    // Verify that encoding/decoding is reversible.
+    $json_decoded = drupal_json_decode($json);
+    $this->assertIdentical($str, $json_decoded, t('Encoding a string to JSON and decoding back results in the original string.'));
+
+    // Verify reversibility for structured data. Also verify that necessary
+    // characters are escaped.
+    $source = array(TRUE, FALSE, 0, 1, '0', '1', $str, array('key1' => $str, 'key2' => array('nested' => TRUE)));
+    $json = drupal_json_encode($source);
+    foreach ($html_unsafe as $char) {
+      $this->assertTrue(strpos($json, $char) === FALSE, t('A JSON encoded string does not contain @s.', array('@s' => $char)));
+    }
+    // Verify that JSON encoding escapes the HTML unsafe characters
+    foreach ($html_unsafe_escaped as $char) {
+      $this->assertTrue(strpos($json, $char) > 0, t('A JSON encoded string contains @s.', array('@s' => $char)));
+    }
+    $json_decoded = drupal_json_decode($json);
+    $this->assertNotIdentical($source, $json, t('An array encoded in JSON is not identical to the source.'));
+    $this->assertIdentical($source, $json_decoded, t('Encoding structured data to JSON and decoding back results in the original data.'));
   }
 }

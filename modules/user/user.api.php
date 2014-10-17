@@ -287,7 +287,7 @@ function hook_user_update(&$edit, $account, $category) {
 function hook_user_login(&$edit, $account) {
   // If the user has a NULL time zone, notify them to set a time zone.
   if (!$user->timezone && variable_get('configurable_timezones', 1) && variable_get('empty_timezone_message', 0)) {
-    drupal_set_message(t('Please configure your <a href="@user-edit">account time zone setting</a>.', array('@user-edit' => url("user/$user->uid/edit", array('query' => drupal_get_destination(), 'fragment' => 'edit-timezone')))));
+    drupal_set_message(t('Configure your <a href="@user-edit">account time zone setting</a>.', array('@user-edit' => url("user/$user->uid/edit", array('query' => drupal_get_destination(), 'fragment' => 'edit-timezone')))));
   }
 }
 
@@ -314,10 +314,10 @@ function hook_user_logout($account) {
  *
  * @param $account
  *   The user object on which the operation is being performed.
- * @param $build_mode
- *   Build mode, e.g. 'full'.
+ * @param $view_mode
+ *   View mode, e.g. 'full'.
  */
-function hook_user_view($account, $build_mode) {
+function hook_user_view($account, $view_mode) {
   if (user_access('create blog content', $account)) {
     $account->content['summary']['blog'] =  array(
       '#type' => 'user_profile_item',
@@ -343,9 +343,9 @@ function hook_user_view($account, $build_mode) {
  * @param $build
  *   A renderable array representing the user.
  *
- * @see user_build()
+ * @see user_view()
  */
-function hook_user_build_alter($build) {
+function hook_user_view_alter($build) {
   // Check for the existence of a field added by another module.
   if (isset($build['an_additional_field'])) {
     // Change its weight.
@@ -402,7 +402,7 @@ function hook_user_role_update($role) {
  * Inform other modules that a user role has been deleted.
  *
  * This hook allows you act when a user role has been deleted.
- * If your module stores references to roles, it's recommended that you 
+ * If your module stores references to roles, it's recommended that you
  * implement this hook and delete existing instances of the deleted role
  * in your module database tables.
  *

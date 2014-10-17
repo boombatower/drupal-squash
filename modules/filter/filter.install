@@ -7,7 +7,7 @@
  */
 
 /**
- * Implement hook_schema().
+ * Implements hook_schema().
  */
 function filter_schema() {
   $schema['filter'] = array(
@@ -59,7 +59,7 @@ function filter_schema() {
       'fmn' => array('format', 'module', 'name'),
     ),
     'indexes' => array(
-      'list' => array('format', 'weight', 'module', 'name'),
+      'list' => array('weight', 'module', 'name'),
     ),
   );
   $schema['filter_format'] = array(
@@ -194,11 +194,11 @@ function filter_update_7003() {
   // Loop through each filter and make changes to the core filter table.
   foreach ($renamed_deltas as $module => $deltas) {
     foreach ($deltas as $old_delta => $new_delta) {
-    	db_update('filter')
-    	  ->fields(array('name', $new_delta))
-    	  ->condition('module', $module)
-    	  ->condition('name', $old_delta)
-    	  ->execute();
+      db_update('filter')
+        ->fields(array('name' => $new_delta))
+        ->condition('module', $module)
+        ->condition('name', $old_delta)
+        ->execute();
     }
   }
 }
@@ -234,7 +234,7 @@ function filter_update_7004() {
 
   // Enable all existing filters ({filter} contained only enabled previously).
   db_update('filter')
-    ->fields('status', '1')
+    ->fields(array('status' => '1'))
     ->execute();
 
   // Move filter settings from system variables into {filter}.settings.
@@ -262,11 +262,11 @@ function filter_update_7004() {
       }
     }
     if (!empty($settings)) {
-    	db_upddate('filter')
-    	  ->fields(array('settings' => serialize($settings)))
-    	  ->condition('format', $filter->format)
-    	  ->condition('name', $filter->name)
-    	  ->execute();
+      db_update('filter')
+        ->fields(array('settings' => serialize($settings)))
+        ->condition('format', $filter->format)
+        ->condition('name', $filter->name)
+        ->execute();
     }
   }
 }
@@ -348,6 +348,14 @@ function filter_update_7005() {
   // We do not delete the 'filter_default_format' variable, since other modules
   // may need it in their update functions.
   // @todo This variable can be deleted in Drupal 8.
+}
+
+/**
+ * Remove the 'format' column from 'list' index on {filter}.
+ */
+function filter_update_7006() {
+  db_drop_index('filter', 'list');
+  db_add_index('filter', 'list', array('weight', 'module', 'name'));
 }
 
 /**

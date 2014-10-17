@@ -151,7 +151,7 @@ function drupal_mail($module, $key, $to, $language, $params = array(), $from = N
     // Log errors
     if (!$message['result']) {
       watchdog('mail', 'Error sending e-mail (from %from to %to).', array('%from' => $message['from'], '%to' => $message['to']), WATCHDOG_ERROR);
-      drupal_set_message(t('Unable to send e-mail. Please contact the site administrator if the problem persists.'), 'error');
+      drupal_set_message(t('Unable to send e-mail. Contact the site administrator if the problem persists.'), 'error');
     }
   }
 
@@ -183,7 +183,7 @@ function drupal_mail($module, $key, $to, $language, $params = array(), $from = N
  * default. To specificy a different class for all mail sent by one module, set
  * the class name as the value for the key corresponding to the module name. To
  * specificy a class for a particular message sent by one module, set the class
- * name as the value for the array key that is the message id, which is 
+ * name as the value for the array key that is the message id, which is
  * "${module}_${key}".
  *
  * For example to debug all mail sent by the user module by logging it to a
@@ -218,6 +218,7 @@ function drupal_mail($module, $key, $to, $language, $params = array(), $from = N
  * @param $key
  *   A key to identify the e-mail sent. The final e-mail ID for the e-mail
  *   alter hook in drupal_mail() would have been {$module}_{$key}.
+ * @return MailSystemInterface
  */
 function drupal_mail_system($module, $key) {
   $instances = &drupal_static(__FUNCTION__, array());

@@ -53,7 +53,7 @@ function profile_browse() {
         $query->condition('v.value', $value);
         break;
       case 'list':
-        $query->condition('v.value', '%' . $value . '%', 'LIKE');
+        $query->condition('v.value', '%' . db_like($value) . '%', 'LIKE');
         break;
       default:
         drupal_not_found();
@@ -77,7 +77,7 @@ function profile_browse() {
     $output .= theme('pager', array('tags' => NULL));
 
     if ($field->type == 'selection' || $field->type == 'list' || $field->type == 'textfield') {
-      $title = strtr(check_plain($field->page), array('%value' => theme('placeholder', array('text' => $value))));
+      $title = strtr(check_plain($field->page), array('%value' => drupal_placeholder(array('text' => $value))));
     }
     else {
       $title = check_plain($field->page);
@@ -125,10 +125,14 @@ function profile_autocomplete($field, $string) {
   $matches = array();
   $autocomplete_field = (bool) db_query_range("SELECT 1 FROM {profile_field} WHERE fid = :fid AND autocomplete = 1", 0, 1, array(':fid' => $field))->fetchField();
   if ($autocomplete_field) {
-    $values = db_query_range("SELECT value FROM {profile_value} WHERE fid = :fid AND LOWER(value) LIKE LOWER(:value) GROUP BY value ORDER BY value ASC", 0, 10, array(
-      ':fid' => $field,
-      ':value' => $string . '%',
-    ))->fetchCol();
+    $values = db_select('profile_value')
+      ->fields('profile_value', array('value'))
+      ->condition('fid', $field)
+      ->condition('value', db_like($string) . '%', 'LIKE')
+      ->groupBy('value')
+      ->orderBy('value')
+      ->range(0, 10)
+      ->execute()->fetchCol();
     foreach ($values as $value) {
       $matches[$value] = check_plain($value);
     }

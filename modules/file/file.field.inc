@@ -7,7 +7,7 @@
  */
 
 /**
- * Implement hook_field_info().
+ * Implements hook_field_info().
  */
 function file_field_info() {
   return array(
@@ -32,7 +32,7 @@ function file_field_info() {
 }
 
 /**
- * Implement hook_field_schema().
+ * Implements hook_field_schema().
  */
 function file_field_schema($field) {
   return array(
@@ -64,7 +64,7 @@ function file_field_schema($field) {
 }
 
 /**
- * Implement hook_field_settings_form().
+ * Implements hook_field_settings_form().
  */
 function file_field_settings_form($field, $instance, $has_data) {
   $defaults = field_info_field_settings($field['type']);
@@ -104,7 +104,7 @@ function file_field_settings_form($field, $instance, $has_data) {
 }
 
 /**
- * Implement hook_field_instance_settings_form().
+ * Implements hook_field_instance_settings_form().
  */
 function file_field_instance_settings_form($field, $instance) {
   $settings = $instance['settings'];
@@ -204,7 +204,7 @@ function _file_generic_settings_file_directory_validate($element, &$form_state) 
 }
 
 /**
- * Implement hook_field_load().
+ * Implements hook_field_load().
  */
 function file_field_load($obj_type, $objects, $field, $instances, $langcode, &$items, $age) {
   foreach ($objects as $obj_id => $object) {
@@ -228,29 +228,30 @@ function file_field_load($obj_type, $objects, $field, $instances, $langcode, &$i
 }
 
 /**
- * Implement hook_field_sanitize().
+ * Implements hook_field_prepare_view().
  */
-function file_field_sanitize($obj_type, $object, $field, $instance, $langcode, &$items) {
-  // Remove files from being displayed if they're not displayed.
-  foreach ($items as $delta => $item) {
-    if (!file_field_displayed($item, $field)) {
-      unset($items[$delta]);
+function file_field_prepare_view($obj_type, $objects, $field, $instances, $langcode, &$items) {
+  // Remove files specified to not be displayed.
+  foreach ($objects as $id => $object) {
+    foreach ($items[$id] as $delta => $item) {
+      if (!file_field_displayed($item, $field)) {
+        unset($items[$id][$delta]);
+      }
+      // Ensure consecutive deltas.
+      $items[$id] = array_values($items[$id]);
     }
   }
-
-  // Return the items including only displayed files.
-  $items = array_values($items);
 }
 
 /**
- * Implement hook_field_insert().
+ * Implements hook_field_insert().
  */
 function file_field_insert($obj_type, $object, $field, $instance, $langcode, &$items) {
   file_field_update($obj_type, $object, $field, $instance, $langcode, $items);
 }
 
 /**
- * Implement hook_field_update().
+ * Implements hook_field_update().
  */
 function file_field_update($obj_type, $object, $field, $instance, $langcode, &$items) {
   // Check for files that have been removed from the object.
@@ -284,7 +285,7 @@ function file_field_update($obj_type, $object, $field, $instance, $langcode, &$i
 }
 
 /**
- * Implement hook_field_delete().
+ * Implements hook_field_delete().
  */
 function file_field_delete($obj_type, $object, $field, $instance, $langcode, &$items) {
   list($id, $vid, $bundle) = entity_extract_ids($obj_type, $object);
@@ -300,7 +301,7 @@ function file_field_delete($obj_type, $object, $field, $instance, $langcode, &$i
 }
 
 /**
- * Implement hook_field_delete_revision().
+ * Implements hook_field_delete_revision().
  */
 function file_field_delete_revision($obj_type, $object, $field, $instance, $langcode, &$items) {
   foreach ($items as $delta => $item) {
@@ -338,7 +339,7 @@ function file_field_delete_file($item, $field) {
 }
 
 /**
- * Implement hook_field_is_empty().
+ * Implements hook_field_is_empty().
  */
 function file_field_is_empty($item, $field) {
   return empty($item['fid']);
@@ -362,7 +363,7 @@ function file_field_displayed($item, $field) {
 }
 
 /**
- * Implement hook_field_formatter_info().
+ * Implements hook_field_formatter_info().
  */
 function file_field_formatter_info() {
   return array(
@@ -373,9 +374,6 @@ function file_field_formatter_info() {
     'file_table' => array(
       'label' => t('Table of files'),
       'field types' => array('file'),
-      'behaviors' => array(
-        'multiple values' => FIELD_BEHAVIOR_CUSTOM,
-      ),
     ),
     'file_url_plain' => array(
       'label' => t('URL to file'),
@@ -385,7 +383,7 @@ function file_field_formatter_info() {
 }
 
 /**
- * Implement hook_field_widget_info().
+ * Implements hook_field_widget_info().
  */
 function file_field_widget_info() {
   return array(
@@ -404,7 +402,7 @@ function file_field_widget_info() {
 }
 
 /**
- * Implement hook_field_widget_settings_form().
+ * Implements hook_field_widget_settings_form().
  */
 function file_field_widget_settings_form($field, $instance) {
   $widget = $instance['widget'];
@@ -427,9 +425,9 @@ function file_field_widget_settings_form($field, $instance) {
 }
 
 /**
- * Implementation of hook_field_widget().
+ * Implements hook_field_widget_form().
  */
-function file_field_widget(&$form, &$form_state, $field, $instance, $langcode, $items, $delta, $element) {
+function file_field_widget_form(&$form, &$form_state, $field, $instance, $langcode, $items, $delta, $element) {
   $form['#attributes'] = array('enctype' => 'multipart/form-data');
 
   $defaults = array(
@@ -500,7 +498,6 @@ function file_field_widget(&$form, &$form_state, $field, $instance, $langcode, $
     $elements['#file_upload_delta'] = $delta;
     $elements['#theme'] = 'file_widget_multiple';
     $elements['#theme_wrappers'] = array('fieldset');
-    $elements['#attributes']['class'] = array('file-widget');
     $elements['#process'] = array('file_field_widget_process_multiple');
     $elements['#title'] = $element['#title'];
     $elements['#description'] = $element['#description'];
@@ -845,33 +842,49 @@ function theme_file_upload_help($variables) {
 }
 
 /**
- * Theme function for 'default' file field formatter.
+ * Implements hook_field_formatter_view().
  */
-function theme_field_formatter_file_default($variables) {
-  $element = $variables['element'];
-  return theme('file_link', array('file' => (object) $element['#item']));
-}
+function file_field_formatter_view($obj_type, $object, $field, $instance, $langcode, $items, $display) {
+  $element = array();
 
-/**
- * Theme function for 'url_plain' file field formatter.
- */
-function theme_field_formatter_file_url_plain($variables) {
-  $element = $variables['element'];
-  return empty($element['#item']['uri']) ? '' : file_create_url($element['#item']['uri']);
+  switch ($display['type']) {
+    case 'file_default':
+      foreach ($items as $delta => $item) {
+        $element[$delta] = array(
+          '#theme' => 'file_link',
+          '#file' => (object) $item,
+        );
+      }
+      break;
+
+    case 'file_url_plain':
+      foreach ($items as $delta => $item) {
+        $element[$delta] = array('#markup' => empty($item['uri']) ? '' : file_create_url($item['uri']));
+      }
+      break;
+
+    case 'file_table':
+      // Display all values in a single element..
+      $element[0] = array(
+        '#theme' => 'file_formatter_table',
+        '#items' => $items,
+      );
+      break;
+  }
+
+  return $element;
 }
 
 /**
  * Theme function for the 'table' formatter.
  */
-function theme_field_formatter_file_table($variables) {
-  $element = $variables['element'];
-
+function theme_file_formatter_table($variables) {
   $header = array(t('Attachment'), t('Size'));
   $rows = array();
-  foreach (element_children($element) as $key) {
+  foreach ($variables['items'] as $delta => $item) {
     $rows[] = array(
-      theme('file_link', array('file' => (object) $element[$key]['#item'])),
-      format_size($element[$key]['#item']['filesize']),
+      theme('file_link', array('file' => (object) $item)),
+      format_size($item['filesize']),
     );
   }
 

@@ -10,43 +10,43 @@
  * Sets up the theming system for site installs, updates and when the site is
  * in maintenance mode. It also applies when the database is unavailable.
  *
- * Minnelli is always used for the initial install and update operations. In
- * other cases, "settings.php" must have a "maintenance_theme" key set for the
- * $conf variable in order to change the maintenance theme.
+ * Seven is always used for the initial install and update operations. In
+ * other cases, Garland is used, but this can be overridden by setting a
+ * "maintenance_theme" key in the $conf variable in settings.php.
  */
 function _drupal_maintenance_theme() {
-  global $theme, $theme_key;
+  global $theme, $theme_key, $conf;
 
   // If $theme is already set, assume the others are set too, and do nothing.
   if (isset($theme)) {
     return;
   }
 
-  require_once DRUPAL_ROOT . '/includes/path.inc';
+  require_once DRUPAL_ROOT . '/' . variable_get('path_inc', 'includes/path.inc');
   require_once DRUPAL_ROOT . '/includes/theme.inc';
   require_once DRUPAL_ROOT . '/includes/common.inc';
   require_once DRUPAL_ROOT . '/includes/unicode.inc';
   require_once DRUPAL_ROOT . '/includes/file.inc';
   require_once DRUPAL_ROOT . '/includes/module.inc';
-  require_once DRUPAL_ROOT . '/includes/database/database.inc';
   unicode_check();
 
   // Install and update pages are treated differently to prevent theming overrides.
   if (defined('MAINTENANCE_MODE') && (MAINTENANCE_MODE == 'install' || MAINTENANCE_MODE == 'update')) {
-    $custom_theme = 'minnelli';
+    $custom_theme = (isset($conf['maintenance_theme']) ? $conf['maintenance_theme'] : 'seven');
   }
   else {
     if (!db_is_active()) {
       // Because we are operating in a crippled environment, we need to
       // bootstrap just enough to allow hook invocations to work.
+      require_once DRUPAL_ROOT . '/includes/database/database.inc';
       $module_list['system']['filename'] = 'modules/system/system.module';
-      $module_list['filter']['filename'] = 'modules/filter/filter.module';
       module_list(TRUE, FALSE, FALSE, $module_list);
       drupal_load('module', 'system');
-      drupal_load('module', 'filter');
     }
 
-    $custom_theme = variable_get('maintenance_theme', 'minnelli');
+    // We use the default theme as the maintenance theme. If a default theme
+    // isn't specified in the database or in settings.php, we use Garland.
+    $custom_theme = variable_get('maintenance_theme', variable_get('theme_default', 'garland'));
   }
 
   $themes = list_themes();
@@ -70,8 +70,8 @@ function _drupal_maintenance_theme() {
 
   // These are usually added from system_init() -except maintenance.css.
   // When the database is inactive it's not called so we add it here.
-  drupal_add_css(drupal_get_path('module', 'system') . '/defaults.css');
   drupal_add_css(drupal_get_path('module', 'system') . '/system.css');
+  drupal_add_css(drupal_get_path('module', 'system') . '/system-behavior.css');
   drupal_add_css(drupal_get_path('module', 'system') . '/system-menus.css');
   drupal_add_css(drupal_get_path('module', 'system') . '/maintenance.css');
   drupal_add_css(drupal_get_path('module', 'system') . '/admin.css');
@@ -144,7 +144,7 @@ function theme_install_page($variables) {
     $title = count($messages['error']) > 1 ? st('The following errors must be resolved before you can continue the installation process') : st('The following error must be resolved before you can continue the installation process');
     $variables['messages'] .= '<h3>' . $title . ':</h3>';
     $variables['messages'] .= theme('status_messages', array('display' => 'error'));
-    $variables['content'] .= '<p>' . st('Please check the error messages and <a href="!url">try again</a>.', array('!url' => request_uri())) . '</p>';
+    $variables['content'] .= '<p>' . st('Check the error messages and <a href="!url">try again</a>.', array('!url' => request_uri())) . '</p>';
   }
 
   // Special handling of warning messages
@@ -161,13 +161,20 @@ function theme_install_page($variables) {
     $variables['messages'] .= theme('status_messages', array('display' => 'status'));
   }
 
-  // This was called as a theme hook (not template), so we need to
-  // fix path_to_theme() for the template, to point at the actual
-  // theme rather than system module as owner of the hook.
-  global $theme_path;
-  $theme_path = 'themes/garland';
+  // This was called as a theme hook (not template), so we need to fix
+  // path_to_theme() for the template, to point at the actual theme rather than
+  // system module as owner of the hook. Additionally, figure out the
+  // maintenance page template to use.
+  global $theme_path, $theme_info, $base_theme_info;
+  $theme_path = dirname($theme_info->uri);
+  $base_themes = $base_theme_info;
+  // Make sure a maintenance-page.tpl.php is always found.
+  $base_themes[] = 'modules/system';
+  while (!file_exists($theme_path . '/maintenance-page.tpl.php') && $base_theme = array_shift($base_themes)) {
+    $theme_path = dirname($base_theme->uri);
+  }
 
-  return theme_render_template('themes/garland/maintenance-page.tpl.php', $variables);
+  return theme_render_template($theme_path . '/maintenance-page.tpl.php', $variables);
 }
 
 /**
@@ -199,13 +206,20 @@ function theme_update_page($variables) {
     $variables['messages'] .= theme('status_messages', array('display' => 'warning'));
   }
 
-  // This was called as a theme hook (not template), so we need to
-  // fix path_to_theme() for the template, to point at the actual
-  // theme rather than system module as owner of the hook.
-  global $theme_path;
-  $theme_path = 'themes/garland';
+  // This was called as a theme hook (not template), so we need to fix
+  // path_to_theme() for the template, to point at the actual theme rather than
+  // system module as owner of the hook. Additionally, figure out the
+  // maintenance page template to use.
+  global $theme_path, $theme_info, $base_theme_info;
+  $theme_path = dirname($theme_info->uri);
+  $base_themes = $base_theme_info;
+  // Make sure a maintenance-page.tpl.php is always found.
+  $base_themes[] = 'modules/system';
+  while (!file_exists($theme_path . '/maintenance-page.tpl.php') && $base_theme = array_shift($base_themes)) {
+    $theme_path = dirname($base_theme->uri);
+  }
 
-  return theme_render_template('themes/garland/maintenance-page.tpl.php', $variables);
+  return theme_render_template($theme_path . '/maintenance-page.tpl.php', $variables);
 }
 
 /**

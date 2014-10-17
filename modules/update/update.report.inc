@@ -164,7 +164,7 @@ function theme_update_report($variables) {
       foreach ($project['extra'] as $key => $value) {
         $row .= '<div class="' . implode(' ', $value['class']) . '">';
         $row .= check_plain($value['label']) . ': ';
-        $row .= theme('placeholder', array('text' => $value['data']));
+        $row .= drupal_placeholder(array('text' => $value['data']));
         $row .= "</div>\n";
       }
       $row .= "</div>\n";  // extra div.
@@ -199,7 +199,7 @@ function theme_update_report($variables) {
             break;
             
           default:
-            $base_themes[] = theme('placeholder', array('text' => $base_theme));
+            $base_themes[] = drupal_placeholder(array('text' => $base_theme));
         }
       }
       $row .= t('Depends on: !basethemes', array('!basethemes' => implode(', ', $base_themes)));
@@ -300,7 +300,7 @@ function theme_update_version($variables) {
     'title' => t('Release notes'),
     'href' => $version['release_link'],
   );
-  $output .= theme('links', array('links' => $links));
+  $output .= theme('links__update_version', array('links' => $links));
   $output .= '</td>';
   $output .= '</tr>';
   $output .= "</table>\n";
