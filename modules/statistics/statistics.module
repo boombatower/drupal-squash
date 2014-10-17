@@ -84,8 +84,14 @@ function statistics_exit() {
  */
 function statistics_perm() {
   return array(
-    'access statistics' => t('View content access statistics.'),
-    'view post access counter' => t('View the total number of times a piece of content has been accessed.'),
+    'access statistics' => array(
+      'title' => t('Access statistics'),
+      'description' => t('View content access statistics.'),
+    ),
+    'view post access counter' => array(
+      'title' => t('View post access counter'),
+      'description' => t('View the total number of times a piece of content has been accessed.'),
+    ),
   );
 }
 
@@ -174,12 +180,10 @@ function statistics_menu() {
 }
 
 /**
- * Implementation of hook_user().
+ * Implementation of hook_user_delete().
  */
-function statistics_user($op, &$edit, &$user) {
-  if ($op == 'delete') {
-    db_query('UPDATE {accesslog} SET uid = 0 WHERE uid = %d', $user->uid);
-  }
+function statistics_user_delete(&$edit, &$user, $category) {
+  db_query('UPDATE {accesslog} SET uid = 0 WHERE uid = %d', $user->uid);
 }
 
 /**
@@ -319,14 +323,11 @@ function _statistics_format_item($title, $path) {
 }
 
 /**
- * Implementation of hook_nodeapi().
+ * Implementation of hook_nodeapi_delete().
  */
-function statistics_nodeapi(&$node, $op, $arg = 0) {
-  switch ($op) {
-    case 'delete':
-      // clean up statistics table when node is deleted
-      db_query('DELETE FROM {node_counter} WHERE nid = %d', $node->nid);
-  }
+function statistics_nodeapi_delete(&$node, $arg = 0) {
+  // clean up statistics table when node is deleted
+  db_query('DELETE FROM {node_counter} WHERE nid = %d', $node->nid);
 }
 
 /**

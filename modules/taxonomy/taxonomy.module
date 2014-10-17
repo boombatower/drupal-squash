@@ -11,7 +11,10 @@
  */
 function taxonomy_perm() {
   return array(
-    'administer taxonomy' => t('Manage taxonomy vocabularies and terms.'),
+    'administer taxonomy' => array(
+      'title' => t('Administer taxonomy'),
+      'description' => t('Manage taxonomy vocabularies and terms.'),
+    ),
   );
 }
 
@@ -224,7 +227,7 @@ function taxonomy_save_vocabulary(&$edit) {
     module_invoke_all('taxonomy', 'update', 'vocabulary', $edit);
     $status = SAVED_UPDATED;
   }
-  else if (!empty($edit['vid'])) {
+  elseif (!empty($edit['vid'])) {
     $status = taxonomy_del_vocabulary($edit['vid']);
   }
   else {
@@ -325,7 +328,7 @@ function taxonomy_save_term(&$form_values) {
     $hook = 'update';
     $status = SAVED_UPDATED;
   }
-  else if (!empty($form_values['tid'])) {
+  elseif (!empty($form_values['tid'])) {
     return taxonomy_del_term($form_values['tid']);
   }
   else {
@@ -710,10 +713,10 @@ function taxonomy_node_save($node, $terms) {
           }
         }
       }
-      else if (is_object($term)) {
+      elseif (is_object($term)) {
         db_query('INSERT INTO {term_node} (nid, vid, tid) VALUES (%d, %d, %d)', $node->nid, $node->vid, $term->tid);
       }
-      else if ($term) {
+      elseif ($term) {
         db_query('INSERT INTO {term_node} (nid, vid, tid) VALUES (%d, %d, %d)', $node->nid, $node->vid, $term);
       }
     }
@@ -893,9 +896,25 @@ function taxonomy_get_synonyms($tid) {
 
 /**
  * Return the term object that has the given string as a synonym.
+ *
+ * @param $synonym
+ *   The string to compare against.
+ * @param $reset
+ *   Whether to reset the internal cache for this synonym.
+ * @return
+ *   A term object, or FALSE if no matching term is found.
  */
-function taxonomy_get_synonym_root($synonym) {
-  return db_fetch_object(db_query("SELECT * FROM {term_synonym} s, {term_data} t WHERE t.tid = s.tid AND s.name = '%s'", $synonym));
+function taxonomy_get_synonym_root($synonym, $reset = FALSE) {
+  static $synonyms = array();
+
+  if ($reset) {
+    unset($synonyms[$synonym]);
+  }
+
+  if (!isset($synonyms[$synonym])) {
+    $synonyms[$synonym] = db_query("SELECT * FROM {term_synonym} s, {term_data} t WHERE t.tid = s.tid AND s.name = :name", array(':name' => $synonym))->fetch();
+  }
+  return $synonyms[$synonym];
 }
 
 /**
@@ -1175,44 +1194,64 @@ function taxonomy_render_nodes($result) {
 }
 
 /**
- * Implementation of hook_nodeapi().
+ * Implementation of hook_nodeapi_load().
  */
-function taxonomy_nodeapi($node, $op, $arg = 0) {
-  switch ($op) {
-    case 'load':
-      $output['taxonomy'] = taxonomy_node_get_terms($node);
-      return $output;
+function taxonomy_nodeapi_load($node, $arg = 0) {
+  $output['taxonomy'] = taxonomy_node_get_terms($node);
+  return $output;
+}
 
-    case 'insert':
-      if (!empty($node->taxonomy)) {
-        taxonomy_node_save($node, $node->taxonomy);
-      }
-      break;
-
-    case 'update':
-      if (!empty($node->taxonomy)) {
-        taxonomy_node_save($node, $node->taxonomy);
-      }
-      break;
-
-    case 'delete':
-      taxonomy_node_delete($node);
-      break;
-
-    case 'delete revision':
-      taxonomy_node_delete_revision($node);
-      break;
-
-    case 'validate':
-      taxonomy_node_validate($node);
-      break;
-
-    case 'rss item':
-      return taxonomy_rss_item($node);
-
-    case 'update index':
-      return taxonomy_node_update_index($node);
+/**
+ * Implementation of hook_nodeapi_insert().
+ */
+function taxonomy_nodeapi_insert($node, $arg = 0) {
+  if (!empty($node->taxonomy)) {
+    taxonomy_node_save($node, $node->taxonomy);
   }
+}
+
+/**
+ * Implementation of hook_nodeapi_update().
+ */
+function taxonomy_nodeapi_update($node, $arg = 0) {
+  if (!empty($node->taxonomy)) {
+    taxonomy_node_save($node, $node->taxonomy);
+  }
+}
+
+/**
+ * Implementation of hook_nodeapi_delete().
+ */
+function taxonomy_nodeapi_delete($node, $arg = 0) {
+  taxonomy_node_delete($node);
+}
+
+/**
+ * Implementation of hook_nodeapi_delete_revision().
+ */
+function taxonomy_nodeapi_delete_revision($node, $arg = 0) {
+  taxonomy_node_delete_revision($node);
+}
+
+/**
+ * Implementation of hook_nodeapi_validate().
+ */
+function taxonomy_nodeapi_validate($node, $arg = 0) {
+  taxonomy_node_validate($node);
+}
+
+/**
+ * Implementation of hook_nodeapi_rss_item().
+ */
+function taxonomy_nodeapi_rss_item($node, $arg = 0) {
+  return taxonomy_rss_item($node);
+}
+
+/**
+ * Implementation of hook_nodeapi_update_index().
+ */
+function taxonomy_nodeapi_update_index($node, $arg = 0) {
+  return taxonomy_node_update_index($node);
 }
 
 /**
@@ -1246,7 +1285,7 @@ function taxonomy_terms_parse_string($str_tids) {
     // The '+' character in a query string may be parsed as ' '.
     $terms['tids'] = preg_split('/[+ ]/', $str_tids);
   }
-  else if (preg_match('/^([0-9]+,)*[0-9]+$/', $str_tids)) {
+  elseif (preg_match('/^([0-9]+,)*[0-9]+$/', $str_tids)) {
     $terms['operator'] = 'and';
     $terms['tids'] = explode(',', $str_tids);
   }

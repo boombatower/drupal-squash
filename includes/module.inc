@@ -95,6 +95,7 @@ function module_rebuild_cache() {
     'package' => 'Other',
     'version' => NULL,
     'php' => DRUPAL_MINIMUM_PHP,
+    'files' => array(),
   );
 
   foreach ($files as $filename => $file) {
@@ -297,6 +298,12 @@ function module_enable($module_list) {
       node_access_needs_rebuild(TRUE);
     }
   }
+
+  if (!empty($invoke_modules)) {
+    // Invoke the hook_module_enable after all the modules have been
+    // enabled.
+    module_invoke_all('modules_enabled', $invoke_modules);
+  }
 }
 
 /**
@@ -322,6 +329,9 @@ function module_disable($module_list) {
   }
 
   if (!empty($invoke_modules)) {
+    // Invoke hook_module_disable before disabling modules,
+    // so we can still call module hooks to get information.
+    module_invoke_all('modules_disabled', $invoke_modules);
     // Refresh the module list to exclude the disabled modules.
     module_list(TRUE, FALSE);
     // Force to regenerate the stored list of hook implementations.
@@ -466,7 +476,7 @@ function module_invoke_all() {
       if (isset($result) && is_array($result)) {
         $return = array_merge_recursive($return, $result);
       }
-      else if (isset($result)) {
+      elseif (isset($result)) {
         $return[] = $result;
       }
     }
@@ -483,5 +493,13 @@ function module_invoke_all() {
  * Array of modules required by core.
  */
 function drupal_required_modules() {
-  return array('block', 'filter', 'node', 'system', 'user');
+  $files = drupal_system_listing('/\.info$/', 'modules', 'name', 0);
+  $required = array();
+  foreach ($files as $name => $file) {
+    $info = drupal_parse_info_file($file->filename);
+    if (!empty($info) && !empty($info['required']) && $info['required']) {
+      $required[] = $name;
+    }
+  }
+  return $required;
 }

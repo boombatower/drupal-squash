@@ -146,7 +146,7 @@ function system_requirements($phase) {
     if (REQUEST_TIME - $cron_last > $threshold_error) {
       $severity = REQUIREMENT_ERROR;
     }
-    else if ($never_run || (REQUEST_TIME - $cron_last > $threshold_warning)) {
+    elseif ($never_run || (REQUEST_TIME - $cron_last > $threshold_warning)) {
       $severity = REQUIREMENT_WARNING;
     }
 
@@ -3044,6 +3044,29 @@ function system_update_7010() {
   db_change_field($ret, 'menu_router', 'load_functions', 'load_functions', array('type' => 'text', 'not null' => TRUE, 'default' => ''));
   db_change_field($ret, 'menu_router', 'to_arg_functions', 'to_arg_functions', array('type' => 'text', 'not null' => TRUE, 'default' => '',));
 
+  return $ret;
+}
+
+/**
+ * Split the 'bypass node access' permission from 'administer nodes'.
+ */
+function system_update_7011() {
+  $ret = array();
+  // Get existing roles that can 'administer nodes'.
+  $rids = array();
+  $rids = db_query("SELECT rid FROM {role_permission} WHERE permission = :perm", array(':perm' => 'administer nodes'))->fetchCol();
+  // None found.
+  if (empty($rids)) {
+    return $ret;
+  }
+  $insert = db_insert('role_permission')->fields(array('rid', 'permission'));
+  foreach ($rids as $rid) {
+    $insert->values(array(
+    'rid' => $rid,
+    'permission' => 'bypass node access',
+    ));
+  }
+  $insert->execute();  
   return $ret;
 }
 

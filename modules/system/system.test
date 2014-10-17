@@ -10,7 +10,7 @@ class EnableDisableCoreTestCase extends DrupalWebTestCase {
   function getInfo() {
     return array(
       'name' => t('Module list functionality'),
-      'description' => t('Enable/disable core module and confirm table creation/deletion. Enable module without dependency enabled.'),
+      'description' => t('Enable/disable core module and confirm table creation/deletion. Enable module without dependency enabled. Attempt disabling of required modules.'),
       'group' => t('System')
     );
   }
@@ -19,7 +19,7 @@ class EnableDisableCoreTestCase extends DrupalWebTestCase {
    * Implementation of setUp().
    */
   function setUp() {
-    parent::setUp();
+    parent::setUp('system_test');
 
     $this->admin_user = $this->drupalCreateUser(array('access administration pages', 'administer site configuration'));
     $this->drupalLogin($this->admin_user);
@@ -28,29 +28,37 @@ class EnableDisableCoreTestCase extends DrupalWebTestCase {
   /**
    * Enable a module, check the database for related tables, disable module,
    * check for related tables, unistall module, check for related tables.
+   * Also check for invocation of the hook_module_action hook.
    */
   function testEnableDisable() {
     // Enable aggregator, and check tables.
     $this->assertModules(array('aggregator'), FALSE);
     $this->assertTableCount('aggregator', FALSE);
 
+    // Install (and enable) aggregator module.
     $edit = array();
-    $edit['modules[Core - optional][aggregator][enable]'] = 'aggregator';
+    $edit['modules[Core][aggregator][enable]'] = 'aggregator';
     $this->drupalPost('admin/build/modules', $edit, t('Save configuration'));
     $this->assertText(t('The configuration options have been saved.'), t('Modules status has been updated.'));
 
+    // Check that hook_modules_installed and hook_modules_enabled hooks were invoked and check tables.
+    $this->assertText(t('hook_modules_installed fired for aggregator'), t('hook_modules_installed fired.'));
+    $this->assertText(t('hook_modules_enabled fired for aggregator'), t('hook_modules_enabled fired.'));
     $this->assertModules(array('aggregator'), TRUE);
     $this->assertTableCount('aggregator', TRUE);
 
     // Disable aggregator, check tables, uninstall aggregator, check tables.
     $edit = array();
-    $edit['modules[Core - optional][aggregator][enable]'] = FALSE;
+    $edit['modules[Core][aggregator][enable]'] = FALSE;
     $this->drupalPost('admin/build/modules', $edit, t('Save configuration'));
     $this->assertText(t('The configuration options have been saved.'), t('Modules status has been updated.'));
 
+    // Check that hook_modules_disabled hook was invoked and check tables.
+    $this->assertText(t('hook_modules_disabled fired for aggregator'), t('hook_modules_disabled fired.'));
     $this->assertModules(array('aggregator'), FALSE);
     $this->assertTableCount('aggregator', TRUE);
 
+    // Uninstall the module.
     $edit = array();
     $edit['uninstall[aggregator]'] = 'aggregator';
     $this->drupalPost('admin/build/modules/uninstall', $edit, t('Uninstall'));
@@ -58,6 +66,8 @@ class EnableDisableCoreTestCase extends DrupalWebTestCase {
     $this->drupalPost(NULL, NULL, t('Uninstall'));
     $this->assertText(t('The selected modules have been uninstalled.'), t('Modules status has been updated.'));
 
+    // Check that hook_modules_uninstalled hook was invoked and check tables.
+    $this->assertText(t('hook_modules_uninstalled fired for aggregator'), t('hook_modules_uninstalled fired.'));
     $this->assertModules(array('aggregator'), FALSE);
     $this->assertTableCount('aggregator', FALSE);
   }
@@ -68,7 +78,7 @@ class EnableDisableCoreTestCase extends DrupalWebTestCase {
   function testEnableWithoutDependency () {
     // Attempt to enable content translation without locale enabled.
     $edit = array();
-    $edit['modules[Core - optional][translation][enable]'] = 'translation';
+    $edit['modules[Core][translation][enable]'] = 'translation';
     $this->drupalPost('admin/build/modules', $edit, t('Save configuration'));
     $this->assertText(t('Some required modules must be enabled'), t('Dependecy required.'));
 
@@ -86,6 +96,18 @@ class EnableDisableCoreTestCase extends DrupalWebTestCase {
     // Assert that the locale tables were enabled.
     $this->assertTableCount('languages', TRUE);
     $this->assertTableCount('locale', TRUE);
+  }
+
+  /**
+   * Assert that core required modules cannot be disabled.
+   */
+  function testDisableRequired() {
+    $required_modules = drupal_required_modules();
+    $this->drupalGet('admin/build/modules');
+    foreach($required_modules as $module) {
+      // Check to make sure the checkbox for required module is not found.
+      $this->assertNoFieldByName('modules[Core][' . $module . '][enable]');
+    }
   }
 
   /**
@@ -318,6 +340,70 @@ class AdminMetaTagTestCase extends DrupalWebTestCase {
     $string = '<meta name="Generator" content="Drupal ' . $version. ' (http://drupal.org)" />';
     $this->drupalGet('node');
     $this->assertRaw($string, t('Fingerprinting meta tag generated correctly.'), t('System'));
+  }
+}
+
+/**
+ * Tests custom access denied functionality.
+ */
+class AccessDeniedTestCase extends DrupalWebTestCase {
+  protected $admin_user;
+
+  /**
+   * Implementation of getInfo().
+   */
+  function getInfo() {
+    return array(
+      'name' => t('403 functionality'),
+      'description' => t("Tests page access denied functionality, including custom 403 pages."),
+      'group' => t('System')
+    );
+  }
+
+  /**
+   * Implementation of setUp().
+   */
+  function setUp() {
+    parent::setUp();
+
+    // Create an administrative user.
+    $this->admin_user = $this->drupalCreateUser(array('administer site configuration'));
+    $this->drupalLogin($this->admin_user);
+  }
+
+  function testAccessDenied() {
+    $this->drupalGet('admin');
+    $this->assertText(t('Access denied'), t('Found the default 403 page'));
+
+    $edit = array(
+      'title' => $this->randomName(10),
+      'body' => $this->randomName(100)
+    );
+    $node = $this->drupalCreateNode($edit);
+
+    // Use a custom 403 page.
+    $this->drupalPost('admin/settings/error-reporting', array('site_403' => 'node/' . $node->nid), t('Save configuration'));
+
+    $this->drupalGet('admin');
+    $this->assertText($node->title, t('Found the custom 403 page'));
+
+    // Logout and check that the user login block is shown on custom 403 pages.
+    $this->drupalLogout();
+
+    $this->drupalGet('admin');
+    $this->assertText($node->title, t('Found the custom 403 page'));
+    $this->assertText(t('User login'), t('Blocks are shown on the custom 403 page'));
+
+    // Log back in and remove the custom 403 page.
+    $this->drupalLogin($this->admin_user);
+    $this->drupalPost('admin/settings/error-reporting', array(), t('Reset to defaults'));
+
+    // Logout and check that the user login block is shown on default 403 pages.
+    $this->drupalLogout();
+
+    $this->drupalGet('admin');
+    $this->assertText(t('Access denied'), t('Found the default 403 page'));
+    $this->assertText(t('User login'), t('Blocks are shown on the default 403 page'));
   }
 }
 

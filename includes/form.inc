@@ -100,7 +100,7 @@ function drupal_get_form($form_id) {
       array_unshift($args_temp, $form_id);
 
       $form = call_user_func_array('drupal_retrieve_form', $args_temp);
-      $form_build_id = 'form-' . md5(mt_rand());
+      $form_build_id = 'form-' . md5(uniqid(mt_rand(), TRUE));
       $form['#build_id'] = $form_build_id;
       drupal_prepare_form($form_id, $form, $form_state);
       // Store a copy of the unprocessed form for caching and indicate that it
@@ -221,10 +221,13 @@ function drupal_rebuild_form($form_id, &$form_state, $args, $form_build_id = NUL
 function form_get_cache($form_build_id, &$form_state) {
   if ($cached = cache_get('form_' . $form_build_id, 'cache_form')) {
     $form = $cached->data;
-    if ($cached = cache_get('storage_' . $form_build_id, 'cache_form')) {
-      $form_state['storage'] = $cached->data;
+    global $user;
+    if ((isset($form['#cache_token']) && drupal_valid_token($form['#cache_token'])) || (!isset($form['#cache_token']) && !$user->uid)) {
+      if ($cached = cache_get('storage_' . $form_build_id, 'cache_form')) {
+        $form_state['storage'] = $cached->data;
+      }
+      return $form;
     }
-    return $form;
   }
 }
 
@@ -234,7 +237,10 @@ function form_get_cache($form_build_id, &$form_state) {
 function form_set_cache($form_build_id, $form, $form_state) {
   // 6 hours cache life time for forms should be plenty.
   $expire = 21600;
-
+  global $user;
+  if ($user->uid) {
+    $form['#cache_token'] = drupal_get_token();
+  }
   cache_set('form_' . $form_build_id, $form, 'cache_form', REQUEST_TIME + $expire);
   if (!empty($form_state['storage'])) {
     cache_set('storage_' . $form_build_id, $form_state['storage'], 'cache_form', REQUEST_TIME + $expire);
@@ -482,7 +488,7 @@ function drupal_prepare_form($form_id, &$form, &$form_state) {
       $form['form_token'] = array('#type' => 'token', '#default_value' => drupal_get_token($form['#token']));
     }
   }
-  else if (isset($user->uid) && $user->uid && !$form['#programmed']) {
+  elseif (isset($user->uid) && $user->uid && !$form['#programmed']) {
     $form['#token'] = $form_id;
     $form['form_token'] = array(
       '#id' => form_clean_id('edit-' . $form_id . '-form-token'),
@@ -1369,7 +1375,7 @@ function form_options_flatten($array, $reset = TRUE) {
     if (is_object($value)) {
       form_options_flatten($value->option, FALSE);
     }
-    else if (is_array($value)) {
+    elseif (is_array($value)) {
       form_options_flatten($value, FALSE);
     }
     else {
@@ -1473,12 +1479,12 @@ function form_get_options($element, $key) {
     if (is_array($choice)) {
       return FALSE;
     }
-    else if (is_object($choice)) {
+    elseif (is_object($choice)) {
       if (isset($choice->option[$key])) {
         $keys[] = $index;
       }
     }
-    else if ($index == $key) {
+    elseif ($index == $key) {
       $keys[] = $index;
     }
   }
@@ -2085,7 +2091,7 @@ function theme_textfield($element) {
   $extra = '';
   $output = '';
 
-  if ($element['#autocomplete_path']) {
+  if ($element['#autocomplete_path'] && menu_valid_path(array('link_path' => $element['#autocomplete_path']))) {
     drupal_add_js('misc/autocomplete.js');
     $class[] = 'form-autocomplete';
     $extra =  '<input class="autocomplete" type="hidden" id="' . $element['#id'] . '-autocomplete" value="' . check_url(url($element['#autocomplete_path'], array('absolute' => TRUE))) . '" disabled="disabled" />';
@@ -2503,7 +2509,7 @@ function batch_set($batch_definition) {
     $defaults = array(
       'title' => $t('Processing'),
       'init_message' => $t('Initializing.'),
-      'progress_message' => $t('Remaining @remaining of @total.'),
+      'progress_message' => $t('Completed @current of @total.'),
       'error_message' => $t('An error has occurred.'),
       'css' => array(),
     );

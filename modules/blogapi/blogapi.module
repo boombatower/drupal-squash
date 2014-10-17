@@ -25,7 +25,10 @@ function blogapi_help($path, $arg) {
  */
 function blogapi_perm() {
   return array(
-    'administer content with blog api' => t('Manage website content from external tools.'),
+    'administer content with blog api' => array(
+      'title' => t('Administer content with blog API'),
+      'description' => t('Manage website content from external tools.'),
+    ),
   );
 }
 
@@ -221,7 +224,12 @@ function blogapi_blogger_new_post($appkey, $blogid, $username, $password, $conte
     $edit['date'] = format_date(REQUEST_TIME, 'custom', 'Y-m-d H:i:s O');
   }
 
-  node_invoke_nodeapi($edit, 'blogapi new');
+  node_invoke_nodeapi($edit, 'blogapi_new');
+
+  $valid = blogapi_status_error_check($edit, $publish);
+  if ($valid !== TRUE) {
+    return $valid;
+  }
 
   node_validate($edit);
   if ($errors = form_get_errors()) {
@@ -259,7 +267,8 @@ function blogapi_blogger_edit_post($appkey, $postid, $username, $password, $cont
   if (!node_access('update', $node)) {
     return blogapi_error(t('You do not have permission to update this post.'));
   }
-
+  // Save the original status for validation of permissions.
+  $original_status = $node->status;
   $node->status = $publish;
 
   // check for bloggerAPI vs. metaWeblogAPI
@@ -273,7 +282,12 @@ function blogapi_blogger_edit_post($appkey, $postid, $username, $password, $cont
     $node->body = $content;
   }
 
-  node_invoke_nodeapi($node, 'blogapi edit');
+  node_invoke_nodeapi($node, 'blogapi_edit');
+
+  $valid = blogapi_status_error_check($node, $original_status);
+  if ($valid !== TRUE) {
+    return $valid;
+  }
 
   node_validate($node);
   if ($errors = form_get_errors()) {
@@ -306,6 +320,33 @@ function blogapi_blogger_get_post($appkey, $postid, $username, $password) {
 
   return _blogapi_get_post($node, TRUE);
 }
+
+/**
+ * Check that the user has permission to save the node with the chosen status.
+ *
+ * @return
+ *   TRUE if no error, or the blogapi_error().
+ */
+function blogapi_status_error_check($node, $original_status) {
+  
+  $node = (object) $node;
+
+  $node_type_default = variable_get('node_options_'. $node->type, array('status', 'promote'));
+
+  // If we don't have the 'administer nodes' permission and the status is
+  // changing or for a new node the status is not the content type's default,
+  // then return an error.
+  if (!user_access('administer nodes') && (($node->status != $original_status) || (empty($node->nid) && $node->status != in_array('status', $node_type_default)))) {
+    if ($node->status) {
+      return blogapi_error(t('You do not have permission to publish this type of post. Please save it as a draft instead.'));
+    }
+    else {
+      return blogapi_error(t('You do not have permission to save this post as a draft. Please publish it instead.'));
+    }
+  }
+  return TRUE;
+}
+
 
 /**
  * Blogging API callback. Removes the specified blog node.
@@ -378,19 +419,66 @@ function blogapi_metaweblog_new_media_object($blogid, $username, $password, $fil
     return blogapi_error($user);
   }
 
+  $usersize = 0;
+  $uploadsize = 0;
+
+  $roles = array_intersect(user_roles(FALSE, 'administer content with blog api'), $user->roles);
+
+  foreach ($roles as $rid => $name) {
+    $extensions .= ' ' . strtolower(variable_get("blogapi_extensions_$rid", variable_get('blogapi_extensions_default', 'jpg jpeg gif png txt doc xls pdf ppt pps odt ods odp')));
+    $usersize = max($usersize, variable_get("blogapi_usersize_$rid", variable_get('blogapi_usersize_default', 1)) * 1024 * 1024);
+    $uploadsize = max($uploadsize, variable_get("blogapi_uploadsize_$rid", variable_get('blogapi_uploadsize_default', 1)) * 1024 * 1024);
+  }
+
+  $filesize = strlen($file['bits']);
+
+  if ($filesize > $uploadsize) {
+    return blogapi_error(t('It is not possible to upload the file, because it exceeded the maximum filesize of @maxsize.', array('@maxsize' => format_size($uploadsize))));
+  }
+
+  if (_blogapi_space_used($user->uid) + $filesize > $usersize) {
+    return blogapi_error(t('The file can not be attached to this post, because the disk quota of @quota has been reached.', array('@quota' => format_size($usersize))));
+  }
+
+  // Only allow files with whitelisted extensions and convert remaining dots to
+  // underscores to prevent attacks via non-terminal executable extensions with
+  // files such as exploit.php.jpg.
+
+  $whitelist = array_unique(explode(' ', trim($extensions)));
+
   $name = basename($file['name']);
+
+  if ($extension_position = strrpos($name, '.')) {
+    $filename = drupal_substr($name, 0, $extension_position);
+    $final_extension = drupal_substr($name, $extension_position + 1);
+
+    if (!in_array(strtolower($final_extension), $whitelist)) {
+      return blogapi_error(t('It is not possible to upload the file, because it is only possible to upload files with the following extensions: @extensions', array('@extensions' => implode(' ', $whitelist))));
+    }
+
+    $filename = str_replace('.', '_', $filename);
+    $filename .= '.' . $final_extension;
+  }
+
   $data = $file['bits'];
 
   if (!$data) {
     return blogapi_error(t('No file sent.'));
   }
 
-  if (!$filepath = file_save_data($data, $name)) {
+  if (!$file = file_unmanaged_save_data($data, $filename)) {
     return blogapi_error(t('Error storing file.'));
   }
 
+  $row = new stdClass();
+  $row->uid = $user->uid;
+  $row->filepath = $file;
+  $row->filesize = $filesize;
+
+  drupal_write_record('blogapi_files', $row);
+
   // Return the successful result.
-  return array('url' => file_create_url($filepath), 'struct');
+  return array('url' => file_create_url($file), 'struct');
 }
 /**
  * Blogging API callback. Returns a list of the taxonomy terms that can be
@@ -475,8 +563,56 @@ function blogapi_mt_set_post_categories($postid, $username, $password, $categori
   foreach ($categories as $category) {
     $node->taxonomy[] = $category['categoryId'];
   }
+  $validated = blogapi_mt_validate_terms($node);
+  if ($validated !== TRUE) {
+    return $validated;
+  }
   node_save($node);
 
+  return TRUE;
+}
+
+/**
+ * Blogging API helper - find allowed taxonomy terms for a node type.
+ */
+function blogapi_mt_validate_terms($node) {
+  // We do a lot of heavy lifting here since taxonomy module doesn't have a
+  // stand-alone validation function.
+  if (module_exists('taxonomy')) {
+    $found_terms = array();
+    if (!empty($node->taxonomy)) {
+      $term_list = array_unique($node->taxonomy);
+      $params = $term_list;
+      $params[] = $node->type;
+      $result = db_query(db_rewrite_sql("SELECT t.tid, t.vid FROM {term_data} t INNER JOIN {vocabulary_node_types} n ON t.vid = n.vid WHERE t.tid IN (". db_placeholders($term_list) .") AND n.type = '%s'", 't', 'tid'), $params);
+      $found_terms = array();
+      $found_count = 0;
+      while ($term = db_fetch_object($result)) {
+        $found_terms[$term->vid][$term->tid] = $term->tid;
+        $found_count++;
+      }
+      // If the counts don't match, some terms are invalid or not accessible to this user.
+      if (count($term_list) != $found_count) {
+        return blogapi_error(t('Invalid categories submitted.'));
+      }
+    }
+    // Look up all the vocabularies for this node type.
+    $result2 = db_query(db_rewrite_sql("SELECT v.vid, v.name, v.required, v.multiple FROM {vocabulary} v INNER JOIN {vocabulary_node_types} n ON v.vid = n.vid WHERE n.type = '%s'", 'v', 'vid'), $node->type);
+    // Check each vocabulary associated with this node type.
+    while ($vocabulary = db_fetch_object($result2)) {
+      // Required vocabularies must have at least one term.
+      if ($vocabulary->required && empty($found_terms[$vocabulary->vid])) {
+        return blogapi_error(t('A category from the @vocabulary_name vocabulary is required.', array('@vocabulary_name' => $vocabulary->name)));
+      }
+      // Vocabularies that don't allow multiple terms may have at most one.
+      if (!($vocabulary->multiple) && (isset($found_terms[$vocabulary->vid]) && count($found_terms[$vocabulary->vid]) > 1)) {
+        return blogapi_error(t('You may only choose one category from the @vocabulary_name vocabulary.'), array('@vocabulary_name' => $vocabulary->name));
+      }
+    }
+  }
+  elseif (!empty($node->taxonomy)) {
+    return blogapi_error(t('Error saving categories. This feature is not available.'));
+  }
   return TRUE;
 }
 
@@ -513,11 +649,16 @@ function blogapi_mt_publish_post($postid, $username, $password) {
     return blogapi_error(t('Invalid post.'));
   }
 
-  $node->status = 1;
-  if (!node_access('update', $node)) {
+  // Nothing needs to be done if already published.
+  if ($node->status) {
+    return;
+  }
+
+  if (!node_access('update', $node) || !user_access('administer nodes')) {
     return blogapi_error(t('You do not have permission to update this post.'));
   }
 
+  $node->status = 1;
   node_save($node);
 
   return TRUE;
@@ -588,6 +729,81 @@ function blogapi_admin_settings() {
     '#options' => $node_types,
     '#description' => t('Select the content types available to external blogging clients via Blog API. If supported, each enabled content type will be displayed as a separate "blog" by the external client.')
   );
+
+  $blogapi_extensions_default = variable_get('blogapi_extensions_default', 'jpg jpeg gif png txt doc xls pdf ppt pps odt ods odp');
+  $blogapi_uploadsize_default = variable_get('blogapi_uploadsize_default', 1);
+  $blogapi_usersize_default = variable_get('blogapi_usersize_default', 1);
+
+  $form['settings_general'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('File settings'),
+    '#collapsible' => TRUE,
+  );
+
+  $form['settings_general']['blogapi_extensions_default'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Default permitted file extensions'),
+    '#default_value' => $blogapi_extensions_default,
+    '#maxlength' => 255,
+    '#description' => t('Default extensions that users can upload. Separate extensions with a space and do not include the leading dot.'),
+  );
+
+  $form['settings_general']['blogapi_uploadsize_default'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Default maximum file size per upload'),
+    '#default_value' => $blogapi_uploadsize_default,
+    '#size' => 5,
+    '#maxlength' => 5,
+    '#description' => t('The default maximum file size a user can upload.'),
+    '#field_suffix' => t('MB')
+  );
+
+  $form['settings_general']['blogapi_usersize_default'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Default total file size per user'),
+    '#default_value' => $blogapi_usersize_default,
+    '#size' => 5,
+    '#maxlength' => 5,
+    '#description' => t('The default maximum size of all files a user can have on the site.'),
+    '#field_suffix' => t('MB')
+  );
+
+  $form['settings_general']['upload_max_size'] = array('#value' => '<p>'. t('Your PHP settings limit the maximum file size per upload to %size.', array('%size' => format_size(file_upload_max_size()))).'</p>');
+
+  $roles = user_roles(FALSE, 'administer content with blog api');
+  $form['roles'] = array('#type' => 'value', '#value' => $roles);
+
+  foreach ($roles as $rid => $role) {
+    $form['settings_role_' . $rid] = array(
+      '#type' => 'fieldset',
+      '#title' => t('Settings for @role', array('@role' => $role)),
+      '#collapsible' => TRUE,
+      '#collapsed' => TRUE,
+    );
+    $form['settings_role_' . $rid]['blogapi_extensions_' . $rid] = array(
+      '#type' => 'textfield',
+      '#title' => t('Permitted file extensions'),
+      '#default_value' => variable_get('blogapi_extensions_' . $rid, $blogapi_extensions_default),
+      '#maxlength' => 255,
+      '#description' => t('Extensions that users in this role can upload. Separate extensions with a space and do not include the leading dot.'),
+    );
+    $form['settings_role_' . $rid]['blogapi_uploadsize_' . $rid] = array(
+      '#type' => 'textfield',
+      '#title' => t('Maximum file size per upload'),
+      '#default_value' => variable_get('blogapi_uploadsize_' . $rid, $blogapi_uploadsize_default),
+      '#size' => 5,
+      '#maxlength' => 5,
+      '#description' => t('The maximum size of a file a user can upload (in megabytes).'),
+    );
+    $form['settings_role_' . $rid]['blogapi_usersize_' . $rid] = array(
+      '#type' => 'textfield',
+      '#title' => t('Total file size per user'),
+      '#default_value' => variable_get('blogapi_usersize_' . $rid, $blogapi_usersize_default),
+      '#size' => 5,
+      '#maxlength' => 5,
+      '#description' => t('The maximum size of all files a user can have on the site (in megabytes).'),
+    );
+  }
 
   return system_settings_form($form);
 }
@@ -751,3 +967,8 @@ function _blogapi_get_node_types() {
 
   return $types;
 }
+
+function _blogapi_space_used($uid) {
+  return db_query('SELECT SUM(filesize) FROM {blogapi_files} f WHERE f.uid = :uid', array(':uid' => $uid))->fetchField();
+}
+

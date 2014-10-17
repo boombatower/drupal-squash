@@ -165,13 +165,34 @@ function system_theme() {
  */
 function system_perm() {
   return array(
-    'administer site configuration' => t('Configure site-wide settings such as module or theme administration settings.'),
-    'administer actions' => t('Manage the actions defined for your site.'),
-    'administer files' => t('Manage user-uploaded files.'),
-    'access administration pages' => t('View the administration panel and browse the help system.'),
-    'access site reports' => t('View reports from system logs and other status information.'),
-    'select different theme' => t('Select a theme other than the default theme set by the site administrator.'),
-    'block IP addresses' => t('Block IP addresses from accessing your site.'),
+    'administer site configuration' => array(
+      'title' => t('Administer site configuration'),
+      'description' => t('Configure site-wide settings such as module or theme administration settings.'),
+    ),
+    'administer actions' => array(
+      'title' => t('Administer actions'),
+      'description' => t('Manage the actions defined for your site.'),
+    ),
+    'administer files' => array(
+      'title' => t('Administer files'),
+      'description' => t('Manage user-uploaded files.'),
+    ),
+    'access administration pages' => array(
+      'title' => t('Access administration pages'),
+      'description' => t('View the administration panel and browse the help system.'),
+    ),
+    'access site reports' => array(
+      'title' => t('Access site reports'),
+      'description' => t('View reports from system logs and other status information.'),
+    ),
+    'select different theme' => array(
+      'title' => t('Select different theme'),
+      'description' => t('Select a theme other than the default theme set by the site administrator.'),
+    ),
+    'block IP addresses' => array(
+      'title' => t('Block IP addresses'),
+      'description' => t('Block IP addresses from accessing your site.'),
+    ),
   );
 }
 
@@ -711,12 +732,10 @@ function system_preprocess_page(&$variables) {
 }
 
 /**
- * Implementation of hook_user().
- *
- * Allows users to individually set their theme and time zone.
+ * Implementation of hook_user_form().
  */
-function system_user($type, $edit, &$user, $category = NULL) {
-  if ($type == 'form' && $category == 'account') {
+function system_user_form(&$edit, &$user, $category = NULL) {
+  if ($category == 'account') {
     $form['theme_select'] = system_theme_select_form(t('Selecting a different theme will change the look and feel of the site.'), isset($edit['theme']) ? $edit['theme'] : NULL, 2);
 
     if (variable_get('configurable_timezones', 1)) {
@@ -1407,12 +1426,17 @@ function system_cron() {
     if (file_exists($file->filepath)) {
       // If files that exist cannot be deleted, continue so the database remains
       // consistent.
-      if (!file_delete($file->filepath)) {
+      if (!file_delete($file)) {
         watchdog('file system', 'Could not delete temporary file "%path" during garbage collection', array('%path' => $file->filepath), WATCHDOG_ERROR);
         continue;
       }
     }
     db_query('DELETE FROM {files} WHERE fid = %d', $file->fid);
+  }
+  $core = array('cache', 'cache_block', 'cache_filter', 'cache_page', 'cache_form', 'cache_menu');
+  $cache_tables = array_merge(module_invoke_all('flush_caches'), $core);
+  foreach ($cache_tables as $table) {
+    cache_clear_all(NULL, $table);
   }
 }
 

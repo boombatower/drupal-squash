@@ -270,8 +270,14 @@ function _aggregator_has_categories() {
  */
 function aggregator_perm() {
   return array(
-    'administer news feeds' => t('Add, edit or delete news feeds that are aggregated to your site.'),
-    'access news feeds' => t('View aggregated news feed items.'),
+    'administer news feeds' => array(
+      'title' => t('Administer news feeds'),
+      'description' => t('Add, edit or delete news feeds that are aggregated to your site.'),
+    ),
+    'access news feeds' => array(
+      'title' => t('Access news feeds'),
+      'description' => t('View aggregated news feed items.'),
+    ),
   );
 }
 
@@ -631,7 +637,7 @@ function aggregator_refresh($feed) {
           $image = '<a href="' . check_url($image['LINK']) . '" class="feed-image"><img src="' . check_url($image['URL']) . '" alt="' . check_plain($image['TITLE']) . '" /></a>';
         }
         else {
-          $image = NULL;
+          $image = '';
         }
 
         $etag = empty($result->headers['ETag']) ? '' : $result->headers['ETag'];
@@ -795,7 +801,7 @@ function aggregator_parse_feed(&$data, $feed) {
     if (!empty($guid)) {
       $entry = db_fetch_object(db_query("SELECT iid, timestamp FROM {aggregator_item} WHERE fid = %d AND guid = '%s'", $feed['fid'], $guid));
     }
-    else if ($link && $link != $feed['link'] && $link != $feed['url']) {
+    elseif ($link && $link != $feed['link'] && $link != $feed['url']) {
       $entry = db_fetch_object(db_query("SELECT iid, timestamp FROM {aggregator_item} WHERE fid = %d AND link = '%s'", $feed['fid'], $link));
     }
     else {

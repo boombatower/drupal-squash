@@ -200,9 +200,11 @@ function _trigger_normalize_node_context($type, $node) {
 }
 
 /**
- * Implementation of hook_nodeapi().
+ * Simple wrapper function to make user hooks work with new entry points.
+ *
+ * @TODO: Take advantage of the new API and reorganise/remove this function. 
  */
-function trigger_nodeapi(&$node, $op, $a3, $a4) {
+function _trigger_nodeapi(&$node, $op, $a3, $a4) {
   // Keep objects for reuse so that changes actions make to objects can persist.
   static $objects;
   // Prevent recursion by tracking which operations have already been called.
@@ -238,6 +240,41 @@ function trigger_nodeapi(&$node, $op, $a3, $a4) {
       actions_do($aid, $node, $context, $a3, $a4);
     }
   }
+}
+ 
+/**
+ * Implementation of hook_nodeapi_view().
+ */
+function trigger_nodeapi_view(&$node, $a3, $a4) {
+  _trigger_nodeapi($node, 'view', $a3, $a4);
+}
+
+/**
+ * Implementation of hook_nodeapi_update().
+ */
+function trigger_nodeapi_update(&$node, $a3, $a4) {
+  _trigger_nodeapi($node, 'update', $a3, $a4);
+}
+
+/**
+ * Implementation of hook_nodeapi_presave().
+ */
+function trigger_nodeapi_presave(&$node, $a3, $a4) {
+  _trigger_nodeapi($node, 'presave', $a3, $a4);
+}
+
+/**
+ * Implementation of hook_nodeapi_insert().
+ */
+function trigger_nodeapi_insert(&$node, $a3, $a4) {
+  _trigger_nodeapi($node, 'insert', $a3, $a4);
+}
+
+/**
+ * Implementation of hook_nodeapi_delete().
+ */
+function trigger_nodeapi_delete(&$node, $a3, $a4) {
+  _trigger_nodeapi($node, 'delete', $a3, $a4);
 }
 
 /**
@@ -347,9 +384,53 @@ function _trigger_normalize_user_context($type, $account) {
 }
 
 /**
- * Implementation of hook_user().
+ * trigger_user_login 
  */
-function trigger_user($op, &$edit, &$account, $category = NULL) {
+function trigger_user_login(&$edit, &$account, $category) {
+  _trigger_user('login', $edit, $account, $category); 
+}
+
+/**
+ * Implementation of hook_user_logout().
+ */
+function trigger_user_logout(&$edit, &$account, $category) {
+  _trigger_user('logout', $edit, $account, $category); 
+}
+
+/**
+ * Implementation of hook_user_insert().
+ */
+function trigger_user_insert(&$edit, &$account, $category) {
+  _trigger_user('insert', $edit, $account, $category); 
+}
+
+/**
+ * Implementation of hook_user_update().
+ */
+function trigger_user_update(&$edit, &$account, $category) {
+  _trigger_user('update', $edit, $account, $category); 
+}
+
+/**
+ * Implementation of hook_user_delete().
+ */
+function trigger_user_delete(&$edit, &$account, $category) {
+  _trigger_user('delete', $edit, $account, $category); 
+}
+
+/**
+ * Implementation of hook_user_view().
+ */
+function trigger_user_view(&$edit, &$account, $category) {
+  _trigger_user('view', $edit, $account, $category); 
+}
+
+/**
+ * Simple wrapper function to make user hooks work with new entry points.
+ *
+ * @TODO: Take advantage of the new API and reorganise/remove this function. 
+ */
+function _trigger_user($op, &$edit, &$account, $category = NULL) {
   // Keep objects for reuse so that changes actions make to objects can persist.
   static $objects;
   // We support a subset of operations.

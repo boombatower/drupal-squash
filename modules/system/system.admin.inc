@@ -338,7 +338,7 @@ function system_theme_settings(&$form_state, $key = '') {
     // The image was saved using file_save_upload() and was added to the
     // files table as a temporary file. We'll make a copy and let the garbage
     // collector delete the original upload.
-    if ($filepath = file_copy($file->filepath, $filename, FILE_EXISTS_REPLACE)) {
+    if ($filepath = file_unmanaged_copy($file->filepath, $filename, FILE_EXISTS_REPLACE)) {
       $_POST['default_logo'] = 0;
       $_POST['logo_path'] = $filepath;
       $_POST['toggle_logo'] = 1;
@@ -353,7 +353,7 @@ function system_theme_settings(&$form_state, $key = '') {
     // The image was saved using file_save_upload() and was added to the
     // files table as a temporary file. We'll make a copy and let the garbage
     // collector delete the original upload.
-    if ($filepath = file_copy($file->filepath, $filename, FILE_EXISTS_REPLACE)) {
+    if ($filepath = file_unmanaged_copy($file->filepath, $filename, FILE_EXISTS_REPLACE)) {
       $_POST['default_favicon'] = 0;
       $_POST['favicon_path'] = $filepath;
       $_POST['toggle_favicon'] = 1;
@@ -616,7 +616,7 @@ function system_modules($form_state = array()) {
 
   // Remove hidden modules from display list.
   foreach ($files as $filename => $file) {
-    if (!empty($file->info['hidden'])) {
+    if (!empty($file->info['hidden']) || !empty($file->info['required'])) {
       unset($files[$filename]);
     }
   }
@@ -637,16 +637,9 @@ function system_modules($form_state = array()) {
   // Used when checking if module implements a help page.
   $help_arg = module_exists('help') ? drupal_help_arg() : FALSE;
 
-  // The list of required modules.
-  $modules_required = drupal_required_modules();
-
   // Iterate through each of the modules.
   foreach ($files as $filename => $module) {
     $extra = array();
-    // If the module is requried, set it to be so.
-    if (in_array($filename, $modules_required)) {
-      $extra['required'] = TRUE;
-    }
     $extra['enabled'] = (bool) $module->status;
     // If this module has dependencies, add them to the array.
     if (is_array($module->info['dependencies'])) {
@@ -689,7 +682,6 @@ function system_modules($form_state = array()) {
       '#type' => 'fieldset',
       '#title' => t($package),
       '#collapsible' => TRUE,
-      '#access' => ($package != 'Core - required'),
       '#theme' => 'system_modules_fieldset',
       '#header' => array(
         array('data' => t('Enabled'), 'class' => 'checkbox'),
@@ -722,7 +714,6 @@ function system_sort_modules_by_info_name($a, $b) {
 function _system_modules_build_row($info, $extra) {
   // Add in the defaults.
   $extra += array(
-    'required' => FALSE,
     'dependencies' => array(),
     'dependents' => array(),
     'disabled' => FALSE,
@@ -751,7 +742,7 @@ function _system_modules_build_row($info, $extra) {
   $status_long = '';
 
   // Check the core compatibility.
-  if (!isset($info['core']) || $info['core'] != DRUPAL_CORE_COMPATIBILITY) {
+  if (!isset($info['core']) || $info['core'] != DRUPAL_CORE_COMPATIBILITY || empty($info['files'])) {
     $compatible = FALSE;
     $status_short .= t('Incompatible with this version of Drupal core. ');
     $status_long .= t('This version is incompatible with the !core_version version of Drupal core. ', array('!core_version' => VERSION));
@@ -773,7 +764,6 @@ function _system_modules_build_row($info, $extra) {
     $form['enable'] = array(
       '#type' => 'checkbox',
       '#title' => t('Enable'),
-      '#required' => $extra['required'],
       '#default_value' => $extra['enabled'],
     );
     if ($extra['disabled']) {
@@ -1093,9 +1083,8 @@ function system_modules_uninstall_submit($form, &$form_state) {
 
   if (!empty($form['#confirmed'])) {
     // Call the uninstall routine for each selected module.
-    foreach (array_filter($form_state['values']['uninstall']) as $module => $value) {
-      drupal_uninstall_module($module);
-    }
+    $modules = array_keys($form_state['values']['uninstall']);
+    drupal_uninstall_modules($modules);
     drupal_set_message(t('The selected modules have been uninstalled.'));
 
     unset($form_state['storage']);
@@ -1158,10 +1147,10 @@ function system_ip_blocking_form_validate($form, &$form_state) {
   if (db_result(db_query("SELECT * FROM {blocked_ips} WHERE ip = '%s'", $ip))) {
     form_set_error('ip', t('This IP address is already blocked.'));
   }
-  else if ($ip == ip_address()) {
+  elseif ($ip == ip_address()) {
     form_set_error('ip', t('You may not block your own IP address.'));
   }
-  else if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_RES_RANGE) == FALSE) {
+  elseif (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_RES_RANGE) == FALSE) {
     form_set_error('ip', t('Please enter a valid IP address.'));
   }
 }

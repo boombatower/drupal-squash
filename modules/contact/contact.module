@@ -37,8 +37,14 @@ function contact_help($path, $arg) {
  */
 function contact_perm() {
   return array(
-    'administer site-wide contact form' => t('Configure site-wide contact form administration settings.'),
-    'access site-wide contact form' => t('Send feedback to administrators via e-mail using the site-wide contact form.'),
+    'administer site-wide contact form' => array(
+      'title' => t('Administer site-wide contact form'),
+      'description' => t('Configure site-wide contact form administration settings.'),
+    ),
+    'access site-wide contact form' => array(
+      'title' => t('Access site-wide contact form'),
+      'description' => t('Send feedback to administrators via e-mail using the site-wide contact form.'),
+    ),
   );
 }
 
@@ -130,12 +136,10 @@ function contact_load($cid) {
 }
 
 /**
- * Implementation of hook_user().
- *
- * Allows the user the option of enabling/disabling his personal contact form.
+ * Implementation of hook_user_form().
  */
-function contact_user($type, &$edit, &$user, $category = NULL) {
-  if ($type == 'form' && $category == 'account') {
+function contact_user_form(&$edit, &$user, $category = NULL) {
+  if ($category == 'account') {
     $form['contact'] = array('#type' => 'fieldset',
       '#title' => t('Contact settings'),
       '#weight' => 5,
@@ -148,12 +152,20 @@ function contact_user($type, &$edit, &$user, $category = NULL) {
     );
     return $form;
   }
-  elseif ($type == 'validate') {
-    return array('contact' => isset($edit['contact']) ? $edit['contact'] : FALSE);
-  }
-  elseif ($type == 'insert') {
-    $edit['contact'] = variable_get('contact_default_status', 1);
-  }
+}
+
+/**
+ * Implementation of hook_user_insert().
+ */
+function contact_user_insert(&$edit, &$user, $category = NULL) {
+  $edit['contact'] = variable_get('contact_default_status', 1);
+}
+
+/**
+ * Implementation of hook_user_validate().
+ */
+function contact_user_validate(&$edit, &$user, $category = NULL) {
+  return array('contact' => isset($edit['contact']) ? $edit['contact'] : FALSE);
 }
 
 /**

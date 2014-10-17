@@ -183,7 +183,7 @@ define('LANGUAGE_NEGOTIATION_DOMAIN', 3);
 /**
  * For convenience, define a short form of the request time global.
  */
-define ('REQUEST_TIME', $_SERVER['REQUEST_TIME']);
+define('REQUEST_TIME', $_SERVER['REQUEST_TIME']);
 
 /**
  * Start the timer with the specified name. If you start and stop
@@ -272,6 +272,30 @@ function timer_stop($name) {
  *
  * 13. $confdir/default
  *
+ * If a file named sites.php is present in the $confdir, it will be loaded
+ * prior to scanning for directories.  It should define an associative array
+ * named $sites, which maps domains to directories.  It should be in the form
+ * of:
+ *
+ * $sites = array(
+ *   'The url to alias' => 'A directory within the sites directory'
+ * );
+ *
+ * For example:
+ *
+ * $sites = array(
+ *   'devexample.com' => 'example.com',
+ *   'localhost/example' => 'example.com',
+ * );
+ *
+ * The above array will cause Drupal to look for a directory named
+ * "example.com" in the sites directory whenever a request comes from
+ * "example.com", "devexample.com", or "localhost/example". That is useful
+ * on development servers, where the domain name may not be the same as the
+ * domain of the live server.  Since Drupal stores file paths into the database
+ * (files, system table, etc.) this will ensure the paths are correct while
+ * accessed on development servers.
+ *
  * @param $require_settings
  *   Only configuration directories with an existing settings.php file
  *   will be recognized. Defaults to TRUE. During initial installation,
@@ -291,12 +315,22 @@ function conf_path($require_settings = TRUE, $reset = FALSE) {
   }
 
   $confdir = 'sites';
+
+  $sites = array();
+  if (file_exists(DRUPAL_ROOT . '/' . $confdir . '/sites.php')) {
+    // This will overwrite $sites with the desired mappings.
+    include(DRUPAL_ROOT . '/' . $confdir . '/sites.php');
+  }
+
   $uri = explode('/', $_SERVER['SCRIPT_NAME'] ? $_SERVER['SCRIPT_NAME'] : $_SERVER['SCRIPT_FILENAME']);
   $server = explode('.', implode('.', array_reverse(explode(':', rtrim($_SERVER['HTTP_HOST'], '.')))));
   for ($i = count($uri) - 1; $i > 0; $i--) {
     for ($j = count($server); $j > 0; $j--) {
       $dir = implode('.', array_slice($server, -$j)) . implode('.', array_slice($uri, 0, $i));
-      if (file_exists("$confdir/$dir/settings.php") || (!$require_settings && file_exists("$confdir/$dir"))) {
+      if (isset($sites[$dir]) && file_exists(DRUPAL_ROOT . '/' . $confdir . '/' . $sites[$dir])) {
+        $dir = $sites[$dir];
+      }
+      if (file_exists(DRUPAL_ROOT . '/' . $confdir . '/' . $dir . '/settings.php') || (!$require_settings && file_exists(DRUPAL_ROOT . '/' . $confdir . '/' . $dir))) {
         $conf = "$confdir/$dir";
         return $conf;
       }
@@ -445,7 +479,7 @@ function drupal_get_filename($type, $name, $filename = NULL) {
   // the database.  This is required because this function is called both
   // before we have a database connection (i.e. during installation) and
   // when a database connection fails.
-  elseif (db_is_active() && (($file = db_result(db_query("SELECT filename FROM {system} WHERE name = '%s' AND type = '%s'", $name, $type))) && file_exists($file))) {
+  elseif (db_is_active() && (($file = db_query("SELECT filename FROM {system} WHERE name = :name AND type = :type", array(':name' => $name, ':type' => $type))->fetchField()) && file_exists($file))) {
     $files[$type][$name] = $file;
   }
   else {
@@ -481,10 +515,7 @@ function variable_init($conf = array()) {
     $variables = $cached->data;
   }
   else {
-    $result = db_query('SELECT * FROM {variable}');
-    while ($variable = db_fetch_object($result)) {
-      $variables[$variable->name] = unserialize($variable->value);
-    }
+    $variables = array_map('unserialize', db_query('SELECT name, value FROM {variable}')->fetchAllKeyed());
     cache_set('variables', $variables);
   }
 
@@ -539,7 +570,9 @@ function variable_set($name, $value) {
 function variable_del($name) {
   global $conf;
 
-  db_query("DELETE FROM {variable} WHERE name = '%s'", $name);
+  db_delete('variable')
+    ->condition('name', $name)
+    ->execute();
   cache_clear_all('variables', 'cache');
 
   unset($conf[$name]);
@@ -651,7 +684,7 @@ function drupal_page_cache_header($cache) {
     header($_SERVER['SERVER_PROTOCOL'] . ' 304 Not Modified');
     // All 304 responses must send an etag if the 200 response for the same object contained an etag
     header("Etag: $etag");
-    exit();
+    return;
   }
 
   // Send appropriate response:
@@ -924,8 +957,7 @@ function drupal_is_denied($ip) {
     return in_array($ip, $blocked_ips);
   }
   else {
-    $sql = "SELECT 1 FROM {blocked_ips} WHERE ip = '%s'";
-    return (bool) db_result(db_query($sql, $ip));
+    return (bool)db_query("SELECT 1 FROM {blocked_ips} WHERE ip = :ip", array(':ip' => $ip))->fetchField();
   }
 }
 
@@ -1142,10 +1174,7 @@ function language_list($field = 'language', $reset = FALSE) {
   // Init language list
   if (!isset($languages)) {
     if (variable_get('language_count', 1) > 1 || module_exists('locale')) {
-      $result = db_query('SELECT * FROM {languages} ORDER BY weight ASC, name ASC');
-      while ($row = db_fetch_object($result)) {
-        $languages['language'][$row->language] = $row;
-      }
+      $languages['language'] = db_query('SELECT * FROM {languages} ORDER BY weight ASC, name ASC')->fetchAllAssoc('language');
     }
     else {
       // No locale module, so use the default language only.
@@ -1207,7 +1236,8 @@ function ip_address($reset = FALSE) {
         if (!empty($reverse_proxy_addresses) && in_array($ip_address, $reverse_proxy_addresses, TRUE)) {
           // If there are several arguments, we need to check the most
           // recently added one, i.e. the last one.
-          $ip_address = array_pop(explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']));
+          $ip_address_parts = explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']);
+          $ip_address = array_pop($ip_address_parts);
         }
       }
 
@@ -1340,7 +1370,11 @@ function drupal_function_exists($function) {
     return TRUE;
   }
 
-  $file = db_result(db_query("SELECT filename FROM {registry} WHERE name = :name AND type = :type", array(':name' => $function, ':type' => 'function')));
+  $file = db_query("SELECT filename FROM {registry} WHERE name = :name AND type = :type", array(
+      ':name' => $function,
+      ':type' => 'function',
+    ))
+    ->fetchField();
   if ($file) {
     require_once DRUPAL_ROOT . '/' . $file;
     $checked[$function] = function_exists($function);
@@ -1388,7 +1422,11 @@ function drupal_autoload_class($class) {
  * Helper for registry_check_{interface, class}.
  */
 function _registry_check_code($type, $name) {
-  $file = db_result(db_query("SELECT filename FROM {registry} WHERE name = :name AND type = :type", array(':name' => $name, ':type' => $type)));
+  $file = db_query("SELECT filename FROM {registry} WHERE name = :name AND type = :type", array(
+      ':name' => $name,
+      ':type' => $type,
+    ))
+    ->fetchField();
   if ($file) {
     require_once DRUPAL_ROOT . '/' . $file;
     registry_mark_code($type, $name);
@@ -1467,15 +1505,21 @@ function registry_cache_path_files() {
     $files = array();
     $type_sql = array();
     $params = array();
+
+    $select = db_select('registry')->distinct();
+    $select->addField('registry', 'filename');
+
+    // This creates a series of 2-clause AND conditions that are then ORed together.
+    $ors = db_or();
     foreach ($used_code as $type => $names) {
-      $type_sql[] = "(name IN (" . db_placeholders($names, 'varchar') . ") AND type = '%s')";
-      $params = array_merge($params, $names);
-      $params[] = $type;
+      $and = db_and()
+        ->condition('name', $names, 'IN')
+        ->condition('type', $type);
+      $ors->condition($and);
     }
-    $res = db_query("SELECT DISTINCT filename FROM {registry} WHERE " . implode(' OR ', $type_sql), $params);
-    while ($row = db_fetch_object($res)) {
-      $files[] = $row->filename;
-    }
+    $select->condition($ors);
+    $files = $select->execute()->fetchCol();
+
     if ($files) {
       sort($files);
       // Only write this to cache if the file list we are going to cache

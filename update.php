@@ -290,10 +290,10 @@ function update_script_selection_form() {
 function update_batch() {
   global $base_url;
 
-  // During the update, toggle site maintenance so that schema changes
-  // don't effect visiting users.
-  $site_offline = variable_get('site_offline', FALSE);
-  if ($site_offline == FALSE) {
+  // During the update, toggle site maintenance so that schema changes do not
+  // affect visiting users.
+  $_SESSION['site_offline'] = variable_get('site_offline', FALSE);
+  if ($_SESSION['site_offline'] == FALSE) {
     variable_set('site_offline', TRUE);
   }
 
@@ -320,12 +320,6 @@ function update_batch() {
   );
   batch_set($batch);
   batch_process($base_url . '/update.php?op=results', $base_url . '/update.php');
-
-  // Now that the update is done, we can disable site maintenance if
-  // it was previously turned off.
-  if ($site_offline == FALSE) {
-    variable_set('site_offline', FALSE);
-  }
 }
 
 function update_finished($success, $results, $operations) {
@@ -335,6 +329,13 @@ function update_finished($success, $results, $operations) {
   $_SESSION['update_results'] = $results;
   $_SESSION['update_success'] = $success;
   $_SESSION['updates_remaining'] = $operations;
+  
+  // Now that the update is done, we can disable site maintenance if it was
+  // previously turned off.
+  if (isset($_SESSION['site_offline']) && $_SESSION['site_offline'] == FALSE) {
+    variable_set('site_offline', FALSE);
+    unset($_SESSION['site_offline']);
+  }
 }
 
 function update_helpful_links() {
@@ -497,14 +498,14 @@ function update_check_incompatibility($name, $type = 'module') {
 
   // Store values of expensive functions for future use.
   if (empty($themes) || empty($modules)) {
-    $themes = system_theme_data();
+    $themes = _system_theme_data();
     $modules = module_rebuild_cache();
   }
 
   if ($type == 'module' && isset($modules[$name])) {
     $file = $modules[$name];
   }
-  else if ($type == 'theme' && isset($themes[$name])) {
+  elseif ($type == 'theme' && isset($themes[$name])) {
     $file = $themes[$name];
   }
   if (!isset($file)

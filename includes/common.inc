@@ -648,7 +648,7 @@ function _drupal_get_last_caller($backtrace) {
   // The first trace is the call itself.
   // It gives us the line and the file of the last call.
   $call = $backtrace[0];
-  
+
   // The second call give us the function where the call originated.
   if (isset($backtrace[1])) {
     if (isset($backtrace[1]['class'])) {
@@ -750,7 +750,7 @@ function fix_gpc_magic() {
  *   to escape HTML characters. Use this for any output that's displayed within
  *   a Drupal page.
  *   @code
- *     drupal_set_title($title = t("@name's blog", array('@name' => $account->name)));
+ *     drupal_set_title($title = t("@name's blog", array('@name' => $account->name)), PASS_THROUGH);
  *   @endcode
  *
  * - %variable, which indicates that the string should be HTML escaped and
@@ -1247,25 +1247,25 @@ function format_date($timestamp, $type = 'medium', $format = '', $timezone = NUL
     if (strpos('AaDlM', $c) !== FALSE) {
       $date .= t(gmdate($c, $timestamp), array(), $langcode);
     }
-    else if ($c == 'F') {
+    elseif ($c == 'F') {
       // Special treatment for long month names: May is both an abbreviation
       // and a full month name in English, but other languages have
       // different abbreviations.
       $date .= trim(t('!long-month-name ' . gmdate($c, $timestamp), array('!long-month-name' => ''), $langcode));
     }
-    else if (strpos('BdgGhHiIjLmnsStTUwWYyz', $c) !== FALSE) {
+    elseif (strpos('BdgGhHiIjLmnsStTUwWYyz', $c) !== FALSE) {
       $date .= gmdate($c, $timestamp);
     }
-    else if ($c == 'r') {
+    elseif ($c == 'r') {
       $date .= format_date($timestamp - $timezone, 'custom', 'D, d M Y H:i:s O', $timezone, $langcode);
     }
-    else if ($c == 'O') {
+    elseif ($c == 'O') {
       $date .= sprintf('%s%02d%02d', ($timezone < 0 ? '-' : '+'), abs($timezone / 3600), abs($timezone % 3600) / 60);
     }
-    else if ($c == 'Z') {
+    elseif ($c == 'Z') {
       $date .= $timezone;
     }
-    else if ($c == '\\') {
+    elseif ($c == '\\') {
       $date .= $format[++$i];
     }
     else {
@@ -1318,7 +1318,7 @@ function format_date($timestamp, $type = 'medium', $format = '', $timezone = NUL
  * When creating links in modules, consider whether l() could be a better
  * alternative than url().
  */
-function url($path = NULL, $options = array()) {
+function url($path = NULL, array $options = array()) {
   // Merge in defaults.
   $options += array(
     'fragment' => '',
@@ -1491,7 +1491,7 @@ function drupal_attributes($attributes = array()) {
  * @return
  *   an HTML string containing a link to the given path.
  */
-function l($text, $path, $options = array()) {
+function l($text, $path, array $options = array()) {
   // Merge in defaults.
   $options += array(
       'attributes' => array(),
@@ -1789,7 +1789,7 @@ function drupal_get_css($css = NULL) {
             }
             // If a CSS file is not to be preprocessed and it's a theme CSS file, it needs to *always* appear at the *bottom*,
             // regardless of whether preprocessing is on or off.
-            else if (!$preprocess && $type == 'theme') {
+            elseif (!$preprocess && $type == 'theme') {
               $no_theme_preprocess .= '<link type="text/css" rel="stylesheet" media="' . $media . '" href="' . base_path() . $file . $query_string . '" />' . "\n";
             }
             else {
@@ -1851,7 +1851,7 @@ function drupal_build_css_cache($types, $filename) {
     $data = implode('', $matches[0]) . $data;
 
     // Create the CSS file.
-    file_save_data($data, $csspath . '/' . $filename, FILE_EXISTS_REPLACE);
+    file_unmanaged_save_data($data, $csspath . '/' . $filename, FILE_EXISTS_REPLACE);
   }
   return $csspath . '/' . $filename;
 }
@@ -1952,7 +1952,7 @@ function _drupal_load_stylesheet($matches) {
  * Delete all cached CSS files.
  */
 function drupal_clear_css_cache() {
-  file_scan_directory(file_create_path('css'), '/.*/', array('.', '..', 'CVS'), 'file_delete', TRUE);
+  file_scan_directory(file_create_path('css'), '/.*/', array('.', '..', 'CVS'), 'file_unmanaged_delete', TRUE);
 }
 
 /**
@@ -2315,7 +2315,7 @@ function drupal_build_js_cache($files, $filename) {
     }
 
     // Create the JS file.
-    file_save_data($contents, $jspath . '/' . $filename, FILE_EXISTS_REPLACE);
+    file_unmanaged_save_data($contents, $jspath . '/' . $filename, FILE_EXISTS_REPLACE);
   }
 
   return $jspath . '/' . $filename;
@@ -2325,7 +2325,7 @@ function drupal_build_js_cache($files, $filename) {
  * Delete all cached JS files.
  */
 function drupal_clear_js_cache() {
-  file_scan_directory(file_create_path('js'), '/.*/', array('.', '..', 'CVS'), 'file_delete', TRUE);
+  file_scan_directory(file_create_path('js'), '/.*/', array('.', '..', 'CVS'), 'file_unmanaged_delete', TRUE);
   variable_set('javascript_parsed', array());
 }
 
@@ -2559,7 +2559,7 @@ function page_set_cache() {
         if (zlib_get_coding_type() == 'deflate') {
           $cache = FALSE;
         }
-        else if (zlib_get_coding_type() == FALSE) {
+        elseif (zlib_get_coding_type() == FALSE) {
           $data = gzencode($data, 9, FORCE_GZIP);
         }
         // The remaining case is 'gzip' which means the data is
@@ -2703,6 +2703,8 @@ function drupal_system_listing($mask, $directory, $key = 'name', $min_depth = 1)
 }
 
 /**
+ * Hands off structured Drupal arrays to type-specific *_alter implementations.
+ * 
  * This dispatch function hands off structured Drupal arrays to type-specific
  * *_alter implementations. It ensures a consistent interface for all altering
  * operations.
@@ -3422,7 +3424,7 @@ function drupal_write_record($table, &$object, $update = array()) {
  *   description = Enables threaded discussions about general topics.
  *   dependencies[] = taxonomy
  *   dependencies[] = comment
- *   package = Core - optional
+ *   package = Core
  *   version = VERSION
  * @endverbatim
  *

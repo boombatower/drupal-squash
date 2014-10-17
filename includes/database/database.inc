@@ -746,10 +746,6 @@ abstract class Database {
 
   /**
    * Process the configuration file for database information.
-   *
-   * Because the config file accepts various "fallback" configurations, we have
-   * to parse the configuration array out into a standardized "complete" form,
-   * applying defaults where necessary.
    */
   final protected static function parseConnectionInfo() {
     global $databases;
@@ -759,17 +755,7 @@ abstract class Database {
     }
     $databaseInfo = $databases;
 
-    // If no database key is specified, default to default.
-    if (!is_array($databaseInfo)) {
-      $databaseInfo = array('default' => $databaseInfo);
-    }
-
     foreach ($databaseInfo as $index => $info) {
-      // If no targets are specified, default to one default.
-      if (!is_array($databaseInfo[$index])) {
-        $databaseInfo[$index] = array('default' => $info);
-      }
-
       foreach ($databaseInfo[$index] as $target => $value) {
         // If there is no "driver" property, then we assume it's an array of
         // possible connections for this target.  Pick one at random.  That
@@ -1061,8 +1047,10 @@ class DatabaseStatement extends PDOStatement {
   public function execute($args, $options) {
     if (isset($options['fetch'])) {
       if (is_string($options['fetch'])) {
-        // PDO::FETCH_PROPS_LATE tells __construct() to run before properties are added to the object.
-        $this->setFetchMode(PDO::FETCH_CLASS | PDO::FETCH_PROPS_LATE, $options['fetch']);
+        // Default to an object. Note: db fields will be added to the object
+        // before the constructor is run. If you need to assign fields after
+        // the constructor is run, see http://drupal.org/node/315092.
+        $this->setFetchMode(PDO::FETCH_CLASS, $options['fetch']);
       }
       else {
         $this->setFetchMode($options['fetch']);

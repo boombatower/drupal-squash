@@ -142,9 +142,18 @@ function search_theme() {
  */
 function search_perm() {
   return array(
-    'administer search' => t('Configure search administration settings.'),
-    'search content' => t('Search website content.'),
-    'use advanced search' => t('Limit search results with additional criteria, such as specific content types. Could have performance implications.'),
+    'administer search' => array(
+      'title' => t('Administer search'),
+      'description' => t('Configure search administration settings.'),
+    ),
+    'search content' => array(
+      'title' => t('Search content'),
+      'description' => t('Search website content.'),
+    ),
+    'use advanced search' => array(
+      'title' => t('Use advanced search'),
+      'description' => t('Limit search results with additional criteria, such as specific content types. Could have performance implications.'),
+    ),
   );
 }
 
@@ -158,7 +167,7 @@ function search_block($op = 'list', $delta = '') {
     $blocks['form']['cache'] = BLOCK_NO_CACHE;
     return $blocks;
   }
-  else if ($op == 'view' && user_access('search content')) {
+  elseif ($op == 'view' && user_access('search content')) {
     $block['content'] = drupal_get_form('search_block_form');
     $block['subject'] = t('Search');
     return $block;
@@ -626,24 +635,25 @@ function search_touch_node($nid) {
 }
 
 /**
- * Implementation of hook_nodeapi().
+ * Implementation of hook_nodeapi_update_index().
  */
-function search_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
-  switch ($op) {
-    // Transplant links to a node into the target node.
-    case 'update index':
-      $result = db_query("SELECT caption FROM {search_node_links} WHERE nid = %d", $node->nid);
-      $output = array();
-      while ($link = db_fetch_object($result)) {
-        $output[] = $link->caption;
-      }
-      return '<a>(' . implode(', ', $output) . ')</a>';
-    // Reindex the node when it is updated.  The node is automatically indexed
-    // when it is added, simply by being added to the node table.
-    case 'update':
-      search_touch_node($node->nid);
-      break;
+function search_nodeapi_update_index(&$node, $teaser = NULL, $page = NULL) {
+  // Transplant links to a node into the target node.
+  $result = db_query("SELECT caption FROM {search_node_links} WHERE nid = %d", $node->nid);
+  $output = array();
+  while ($link = db_fetch_object($result)) {
+    $output[] = $link->caption;
   }
+  return '<a>(' . implode(', ', $output) . ')</a>';
+}
+
+/**
+ * Implementation of hook_nodeapi_update().
+ */
+function search_nodeapi_update(&$node, $teaser = NULL, $page = NULL) {
+  // Reindex the node when it is updated.  The node is automatically indexed
+  // when it is added, simply by being added to the node table.
+  search_touch_node($node->nid);
 }
 
 /**
@@ -985,8 +995,8 @@ function search_get_keys() {
  * for all of the search features to work.
  *
  * There are three ways to interact with the search system:
- * - Specifically for searching nodes, you can implement nodeapi('update index')
- *   and nodeapi('search result'). However, note that the search system already
+ * - Specifically for searching nodes, you can implement nodeapi('update_index')
+ *   and nodeapi('search_result'). However, note that the search system already
  *   indexes all visible output of a node, i.e. everything displayed normally
  *   by hook_view() and hook_nodeapi('view'). This is usually sufficient.
  *   You should only use this mechanism if you want additional, non-visible data
