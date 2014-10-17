@@ -36,7 +36,6 @@ use Drupal\Core\Language\Language;
  *   fieldable = TRUE,
  *   translatable = TRUE,
  *   render_cache = FALSE,
- *   route_base_path = "admin/structure/comments/manage/{bundle}",
  *   entity_keys = {
  *     "id" = "cid",
  *     "bundle" = "field_id",
@@ -48,7 +47,8 @@ use Drupal\Core\Language\Language;
  *   },
  *   links = {
  *     "canonical" = "comment.permalink",
- *     "edit-form" = "comment.edit_page"
+ *     "edit-form" = "comment.edit_page",
+ *     "admin-form" = "comment.bundle"
  *   }
  * )
  */
@@ -216,10 +216,10 @@ class Comment extends ContentEntityBase implements CommentInterface {
   public function preSave(EntityStorageControllerInterface $storage_controller) {
     parent::preSave($storage_controller);
 
-    global $user;
+    $user = \Drupal::currentUser();
 
     if (!isset($this->status->value)) {
-      $this->status->value = user_access('skip comment approval') ? COMMENT_PUBLISHED : COMMENT_NOT_PUBLISHED;
+      $this->status->value = $user->hasPermission('skip comment approval') ? COMMENT_PUBLISHED : COMMENT_NOT_PUBLISHED;
     }
     if ($this->isNew()) {
       // Add the comment to database. This next section builds the thread field.

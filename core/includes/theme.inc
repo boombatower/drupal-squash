@@ -368,17 +368,11 @@ function list_themes($refresh = FALSE) {
     $list = array();
     // Extract from the database only when it is available.
     // Also check that the site is not in the middle of an install or update.
-    if (!defined('MAINTENANCE_MODE')) {
-      try {
-        $themes = system_list('theme');
-      }
-      catch (Exception $e) {
-        // If the database is not available, rebuild the theme data.
-        $themes = _system_rebuild_theme_data();
-      }
+    try {
+      $themes = system_list('theme');
     }
-    else {
-      // Scan the installation when the database should not be read.
+    catch (Exception $e) {
+      // If the database is not available, rebuild the theme data.
       $themes = _system_rebuild_theme_data();
     }
 
@@ -1279,8 +1273,14 @@ function template_preprocess_status_messages(&$variables) {
  *     is used as its CSS class. Each link should be itself an array, with the
  *     following elements:
  *     - title: The link text.
- *     - href: The link URL. If omitted, the 'title' is shown as a plain text
- *       item in the links list.
+ *     - route_name: (optional) The name of the route to link to. If omitted
+ *       (and if 'href' is omitted as well), the 'title' is shown as
+ *       a plain text item in the links list.
+ *     - route_parameters: (optional) An array of route parameters for the link.
+ *     - href: (optional) The link URL. It is preferred to use 'route_name' and
+ *       'route parameters' for internal links. Use 'href' for links to external
+ *       URLs. If omitted (and if 'route_name' is omitted as well), the 'title'
+ *       is shown as a plain text item in the links list.
  *     - html: (optional) Whether or not 'title' is HTML. If set, the title
  *       will not be passed through
  *       \Drupal\Component\Utility\String::checkPlain().
@@ -2226,7 +2226,12 @@ function template_preprocess_html(&$variables) {
   if (theme_get_setting('features.favicon')) {
     $favicon = theme_get_setting('favicon.url');
     $type = theme_get_setting('favicon.mimetype');
-    drupal_add_html_head_link(array('rel' => 'shortcut icon', 'href' => Url::stripDangerousProtocols($favicon), 'type' => $type));
+    $build['#attached']['drupal_add_html_head_link'][][] = array(
+      'rel' => 'shortcut icon',
+      'href' => Url::stripDangerousProtocols($favicon),
+      'type' => $type,
+    );
+    drupal_render($build);
   }
 
   $site_config = \Drupal::config('system.site');
@@ -2509,7 +2514,12 @@ function template_preprocess_maintenance_page(&$variables) {
   if (theme_get_setting('features.favicon')) {
     $favicon = theme_get_setting('favicon.url');
     $type = theme_get_setting('favicon.mimetype');
-    drupal_add_html_head_link(array('rel' => 'shortcut icon', 'href' => Url::stripDangerousProtocols($favicon), 'type' => $type));
+    $build['#attached']['drupal_add_html_head_link'][][] = array(
+      'rel' => 'shortcut icon',
+      'href' => Url::stripDangerousProtocols($favicon),
+      'type' => $type,
+    );
+    drupal_render($build);
   }
 
   // Get all region content set with drupal_add_region_content().
