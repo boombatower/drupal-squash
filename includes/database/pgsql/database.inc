@@ -13,27 +13,29 @@
 
 class DatabaseConnection_pgsql extends DatabaseConnection {
 
-  protected $transactionSupport;
+  public function __construct(array $connection_options = array()) {
+    // This driver defaults to transaction support, except if explicitly passed FALSE.
+    $this->transactionSupport = !isset($connection_options['transactions']) || ($connection_options['transactions'] !== FALSE);
+    
+    // Transactional DDL is always available in PostgreSQL,
+    // but we'll only enable it if standard transactions are.
+    $this->transactionalDDLSupport = $this->transactionSupport;
 
-  public function __construct(Array $connection_options = array()) {
-
-    $connection_options += array(
-      'transactions' => TRUE,
-    );
-    $this->transactionSupport = $connection_options['transactions'];
-
-    $dsn = 'pgsql:host=' . $connection_options['host'] . ' dbname=' . $connection_options['database'];
-    if (!empty($connection_options['port'])) {
-      $dsn .= ' port=' . $connection_options['port'];
+    // Default to TCP connection on port 5432.
+    if (empty($connection_options['port'])) {
+      $connection_options['port'] = 5432;
     }
 
+    $dsn = 'pgsql:host=' . $connection_options['host'] . ' dbname=' . $connection_options['database'] . ' port=' . $connection_options['port'];
     parent::__construct($dsn, $connection_options['username'], $connection_options['password'], array(
       // Convert numeric values to strings when fetching.
       PDO::ATTR_STRINGIFY_FETCHES => TRUE,
+      // Force column names to lower case.
+      PDO::ATTR_CASE => PDO::CASE_LOWER,
     ));
   }
 
-  public function query($query, Array $args = array(), $options = array()) {
+  public function query($query, array $args = array(), $options = array()) {
 
     $options += $this->defaultOptions();
 
@@ -43,7 +45,8 @@ class DatabaseConnection_pgsql extends DatabaseConnection {
         $stmt->execute(NULL, $options);
       }
       else {
-        $stmt = $this->prepareQuery($query);
+        $modified = $this->expandArguments($query, $args);
+        $stmt = $this->prepareQuery($query, !$modified);
         $stmt->execute($args, $options);
       }
 
@@ -75,15 +78,14 @@ class DatabaseConnection_pgsql extends DatabaseConnection {
     }
   }
 
-  public function queryRange($query, Array $args, $from, $count, Array $options) {
-    // Backward compatibility hack, temporary.
-    $query = str_replace(array('%d' , '%f' , '%b' , "'%s'"), '?', $query);
-
+  public function queryRange($query, array $args, $from, $count, array $options = array()) {
     return $this->query($query . ' LIMIT ' . $count . ' OFFSET ' . $from, $args, $options);
   }
 
-  public function queryTemporary($query, Array $args, $tablename, Array $options = array()) {
-    return $this->query(preg_replace('/^SELECT/i', 'CREATE TEMPORARY TABLE ' . $tablename . ' AS SELECT', $query), $args, $options);
+  public function queryTemporary($query, array $args, array $options = array()) {
+    $tablename = $this->generateTemporaryTableName();
+    $this->query(preg_replace('/^SELECT/i', 'CREATE TEMPORARY TABLE {' . $tablename . '} AS SELECT', $query), $args, $options);
+    return $tablename;
   }
 
   public function driver() {
@@ -94,13 +96,9 @@ class DatabaseConnection_pgsql extends DatabaseConnection {
     return 'pgsql';
   }
 
-  public function supportsTransactions() {
-    return $this->transactionSupport;
-  }
-
   public function mapConditionOperator($operator) {
     static $specials = array(
-      // In PostgreSQL, 'LIKE' is case-sensitive.  For case-insensitive LIKE
+      // In PostgreSQL, 'LIKE' is case-sensitive. For case-insensitive LIKE
       // statements, we need to use ILIKE instead.
       'LIKE' => array('operator' => 'ILIKE'),
     );

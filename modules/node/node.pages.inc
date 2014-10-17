@@ -304,7 +304,7 @@ function node_body_field(&$node, $label, $word_count) {
 }
 
 /**
- * Button sumit function: handle the 'Delete' button on the node form.
+ * Button submit function: handle the 'Delete' button on the node form.
  */
 function node_form_delete_submit($form, &$form_state) {
   $destination = '';
@@ -415,12 +415,12 @@ function theme_node_preview($node) {
   if ($preview_trimmed_version) {
     drupal_set_message(t('The trimmed version of your post shows what your post looks like when promoted to the main page or when exported for syndication.<span class="no-js"> You can insert the delimiter "&lt;!--break--&gt;" (without the quotes) to fine-tune where your post gets split.</span>'));
     $output .= '<h3>' . t('Preview trimmed version') . '</h3>';
-    $output .= node_view(clone $node, 1, FALSE, 0);
+    $output .= node_view(clone $node, 1, FALSE);
     $output .= '<h3>' . t('Preview full version') . '</h3>';
-    $output .= node_view($node, 0, FALSE, 0);
+    $output .= node_view($node, 0, FALSE);
   }
   else {
-    $output .= node_view($node, 0, FALSE, 0);
+    $output .= node_view($node, 0, FALSE);
   }
   $output .= "</div>\n";
 
@@ -575,12 +575,12 @@ function node_revision_delete_confirm($form_state, $node_revision) {
 
 function node_revision_delete_confirm_submit($form, &$form_state) {
   $node_revision = $form['#node_revision'];
-  db_query("DELETE FROM {node_revisions} WHERE nid = %d AND vid = %d", $node_revision->nid, $node_revision->vid);
+  db_query("DELETE FROM {node_revision} WHERE nid = %d AND vid = %d", $node_revision->nid, $node_revision->vid);
   node_invoke_nodeapi($node_revision, 'delete_revision');
   watchdog('content', '@type: deleted %title revision %revision.', array('@type' => $node_revision->type, '%title' => $node_revision->title, '%revision' => $node_revision->vid));
   drupal_set_message(t('Revision from %revision-date of @type %title has been deleted.', array('%revision-date' => format_date($node_revision->revision_timestamp), '@type' => node_get_types('name', $node_revision), '%title' => $node_revision->title)));
   $form_state['redirect'] = 'node/' . $node_revision->nid;
-  if (db_result(db_query('SELECT COUNT(vid) FROM {node_revisions} WHERE nid = %d', $node_revision->nid)) > 1) {
+  if (db_result(db_query('SELECT COUNT(vid) FROM {node_revision} WHERE nid = %d', $node_revision->nid)) > 1) {
     $form_state['redirect'] .= '/revisions';
   }
 }

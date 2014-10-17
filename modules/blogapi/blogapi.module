@@ -379,7 +379,7 @@ function blogapi_blogger_get_recent_posts($appkey, $blogid, $username, $password
   }
 
   if ($bodies) {
-    $result = db_query_range("SELECT n.nid, n.title, r.body, r.format, n.comment, n.created, u.name FROM {node} n, {node_revisions} r, {users} u WHERE n.uid = u.uid AND n.vid = r.vid AND n.type = :type AND n.uid = :uid ORDER BY n.created DESC",  array(
+    $result = db_query_range("SELECT n.nid, n.title, r.body, r.format, n.comment, n.created, u.name FROM {node} n, {node_revision} r, {users} u WHERE n.uid = u.uid AND n.vid = r.vid AND n.type = :type AND n.uid = :uid ORDER BY n.created DESC",  array(
       ':type' => $blogid,
       ':uid' => $user->uid
     ), 0, $number_of_posts);
@@ -499,7 +499,7 @@ function blogapi_metaweblog_get_category_list($blogid, $username, $password) {
   $categories = array();
   if ($vocabularies) {
     foreach ($vocabularies as $vocabulary) {
-      $terms = module_invoke('taxonomy', 'get_tree', $vocabulary->vid, 0, -1);
+      $terms = module_invoke('taxonomy', 'get_tree', $vocabulary->vid);
       foreach ($terms as $term) {
         $term_name = $term->name;
         foreach (module_invoke('taxonomy', 'get_parents', $term->tid, 'tid') as $parent) {
@@ -584,7 +584,7 @@ function blogapi_mt_validate_terms($node) {
       $term_list = array_unique($node->taxonomy);
       $params = $term_list;
       $params[] = $node->type;
-      $result = db_query(db_rewrite_sql("SELECT t.tid, t.vid FROM {term_data} t INNER JOIN {vocabulary_node_types} n ON t.vid = n.vid WHERE t.tid IN (". db_placeholders($term_list) .") AND n.type = '%s'", 't', 'tid'), $params);
+      $result = db_query(db_rewrite_sql("SELECT t.tid, t.vid FROM {taxonomy_term_data} t INNER JOIN {taxonomy_vocabulary_node_type} n ON t.vid = n.vid WHERE t.tid IN (". db_placeholders($term_list) .") AND n.type = '%s'", 't', 'tid'), $params);
       $found_terms = array();
       $found_count = 0;
       while ($term = db_fetch_object($result)) {
@@ -597,7 +597,7 @@ function blogapi_mt_validate_terms($node) {
       }
     }
     // Look up all the vocabularies for this node type.
-    $result2 = db_query(db_rewrite_sql("SELECT v.vid, v.name, v.required, v.multiple FROM {vocabulary} v INNER JOIN {vocabulary_node_types} n ON v.vid = n.vid WHERE n.type = '%s'", 'v', 'vid'), $node->type);
+    $result2 = db_query(db_rewrite_sql("SELECT v.vid, v.name, v.required, v.multiple FROM {taxonomy_vocabulary} v INNER JOIN {taxonomy_vocabulary_node_type} n ON v.vid = n.vid WHERE n.type = '%s'", 'v', 'vid'), $node->type);
     // Check each vocabulary associated with this node type.
     while ($vocabulary = db_fetch_object($result2)) {
       // Required vocabularies must have at least one term.
@@ -805,7 +805,7 @@ function blogapi_admin_settings() {
     );
   }
 
-  return system_settings_form($form);
+  return system_settings_form($form, FALSE);
 }
 
 /**
@@ -831,7 +831,7 @@ function blogapi_menu() {
 }
 
 /**
- * Implementaton of hook_init().
+ * Implementation of hook_init().
  */
 function blogapi_init() {
   if (drupal_is_front_page()) {

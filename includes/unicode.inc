@@ -323,33 +323,30 @@ function _mime_header_decode($matches) {
  *   array('<', '&', '"'). This affects both named and numerical entities.
  */
 function decode_entities($text, $exclude = array()) {
-  static $table;
-  // We store named entities in a table for quick processing.
-  if (!isset($table)) {
-    // Get all named HTML entities.
-    $table = array_flip(get_html_translation_table(HTML_ENTITIES));
-    // PHP gives us ISO-8859-1 data, we need UTF-8.
-    $table = array_map('utf8_encode', $table);
-    // Add apostrophe (XML)
-    $table['&apos;'] = "'";
+  static $html_entities;
+  if (!isset($html_entities)) {
+    include DRUPAL_ROOT . '/includes/unicode.entities.inc';
   }
-  $newtable = array_diff($table, $exclude);
+
+  // Flip the exclude list so that we can do quick lookups later.
+  $exclude = array_flip($exclude);
 
   // Use a regexp to select all entities in one pass, to avoid decoding 
   // double-escaped entities twice. The PREG_REPLACE_EVAL modifier 'e' is
   // being used to allow for a callback (see 
   // http://php.net/manual/en/reference.pcre.pattern.modifiers).
-  return preg_replace('/&(#x?)?([A-Za-z0-9]+);/e', '_decode_entities("$1", "$2", "$0", $newtable, $exclude)', $text);
+  return preg_replace('/&(#x?)?([A-Za-z0-9]+);/e', '_decode_entities("$1", "$2", "$0", $html_entities, $exclude)', $text);
 }
 
 /**
  * Helper function for decode_entities
  */
-function _decode_entities($prefix, $codepoint, $original, &$table, &$exclude) {
+function _decode_entities($prefix, $codepoint, $original, &$html_entities, &$exclude) {
   // Named entity
   if (!$prefix) {
-    if (isset($table[$original])) {
-      return $table[$original];
+    // A named entity not in the exclude list.
+    if (isset($html_entities[$original]) && !isset($exclude[$html_entities[$original]])) {
+      return $html_entities[$original];
     }
     else {
       return $original;
@@ -383,7 +380,7 @@ function _decode_entities($prefix, $codepoint, $original, &$table, &$exclude) {
          . chr(0x80 | ( $codepoint        & 0x3F));
   }
   // Check for excluded characters
-  if (in_array($str, $exclude)) {
+  if (isset($exclude[$str])) {
     return $original;
   }
   else {
@@ -471,13 +468,13 @@ function drupal_substr($text, $start, $length = NULL) {
   }
   else {
     $strlen = strlen($text);
-    // Find the starting byte offset
+    // Find the starting byte offset.
     $bytes = 0;
     if ($start > 0) {
       // Count all the continuation bytes from the start until we have found
-      // $start characters
+      // $start characters or the end of the string.
       $bytes = -1; $chars = -1;
-      while ($bytes < $strlen && $chars < $start) {
+      while ($bytes < $strlen - 1 && $chars < $start) {
         $bytes++;
         $c = ord($text[$bytes]);
         if ($c < 0x80 || $c >= 0xC0) {
@@ -487,7 +484,7 @@ function drupal_substr($text, $start, $length = NULL) {
     }
     elseif ($start < 0) {
       // Count all the continuation bytes from the end until we have found
-      // abs($start) characters
+      // abs($start) characters.
       $start = abs($start);
       $bytes = $strlen; $chars = 0;
       while ($bytes > 0 && $chars < $start) {
@@ -500,37 +497,48 @@ function drupal_substr($text, $start, $length = NULL) {
     }
     $istart = $bytes;
 
-    // Find the ending byte offset
+    // Find the ending byte offset.
     if ($length === NULL) {
-      $bytes = $strlen - 1;
+      $iend = $strlen;
     }
     elseif ($length > 0) {
       // Count all the continuation bytes from the starting index until we have
-      // found $length + 1 characters. Then backtrack one byte.
-      $bytes = $istart; $chars = 0;
-      while ($bytes < $strlen && $chars < $length) {
-        $bytes++;
-        $c = ord($text[$bytes]);
+      // found $length characters or reached the end of the string, then
+      // backtrace one byte.
+      $iend = $istart - 1; $chars = -1;
+      while ($iend < $strlen - 1 && $chars < $length) {
+        $iend++;
+        $c = ord($text[$iend]);
         if ($c < 0x80 || $c >= 0xC0) {
           $chars++;
         }
       }
-      $bytes--;
+      // Backtrace one byte if the end of the string was not reached.
+      if ($iend < $strlen - 1) {
+        $iend--;
+      }
     }
     elseif ($length < 0) {
       // Count all the continuation bytes from the end until we have found
-      // abs($length) characters
+      // abs($start) characters, then backtrace one byte.
       $length = abs($length);
-      $bytes = $strlen - 1; $chars = 0;
-      while ($bytes >= 0 && $chars < $length) {
-        $c = ord($text[$bytes]);
+      $iend = $strlen; $chars = 0;
+      while ($iend > 0 && $chars < $length) {
+        $iend--;
+        $c = ord($text[$iend]);
         if ($c < 0x80 || $c >= 0xC0) {
           $chars++;
         }
-        $bytes--;
+      }
+      // Backtrace one byte if we are not at the begining of the string.
+      if ($iend > 0) {
+        $iend--;
       }
     }
-    $iend = $bytes;
+    else {
+      // $length == 0, return an empty string.
+      $iend = $istart - 1;
+    }
 
     return substr($text, $istart, max(0, $iend - $istart + 1));
   }

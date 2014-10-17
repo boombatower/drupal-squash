@@ -54,7 +54,7 @@ function filter_theme() {
       'file' => 'filter.admin.inc',
     ),
     'filter_tips' => array(
-      'arguments' => array('tips' => NULL, 'long' => FALSE, 'extra' => ''),
+      'arguments' => array('tips' => NULL, 'long' => FALSE),
       'file' => 'filter.pages.inc',
     ),
     'filter_tips_more_info' => array(
@@ -295,7 +295,7 @@ function filter_formats($index = NULL) {
   if (!isset($formats)) {
     $formats = array();
 
-    $query = db_select('filter_formats', 'f');
+    $query = db_select('filter_format', 'f');
     $query->addField('f', 'format', 'format');
     $query->addField('f', 'name', 'name');
     $query->addField('f', 'roles', 'roles');
@@ -326,8 +326,9 @@ function filter_formats($index = NULL) {
 function filter_list_all() {
   $filters = array();
 
-  foreach (module_list() as $module) {
-    $list = module_invoke($module, 'filter', 'list');
+  foreach (module_implements('filter') as $module) {
+    $function = $module . '_filter';
+    $list = $function('list');
     if (isset($list) && is_array($list)) {
       foreach ($list as $delta => $name) {
         $filters[$module . '/' . $delta] = (object)array('module' => $module, 'delta' => $delta, 'name' => $name);
@@ -360,7 +361,7 @@ function filter_format_allowcache($format) {
   static $cache = array();
   $format = filter_resolve_format($format);
   if (!isset($cache[$format])) {
-    $cache[$format] = db_result(db_query('SELECT cache FROM {filter_formats} WHERE format = %d', $format));
+    $cache[$format] = db_result(db_query('SELECT cache FROM {filter_format} WHERE format = %d', $format));
   }
   return $cache[$format];
 }
@@ -373,7 +374,7 @@ function filter_list_format($format) {
 
   if (!isset($filters[$format])) {
     $filters[$format] = array();
-    $result = db_query("SELECT * FROM {filters} WHERE format = %d ORDER BY weight, module, delta", $format);
+    $result = db_query("SELECT * FROM {filter} WHERE format = %d ORDER BY weight, module, delta", $format);
     while ($filter = db_fetch_object($result)) {
       $list = module_invoke($filter->module, 'filter', 'list');
       if (isset($list) && is_array($list) && isset($list[$filter->delta])) {
@@ -411,7 +412,7 @@ function filter_list_format($format) {
  *    the default format.
  * @param $langcode
  *    Optional: the language code of the text to be filtered, e.g. 'en' for
- *    English.  This allows filters to be language aware so language specific
+ *    English. This allows filters to be language aware so language specific
  *    text replacement can be implemented.
  * @param $check
  *    Whether to check the $format with filter_access() first. Defaults to TRUE.
@@ -515,7 +516,7 @@ function filter_form($value = FILTER_FORMAT_DEFAULT, $weight = NULL, $parents = 
     $tips = _filter_tips(variable_get('filter_default_format', 1), FALSE);
     $form['format']['guidelines'] = array(
       '#title' => t('Formatting guidelines'),
-      '#markup' => theme('filter_tips', $tips, FALSE, $extra),
+      '#markup' => theme('filter_tips', $tips, FALSE),
     );
   }
   $form[] = array('#markup' => $extra);
@@ -559,7 +560,7 @@ function _filter_tips($format, $long = FALSE) {
     $formats = filter_formats();
   }
   else {
-    $formats = array(db_fetch_object(db_query("SELECT * FROM {filter_formats} WHERE format = %d", $format)));
+    $formats = array(db_fetch_object(db_query("SELECT * FROM {filter_format} WHERE format = %d", $format)));
   }
 
   $tips = array();
@@ -896,10 +897,10 @@ function _filter_autop($text) {
       $chunk = preg_replace('!(</' . $block . '>)!', "$1\n\n", $chunk); // Space things out a little
       $chunk = preg_replace("/\n\n+/", "\n\n", $chunk); // take care of duplicates
       $chunk = preg_replace('/\n?(.+?)(?:\n\s*\n|\z)/s', "<p>$1</p>\n", $chunk); // make paragraphs, including one at the end
-      $chunk = preg_replace('|<p>\s*</p>\n|', '', $chunk); // under certain strange conditions it could create a P of entirely whitespace
       $chunk = preg_replace("|<p>(<li.+?)</p>|", "$1", $chunk); // problem with nested lists
       $chunk = preg_replace('|<p><blockquote([^>]*)>|i', "<blockquote$1><p>", $chunk);
       $chunk = str_replace('</blockquote></p>', '</p></blockquote>', $chunk);
+      $chunk = preg_replace('|<p>\s*</p>\n?|', '', $chunk); // under certain strange conditions it could create a P of entirely whitespace
       $chunk = preg_replace('!<p>\s*(</?' . $block . '[^>]*>)!', "$1", $chunk);
       $chunk = preg_replace('!(</?' . $block . '[^>]*>)\s*</p>!', "$1", $chunk);
       $chunk = preg_replace('|(?<!<br />)\s*\n|', "<br />\n", $chunk); // make line breaks
@@ -953,7 +954,7 @@ function filter_xss($string, $allowed_tags = array('a', 'em', 'strong', 'cite', 
   }
   // Store the input format
   _filter_xss_split($allowed_tags, TRUE);
-  // Remove NUL characters (ignored by some browsers)
+  // Remove NULL characters (ignored by some browsers)
   $string = str_replace(chr(0), '', $string);
   // Remove Netscape 4 JS entities
   $string = preg_replace('%&\s*\{[^}]*(\}\s*;?|$)%', '', $string);

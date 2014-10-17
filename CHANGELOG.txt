@@ -7,6 +7,7 @@ Drupal 7.0, xxxx-xx-xx (development version)
     * Added query builders for INSERT, UPDATE, DELETE, MERGE, and SELECT queries.
     * Support for master/slave replication, transactions, multi-insert queries,
       delayed inserts, and other features.
+    * Added support for the SQLite database engine.
 - Security:
     * Protected cron.php -- cron will only run if the proper key is provided.
     * Implemented much stronger password hashes that are also compatible with the
@@ -30,13 +31,33 @@ Drupal 7.0, xxxx-xx-xx (development version)
     * Added an edit tab to taxonomy term pages.
     * Redesigned password strength validator.
     * Redesigned the add content type screen.
+    * Highlight duplicate URL aliases.
+    * Added configurable ability for users to cancel their own accounts.
+- Performance:
+    * Improved performance on uncached page views by loading multiple core
+      objects in a single database query.
+- Documentation:
+    * Hook API documentation now included in Drupal core.
 - News aggregator:
     * Added OPML import functionality for RSS feeds.
     * Optionally, RSS feeds may be configured to not automatically generate feed blocks.
 - Search:
     * Added support for language-aware searches.
+- Aggregator:
+    * Introduced architecture that allows pluggable parsers and processors for 
+      syndicating RSS and Atom feeds.
 - Testing:
     * Added test framework and tests.
+- Improved time zone support:
+    * Drupal now uses PHP's time zone database when rendering dates in local
+      time. Site-wide and user-configured time zone offsets have been converted
+      to time zone names, e.g. Africa/Abidjan.
+    * In some cases the upgrade and install scripts do not choose the preferred
+      site default time zone. The automatically-selected time zone can be
+      corrected at admin/settings/date-time.
+    * If your site is being upgraded from Drupal 6 and you do not have the
+      contributed date or event modules installed, user time zone settings will
+      fallback to the system time zone and will have to be reconfigured by each user.
 - Removed ping module:
     * Contributed modules with similar functionality are available.
 - Refactored the "access rules" component of user module:

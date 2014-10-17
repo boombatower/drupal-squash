@@ -21,7 +21,7 @@ define('MODULE_IMPLEMENTS_CLEAR_CACHE', -2);
  * Load all the modules that have been enabled in the system table.
  */
 function module_load_all() {
-  foreach (module_list(TRUE, FALSE) as $module) {
+  foreach (module_list(TRUE) as $module) {
     drupal_load('module', $module);
   }
 }
@@ -33,9 +33,6 @@ function module_load_all() {
  * @param $refresh
  *   Whether to force the module list to be regenerated (such as after the
  *   administrator has changed the system settings).
- * @param $bootstrap
- *   Whether to return the reduced set of modules loaded in "bootstrap mode"
- *   for cached pages. See bootstrap.inc.
  * @param $sort
  *   By default, modules are ordered by weight and filename. Set this option to
  *   TRUE to return a module list ordered only by module name.
@@ -46,12 +43,12 @@ function module_load_all() {
  *   An associative array whose keys and values are the names of all loaded
  *   modules.
  */
-function module_list($refresh = FALSE, $bootstrap = TRUE, $sort = FALSE, $fixed_list = NULL) {
+function module_list($refresh = FALSE, $sort = FALSE, $fixed_list = NULL) {
   static $list = array(), $sorted_list;
 
   if (empty($list) || $refresh || $fixed_list) {
-    unset($sorted_list);
     $list = array();
+    $sorted_list = NULL;
     if ($fixed_list) {
       foreach ($fixed_list as $name => $module) {
         drupal_get_filename('module', $name, $module['filename']);
@@ -59,13 +56,8 @@ function module_list($refresh = FALSE, $bootstrap = TRUE, $sort = FALSE, $fixed_
       }
     }
     else {
-      if ($bootstrap) {
-        $result = db_query("SELECT name, filename FROM {system} WHERE type = 'module' AND status = 1 AND bootstrap = 1 ORDER BY weight ASC, filename ASC");
-      }
-      else {
-        $result = db_query("SELECT name, filename FROM {system} WHERE type = 'module' AND status = 1 ORDER BY weight ASC, filename ASC");
-      }
-      while ($module = db_fetch_object($result)) {
+      $result = db_query("SELECT name, filename FROM {system} WHERE type = 'module' AND status = 1 ORDER BY weight ASC, filename ASC");
+      foreach ($result as $module) {
         if (file_exists($module->filename)) {
           drupal_get_filename('module', $module->name, $module->filename);
           $list[$module->name] = $module->name;
@@ -125,24 +117,27 @@ function module_rebuild_cache() {
     // modify the data in the .info files if necessary.
     drupal_alter('system_info', $files[$filename]->info, $files[$filename]);
 
-    // Log the critical hooks implemented by this module.
-    $bootstrap = 0;
-    foreach (bootstrap_hooks() as $hook) {
-      // Only look for hooks in installed modules.
-      if (!empty($file->status) && in_array($file->name, module_implements($hook))) {
-        $bootstrap = 1;
-        break;
-      }
-    }
-
     // Update the contents of the system table:
     if (isset($file->status) || (isset($file->old_filename) && $file->old_filename != $file->filename)) {
-      db_query("UPDATE {system} SET info = '%s', name = '%s', filename = '%s', bootstrap = %d WHERE filename = '%s'", serialize($files[$filename]->info), $file->name, $file->filename, $bootstrap, $file->old_filename);
+      db_update('system')
+        ->fields(array(
+            'info' => serialize($files[$filename]->info),
+            'name' => $file->name,
+            'filename' => $file->filename))
+        ->condition('filename', $file->old_filename)
+        ->execute();
     }
     else {
       // This is a new module.
       $files[$filename]->status = 0;
-      db_query("INSERT INTO {system} (name, info, type, filename, status, bootstrap) VALUES ('%s', '%s', '%s', '%s', %d, %d)", $file->name, serialize($files[$filename]->info), 'module', $file->filename, 0, $bootstrap);
+      db_insert('system')
+        ->fields(array(
+            'name' => $file->name,
+            'info' => serialize($files[$filename]->info),
+            'type' => 'module',
+            'filename' => $file->filename,
+            'status' => 0))
+        ->execute();
     }
   }
   $files = _module_build_dependencies($files);
@@ -150,69 +145,35 @@ function module_rebuild_cache() {
 }
 
 /**
- * Find dependencies any level deep and fill in dependents information too.
- *
- * If module A depends on B which in turn depends on C then this function will
- * add C to the list of modules A depends on. This will be repeated until
- * module A has a list of all modules it depends on. If it depends on itself,
- * called a circular dependency, that's marked by adding a nonexistent module,
- * called -circular- to this list of modules. Because this does not exist,
- * it'll be impossible to switch module A on.
- *
- * Also we fill in a dependents array in $file->info. Using the names above,
- * the dependents array of module B lists A.
+ * Find dependencies any level deep and fill in required by information too.
  *
  * @param $files
  *   The array of filesystem objects used to rebuild the cache.
  * @return
- *   The same array with dependencies and dependents added where applicable.
+ *   The same array with the new keys for each module:
+ *   - requires: An array with the keys being the modules that this module
+ *     requires.
+ *   - required_by: An array with the keys being the modules that will not work
+ *     without this module.
  */
 function _module_build_dependencies($files) {
-  do {
-    $new_dependency = FALSE;
-    foreach ($files as $filename => $file) {
-      // We will modify this object (module A, see doxygen for module A, B, C).
-      $file = &$files[$filename];
-      if (isset($file->info['dependencies']) && is_array($file->info['dependencies'])) {
-        foreach ($file->info['dependencies'] as $dependency_name) {
-          // This is a nonexistent module.
-          if ($dependency_name == '-circular-' || !isset($files[$dependency_name])) {
-            continue;
-          }
-          // $dependency_name is module B (again, see doxygen).
-          $files[$dependency_name]->info['dependents'][$filename] = $filename;
-          $dependency = $files[$dependency_name];
-          if (isset($dependency->info['dependencies']) && is_array($dependency->info['dependencies'])) {
-            // Let's find possible C modules.
-            foreach ($dependency->info['dependencies'] as $candidate) {
-              if (array_search($candidate, $file->info['dependencies']) === FALSE) {
-                // Is this a circular dependency?
-                if ($candidate == $filename) {
-                  // As a module name can not contain dashes, this makes
-                  // impossible to switch on the module.
-                  $candidate = '-circular-';
-                  // Do not display the message or add -circular- more than once.
-                  if (array_search($candidate, $file->info['dependencies']) !== FALSE) {
-                    continue;
-                  }
-                  drupal_set_message(t('%module is part of a circular dependency. This is not supported and you will not be able to switch it on.', array('%module' => $file->info['name'])), 'error');
-                }
-                else {
-                  // We added a new dependency to module A. The next loop will
-                  // be able to use this as "B module" thus finding even
-                  // deeper dependencies.
-                  $new_dependency = TRUE;
-                }
-                $file->info['dependencies'][] = $candidate;
-              }
-            }
-          }
-        }
+  require_once DRUPAL_ROOT .'/includes/graph.inc';
+  $roots = $files;
+  foreach ($files as $filename => $file) {
+    $graph[$file->name]['edges'] = array();
+    if (isset($file->info['dependencies']) && is_array($file->info['dependencies'])) {
+      foreach ($file->info['dependencies'] as $dependency_name) {
+        $graph[$file->name]['edges'][$dependency_name] = 1;
+        unset($roots[$dependency_name]);
       }
-      // Don't forget to break the reference.
-      unset($file);
     }
-  } while ($new_dependency);
+  }
+  drupal_depth_first_search($graph, array_keys($roots));
+  foreach ($graph as $module => $data) {
+    $files[$module]->required_by= isset($data['reverse_paths']) ? $data['reverse_paths'] : array();
+    $files[$module]->requires = isset($data['paths']) ? $data['paths'] : array();
+    $files[$module]->sort = $data['weight'];
+  }
   return $files;
 }
 
@@ -284,10 +245,17 @@ function module_load_all_includes($type, $name = NULL) {
 function module_enable($module_list) {
   $invoke_modules = array();
   foreach ($module_list as $module) {
-    $existing = db_fetch_object(db_query("SELECT status FROM {system} WHERE type = '%s' AND name = '%s'", 'module', $module));
+    $existing = db_query("SELECT status FROM {system} WHERE type = :type AND name = :name", array(
+      ':type' => 'module',
+      ':name' => $module))
+      ->fetchObject();
     if ($existing->status == 0) {
       module_load_install($module);
-      db_query("UPDATE {system} SET status = %d WHERE type = '%s' AND name = '%s'", 1, 'module', $module);
+      db_update('system')
+        ->fields(array('status' => 1))
+        ->condition('type', 'module')
+        ->condition('name', $module)
+        ->execute();
       drupal_load('module', $module);
       $invoke_modules[] = $module;
     }
@@ -295,7 +263,7 @@ function module_enable($module_list) {
 
   if (!empty($invoke_modules)) {
     // Refresh the module list to include the new enabled module.
-    module_list(TRUE, FALSE);
+    module_list(TRUE);
     // Force to regenerate the stored list of hook implementations.
     registry_rebuild();
   }
@@ -335,7 +303,11 @@ function module_disable($module_list) {
 
       module_load_install($module);
       module_invoke($module, 'disable');
-      db_query("UPDATE {system} SET status = %d WHERE type = '%s' AND name = '%s'", 0, 'module', $module);
+      db_update('system')
+        ->fields(array('status' => 0))
+        ->condition('type', 'module')
+        ->condition('name', $module)
+        ->execute();
       $invoke_modules[] = $module;
     }
   }
@@ -345,7 +317,7 @@ function module_disable($module_list) {
     // so we can still call module hooks to get information.
     module_invoke_all('modules_disabled', $invoke_modules);
     // Refresh the module list to exclude the disabled modules.
-    module_list(TRUE, FALSE);
+    module_list(TRUE);
     // Force to regenerate the stored list of hook implementations.
     registry_rebuild();
   }
@@ -410,7 +382,7 @@ function module_hook($module, $hook) {
  *     MODULE_IMPLEMENTS_WRITE_CACHE: Write the stored list of hook
  *     implementations into the cache_registry table.
  * @param $sort
- *   By default, modules are ordered by weight and filename.  By setting this
+ *   By default, modules are ordered by weight and filename. By setting this
  *   option to TRUE, modules will be ordered by module name.
  * @return
  *   An array with the names of the modules which are implementing this hook.

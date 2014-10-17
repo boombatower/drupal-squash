@@ -26,7 +26,7 @@ define('MAINTENANCE_MODE', 'install');
  */
 function install_main() {
   // The user agent header is used to pass a database prefix in the request when
-  // running tests.  However, for security reasons, it is imperative that no
+  // running tests. However, for security reasons, it is imperative that no
   // installation be permitted using such a prefix.
   if (preg_match("/^simpletest\d+$/", $_SERVER['HTTP_USER_AGENT'])) {
     header($_SERVER['SERVER_PROTOCOL'] . ' 403 Forbidden');
@@ -52,7 +52,7 @@ function install_main() {
   include_once DRUPAL_ROOT . '/includes/module.inc';
   $module_list['system']['filename'] = 'modules/system/system.module';
   $module_list['filter']['filename'] = 'modules/filter/filter.module';
-  module_list(TRUE, FALSE, FALSE, $module_list);
+  module_list(TRUE, FALSE, $module_list);
   drupal_load('module', 'system');
   drupal_load('module', 'filter');
 
@@ -69,7 +69,7 @@ function install_main() {
     require_once DRUPAL_ROOT . '/includes/cache.inc';
     $conf['cache_inc'] = 'includes/cache.inc';
 
-    // Initialize the database system.  Note that the connection
+    // Initialize the database system. Note that the connection
     // won't be initialized until it is actually requested.
     require_once DRUPAL_ROOT . '/includes/database/database.inc';
 
@@ -271,7 +271,6 @@ function install_settings_form(&$form_state, $profile, $install_locale, $setting
       '#default_value' => empty($database['username']) ? '' : $database['username'],
       '#size' => 45,
       '#maxlength' => 45,
-      '#required' => TRUE,
     );
 
     // Database username
@@ -410,7 +409,7 @@ function install_settings_form_submit($form, &$form_state) {
  * Find all .profile files.
  */
 function install_find_profiles() {
-  return file_scan_directory('./profiles', '/\.profile$/', array('.', '..', 'CVS'), 0, TRUE, 'name', 0);
+  return file_scan_directory('./profiles', '/\.profile$/', '/(\.\.?|CVS)$/', 0, TRUE, 'name', 0);
 }
 
 /**
@@ -496,7 +495,7 @@ function install_select_profile_form(&$form_state, $profile_files) {
  * Find all .po files for the current profile.
  */
 function install_find_locales($profilename) {
-  $locales = file_scan_directory('./profiles/' . $profilename . '/translations', '/\.po$/', array('.', '..', 'CVS'), 0, FALSE);
+  $locales = file_scan_directory('./profiles/' . $profilename . '/translations', '/\.po$/', '/(\.\.?|CVS)$/', 0, FALSE);
   array_unshift($locales, (object) array('name' => 'en'));
   return $locales;
 }
@@ -727,6 +726,8 @@ function install_tasks($profile, $task) {
       // Add JavaScript validation.
       _user_password_dynamic_validation();
       drupal_add_js(drupal_get_path('module', 'system') . '/system.js');
+      // Add JavaScript time zone detection.
+      drupal_add_js('misc/timezone.js');
       // We add these strings as settings because JavaScript translation does not
       // work on install time.
       drupal_add_js(array('copyFieldValue' => array('edit-site-mail' => array('edit-account-mail')), 'cleanURL' => array('success' => st('Your server has been successfully tested to support this feature.'), 'failure' => st('Your system configuration does not currently support this feature. The <a href="http://drupal.org/node/15365">handbook page on Clean URLs</a> has additional troubleshooting information.'), 'testing' => st('Testing clean URLs...'))), 'setting');
@@ -735,13 +736,12 @@ function install_tasks($profile, $task) {
 if (Drupal.jsEnabled) {
   $(document).ready(function() {
     Drupal.cleanURLsInstallCheck();
-    Drupal.setDefaultTimezone();
   });
 }', 'inline');
       // Build menu to allow clean URL check.
       menu_rebuild();
 
-      // Cache a fully-built schema.  This is necessary for any
+      // Cache a fully-built schema. This is necessary for any
       // invocation of index.php because: (1) setting cache table
       // entries requires schema information, (2) that occurs during
       // bootstrap before any module are loaded, so (3) if there is no
@@ -926,28 +926,28 @@ function install_check_requirements($profile, $verify) {
         'title'       => st('Settings file'),
         'value'       => st('The settings file does not exist.'),
         'severity'    => REQUIREMENT_ERROR,
-        'description' => st('The @drupal installer requires that you create a settings file as part of the installation process. Copy the %default_file file to %file. More details about installing Drupal are available in INSTALL.txt.', array('@drupal' => drupal_install_profile_name(), '%file' => $file, '%default_file' => $conf_path .'/default.settings.php')),
+        'description' => st('The @drupal installer requires that you create a settings file as part of the installation process. Copy the %default_file file to %file. More details about installing Drupal are available in <a href="@install_txt">INSTALL.txt</a>.', array('@drupal' => drupal_install_profile_name(), '%file' => $file, '%default_file' => $conf_path .'/default.settings.php', '@install_txt' => base_path() .'INSTALL.txt')),
       );
     }
-    elseif ($exists) {
+    else {
       $requirements['settings file exists'] = array(
         'title'       => st('Settings file'),
         'value'       => st('The %file file exists.', array('%file' => $file)),
       );
-    }
-    if (!$writable) {
-      $requirements['settings file writable'] = array(
-        'title'       => st('Settings file'),
-        'value'       => st('The settings file is not writable.'),
-        'severity'    => REQUIREMENT_ERROR,
-        'description' => st('The @drupal installer requires write permissions to %file during the installation process. If you are unsure how to grant file permissions, please consult the <a href="@handbook_url">online handbook</a>.', array('@drupal' => drupal_install_profile_name(), '%file' => $file, '@handbook_url' => 'http://drupal.org/server-permissions')),
-      );
-    }
-    elseif ($writable) {
-      $requirements['settings file'] = array(
-        'title'       => st('Settings file'),
-        'value'       => st('Settings file is writable.'),
-      );
+      if (!$writable) {
+        $requirements['settings file writable'] = array(
+          'title'       => st('Settings file'),
+          'value'       => st('The settings file is not writable.'),
+          'severity'    => REQUIREMENT_ERROR,
+          'description' => st('The @drupal installer requires write permissions to %file during the installation process. If you are unsure how to grant file permissions, please consult the <a href="@handbook_url">online handbook</a>.', array('@drupal' => drupal_install_profile_name(), '%file' => $file, '@handbook_url' => 'http://drupal.org/server-permissions')),
+        );
+      }
+      else {
+        $requirements['settings file'] = array(
+          'title'       => st('Settings file'),
+          'value'       => st('Settings file is writable.'),
+        );
+      }
     }
   }
   return $requirements;
@@ -1082,10 +1082,11 @@ function install_configure_form(&$form_state, $url) {
   $form['server_settings']['date_default_timezone'] = array(
     '#type' => 'select',
     '#title' => st('Default time zone'),
-    '#default_value' => 0,
-    '#options' => _system_zonelist(),
+    '#default_value' => date_default_timezone_get(),
+    '#options' => system_time_zones(),
     '#description' => st('By default, dates in this site will be displayed in the chosen time zone.'),
     '#weight' => 5,
+    '#attributes' => array('class' => 'timezone-detect'),
   );
 
   $form['server_settings']['clean_url'] = array(

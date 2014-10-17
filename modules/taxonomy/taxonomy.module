@@ -39,57 +39,45 @@ function taxonomy_theme() {
 }
 
 /**
- * Implementation of hook_link().
- *
- * This hook is extended with $type = 'taxonomy terms' to allow themes to
- * print lists of terms associated with a node. Themes can print taxonomy
- * links with:
- *
- * if (module_exists('taxonomy')) {
- *   $terms = taxonomy_link('taxonomy terms', $node);
- *   print theme('links', $terms);
- * }
+ * An implementation of hook_nodeapi_view().
  */
-function taxonomy_link($type, $node = NULL) {
-  if ($type == 'taxonomy terms' && $node != NULL) {
-    $links = array();
-    // If previewing, the terms must be converted to objects first.
-    if (isset($node->build_mode) && $node->build_mode == NODE_BUILD_PREVIEW) {
-      $node->taxonomy = taxonomy_preview_terms($node);
-    }
-    if (!empty($node->taxonomy)) {
-      foreach ($node->taxonomy as $term) {
-        // During preview the free tagging terms are in an array unlike the
-        // other terms which are objects. So we have to check if a $term
-        // is an object or not.
-        if (is_object($term)) {
-          $links['taxonomy_term_' . $term->tid] = array(
-            'title' => $term->name,
-            'href' => taxonomy_term_path($term),
-            'attributes' => array('rel' => 'tag', 'title' => strip_tags($term->description))
-          );
-        }
-        // Previewing free tagging terms; we don't link them because the
-        // term-page might not exist yet.
-        else {
-          foreach ($term as $free_typed) {
-            $typed_terms = drupal_explode_tags($free_typed);
-            foreach ($typed_terms as $typed_term) {
-              $links['taxonomy_preview_term_' . $typed_term] = array(
-                'title' => $typed_term,
-              );
-            }
+function taxonomy_nodeapi_view($node) {
+  $links = array();
+  // If previewing, the terms must be converted to objects first.
+  if (isset($node->build_mode) && $node->build_mode == NODE_BUILD_PREVIEW) {
+    $node->taxonomy = taxonomy_preview_terms($node);
+  }
+  if (!empty($node->taxonomy)) {
+    foreach ($node->taxonomy as $term) {
+      // During preview the free tagging terms are in an array unlike the
+      // other terms which are objects. So we have to check if a $term
+      // is an object or not.
+      if (is_object($term)) {
+        $links['taxonomy_term_' . $term->tid] = array(
+          'title' => $term->name,
+          'href' => taxonomy_term_path($term),
+          'attributes' => array('rel' => 'tag', 'title' => strip_tags($term->description))
+        );
+      }
+      // Previewing free tagging terms; we don't link them because the
+      // term-page might not exist yet.
+      else {
+        foreach ($term as $free_typed) {
+          $typed_terms = drupal_explode_tags($free_typed);
+          foreach ($typed_terms as $typed_term) {
+            $links['taxonomy_preview_term_' . $typed_term] = array(
+              'title' => $typed_term,
+            );
           }
         }
       }
     }
-
-    // We call this hook again because some modules and themes
-    // call taxonomy_link('taxonomy terms') directly.
-    drupal_alter('link', $links, $node);
-
-    return $links;
   }
+  
+  $node->content['links']['terms'] = array(
+    '#type' => 'node_links',
+    '#value' => $links
+  );
 }
 
 /**
@@ -226,17 +214,17 @@ function taxonomy_vocabulary_save($vocabulary) {
   }
 
   if (!empty($vocabulary->vid) && !empty($vocabulary->name)) {
-    $status = drupal_write_record('vocabulary', $vocabulary, 'vid');
-    db_query("DELETE FROM {vocabulary_node_types} WHERE vid = %d", $vocabulary->vid);
+    $status = drupal_write_record('taxonomy_vocabulary', $vocabulary, 'vid');
+    db_query("DELETE FROM {taxonomy_vocabulary_node_type} WHERE vid = %d", $vocabulary->vid);
     foreach ($vocabulary->nodes as $type => $selected) {
-      db_query("INSERT INTO {vocabulary_node_types} (vid, type) VALUES (%d, '%s')", $vocabulary->vid, $type);
+      db_query("INSERT INTO {taxonomy_vocabulary_node_type} (vid, type) VALUES (%d, '%s')", $vocabulary->vid, $type);
     }
     module_invoke_all('taxonomy_vocabulary_update', $vocabulary);
   }
   elseif (empty($vocabulary->vid)) {
-    $status = drupal_write_record('vocabulary', $vocabulary);
+    $status = drupal_write_record('taxonomy_vocabulary', $vocabulary);
     foreach ($vocabulary->nodes as $type => $selected) {
-      db_query("INSERT INTO {vocabulary_node_types} (vid, type) VALUES (%d, '%s')", $vocabulary->vid, $type);
+      db_query("INSERT INTO {taxonomy_vocabulary_node_type} (vid, type) VALUES (%d, '%s')", $vocabulary->vid, $type);
     }
     module_invoke_all('taxonomy_vocabulary_insert', $vocabulary);
   }
@@ -257,9 +245,9 @@ function taxonomy_vocabulary_save($vocabulary) {
 function taxonomy_vocabulary_delete($vid) {
   $vocabulary = (array) taxonomy_vocabulary_load($vid);
 
-  db_query('DELETE FROM {vocabulary} WHERE vid = %d', $vid);
-  db_query('DELETE FROM {vocabulary_node_types} WHERE vid = %d', $vid);
-  $result = db_query('SELECT tid FROM {term_data} WHERE vid = %d', $vid);
+  db_query('DELETE FROM {taxonomy_vocabulary} WHERE vid = %d', $vid);
+  db_query('DELETE FROM {taxonomy_vocabulary_node_type} WHERE vid = %d', $vid);
+  $result = db_query('SELECT tid FROM {taxonomy_term_data} WHERE vid = %d', $vid);
   while ($term = db_fetch_object($result)) {
     taxonomy_term_delete($term->tid);
   }
@@ -272,14 +260,14 @@ function taxonomy_vocabulary_delete($vid) {
 }
 
 /**
- * Dynamicly check and update the hierarachy flag of a vocabulary.
+ * Dynamically check and update the hierarchy flag of a vocabulary.
  *
  * Checks the current parents of all terms in a vocabulary and updates the
  * vocabularies hierarchy setting to the lowest possible level. A hierarchy with
  * no parents in any of its terms will be given a hierarchy of 0. If terms
  * contain at most a single parent, the vocabulary will be given a hierarchy of
  * 1. If any term contain multiple parents, the vocabulary will be given a
- * hieararchy of 2.
+ * hierarchy of 2.
  *
  * @param $vocabulary
  *   A vocabulary object.
@@ -290,7 +278,7 @@ function taxonomy_check_vocabulary_hierarchy($vocabulary, $changed_term) {
   $tree = taxonomy_get_tree($vocabulary->vid);
   $hierarchy = 0;
   foreach ($tree as $term) {
-    // Update the changed term with the new parent value before comparision.
+    // Update the changed term with the new parent value before comparison.
     if ($term->tid == $changed_term['tid']) {
       $term = (object)$changed_term;
       $term->parents = $term->parent;
@@ -327,23 +315,25 @@ function taxonomy_term_save($term) {
   }
 
   if (!empty($term->tid) && $term->name) {
-    $status = drupal_write_record('term_data', $term, 'tid');
+    $status = drupal_write_record('taxonomy_term_data', $term, 'tid');
     module_invoke_all('taxonomy_term_insert', $term);
   }
   else {
-    $status = drupal_write_record('term_data', $term);
+    $status = drupal_write_record('taxonomy_term_data', $term);
     module_invoke_all('taxonomy_term_update', $term);
   }
-  db_delete('term_relation')->condition('tid1', $term->tid, 'OR')->condition('tid2', $term->tid)->execute();
+  
+  $or = db_or()->condition('tid1', $term->tid)->condition('tid2', $term->tid);
+  db_delete('taxonomy_term_relation')->condition($or)->execute();
 
   if (!empty($term->relations)) {
     foreach ($term->relations as $related_id) {
       if ($related_id != 0) {
-        db_insert('term_relation')->fields(array('tid1' => $term->tid, 'tid2' => $related_id))->execute();
+        db_insert('taxonomy_term_relation')->fields(array('tid1' => $term->tid, 'tid2' => $related_id))->execute();
       }
     }
   }
-  db_delete('term_hierarchy')->condition('tid', $term->tid)->execute();
+  db_delete('taxonomy_term_hierarchy')->condition('tid', $term->tid)->execute();
 
   if (!isset($term->parent) || empty($term->parent)) {
     $term->parent = array(0);
@@ -352,23 +342,23 @@ function taxonomy_term_save($term) {
     foreach ($term->parent as $parent) {
       if (is_array($parent)) {
         foreach ($parent as $tid) {
-          db_insert('term_hierarchy')->fields(array('tid' => $term->tid, 'parent' => $tid))->execute();
+          db_insert('taxonomy_term_hierarchy')->fields(array('tid' => $term->tid, 'parent' => $tid))->execute();
         }
       }
       else {
-        db_insert('term_hierarchy')->fields(array('tid' => $term->tid, 'parent' => $parent))->execute();
+        db_insert('taxonomy_term_hierarchy')->fields(array('tid' => $term->tid, 'parent' => $parent))->execute();
       }
     }
   }
   else {
-    db_insert('term_hierarchy')->fields(array('tid' => $term->tid, 'parent' => $term->parent))->execute();
+    db_insert('taxonomy_term_hierarchy')->fields(array('tid' => $term->tid, 'parent' => $term->parent))->execute();
   }
 
-  db_delete('term_synonym')->condition('tid', $term->tid)->execute();
+  db_delete('taxonomy_term_synonym')->condition('tid', $term->tid)->execute();
   if (!empty($term->synonyms)) {
     foreach (explode ("\n", str_replace("\r", '', $term->synonyms)) as $synonym) {
       if ($synonym) {
-        db_insert('term_synonym')->fields(array('tid' => $term->tid, 'name' => rtrim($synonym)))->execute();
+        db_insert('taxonomy_term_synonym')->fields(array('tid' => $term->tid, 'name' => rtrim($synonym)))->execute();
       }
     }
   }
@@ -404,11 +394,11 @@ function taxonomy_term_delete($tid) {
 
       $term = taxonomy_term_load($tid);
 
-      db_query('DELETE FROM {term_data} WHERE tid = %d', $tid);
-      db_query('DELETE FROM {term_hierarchy} WHERE tid = %d', $tid);
-      db_query('DELETE FROM {term_relation} WHERE tid1 = %d OR tid2 = %d', $tid, $tid);
-      db_query('DELETE FROM {term_synonym} WHERE tid = %d', $tid);
-      db_query('DELETE FROM {term_node} WHERE tid = %d', $tid);
+      db_query('DELETE FROM {taxonomy_term_data} WHERE tid = %d', $tid);
+      db_query('DELETE FROM {taxonomy_term_hierarchy} WHERE tid = %d', $tid);
+      db_query('DELETE FROM {taxonomy_term_relation} WHERE tid1 = %d OR tid2 = %d', $tid, $tid);
+      db_query('DELETE FROM {taxonomy_term_synonym} WHERE tid = %d', $tid);
+      db_query('DELETE FROM {taxonomy_term_node} WHERE tid = %d', $tid);
 
       module_invoke_all('taxonomy_term_delete', $term);
     }
@@ -467,10 +457,10 @@ function taxonomy_form_all($free_tags = 0) {
  */
 function taxonomy_get_vocabularies($type = NULL) {
   if ($type) {
-    $result = db_query(db_rewrite_sql("SELECT v.vid, v.*, n.type FROM {vocabulary} v LEFT JOIN {vocabulary_node_types} n ON v.vid = n.vid WHERE n.type = '%s' ORDER BY v.weight, v.name", 'v', 'vid'), $type);
+    $result = db_query(db_rewrite_sql("SELECT v.vid, v.*, n.type FROM {taxonomy_vocabulary} v LEFT JOIN {taxonomy_vocabulary_node_type} n ON v.vid = n.vid WHERE n.type = '%s' ORDER BY v.weight, v.name", 'v', 'vid'), $type);
   }
   else {
-    $result = db_query(db_rewrite_sql('SELECT v.*, n.type FROM {vocabulary} v LEFT JOIN {vocabulary_node_types} n ON v.vid = n.vid ORDER BY v.weight, v.name', 'v', 'vid'));
+    $result = db_query(db_rewrite_sql('SELECT v.*, n.type FROM {taxonomy_vocabulary} v LEFT JOIN {taxonomy_vocabulary_node_type} n ON v.vid = n.vid ORDER BY v.weight, v.name', 'v', 'vid'));
   }
 
   $vocabularies = array();
@@ -514,7 +504,7 @@ function taxonomy_form_alter(&$form, $form_state, $form_id) {
       $terms = $node->taxonomy;
     }
 
-    $c = db_query(db_rewrite_sql("SELECT v.* FROM {vocabulary} v INNER JOIN {vocabulary_node_types} n ON v.vid = n.vid WHERE n.type = '%s' ORDER BY v.weight, v.name", 'v', 'vid'), $node->type);
+    $c = db_query(db_rewrite_sql("SELECT v.* FROM {taxonomy_vocabulary} v INNER JOIN {taxonomy_vocabulary_node_type} n ON v.vid = n.vid WHERE n.type = '%s' ORDER BY v.weight, v.name", 'v', 'vid'), $node->type);
 
     while ($vocabulary = db_fetch_object($c)) {
       if ($vocabulary->tags) {
@@ -612,12 +602,39 @@ function taxonomy_preview_terms($node) {
  * Find all terms associated with the given node, within one vocabulary.
  */
 function taxonomy_node_get_terms_by_vocabulary($node, $vid, $key = 'tid') {
-  $result = db_query(db_rewrite_sql('SELECT t.tid, t.* FROM {term_data} t INNER JOIN {term_node} r ON r.tid = t.tid WHERE t.vid = %d AND r.vid = %d ORDER BY weight', 't', 'tid'), $vid, $node->vid);
+  $result = db_query(db_rewrite_sql('SELECT t.tid, t.* FROM {taxonomy_term_data} t INNER JOIN {taxonomy_term_node} r ON r.tid = t.tid WHERE t.vid = %d AND r.vid = %d ORDER BY weight', 't', 'tid'), $vid, $node->vid);
   $terms = array();
   while ($term = db_fetch_object($result)) {
     $terms[$term->$key] = $term;
   }
   return $terms;
+}
+
+/**
+ * Find all term IDs associated with a set of nodes.
+ *
+ * @param $nodes
+ *  An array of node objects.
+ *
+ * @return
+ *  An array of term and node IDs ordered by vocabulary and term weight.
+ */
+function taxonomy_get_tids_from_nodes($nodes) {
+  $node_vids = array();
+  foreach ($nodes as $node) {
+    $node_vids[] = $node->vid;
+  }
+  $query = db_select('taxonomy_term_node', 'r');
+  $query->fields('r', array('tid', 'nid', 'vid'));
+  $query->join('taxonomy_term_data', 't', 'r.tid = t.tid');
+  $query->join('taxonomy_vocabulary', 'v', 't.vid = v.vid');
+  $query->condition('r.vid', $node_vids, 'IN');
+  $query->orderBy('v.weight');
+  $query->orderBy('t.weight');
+  $query->orderBy('t.name');
+  $query->addTag('term_access');
+
+  return $query->execute()->fetchAll();
 }
 
 /**
@@ -627,7 +644,7 @@ function taxonomy_node_get_terms($node, $key = 'tid') {
   static $terms;
 
   if (!isset($terms[$node->vid][$key])) {
-    $result = db_query(db_rewrite_sql('SELECT t.* FROM {term_node} r INNER JOIN {term_data} t ON r.tid = t.tid INNER JOIN {vocabulary} v ON t.vid = v.vid WHERE r.vid = %d ORDER BY v.weight, t.weight, t.name', 't', 'tid'), $node->vid);
+    $result = db_query(db_rewrite_sql('SELECT t.* FROM {taxonomy_term_node} r INNER JOIN {taxonomy_term_data} t ON r.tid = t.tid INNER JOIN {taxonomy_vocabulary} v ON t.vid = v.vid WHERE r.vid = %d ORDER BY v.weight, t.weight, t.name', 't', 'tid'), $node->vid);
     $terms[$node->vid][$key] = array();
     while ($term = db_fetch_object($result)) {
       $terms[$node->vid][$key][$term->$key] = $term;
@@ -637,30 +654,11 @@ function taxonomy_node_get_terms($node, $key = 'tid') {
 }
 
 /**
- * Make sure incoming vids are free tagging enabled.
- */
-function taxonomy_node_validate(&$node) {
-  if (!empty($node->taxonomy)) {
-    $terms = $node->taxonomy;
-    if (!empty($terms['tags'])) {
-      foreach ($terms['tags'] as $vid => $vid_value) {
-        $vocabulary = taxonomy_vocabulary_load($vid);
-        if (empty($vocabulary->tags)) {
-          // see form_get_error $key = implode('][', $element['#parents']);
-          // on why this is the key
-          form_set_error("taxonomy][tags][$vid", t('The %name vocabulary can not be modified in this way.', array('%name' => $vocabulary->name)));
-        }
-      }
-    }
-  }
-}
-
-/**
  * Save term associations for a given node.
  */
 function taxonomy_node_save($node, $terms) {
 
-  taxonomy_node_delete_revision($node);
+  taxonomy_nodeapi_delete_revision($node);
 
   // Free tagging vocabularies do not send their tids in the form,
   // so we'll detect them here and process them independently.
@@ -692,7 +690,7 @@ function taxonomy_node_save($node, $terms) {
 
         // Defend against duplicate, differently cased tags
         if (!isset($inserted[$typed_term_tid])) {
-          db_query('INSERT INTO {term_node} (nid, vid, tid) VALUES (%d, %d, %d)', $node->nid, $node->vid, $typed_term_tid);
+          db_query('INSERT INTO {taxonomy_term_node} (nid, vid, tid) VALUES (%d, %d, %d)', $node->nid, $node->vid, $typed_term_tid);
           $inserted[$typed_term_tid] = TRUE;
         }
       }
@@ -704,32 +702,18 @@ function taxonomy_node_save($node, $terms) {
       if (is_array($term)) {
         foreach ($term as $tid) {
           if ($tid) {
-            db_query('INSERT INTO {term_node} (nid, vid, tid) VALUES (%d, %d, %d)', $node->nid, $node->vid, $tid);
+            db_query('INSERT INTO {taxonomy_term_node} (nid, vid, tid) VALUES (%d, %d, %d)', $node->nid, $node->vid, $tid);
           }
         }
       }
       elseif (is_object($term)) {
-        db_query('INSERT INTO {term_node} (nid, vid, tid) VALUES (%d, %d, %d)', $node->nid, $node->vid, $term->tid);
+        db_query('INSERT INTO {taxonomy_term_node} (nid, vid, tid) VALUES (%d, %d, %d)', $node->nid, $node->vid, $term->tid);
       }
       elseif ($term) {
-        db_query('INSERT INTO {term_node} (nid, vid, tid) VALUES (%d, %d, %d)', $node->nid, $node->vid, $term);
+        db_query('INSERT INTO {taxonomy_term_node} (nid, vid, tid) VALUES (%d, %d, %d)', $node->nid, $node->vid, $term);
       }
     }
   }
-}
-
-/**
- * Remove associations of a node to its terms.
- */
-function taxonomy_node_delete($node) {
-  db_query('DELETE FROM {term_node} WHERE nid = %d', $node->nid);
-}
-
-/**
- * Remove associations of a node to its terms.
- */
-function taxonomy_node_delete_revision($node) {
-  db_query('DELETE FROM {term_node} WHERE vid = %d', $node->vid);
 }
 
 /**
@@ -737,10 +721,10 @@ function taxonomy_node_delete_revision($node) {
  */
 function taxonomy_node_type($op, $info) {
   if ($op == 'update' && !empty($info->old_type) && $info->type != $info->old_type) {
-    db_query("UPDATE {vocabulary_node_types} SET type = '%s' WHERE type = '%s'", $info->type, $info->old_type);
+    db_query("UPDATE {taxonomy_vocabulary_node_type} SET type = '%s' WHERE type = '%s'", $info->type, $info->old_type);
   }
   elseif ($op == 'delete') {
-    db_query("DELETE FROM {vocabulary_node_types} WHERE type = '%s'", $info->type);
+    db_query("DELETE FROM {taxonomy_vocabulary_node_type} WHERE type = '%s'", $info->type);
   }
 }
 
@@ -749,7 +733,7 @@ function taxonomy_node_type($op, $info) {
  */
 function taxonomy_get_related($tid, $key = 'tid') {
   if ($tid) {
-    $result = db_query('SELECT t.*, tid1, tid2 FROM {term_relation}, {term_data} t WHERE (t.tid = tid1 OR t.tid = tid2) AND (tid1 = %d OR tid2 = %d) AND t.tid != %d ORDER BY weight, name', $tid, $tid, $tid);
+    $result = db_query('SELECT t.*, tid1, tid2 FROM {taxonomy_term_relation}, {taxonomy_term_data} t WHERE (t.tid = tid1 OR t.tid = tid2) AND (tid1 = %d OR tid2 = %d) AND t.tid != %d ORDER BY weight, name', $tid, $tid, $tid);
     $related = array();
     while ($term = db_fetch_object($result)) {
       $related[$term->$key] = $term;
@@ -766,7 +750,7 @@ function taxonomy_get_related($tid, $key = 'tid') {
  */
 function taxonomy_get_parents($tid, $key = 'tid') {
   if ($tid) {
-    $result = db_query(db_rewrite_sql('SELECT t.tid, t.* FROM {term_data} t INNER JOIN {term_hierarchy} h ON h.parent = t.tid WHERE h.tid = %d ORDER BY weight, name', 't', 'tid'), $tid);
+    $result = db_query(db_rewrite_sql('SELECT t.tid, t.* FROM {taxonomy_term_data} t INNER JOIN {taxonomy_term_hierarchy} h ON h.parent = t.tid WHERE h.tid = %d ORDER BY weight, name', 't', 'tid'), $tid);
     $parents = array();
     while ($parent = db_fetch_object($result)) {
       $parents[$parent->$key] = $parent;
@@ -799,10 +783,10 @@ function taxonomy_get_parents_all($tid) {
  */
 function taxonomy_get_children($tid, $vid = 0, $key = 'tid') {
   if ($vid) {
-    $result = db_query(db_rewrite_sql('SELECT t.* FROM {term_data} t INNER JOIN {term_hierarchy} h ON h.tid = t.tid WHERE t.vid = %d AND h.parent = %d ORDER BY weight, name', 't', 'tid'), $vid, $tid);
+    $result = db_query(db_rewrite_sql('SELECT t.* FROM {taxonomy_term_data} t INNER JOIN {taxonomy_term_hierarchy} h ON h.tid = t.tid WHERE t.vid = %d AND h.parent = %d ORDER BY weight, name', 't', 'tid'), $vid, $tid);
   }
   else {
-    $result = db_query(db_rewrite_sql('SELECT t.* FROM {term_data} t INNER JOIN {term_hierarchy} h ON h.tid = t.tid WHERE parent = %d ORDER BY weight, name', 't', 'tid'), $tid);
+    $result = db_query(db_rewrite_sql('SELECT t.* FROM {taxonomy_term_data} t INNER JOIN {taxonomy_term_hierarchy} h ON h.tid = t.tid WHERE parent = %d ORDER BY weight, name', 't', 'tid'), $tid);
   }
   $children = array();
   while ($term = db_fetch_object($result)) {
@@ -821,18 +805,18 @@ function taxonomy_get_children($tid, $vid = 0, $key = 'tid') {
  *   The term ID under which to generate the tree. If 0, generate the tree
  *   for the entire vocabulary.
  *
- * @param $depth
- *   Internal use only.
- *
  * @param $max_depth
  *   The number of levels of the tree to return. Leave NULL to return all levels.
+ *
+ * @param $depth
+ *   Internal use only.
  *
  * @return
  *   An array of all term objects in the tree. Each term object is extended
  *   to have "depth" and "parents" attributes in addition to its normal ones.
  *   Results are statically cached.
  */
-function taxonomy_get_tree($vid, $parent = 0, $depth = -1, $max_depth = NULL) {
+function taxonomy_get_tree($vid, $parent = 0, $max_depth = NULL, $depth = -1) {
   static $children, $parents, $terms;
 
   $depth++;
@@ -842,7 +826,7 @@ function taxonomy_get_tree($vid, $parent = 0, $depth = -1, $max_depth = NULL) {
   if (!isset($children[$vid])) {
     $children[$vid] = array();
 
-    $result = db_query(db_rewrite_sql('SELECT t.tid, t.*, parent FROM {term_data} t INNER JOIN {term_hierarchy} h ON t.tid = h.tid WHERE t.vid = %d ORDER BY weight, name', 't', 'tid'), $vid);
+    $result = db_query(db_rewrite_sql('SELECT t.tid, t.*, parent FROM {taxonomy_term_data} t INNER JOIN {taxonomy_term_hierarchy} h ON t.tid = h.tid WHERE t.vid = %d ORDER BY weight, name', 't', 'tid'), $vid);
     while ($term = db_fetch_object($result)) {
       $children[$vid][$term->parent][] = $term->tid;
       $parents[$vid][$term->tid][] = $term->parent;
@@ -863,7 +847,7 @@ function taxonomy_get_tree($vid, $parent = 0, $depth = -1, $max_depth = NULL) {
         $tree[] = $term;
 
         if (!empty($children[$vid][$child])) {
-          $tree = array_merge($tree, taxonomy_get_tree($vid, $child, $depth, $max_depth));
+          $tree = array_merge($tree, taxonomy_get_tree($vid, $child, $max_depth, $depth));
         }
       }
     }
@@ -878,7 +862,7 @@ function taxonomy_get_tree($vid, $parent = 0, $depth = -1, $max_depth = NULL) {
 function taxonomy_get_synonyms($tid) {
   if ($tid) {
     $synonyms = array();
-    $result = db_query('SELECT name FROM {term_synonym} WHERE tid = %d', $tid);
+    $result = db_query('SELECT name FROM {taxonomy_term_synonym} WHERE tid = %d', $tid);
     while ($synonym = db_fetch_array($result)) {
       $synonyms[] = $synonym['name'];
     }
@@ -907,7 +891,7 @@ function taxonomy_get_synonym_root($synonym, $reset = FALSE) {
   }
 
   if (!isset($synonyms[$synonym])) {
-    $synonyms[$synonym] = db_query("SELECT * FROM {term_synonym} s, {term_data} t WHERE t.tid = s.tid AND s.name = :name", array(':name' => $synonym))->fetch();
+    $synonyms[$synonym] = db_query("SELECT * FROM {taxonomy_term_synonym} s, {taxonomy_term_data} t WHERE t.tid = s.tid AND s.name = :name", array(':name' => $synonym))->fetch();
   }
   return $synonyms[$synonym];
 }
@@ -932,10 +916,10 @@ function taxonomy_term_count_nodes($tid, $type = 0) {
   if (!isset($count[$type])) {
     // $type == 0 always evaluates TRUE if $type is a string
     if (is_numeric($type)) {
-      $result = db_query(db_rewrite_sql('SELECT t.tid, COUNT(n.nid) AS c FROM {term_node} t INNER JOIN {node} n ON t.vid = n.vid WHERE n.status = 1 GROUP BY t.tid'));
+      $result = db_query(db_rewrite_sql('SELECT t.tid, COUNT(n.nid) AS c FROM {taxonomy_term_node} t INNER JOIN {node} n ON t.vid = n.vid WHERE n.status = 1 GROUP BY t.tid'));
     }
     else {
-      $result = db_query(db_rewrite_sql("SELECT t.tid, COUNT(n.nid) AS c FROM {term_node} t INNER JOIN {node} n ON t.vid = n.vid WHERE n.status = 1 AND n.type = '%s' GROUP BY t.tid"), $type);
+      $result = db_query(db_rewrite_sql("SELECT t.tid, COUNT(n.nid) AS c FROM {taxonomy_term_node} t INNER JOIN {node} n ON t.vid = n.vid WHERE n.status = 1 AND n.type = '%s' GROUP BY t.tid"), $type);
     }
     $count[$type] = array();
     while ($term = db_fetch_object($result)) {
@@ -965,7 +949,7 @@ function _taxonomy_term_children($tid) {
   static $children;
 
   if (!isset($children)) {
-    $result = db_query('SELECT tid, parent FROM {term_hierarchy}');
+    $result = db_query('SELECT tid, parent FROM {taxonomy_term_hierarchy}');
     while ($term = db_fetch_object($result)) {
       $children[$term->parent][] = $term->tid;
     }
@@ -986,7 +970,7 @@ function _taxonomy_term_children($tid) {
  *   An array of matching term objects.
  */
 function taxonomy_get_term_by_name($name) {
-  $db_result = db_query(db_rewrite_sql("SELECT t.tid, t.* FROM {term_data} t WHERE LOWER(t.name) = LOWER('%s')", 't', 'tid'), trim($name));
+  $db_result = db_query(db_rewrite_sql("SELECT t.tid, t.* FROM {taxonomy_term_data} t WHERE LOWER(t.name) = LOWER('%s')", 't', 'tid'), trim($name));
   $result = array();
   while ($term = db_fetch_object($db_result)) {
     $result[] = $term;
@@ -1020,7 +1004,7 @@ function taxonomy_vocabulary_load($vid, $reset = FALSE) {
     // that cached, and we will not try to load this later.
     $vocabularies[$vid] = FALSE;
     // Try to load the data and fill up the object.
-    $result = db_query('SELECT v.*, n.type FROM {vocabulary} v LEFT JOIN {vocabulary_node_types} n ON v.vid = n.vid WHERE v.vid = %d', $vid);
+    $result = db_query('SELECT v.*, n.type FROM {taxonomy_vocabulary} v LEFT JOIN {taxonomy_vocabulary_node_type} n ON v.vid = n.vid WHERE v.vid = %d', $vid);
     $node_types = array();
     while ($voc = db_fetch_object($result)) {
       if (!empty($voc->type)) {
@@ -1048,28 +1032,128 @@ function taxonomy_terms_load($str_tids) {
 }
 
 /**
+ * Load multiple taxonomy terms based on certain conditions.
+ *
+ * This function should be used whenever you need to load more than one term
+ * from the database. Terms are loaded into memory and will not require
+ * database access if loaded again during the same page request.
+ *
+ * @param $tids
+ *  An array of taxonomy term IDs.
+ * @param $conditions
+ *  An array of conditions to add to the query.
+ * @param $reset
+ *  Whether to reset the internal cache.
+ *
+ * @return
+ *  An array of term objects, indexed by tid.
+ */
+function taxonomy_term_load_multiple($tids = array(), $conditions = array(), $reset = FALSE) {
+  static $term_cache = array();
+
+  if ($reset) {
+    $term_cache = array();
+  }
+
+  $terms = array();
+
+  // Create a new variable which is either a prepared version of the $tids
+  // array for later comparison with the term cache, or FALSE if no $tids were
+  // passed. The $tids array is reduced as items are loaded from cache, and we
+  // need to know if it's empty for this reason to avoid querying the database
+  // when all requested terms are loaded from cache.
+  $passed_tids = !empty($tids) ? array_flip($tids) : FALSE;
+
+  // Load any available terms from the internal cache.
+  if ($term_cache) {
+    if ($tids) {
+      $terms += array_intersect_key($term_cache, $passed_tids);
+      // If any terms were loaded, remove them from the $tids still to load.
+      $tids = array_keys(array_diff_key($passed_tids, $terms));
+    }
+    // If only conditions is passed, load all terms from the cache. Terms
+    // which don't match conditions will be removed later.
+    elseif ($conditions) {
+      $terms = $term_cache;
+    }
+  }
+
+  // Remove any loaded terms from the array if they don't match $conditions.
+  if ($conditions) {
+    foreach ($terms as $term) {
+      $term_values = (array) $term;
+      if (array_diff_assoc($conditions, $term_values)) {
+        unset($terms[$term->tid]);
+      }
+    }
+  }
+
+  // Load any remaining terms from the database, this is necessary if we have
+  // $tids still to load, or if $conditions was passed without $tids.
+  if ($tids || ($conditions && !$passed_tids)) {
+    $query = db_select('taxonomy_term_data', 't');
+    $taxonomy_term_data = drupal_schema_fields_sql('taxonomy_term_data');
+    $query->fields('t', $taxonomy_term_data);
+
+    // If the $tids array is populated, add those to the query.
+    if ($tids) {
+      $query->condition('t.tid', $tids, 'IN');
+    }
+
+    // If the conditions array is populated, add those to the query.
+    if ($conditions) {
+      foreach ($conditions as $field => $value) {
+        $query->condition('t.' . $field, $value);
+      }
+    }
+    $queried_terms = $query->execute()->fetchAllAssoc('tid');
+    // Invoke hook_taxonomy_term_load() on the terms loaded from the database
+    // and add them to the static cache.
+    if (!empty($queried_terms)) {
+      foreach (module_implements('taxonomy_term_load') as $module) {
+        $function = $module . '_taxonomy_term_load';
+        $function($queried_terms);
+      }
+      $terms += $queried_terms;
+      $term_cache += $queried_terms;
+    }
+  }
+
+  // Ensure that the returned array is ordered the same as the original $tids
+  // array if this was passed in and remove any invalid tids.
+  if ($passed_tids) {
+    // Remove any invalid tids from the array.
+    $passed_tids = array_intersect_key($passed_tids, $terms);
+    foreach ($terms as $term) {
+      $passed_tids[$term->tid] = $term;
+    }
+    $terms = $passed_tids;
+  }
+
+  return $terms;
+}
+
+/**
  * Return the term object matching a term ID.
  *
  * @param $tid
  *   A term's ID
+ * @param $reset
+ *   Whether to reset the static cache.
  *
- * @return Object
+ * @return
  *   A term object. Results are statically cached.
  */
 function taxonomy_term_load($tid, $reset = FALSE) {
   if (!is_numeric($tid)) {
     return FALSE;
   }
-  static $terms = array();
-  if (!isset($terms[$tid]) || $reset) {
-    $terms[$tid] = taxonomy_get_term_data($tid, $reset);
-    module_invoke_all('taxonomy_term_load', $terms[$tid]);
-  }
-  return $terms[$tid];
+  $term = taxonomy_term_load_multiple(array($tid), array(), $reset);
+  return $term ? $term[$tid] : FALSE;
 }
 
 /**
- * Return a term object from the term_data table.
+ * Return a term object from the taxonomy_term_data table.
  * @param $tid
  *   A term's ID
  * @return Object
@@ -1079,7 +1163,7 @@ function taxonomy_get_term_data($tid, $reset = FALSE) {
    static $terms = array();
 
   if (!isset($terms[$tid]) || $reset) {
-    $terms[$tid] = db_query('SELECT * FROM {term_data} WHERE tid = :tid', array(':tid' => $tid))->fetchObject();
+    $terms[$tid] = db_query('SELECT * FROM {taxonomy_term_data} WHERE tid = :tid', array(':tid' => $tid))->fetchObject();
   }
   return $terms[$tid];
 }
@@ -1115,7 +1199,7 @@ function _taxonomy_term_select($title, $name, $value, $vocabulary_id, $descripti
 
 /**
  * Format the selection field for choosing terms
- * (by deafult the default selection field is used).
+ * (by default the default selection field is used).
  *
  * @ingroup themeable
  */
@@ -1131,7 +1215,7 @@ function theme_taxonomy_term_select($element) {
  * @param $operator
  *   How to interpret multiple IDs in the array. Can be "or" or "and".
  * @param $depth
- *   How many levels deep to traverse the taxonomy tree. Can be a nonnegative
+ *   How many levels deep to traverse the taxonomy tree. Can be a non-negative
  *   integer or "all".
  * @param $pager
  *   Whether the nodes are to be used with a pager (the case on most Drupal
@@ -1150,22 +1234,22 @@ function taxonomy_select_nodes($tids = array(), $operator = 'or', $depth = 0, $p
     }
     foreach ($tids as $index => $tid) {
       $term = taxonomy_get_term_data($tid);
-      $tree = taxonomy_get_tree($term->vid, $tid, -1, $depth);
+      $tree = taxonomy_get_tree($term->vid, $tid, $depth);
       $descendant_tids[] = array_merge(array($tid), array_map('_taxonomy_get_tid_from_term', $tree));
     }
 
     if ($operator == 'or') {
       $args = call_user_func_array('array_merge', $descendant_tids);
       $placeholders = db_placeholders($args, 'int');
-      $sql = 'SELECT DISTINCT(n.nid), n.sticky, n.title, n.created FROM {node} n INNER JOIN {term_node} tn ON n.vid = tn.vid WHERE tn.tid IN (' . $placeholders . ') AND n.status = 1 ORDER BY ' . $order;
-      $sql_count = 'SELECT COUNT(DISTINCT(n.nid)) FROM {node} n INNER JOIN {term_node} tn ON n.vid = tn.vid WHERE tn.tid IN (' . $placeholders . ') AND n.status = 1';
+      $sql = 'SELECT DISTINCT(n.nid), n.sticky, n.title, n.created FROM {node} n INNER JOIN {taxonomy_term_node} tn ON n.vid = tn.vid WHERE tn.tid IN (' . $placeholders . ') AND n.status = 1 ORDER BY ' . $order;
+      $sql_count = 'SELECT COUNT(DISTINCT(n.nid)) FROM {node} n INNER JOIN {taxonomy_term_node} tn ON n.vid = tn.vid WHERE tn.tid IN (' . $placeholders . ') AND n.status = 1';
     }
     else {
       $joins = '';
       $wheres = '';
       $args = array();
       foreach ($descendant_tids as $index => $tids) {
-        $joins .= ' INNER JOIN {term_node} tn' . $index . ' ON n.vid = tn' . $index . '.vid';
+        $joins .= ' INNER JOIN {taxonomy_term_node} tn' . $index . ' ON n.vid = tn' . $index . '.vid';
         $wheres .= ' AND tn' . $index . '.tid IN (' . db_placeholders($tids, 'int') . ')';
         $args = array_merge($args, $tids);
       }
@@ -1191,12 +1275,16 @@ function taxonomy_select_nodes($tids = array(), $operator = 'or', $depth = 0, $p
  */
 function taxonomy_render_nodes($result) {
   $output = '';
-  $has_rows = FALSE;
-  while ($node = db_fetch_object($result)) {
-    $output .= node_view(node_load($node->nid), 1);
-    $has_rows = TRUE;
+  $nids = array();
+  foreach ($result as $record) {
+    $nids[] = $record->nid;
   }
-  if ($has_rows) {
+  if (!empty($nids)) {
+    $nodes = node_load_multiple($nids);
+
+    foreach ($nodes as $node) {
+      $output .= node_view($node, 1);
+    }
     $output .= theme('pager', NULL, variable_get('default_nodes_main', 10), 0);
   }
   else {
@@ -1208,15 +1296,33 @@ function taxonomy_render_nodes($result) {
 /**
  * Implementation of hook_nodeapi_load().
  */
-function taxonomy_nodeapi_load($node, $arg = 0) {
-  $output['taxonomy'] = taxonomy_node_get_terms($node);
-  return $output;
+function taxonomy_nodeapi_load($nodes) {
+  // Get an array of tid, vid associations ordered by vocabulary and term
+  // weight.
+  $tids = taxonomy_get_tids_from_nodes($nodes);
+
+  // Extract the tids only from this array.
+  $term_ids = array();
+  foreach ($tids as $term) {
+    $term_ids[$term->tid] = $term->tid;
+  }
+
+  // Load the full term objects for these tids.
+  $terms = taxonomy_term_load_multiple($term_ids);
+  foreach ($tids as $term) {
+    $nodes[$term->nid]->taxonomy[$term->tid] = $terms[$term->tid];
+  }
+  foreach ($nodes as $node) {
+    if (!isset($nodes[$node->nid]->taxonomy)) {
+      $node->taxonomy = array();
+    }
+  }
 }
 
 /**
  * Implementation of hook_nodeapi_insert().
  */
-function taxonomy_nodeapi_insert($node, $arg = 0) {
+function taxonomy_nodeapi_insert($node) {
   if (!empty($node->taxonomy)) {
     taxonomy_node_save($node, $node->taxonomy);
   }
@@ -1225,7 +1331,7 @@ function taxonomy_nodeapi_insert($node, $arg = 0) {
 /**
  * Implementation of hook_nodeapi_update().
  */
-function taxonomy_nodeapi_update($node, $arg = 0) {
+function taxonomy_nodeapi_update($node) {
   if (!empty($node->taxonomy)) {
     taxonomy_node_save($node, $node->taxonomy);
   }
@@ -1233,43 +1339,64 @@ function taxonomy_nodeapi_update($node, $arg = 0) {
 
 /**
  * Implementation of hook_nodeapi_delete().
+ *
+ * Remove associations of a node to its terms.
  */
-function taxonomy_nodeapi_delete($node, $arg = 0) {
-  taxonomy_node_delete($node);
+function taxonomy_nodeapi_delete($node) {
+  db_query('DELETE FROM {taxonomy_term_node} WHERE nid = %d', $node->nid);
 }
 
 /**
  * Implementation of hook_nodeapi_delete_revision().
+ *
+ * Remove associations of a node to its terms.
  */
-function taxonomy_nodeapi_delete_revision($node, $arg = 0) {
-  taxonomy_node_delete_revision($node);
+function taxonomy_nodeapi_delete_revision($node) {
+  db_query('DELETE FROM {taxonomy_term_node} WHERE vid = %d', $node->vid);
 }
 
 /**
  * Implementation of hook_nodeapi_validate().
+ *
+ * Make sure incoming vids are free tagging enabled.
  */
-function taxonomy_nodeapi_validate($node, $arg = 0) {
-  taxonomy_node_validate($node);
+function taxonomy_nodeapi_validate($node, $form) {
+  if (!empty($node->taxonomy)) {
+    $terms = $node->taxonomy;
+    if (!empty($terms['tags'])) {
+      foreach ($terms['tags'] as $vid => $vid_value) {
+        $vocabulary = taxonomy_vocabulary_load($vid);
+        if (empty($vocabulary->tags)) {
+          // see form_get_error $key = implode('][', $element['#parents']);
+          // on why this is the key
+          form_set_error("taxonomy][tags][$vid", t('The %name vocabulary can not be modified in this way.', array('%name' => $vocabulary->name)));
+        }
+      }
+    }
+  }
 }
 
 /**
  * Implementation of hook_nodeapi_rss_item().
+ *
+ * Provides category information for RSS feeds.
  */
-function taxonomy_nodeapi_rss_item($node, $arg = 0) {
-  return taxonomy_rss_item($node);
+function taxonomy_nodeapi_rss_item($node) {
+  $output = array();
+  foreach ($node->taxonomy as $term) {
+    $output[] = array(
+      'key' => 'category',
+      'value' => check_plain($term->name),
+      'attributes' => array('domain' => url(taxonomy_term_path($term), array('absolute' => TRUE))),
+    );
+  }
+  return $output;
 }
 
 /**
  * Implementation of hook_nodeapi_update_index().
  */
-function taxonomy_nodeapi_update_index($node, $arg = 0) {
-  return taxonomy_node_update_index($node);
-}
-
-/**
- * Implementation of hook_nodeapi('update_index').
- */
-function taxonomy_node_update_index(&$node) {
+function taxonomy_nodeapi_update_index($node) {
   $output = array();
   foreach ($node->taxonomy as $term) {
     $output[] = $term->name;
@@ -1303,19 +1430,6 @@ function taxonomy_terms_parse_string($str_tids) {
   }
   $terms['str_tids'] = $str_tids;
   return $terms;
-}
-
-/**
- * Provides category information for RSS feeds.
- */
-function taxonomy_rss_item($node) {
-  $output = array();
-  foreach ($node->taxonomy as $term) {
-    $output[] = array('key'   => 'category',
-                      'value' => check_plain($term->name),
-                      'attributes' => array('domain' => url(taxonomy_term_path($term), array('absolute' => TRUE))));
-  }
-  return $output;
 }
 
 /**

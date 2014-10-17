@@ -13,14 +13,6 @@
 
 class DatabaseSchema_pgsql extends DatabaseSchema {
 
-  public function tableExists($table) {
-    return (bool) db_result(db_query("SELECT COUNT(*) FROM pg_class WHERE relname = '{" . db_escape_table($table) . "}'"));
-  }
-
-  public function columnExists($table, $column) {
-    return (bool) db_result(db_query("SELECT COUNT(pg_attribute.attname) FROM pg_class, pg_attribute WHERE pg_attribute.attrelid = pg_class.oid AND pg_class.relname = '{" . db_escape_table($table) . "}' AND attname = '" . db_escape_table($column) . "'"));
-  }
-
   /**
    * Generate SQL to create a new table from a Drupal schema definition.
    *
@@ -84,12 +76,7 @@ class DatabaseSchema_pgsql extends DatabaseSchema {
       unset($spec['not null']);
     }
     if (!empty($spec['unsigned'])) {
-      if ($spec['type'] == 'serial') {
-        $sql .= " CHECK ($name >= 0)";
-      }
-      else {
-        $sql .= '_unsigned';
-      }
+      $sql .= " CHECK ($name >= 0)";
     }
 
     if (!empty($spec['length'])) {
@@ -125,6 +112,25 @@ class DatabaseSchema_pgsql extends DatabaseSchema {
       $map = $this->getFieldTypeMap();
       $field['pgsql_type'] = $map[$field['type'] . ':' . $field['size']];
     }
+    if (!empty($field['unsigned'])) {
+      // Unsigned datatypes are not supported in PostgreSQL 8.3. In MySQL,
+      // they are used to ensure a positive number is inserted and it also
+      // doubles the maximum integer size that can be stored in a field. 
+      // The PostgreSQL schema in Drupal creates a check constraint 
+      // to ensure that a value inserted is >= 0. To provide the extra 
+      // integer capacity, here, we bump up the column field size.
+      if (!isset($map)) {
+        $map = $this->getFieldTypeMap();
+      }
+      switch ($field['pgsql_type']) {
+        case 'smallint':
+          $field['pgsql_type'] = $map['int:medium'];
+          break;
+        case 'int' :
+          $field['pgsql_type'] = $map['int:big'];
+          break;
+      }
+    }
     if ($field['type'] == 'serial') {
       unset($field['not null']);
     }
@@ -137,7 +143,7 @@ class DatabaseSchema_pgsql extends DatabaseSchema {
    * to the engine-specific data type.
    */
   function getFieldTypeMap() {
-    // Put :normal last so it gets preserved by array_flip.  This makes
+    // Put :normal last so it gets preserved by array_flip. This makes
     // it much easier for modules (such as schema.module) to map
     // database types back into schema types.
     $map = array(
@@ -235,7 +241,7 @@ class DatabaseSchema_pgsql extends DatabaseSchema {
    * @param $keys_new
    *   Optional keys and indexes specification to be created on the
    *   table along with adding the field. The format is the same as a
-   *   table specification but without the 'fields' element.  If you are
+   *   table specification but without the 'fields' element. If you are
    *   adding a type 'serial' field, you MUST specify at least one key
    *   or index including it in this array. @see db_change_field for more
    *   explanation why.
@@ -247,7 +253,7 @@ class DatabaseSchema_pgsql extends DatabaseSchema {
       $spec['not null'] = FALSE;
     }
     $query = 'ALTER TABLE {' . $table . '} ADD COLUMN ';
-    $query .= $this->_createFieldSql($field, $this->_processField($spec));
+    $query .= $this->createFieldSql($field, $this->processField($spec));
     $ret[] = update_sql($query);
     if (isset($spec['initial'])) {
       // All this because update_sql does not support %-placeholders.
@@ -290,7 +296,7 @@ class DatabaseSchema_pgsql extends DatabaseSchema {
    *   Default value to be set. NULL for 'default NULL'.
    */
   public function fieldSetDefault(&$ret, $table, $field, $default) {
-    if ($default == NULL) {
+    if (is_null($default)) {
       $default = 'NULL';
     }
     else {
@@ -424,7 +430,7 @@ class DatabaseSchema_pgsql extends DatabaseSchema {
    * );
    * @endcode
    * and you want to change foo.bar to be type serial, leaving it as the
-   * primary key.  The correct sequence is:
+   * primary key. The correct sequence is:
    * @code
    * db_drop_primary_key($ret, 'foo');
    * db_change_field($ret, 'foo', 'bar', 'bar',
@@ -439,10 +445,10 @@ class DatabaseSchema_pgsql extends DatabaseSchema {
    * sequences (from serial-type fields) that use the changed field to be dropped.
    *
    * On MySQL, all type 'serial' fields must be part of at least one key
-   * or index as soon as they are created.  You cannot use
+   * or index as soon as they are created. You cannot use
    * db_add_{primary_key,unique_key,index}() for this purpose because
    * the ALTER TABLE command will fail to add the column without a key
-   * or index specification.  The solution is to use the optional
+   * or index specification. The solution is to use the optional
    * $new_keys argument to create the key or index at the same time as
    * field.
    *

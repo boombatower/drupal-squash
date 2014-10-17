@@ -8,8 +8,7 @@
  * The theme system allows for nearly all output of the Drupal system to be
  * customized by user themes.
  *
- * @see <a href="http://drupal.org/node/171179">Theme guide</a>
- * @see themeable
+ * @ingroup themeable
  */
 
 /**
@@ -457,8 +456,8 @@ function list_themes($refresh = FALSE) {
     // Extract from the database only when it is available.
     // Also check that the site is not in the middle of an install or update.
     if (db_is_active() && !defined('MAINTENANCE_MODE')) {
-      $result = db_query("SELECT * FROM {system} WHERE type = '%s'", 'theme');
-      while ($theme = db_fetch_object($result)) {
+      $result = db_query("SELECT * FROM {system} WHERE type = :theme", array(':theme' => 'theme'));
+      foreach ($result as $theme) {
         if (file_exists($theme->filename)) {
           $theme->info = unserialize($theme->info);
           $themes[] = $theme;
@@ -777,6 +776,12 @@ function drupal_find_theme_functions($cache, $prefixes) {
         $templates[$hook] = array(
           'function' => $prefix . '_' . $hook,
         );
+        // Ensure that the pattern is maintained from base themes to its sub-themes.
+        // Each sub-theme will have their functions scanned so the pattern must be
+        // held for subsequent runs.
+        if (isset($info['pattern'])) {
+          $templates[$hook]['pattern'] = $info['pattern'];
+        }
       }
     }
   }
@@ -841,6 +846,12 @@ function drupal_find_theme_templates($cache, $extension, $path) {
         'template' => $template,
         'path' => dirname($file->filename),
       );
+    }
+    // Ensure that the pattern is maintained from base themes to its sub-themes.
+    // Each sub-theme will have their templates scanned so the pattern must be
+    // held for subsequent runs.
+    if (isset($cache[$hook]['pattern'])) {
+      $templates[$hook]['pattern'] = $cache[$hook]['pattern'];
     }
   }
 
@@ -907,11 +918,6 @@ function theme_get_settings($key = NULL) {
     'toggle_secondary_menu'         =>  1,
   );
 
-  if (module_exists('node')) {
-    foreach (node_get_types() as $type => $name) {
-      $defaults['toggle_node_info_' . $type] = 1;
-    }
-  }
   $settings = array_merge($defaults, variable_get('theme_settings', array()));
 
   if ($key) {
@@ -1368,7 +1374,7 @@ function theme_table($header, $rows, $attributes = array(), $caption = NULL, $co
   // Format the table header:
   if (count($header)) {
     $ts = tablesort_init($header);
-    // HTML requires that the thead tag has tr tags in it follwed by tbody
+    // HTML requires that the thead tag has tr tags in it followed by tbody
     // tags. Using ternary operator to check and see if we have any rows.
     $output .= (count($rows) ? ' <thead><tr>' : ' <tr>');
     foreach ($header as $cell) {
@@ -1507,10 +1513,10 @@ function theme_mark($type = MARK_NEW) {
  *   All other elements are treated as attributes of the list item element.
  * @param $title
  *   The title of the list.
- * @param $attributes
- *   The attributes applied to the list element.
  * @param $type
  *   The type of list to return (e.g. "ul", "ol")
+ * @param $attributes
+ *   The attributes applied to the list element.
  * @return
  *   A string containing the list output.
  */
@@ -1805,7 +1811,7 @@ function template_preprocess(&$variables, $hook) {
  * based on the current path.
  *
  * Any changes to variables in this preprocessor should also be changed inside
- * template_preprocess_maintenance_page() to keep all them consistent.
+ * template_preprocess_maintenance_page() to keep all of them consistent.
  *
  * The $variables array contains the following arguments:
  * - $content
@@ -1882,6 +1888,11 @@ function template_preprocess_page(&$variables) {
   $variables['scripts']           = drupal_get_js();
   $variables['tabs']              = theme('menu_local_tasks');
   $variables['title']             = drupal_get_title();
+  // RDFa allows annotation of XHTML pages with RDF data, while GRDDL provides
+  // mechanisms for extraction of this RDF content via XSLT transformation
+  // using an associated GRDDL profile.
+  $variables['rdf_namespaces']    = drupal_get_rdf_namespaces();
+  $variables['grddl_profile']     = 'http://ns.inria.fr/grddl/rdfa/';
   // Closure should be filled last.
   $variables['closure']           = theme('closure');
 
@@ -1962,35 +1973,34 @@ function template_preprocess_page(&$variables) {
  */
 function template_preprocess_node(&$variables) {
   $node = $variables['node'];
-  if (module_exists('taxonomy')) {
-    $variables['taxonomy'] = taxonomy_link('taxonomy terms', $node);
-  }
-  else {
-    $variables['taxonomy'] = array();
-  }
-
-  if ($variables['teaser'] && $node->teaser) {
-    $variables['content'] = $node->teaser;
-  }
-  elseif (isset($node->body)) {
-    $variables['content'] = $node->body;
-  }
-  else {
-    $variables['content'] = '';
-  }
 
   $variables['date']      = format_date($node->created);
-  $variables['links']     = !empty($node->links) ? theme('links', $node->links, array('class' => 'links inline')) : '';
   $variables['name']      = theme('username', $node);
   $variables['node_url']  = url('node/' . $node->nid);
-  $variables['terms']     = theme('links', $variables['taxonomy'], array('class' => 'links inline'));
   $variables['title']     = check_plain($node->title);
+  $variables['page']      = (bool)menu_get_object();
+  
+  if ($node->build_mode == NODE_BUILD_PREVIEW) {
+    unset($node->content['links']);
+  }
+  
+  // Render taxonomy links separately.
+  $variables['terms']     = !empty($node->content['links']['terms']) ? drupal_render($node->content['links']['terms']) : '';
+  
+  // Render all remaining node links.
+  $variables['links']     = !empty($node->content['links']) ? drupal_render($node->content['links']) : '';
+  
+  // Render any comments.
+  $variables['comments']  = !empty($node->content['comments']) ? drupal_render($node->content['comments']) : '';
+
+  // Render the rest of the node into $content.
+  $variables['content'] = drupal_render($node->content);
 
   // Flatten the node object's member fields.
   $variables = array_merge((array)$node, $variables);
 
-  // Display info only on certain node types.
-  if (theme_get_setting('toggle_node_info_' . $node->type)) {
+  // Display post information only on certain node types.
+  if (variable_get('node_submitted_' . $node->type, TRUE)) {
     $variables['submitted'] = theme('node_submitted', $node);
     $variables['picture'] = theme_get_setting('toggle_node_user_picture') ? theme('user_picture', $node) : '';
   }

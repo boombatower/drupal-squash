@@ -512,7 +512,8 @@ function update_check_incompatibility($name, $type = 'module') {
   if (!isset($file)
       || !isset($file->info['core'])
       || $file->info['core'] != DRUPAL_CORE_COMPATIBILITY
-      || version_compare(phpversion(), $file->info['php']) < 0) {
+      || version_compare(phpversion(), $file->info['php']) < 0
+      || ($type == 'module' && empty($file->info['files']))) {
     return TRUE;
   }
   return FALSE;
@@ -523,11 +524,11 @@ function update_check_incompatibility($name, $type = 'module') {
  * to function properly.
  *
  * This function runs when update.php is run the first time for 6.x,
- * even before updates are selected or performed.  It is important
+ * even before updates are selected or performed. It is important
  * that if updates are not ultimately performed that no changes are
  * made which make it impossible to continue using the prior version.
- * Just adding columns is safe.  However, renaming the
- * system.description column to owner is not.  Therefore, we add the
+ * Just adding columns is safe. However, renaming the
+ * system.description column to owner is not. Therefore, we add the
  * system.owner column and leave it to system_update_6008() to copy
  * the data from description and remove description. The same for
  * renaming locales_target.locale to locales_target.language, which
@@ -662,7 +663,7 @@ if (empty($op)) {
   include_once DRUPAL_ROOT . '/includes/module.inc';
   $module_list['system']['filename'] = 'modules/system/system.module';
   $module_list['filter']['filename'] = 'modules/filter/filter.module';
-  module_list(TRUE, FALSE, FALSE, $module_list);
+  module_list(TRUE, FALSE, $module_list);
   drupal_load('module', 'system');
   drupal_load('module', 'filter');
 

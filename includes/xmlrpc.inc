@@ -349,7 +349,6 @@ function xmlrpc_error($code = NULL, $message = NULL) {
     $xmlrpc_error->is_error = TRUE;
     $xmlrpc_error->code = $code;
     $xmlrpc_error->message = $message;
-    module_invoke('system', 'check_http_request');
   }
   return $xmlrpc_error;
 }
@@ -439,7 +438,12 @@ function _xmlrpc() {
     $method = array_shift($args);
   }
   $xmlrpc_request = xmlrpc_request($method, $args);
-  $result = drupal_http_request($url, array("Content-Type" => "text/xml"), 'POST', $xmlrpc_request->xml);
+  $options = array(
+    'headers' => array('Content-Type' => 'text/xml'),
+    'method' => 'POST',
+    'data' => $xmlrpc_request->xml,
+  );
+  $result = drupal_http_request($url, $options);
   if ($result->code != 200) {
     xmlrpc_error($result->code, $result->error);
     return FALSE;

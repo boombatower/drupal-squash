@@ -204,13 +204,12 @@ function _trigger_normalize_node_context($type, $node) {
  *
  * @TODO: Take advantage of the new API and reorganise/remove this function.
  */
-function _trigger_nodeapi(&$node, $op, $a3, $a4) {
+function _trigger_nodeapi($node, $op, $a3 = NULL, $a4 = NULL) {
   // Keep objects for reuse so that changes actions make to objects can persist.
   static $objects;
   // Prevent recursion by tracking which operations have already been called.
   static $recursion;
-  // Support a subset of operations.
-  if (!in_array($op, array('view', 'update', 'presave', 'insert', 'delete')) || isset($recursion[$op])) {
+  if (isset($recursion[$op])) {
     return;
   }
   $recursion[$op] = TRUE;
@@ -245,36 +244,36 @@ function _trigger_nodeapi(&$node, $op, $a3, $a4) {
 /**
  * Implementation of hook_nodeapi_view().
  */
-function trigger_nodeapi_view(&$node, $a3, $a4) {
-  _trigger_nodeapi($node, 'view', $a3, $a4);
+function trigger_nodeapi_view($node, $teaser, $page) {
+  _trigger_nodeapi($node, 'view', $teaser, $page);
 }
 
 /**
  * Implementation of hook_nodeapi_update().
  */
-function trigger_nodeapi_update(&$node, $a3, $a4) {
-  _trigger_nodeapi($node, 'update', $a3, $a4);
+function trigger_nodeapi_update($node) {
+  _trigger_nodeapi($node, 'update');
 }
 
 /**
  * Implementation of hook_nodeapi_presave().
  */
-function trigger_nodeapi_presave(&$node, $a3, $a4) {
-  _trigger_nodeapi($node, 'presave', $a3, $a4);
+function trigger_nodeapi_presave($node) {
+  _trigger_nodeapi($node, 'presave');
 }
 
 /**
  * Implementation of hook_nodeapi_insert().
  */
-function trigger_nodeapi_insert(&$node, $a3, $a4) {
-  _trigger_nodeapi($node, 'insert', $a3, $a4);
+function trigger_nodeapi_insert($node) {
+  _trigger_nodeapi($node, 'insert');
 }
 
 /**
  * Implementation of hook_nodeapi_delete().
  */
-function trigger_nodeapi_delete(&$node, $a3, $a4) {
-  _trigger_nodeapi($node, 'delete', $a3, $a4);
+function trigger_nodeapi_delete($node) {
+  _trigger_nodeapi($node, 'delete');
 }
 
 /**
@@ -304,15 +303,45 @@ function _trigger_normalize_comment_context($type, $comment) {
 }
 
 /**
- * Implementation of hook_comment().
+ * Implementation of hook_comment_insert().
  */
-function trigger_comment($a1, $op) {
+function trigger_comment_insert($form_values) {
+  _trigger_comment($form_values, 'insert');
+}
+
+/**
+ * Implementation of hook_comment_update().
+ */
+function trigger_comment_update($form_values) {
+  _trigger_comment($form_values, 'update');
+}
+
+/**
+ * Implementation of hook_comment_delete().
+ */
+function trigger_comment_delete($comment) {
+  _trigger_comment($comment, 'delete');
+}
+
+/**
+ * Implementation of hook_comment_view().
+ */
+function trigger_comment_view($comment) {
+  _trigger_comment($comment, 'view');
+}
+
+/**
+ * Helper function for implementations of hook_comment_op().
+ *
+ * @param $a1
+ *   Argument, which will be passed to the action.
+ *   It can be a array of form values or a comment.
+ * @param $op
+ *   What kind of action is being performed.
+ */
+function _trigger_comment($a1, $op) {
   // Keep objects for reuse so that changes actions make to objects can persist.
   static $objects;
-  // We support a subset of operations.
-  if (!in_array($op, array('insert', 'update', 'delete', 'view'))) {
-    return;
-  }
   $aids = _trigger_get_hook_aids('comment', $op);
   $context = array(
     'hook' => 'comment',
@@ -412,10 +441,15 @@ function trigger_user_update(&$edit, &$account, $category) {
 }
 
 /**
- * Implementation of hook_user_delete().
+ * Implementation of hook_user_cancel().
  */
-function trigger_user_delete(&$edit, &$account, $category) {
-  _trigger_user('delete', $edit, $account, $category);
+function trigger_user_cancel(&$edit, &$account, $method) {
+  switch ($method) {
+    case 'user_cancel_reassign':
+    case 'user_cancel_delete':
+      _trigger_user('delete', $edit, $account, $method);
+      break;
+  }
 }
 
 /**
@@ -433,10 +467,6 @@ function trigger_user_view(&$edit, &$account, $category) {
 function _trigger_user($op, &$edit, &$account, $category = NULL) {
   // Keep objects for reuse so that changes actions make to objects can persist.
   static $objects;
-  // We support a subset of operations.
-  if (!in_array($op, array('login', 'logout', 'insert', 'update', 'delete', 'view'))) {
-    return;
-  }
   $aids = _trigger_get_hook_aids('user', $op);
   $context = array(
     'hook' => 'user',

@@ -22,14 +22,16 @@ function chameleon_page($content, $show_blocks = TRUE, $show_messages = TRUE) {
   }
 
   $title = drupal_get_title();
+  $rdf_namespaces = drupal_get_rdf_namespaces();
 
   // Get blocks before so that they can alter the header (JavaScript, Stylesheets etc.)
   $blocks_left = theme_blocks('left');
   $blocks_right = theme_blocks('right');
 
-  $output  = "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">\n";
-  $output .= "<html xmlns=\"http://www.w3.org/1999/xhtml\" lang=\"$language\" xml:lang=\"$language\" dir=\"$direction\">\n";
-  $output .= "<head>\n";
+  $output  = "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML+RDFa 1.0//EN\" \"http://www.w3.org/MarkUp/DTD/xhtml-rdfa-1.dtd\">\n";
+  $output .= "<html xmlns=\"http://www.w3.org/1999/xhtml\" xml:lang=\"$language\" dir=\"$direction\"\n";
+  $output .= "  $rdf_namespaces>\n";
+  $output .= "<head profile=\"http://ns.inria.fr/grddl/rdfa/\">\n";
   $output .= " <title>" . ($title ? strip_tags($title) . " | " . variable_get("site_name", "Drupal") : variable_get("site_name", "Drupal") . " | " . variable_get("site_slogan", "")) . "</title>\n";
   $output .= drupal_get_html_head();
   $output .= drupal_get_css();
@@ -112,7 +114,7 @@ function chameleon_page($content, $show_blocks = TRUE, $show_messages = TRUE) {
   return $output;
 }
 
-function chameleon_node($node, $teaser = 0, $page = 0) {
+function chameleon_node($node, $teaser = 0) {
 
   $output  = "<div class=\"node" . ((!$node->status) ? ' node-unpublished' : '') . (($node->sticky) ? ' sticky' : '') . "\">\n";
 
@@ -131,24 +133,30 @@ function chameleon_node($node, $teaser = 0, $page = 0) {
 
   $output .= " </div>\n";
 
-  $submitted['node_submitted'] = theme_get_setting("toggle_node_info_$node->type") ? array(
-    'title' => t("By !author at @date", array('!author' => theme('username', $node), '@date' => format_date($node->created, 'small'))),
-    'html' => TRUE) : array();
-
-  $terms = array();
-  if (module_exists('taxonomy')) {
-    $terms = taxonomy_link("taxonomy terms", $node);
+  $submitted = '';
+  if (variable_get('node_submitted_' . $node->type, TRUE)) {
+    $submitted = t("By !author at @date", array('!author' => theme('username', $node), '@date' => format_date($node->created, 'small')));
   }
 
-  $links = array_merge($submitted, $terms);
-  if (isset($node->links)) {
-    $links = array_merge($links, $node->links);
+  $terms = '';
+  if (!empty($node->content['links']['terms'])) {
+    $terms = drupal_render($node->content['links']['terms']);
   }
-  if (count($links)) {
-    $output .= '<div class="links">' . theme('links', $links, array('class' => 'links inline')) . "</div>\n";
+  
+  $links = '';
+  if ($node->content['links']) {
+    $links = drupal_render($node->content['links']);
+  }
+
+  if (!empty($terms) || !empty($links)) {
+    $output .= '<div class="links">' . $terms . $links . $submitted . "</div>\n";
   }
 
   $output .= "</div>\n";
+  
+  if ($node->content['comments']) {
+    $output .= drupal_render($node->content['comments']);
+  }
 
   return $output;
 }
@@ -158,13 +166,13 @@ function chameleon_comment($comment, $node, $links = array()) {
     'title' => t('By !author at @date', array('!author' => theme('username', $comment), '@date' => format_date($comment->timestamp, 'small'))),
     'html' => TRUE);
 
-  $output  = "<div class=\"comment" . ' ' . $status . "\">\n";
+  $output  = "<div class=\"comment\">\n";
   $output .= " <h3 class=\"title\">" . l($comment->subject, $_GET['q'], array('fragment' => "comment-$comment->cid")) . "</h3>\n";
   $output .= " <div class=\"content\">" . $comment->comment;
-  if (!empty($signature)) {
+  if (!empty($comment->signature)) {
     $output .= "  <div class=\"clear-block\">";
     $output .= "<div>—</div>\n";
-    $output .= $signature . "\n";
+    $output .= $comment->signature . "\n";
     $output .= "  </div>\n";
   }
   $output .= " </div>\n";

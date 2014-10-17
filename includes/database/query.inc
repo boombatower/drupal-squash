@@ -13,21 +13,21 @@ interface QueryConditionInterface {
   /**
    * Helper function to build most common conditional clauses.
    *
-   * This method can take a variable number of parameters.  If called with two
+   * This method can take a variable number of parameters. If called with two
    * parameters, they are taken as $field and $value with $operator having a value
    * of =.
    *
    * @param $field
    *   The name of the field to check.
    * @param $value
-   *   The value to test the field against.  In most cases, this is a scalar. For more
-   *   complex options, it is an array.  The meaning of each element in the array is
+   *   The value to test the field against. In most cases, this is a scalar. For more
+   *   complex options, it is an array. The meaning of each element in the array is
    *   dependent on the $operator.
    * @param $operator
-   *   The comparison operator, such as =, <, or >=.  It also accepts more complex
+   *   The comparison operator, such as =, <, or >=. It also accepts more complex
    *   options such as IN, LIKE, or BETWEEN.
    * @param $num_args
-   *   For internal use only.  This argument is used to track the recursive calls when
+   *   For internal use only. This argument is used to track the recursive calls when
    *   processing complex conditions.
    * @return
    *   The called object.
@@ -38,7 +38,7 @@ interface QueryConditionInterface {
    * Add an arbitrary WHERE clause to the query.
    *
    * @param $snippet
-   *   A portion of a WHERE clause as a prepared statement.  It must use named placeholders,
+   *   A portion of a WHERE clause as a prepared statement. It must use named placeholders,
    *   not ? placeholders.
    * @param $args
    *   An associative array of arguments.
@@ -50,7 +50,7 @@ interface QueryConditionInterface {
   /**
    * Gets a complete list of all conditions in this conditional clause.
    *
-   * This method returns by reference.  That allows alter hooks to access the
+   * This method returns by reference. That allows alter hooks to access the
    * data structure directly and manipulate it before it gets compiled.
    *
    * The data structure that is returned is an indexed array of entries, where
@@ -100,10 +100,10 @@ interface QueryAlterableInterface {
   /**
    * Adds a tag to a query.
    *
-   * Tags are strings that identify a query.  A query may have any number of
-   * tags.  Tags are used to mark a query so that alter hooks may decide if they
-   * wish to take action.  Tags should be all lower-case and contain only letters,
-   * numbers, and underscore, and start with a letter.  That is, they should
+   * Tags are strings that identify a query. A query may have any number of
+   * tags. Tags are used to mark a query so that alter hooks may decide if they
+   * wish to take action. Tags should be all lower-case and contain only letters,
+   * numbers, and underscore, and start with a letter. That is, they should
    * follow the same rules as PHP identifiers in general.
    *
    * @param $tag
@@ -146,14 +146,14 @@ interface QueryAlterableInterface {
    * Adds additional metadata to the query.
    *
    * Often, a query may need to provide additional contextual data to alter
-   * hooks.  Alter hooks may then use that information to decide if and how
+   * hooks. Alter hooks may then use that information to decide if and how
    * to take action.
    *
    * @param $key
-   *   The unique identifier for this piece of metadata.  Must be a string that
+   *   The unique identifier for this piece of metadata. Must be a string that
    *   follows the same rules as any other PHP identifier.
    * @param $object
-   *   The additional data to add to the query.  May be any valid PHP variable.
+   *   The additional data to add to the query. May be any valid PHP variable.
    *
    */
   public function addMetaData($key, $object);
@@ -219,7 +219,7 @@ class InsertQuery extends Query {
   protected $table;
 
   /**
-   * Whether or not this query is "delay-safe".  Different database drivers
+   * Whether or not this query is "delay-safe". Different database drivers
    * may or may not implement this feature in their own ways.
    *
    * @var boolean
@@ -243,17 +243,17 @@ class InsertQuery extends Query {
   /**
    * A nested array of values to insert.
    *
-   * $insertValues itself is an array of arrays.  Each sub-array is an array of
-   * field names to values to insert.  Whether multiple insert sets
+   * $insertValues itself is an array of arrays. Each sub-array is an array of
+   * field names to values to insert. Whether multiple insert sets
    * will be run in a single query or multiple queries is left to individual drivers
-   * to implement in whatever manner is most efficient.  The order of values in each
+   * to implement in whatever manner is most efficient. The order of values in each
    * sub-array must match the order of fields in $insertFields.
    *
    * @var string
    */
   protected $insertValues = array();
 
-  public function __construct($connection, $table, Array $options = array()) {
+  public function __construct($connection, $table, array $options = array()) {
     $options['return'] = Database::RETURN_INSERT_ID;
     $options += array('delay' => FALSE);
     parent::__construct($connection, $options);
@@ -263,23 +263,23 @@ class InsertQuery extends Query {
   /**
    * Add a set of field->value pairs to be inserted.
    *
-   * This method may only be called once.  Calling it a second time will be
-   * ignored.  To queue up multiple sets of values to be inserted at once,
+   * This method may only be called once. Calling it a second time will be
+   * ignored. To queue up multiple sets of values to be inserted at once,
    * use the values() method.
    *
    * @param $fields
-   *   An array of fields on which to insert.  This array may be indexed or
-   *   associative.  If indexed, the array is taken to be the list of fields.
+   *   An array of fields on which to insert. This array may be indexed or
+   *   associative. If indexed, the array is taken to be the list of fields.
    *   If associative, the keys of the array are taken to be the fields and
-   *   the values are taken to be corresponding values to insert.  If a
+   *   the values are taken to be corresponding values to insert. If a
    *   $values argument is provided, $fields must be indexed.
    * @param $values
-   *   An array of fields to insert into the database.  The values must be
+   *   An array of fields to insert into the database. The values must be
    *   specified in the same order as the $fields array.
    * @return
    *   The called object.
    */
-  public function fields(Array $fields, Array $values = array()) {
+  public function fields(array $fields, array $values = array()) {
     if (empty($this->insertFields)) {
       if (empty($values)) {
         if (!is_numeric(key($fields))) {
@@ -300,7 +300,7 @@ class InsertQuery extends Query {
    * Add another set of values to the query to be inserted.
    *
    * If $values is a numeric array, it will be assumed to be in the same
-   * order as the original fields() call.  If it is associative, it may be
+   * order as the original fields() call. If it is associative, it may be
    * in any order as long as the keys of the array match the names of the
    * fields.
    *
@@ -309,7 +309,7 @@ class InsertQuery extends Query {
    * @return
    *   The called object.
    */
-  public function values(Array $values) {
+  public function values(array $values) {
     if (is_numeric(key($values))) {
       $this->insertValues[] = $values;
     }
@@ -329,7 +329,7 @@ class InsertQuery extends Query {
    *
    * If you want to force a given field to use the database-defined default,
    * not NULL or undefined, use this method to instruct the database to use
-   * default values explicitly.  In most cases this will not be necessary
+   * default values explicitly. In most cases this will not be necessary
    * unless you are inserting a row that is all default values, as you cannot
    * specify no values in an INSERT query.
    *
@@ -342,7 +342,7 @@ class InsertQuery extends Query {
    * @return
    *   The called object.
    */
-  public function useDefaults(Array $fields) {
+  public function useDefaults(array $fields) {
     $this->defaultFields = $fields;
     return $this;
   }
@@ -351,17 +351,17 @@ class InsertQuery extends Query {
    * Flag this query as being delay-safe or not.
    *
    * If this method is never called, it is assumed that the query must be
-   * executed immediately.  If delay is set to TRUE, then the query will be
+   * executed immediately. If delay is set to TRUE, then the query will be
    * flagged to run "delayed" or "low priority" on databases that support such
-   * capabilities.  In that case, the database will return immediately and the
-   * query will be run at some point in the future.  That makes it useful for
+   * capabilities. In that case, the database will return immediately and the
+   * query will be run at some point in the future. That makes it useful for
    * logging-style queries.
    *
    * If the database does not support delayed INSERT queries, this method
    * has no effect.
    *
    * Note that for a delayed query there is no serial ID returned, as it won't
-   * be created until later when the query runs.  It should therefore not be
+   * be created until later when the query runs. It should therefore not be
    * used if the value of the ID is known.
    *
    * @param $delay
@@ -378,11 +378,13 @@ class InsertQuery extends Query {
    * Executes the insert query.
    *
    * @return
-   *   The last insert ID of the query, if one exists.  If the query
+   *   The last insert ID of the query, if one exists. If the query
    *   was given multiple sets of values to insert, the return value is
-   *   undefined.  If the query is flagged "delayed", then the insert ID
+   *   undefined. If the query is flagged "delayed", then the insert ID
    *   won't be created until later when the query actually runs so the
-   *   return value is also undefined.
+   *   return value is also undefined. If no fields are specified, this
+   *   method will do nothing and return NULL. That makes it safe to use
+   *   in multi-insert loops.
    */
   public function execute() {
 
@@ -394,8 +396,12 @@ class InsertQuery extends Query {
       throw new PDOException('You may not specify the same field to have a value and a schema-default value.');
     }
 
-    // Each insert happens in its own query in the degenerate case.  However,
-    // we wrap it in a transaction so that it is atomic where possible.  On many
+    if (count($this->insertFields) + count($this->defaultFields) == 0) {
+      return NULL;
+    }
+
+    // Each insert happens in its own query in the degenerate case. However,
+    // we wrap it in a transaction so that it is atomic where possible. On many
     // databases, such as SQLite, this is also a notable performance boost.
     $transaction = $this->connection->startTransaction();
     $sql = (string)$this;
@@ -480,7 +486,7 @@ class MergeQuery extends Query {
    */
   protected $expressionFields = array();
 
-  public function __construct($connection, $table, Array $options = array()) {
+  public function __construct($connection, $table, array $options = array()) {
     $options['return'] = Database::RETURN_AFFECTED;
     parent::__construct($connection, $options);
     $this->table = $table;
@@ -489,8 +495,8 @@ class MergeQuery extends Query {
   /**
    * Set the field->value pairs to be merged into the table.
    *
-   * This method should only be called once.  It may be called either
-   * with a single associative array or two indexed arrays.  If called
+   * This method should only be called once. It may be called either
+   * with a single associative array or two indexed arrays. If called
    * with an associative array, the keys are taken to be the fields
    * and the values are taken to be the corresponding values to set.
    * If called with two arrays, the first array is taken as the fields
@@ -499,12 +505,12 @@ class MergeQuery extends Query {
    * @param $fields
    *   An array of fields to set.
    * @param $values
-   *   An array of fields to set into the database.  The values must be
+   *   An array of fields to set into the database. The values must be
    *   specified in the same order as the $fields array.
    * @return
    *   The called object.
    */
-  public function fields(Array $fields, Array $values = array()) {
+  public function fields(array $fields, array $values = array()) {
     if (count($values) > 0) {
       $fields = array_combine($fields, $values);
     }
@@ -516,29 +522,29 @@ class MergeQuery extends Query {
   /**
    * Set the key field(s) to be used to insert or update into the table.
    *
-   * This method should only be called once.  It may be called either
-   * with a single associative array or two indexed arrays.  If called
+   * This method should only be called once. It may be called either
+   * with a single associative array or two indexed arrays. If called
    * with an associative array, the keys are taken to be the fields
    * and the values are taken to be the corresponding values to set.
    * If called with two arrays, the first array is taken as the fields
    * and the second array is taken as the corresponding values.
    *
-   * These fields are the "pivot" fields of the query.  Typically they
-   * will be the fields of the primary key.  If the record does not
+   * These fields are the "pivot" fields of the query. Typically they
+   * will be the fields of the primary key. If the record does not
    * yet exist, they will be inserted into the table along with the
-   * values set in the fields() method.  If the record does exist,
+   * values set in the fields() method. If the record does exist,
    * these fields will be used in the WHERE clause to select the
    * record to update.
    *
    * @param $fields
    *   An array of fields to set.
    * @param $values
-   *   An array of fields to set into the database.  The values must be
+   *   An array of fields to set into the database. The values must be
    *   specified in the same order as the $fields array.
    * @return
    *   The called object.
    */
-  public function key(Array $fields, Array $values = array()) {
+  public function key(array $fields, array $values = array()) {
     if ($values) {
       $fields = array_combine($fields, $values);
     }
@@ -551,18 +557,18 @@ class MergeQuery extends Query {
    * Specify fields to update in case of a duplicate record.
    *
    * If a record with the values in keys() already exists, the fields and values
-   * specified here will be updated in that record.  If this method is not called,
+   * specified here will be updated in that record. If this method is not called,
    * it defaults to the same values as were passed to the fields() method.
    *
    * @param $fields
    *   An array of fields to set.
    * @param $values
-   *   An array of fields to set into the database.  The values must be
+   *   An array of fields to set into the database. The values must be
    *   specified in the same order as the $fields array.
    * @return
    *   The called object.
    */
-  public function update(Array $fields, Array $values = array()) {
+  public function update(array $fields, array $values = array()) {
    if ($values) {
       $fields = array_combine($fields, $values);
     }
@@ -580,7 +586,7 @@ class MergeQuery extends Query {
    * is, calling this method is equivalent to calling update() with identical
    * parameters as fields() minus the keys specified here.
    *
-   * The update() method takes precedent over this method.  If update() is called,
+   * The update() method takes precedent over this method. If update() is called,
    * this method has no effect.
    *
    * @param $exclude_fields
@@ -603,14 +609,14 @@ class MergeQuery extends Query {
   /**
    * Specify fields to be updated as an expression.
    *
-   * Expression fields are cases such as counter=counter+1.  This method only
-   * applies if a duplicate key is detected.  This method takes precedent over
+   * Expression fields are cases such as counter=counter+1. This method only
+   * applies if a duplicate key is detected. This method takes precedent over
    * both update() and updateExcept().
    *
    * @param $field
    *   The field to set.
    * @param $expression
-   *   The field will be set to the value of this expression.  This parameter
+   *   The field will be set to the value of this expression. This parameter
    *   may include named placeholders.
    * @param $arguments
    *   If specified, this is an array of key/value pairs for named placeholders
@@ -618,7 +624,7 @@ class MergeQuery extends Query {
    * @return
    *   The called object.
    */
-  public function expression($field, $expression, Array $arguments = NULL) {
+  public function expression($field, $expression, array $arguments = NULL) {
     $this->expressionFields[$field] = array(
       'expression' => $expression,
       'arguments' => $arguments,
@@ -629,10 +635,15 @@ class MergeQuery extends Query {
 
   public function execute() {
 
+    // A merge query without any key field is invalid.
+    if (count($this->keyFields) == 0) {
+      throw new InvalidMergeQueryException("You need to specify key fields before executing a merge query");
+    }
+
     // In the degenerate case of this query type, we have to run multiple
     // queries as there is no universal single-query mechanism that will work.
     // Our degenerate case is not designed for performance efficiency but
-    // for comprehensibility.  Any practical database driver will override
+    // for comprehensibility. Any practical database driver will override
     // this method with database-specific logic, so this function serves only
     // as a fallback to aid developers of new drivers.
 
@@ -679,8 +690,7 @@ class MergeQuery extends Query {
       $this->connection->insert($this->table, $this->queryOptions)->fields($insert_fields)->execute();
     }
 
-    // Commit the transaction.
-    $transaction->commit();
+    // Transaction commits here where $transaction looses scope.
   }
 
   public function __toString() {
@@ -706,14 +716,14 @@ class DeleteQuery extends Query implements QueryConditionInterface {
   protected $table;
 
   /**
-   * The condition object for this query.  Condition handling is handled via
+   * The condition object for this query. Condition handling is handled via
    * composition.
    *
    * @var DatabaseCondition
    */
   protected $condition;
 
-  public function __construct(DatabaseConnection $connection, $table, Array $options = array()) {
+  public function __construct(DatabaseConnection $connection, $table, array $options = array()) {
     $options['return'] = Database::RETURN_AFFECTED;
     parent::__construct($connection, $options);
     $this->table = $table;
@@ -787,7 +797,7 @@ class UpdateQuery extends Query implements QueryConditionInterface {
    *
    * @var array
    */
-  protected $fields;
+  protected $fields = array();
 
   /**
    * An array of values to update to.
@@ -797,7 +807,7 @@ class UpdateQuery extends Query implements QueryConditionInterface {
   protected $arguments = array();
 
   /**
-   * The condition object for this query.  Condition handling is handled via
+   * The condition object for this query. Condition handling is handled via
    * composition.
    *
    * @var DatabaseCondition
@@ -818,7 +828,7 @@ class UpdateQuery extends Query implements QueryConditionInterface {
   protected $expressionFields = array();
 
 
-  public function __construct(DatabaseConnection $connection, $table, Array $options = array()) {
+  public function __construct(DatabaseConnection $connection, $table, array $options = array()) {
     $options['return'] = Database::RETURN_AFFECTED;
     parent::__construct($connection, $options);
     $this->table = $table;
@@ -855,12 +865,12 @@ class UpdateQuery extends Query implements QueryConditionInterface {
    * Add a set of field->value pairs to be updated.
    *
    * @param $fields
-   *   An associative array of fields to write into the database.  The array keys
+   *   An associative array of fields to write into the database. The array keys
    *   are the field names while the values are the values to which to set them.
    * @return
    *   The called object.
    */
-  public function fields(Array $fields) {
+  public function fields(array $fields) {
     $this->fields = $fields;
     return $this;
   }
@@ -868,13 +878,13 @@ class UpdateQuery extends Query implements QueryConditionInterface {
   /**
    * Specify fields to be updated as an expression.
    *
-   * Expression fields are cases such as counter=counter+1.  This method takes
+   * Expression fields are cases such as counter=counter+1. This method takes
    * precedence over fields().
    *
    * @param $field
    *   The field to set.
    * @param $expression
-   *   The field will be set to the value of this expression.  This parameter
+   *   The field will be set to the value of this expression. This parameter
    *   may include named placeholders.
    * @param $arguments
    *   If specified, this is an array of key/value pairs for named placeholders
@@ -882,7 +892,7 @@ class UpdateQuery extends Query implements QueryConditionInterface {
    * @return
    *   The called object.
    */
-  public function expression($field, $expression, Array $arguments = NULL) {
+  public function expression($field, $expression, array $arguments = NULL) {
     $this->expressionFields[$field] = array(
       'expression' => $expression,
       'arguments' => $arguments,
@@ -962,7 +972,7 @@ class DatabaseCondition implements QueryConditionInterface, Countable {
   }
 
   /**
-   * Return the size of this conditional.  This is part of the Countable interface.
+   * Return the size of this conditional. This is part of the Countable interface.
    *
    * The size of the conditional is the size of its conditional array minus
    * one, because one element is the the conjunction.
@@ -1008,9 +1018,9 @@ class DatabaseCondition implements QueryConditionInterface, Countable {
 
   public function compile(DatabaseConnection $connection) {
     // This value is static, so it will increment across the entire request
-    // rather than just this query.  That is OK, because we only need definitive
+    // rather than just this query. That is OK, because we only need definitive
     // placeholder names if we're going to use them for _alter hooks, which we
-    // are not.  The alter hook would intervene before compilation.
+    // are not. The alter hook would intervene before compilation.
     static $next_placeholder = 1;
 
     if ($this->changed) {
@@ -1055,7 +1065,7 @@ class DatabaseCondition implements QueryConditionInterface, Countable {
               $arguments += $condition['value']->arguments();
             }
             // We assume that if there is a delimiter, then the value is an
-            // array.  If not, it is a scalar.  For simplicity, we first convert
+            // array. If not, it is a scalar. For simplicity, we first convert
             // up to an array so that we can build the placeholders in the same way.
             elseif (!$operator['delimiter']) {
               $condition['value'] = array($condition['value']);
@@ -1090,11 +1100,11 @@ class DatabaseCondition implements QueryConditionInterface, Countable {
    * Gets any special processing requirements for the condition operator.
    *
    * Some condition types require special processing, such as IN, because
-   * the value data they pass in is not a simple value.  This is a simple
+   * the value data they pass in is not a simple value. This is a simple
    * overridable lookup function.
    *
    * @param $operator
-   *   The condition operator, such as "IN", "BETWEEN", etc.  Case-sensitive.
+   *   The condition operator, such as "IN", "BETWEEN", etc. Case-sensitive.
    * @return
    *   The extra handling directives for the specified operator, or NULL.
    */

@@ -7,9 +7,6 @@
  */
 
 class SessionTestCase extends DrupalWebTestCase {
-  /**
-   * Implementation of getInfo().
-   */
   function getInfo() {
     return array(
       'name' => t('Session tests'),
@@ -18,22 +15,53 @@ class SessionTestCase extends DrupalWebTestCase {
     );
   }
 
-  /**
-   * Implementation of setUp().
-   */
   function setUp() {
     parent::setUp('session_test');
   }
 
   /**
-   * Tests for drupal_save_session().
+   * Tests for drupal_save_session() and drupal_session_regenerate().
    */
-  function testSessionSaveSession() {
-    $this->assertTrue(drupal_save_session(), t('drupal_save_session() correctly returns TRUE when initially called with no arguments.'), t('Session'));
+  function testSessionSaveRegenerate() {
+    $this->assertFalse(drupal_save_session(), t('drupal_save_session() correctly returns FALSE (inside of testing framework) when initially called with no arguments.'), t('Session'));
     $this->assertFalse(drupal_save_session(FALSE), t('drupal_save_session() correctly returns FALSE when called with FALSE.'), t('Session'));
     $this->assertFalse(drupal_save_session(), t('drupal_save_session() correctly returns FALSE when saving has been disabled.'), t('Session'));
     $this->assertTrue(drupal_save_session(TRUE), t('drupal_save_session() correctly returns TRUE when called with TRUE.'), t('Session'));
     $this->assertTrue(drupal_save_session(), t('drupal_save_session() correctly returns TRUE when saving has been enabled.'), t('Session'));
+
+    // Test session hardening code from SA-2008-044.
+    $user = $this->drupalCreateUser(array('access content'));
+    // Enable sessions.
+    $this->sessionReset($user->uid);
+    // Make sure the session cookie is set as HttpOnly.
+    $this->drupalLogin($user);
+    $this->assertTrue(preg_match('/HttpOnly/i', $this->drupalGetHeader('Set-Cookie', TRUE)), t('Session cookie is set as HttpOnly.'));
+    $this->drupalLogout();
+    // Verify that the session is regenerated if a module calls exit
+    // in hook_user_login().
+    user_save($user, array('name' => 'session_test_user'));
+    $user->name = 'session_test_user';
+    $this->drupalGet('session-test/id');
+    $matches = array();
+    preg_match('/\s*session_id:(.*)\n/', $this->drupalGetContent(), $matches);
+    $this->assertTrue(!empty($matches[1]) , t('Found session ID before logging in.'));
+    $original_session = $matches[1];
+    // We cannot use $this->drupalLogin($user); because we exit in
+    // session_test_user_login() which breaks a normal assertion.
+    $edit = array(
+      'name' => $user->name,
+      'pass' => $user->pass_raw
+    );
+    $this->drupalPost('user', $edit, t('Log in'));
+    $this->drupalGet('node');
+    $pass = $this->assertText($user->name, t('Found name: %name', array('%name' => $user->name)), t('User login'));
+    $this->_logged_in = $pass;
+
+    $this->drupalGet('session-test/id');
+    $matches = array();
+    preg_match('/\s*session_id:(.*)\n/', $this->drupalGetContent(), $matches);
+    $this->assertTrue(!empty($matches[1]) , t('Found session ID after logging in.'));
+    $this->assertTrue($matches[1] != $original_session, t('Session ID changed after login.'));
   }
 
   /**
@@ -127,9 +155,9 @@ class SessionTestCase extends DrupalWebTestCase {
     $this->curlClose();
 
     // Change cookie file for user.
-    $this->cookie_file = file_directory_temp() . '/cookie.' . $uid . '.txt';
-    $this->curl_options[CURLOPT_COOKIEFILE] = $this->cookie_file;
-    $this->curl_options[CURLOPT_COOKIESESSION] = TRUE;
+    $this->cookieFile = file_directory_temp() . '/cookie.' . $uid . '.txt';
+    $this->additionalCurlOptions[CURLOPT_COOKIEFILE] = $this->cookieFile;
+    $this->additionalCurlOptions[CURLOPT_COOKIESESSION] = TRUE;
     $this->drupalGet('session-test/get');
     $this->assertResponse(200, t('Session test module is correctly enabled.'), t('Session'));
   }

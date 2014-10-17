@@ -61,12 +61,12 @@ function book_perm() {
 }
 
 /**
- * Implementation of hook_link().
+ * Inject links into $node as needed. 
  */
-function book_link($type, $node = NULL, $teaser = FALSE) {
+function book_nodeapi_view_link($node, $teaser, $page) {
   $links = array();
-
-  if ($type == 'node' && isset($node->book)) {
+  
+  if (isset($node->book['depth'])) {
     if (!$teaser) {
       $child_type = variable_get('book_child_type', 'book');
       if ((user_access('add content to books') || user_access('administer book outlines')) && node_access('create', $child_type) && $node->status == 1 && $node->book['depth'] < MENU_MAX_DEPTH) {
@@ -87,7 +87,12 @@ function book_link($type, $node = NULL, $teaser = FALSE) {
     }
   }
 
-  return $links;
+  if (!empty($links)) {
+    $node->content['links']['book'] = array(
+      '#type' => 'node_links',
+      '#value' => $links,
+    );
+  }
 }
 
 /**
@@ -180,80 +185,95 @@ function book_init() {
 }
 
 /**
- * Implementation of hook_block().
+ * Implementation of hook_block_list().
+ */
+function book_block_list() {
+  $block = array();
+  $block['navigation']['info'] = t('Book navigation');
+  $block['navigation']['cache'] = BLOCK_CACHE_PER_PAGE | BLOCK_CACHE_PER_ROLE;
+
+  return $block;
+}
+
+/**
+ * Implementation of hook_block_view().
  *
  * Displays the book table of contents in a block when the current page is a
  * single-node view of a book node.
  */
-function book_block($op = 'list', $delta = '', $edit = array()) {
+function book_block_view($delta = '') {
   $block = array();
-  switch ($op) {
-    case 'list':
-      $block['navigation']['info'] = t('Book navigation');
-      $block['navigation']['cache'] = BLOCK_CACHE_PER_PAGE | BLOCK_CACHE_PER_ROLE;
-
-      return $block;
-
-    case 'view':
-      $current_bid = 0;
-      if ($node = menu_get_object()) {
-        $current_bid = empty($node->book['bid']) ? 0 : $node->book['bid'];
-      }
-
-      if (variable_get('book_block_mode', 'all pages') == 'all pages') {
-        $block['subject'] = t('Book navigation');
-        $book_menus = array();
-        $pseudo_tree = array(0 => array('below' => FALSE));
-        foreach (book_get_books() as $book_id => $book) {
-          if ($book['bid'] == $current_bid) {
-            // If the current page is a node associated with a book, the menu
-            // needs to be retrieved.
-            $book_menus[$book_id] = menu_tree_output(menu_tree_all_data($node->book['menu_name'], $node->book));
-          }
-          else {
-            // Since we know we will only display a link to the top node, there
-            // is no reason to run an additional menu tree query for each book.
-            $book['in_active_trail'] = FALSE;
-            $pseudo_tree[0]['link'] = $book;
-            $book_menus[$book_id] = menu_tree_output($pseudo_tree);
-          }
-        }
-        $block['content'] = theme('book_all_books_block', $book_menus);
-      }
-      elseif ($current_bid) {
-        // Only display this block when the user is browsing a book.
-        $title = db_result(db_query(db_rewrite_sql('SELECT n.title FROM {node} n WHERE n.nid = %d'), $node->book['bid']));
-        // Only show the block if the user has view access for the top-level node.
-        if ($title) {
-          $tree = menu_tree_all_data($node->book['menu_name'], $node->book);
-          // There should only be one element at the top level.
-          $data = array_shift($tree);
-          $block['subject'] = theme('book_title_link', $data['link']);
-          $block['content'] = ($data['below']) ? menu_tree_output($data['below']) : '';
-        }
-      }
-
-      return $block;
-
-    case 'configure':
-      $options = array(
-        'all pages' => t('Show block on all pages'),
-        'book pages' => t('Show block only on book pages'),
-      );
-      $form['book_block_mode'] = array(
-        '#type' => 'radios',
-        '#title' => t('Book navigation block display'),
-        '#options' => $options,
-        '#default_value' => variable_get('book_block_mode', 'all pages'),
-        '#description' => t("If <em>Show block on all pages</em> is selected, the block will contain the automatically generated menus for all of the site's books. If <em>Show block only on book pages</em> is selected, the block will contain only the one menu corresponding to the current page's book. In this case, if the current page is not in a book, no block will be displayed. The <em>Page specific visibility settings</em> or other visibility settings can be used in addition to selectively display this block."),
-        );
-
-      return $form;
-
-    case 'save':
-      variable_set('book_block_mode', $edit['book_block_mode']);
-      break;
+  $current_bid = 0;
+  if ($node = menu_get_object()) {
+    $current_bid = empty($node->book['bid']) ? 0 : $node->book['bid'];
   }
+
+  if (variable_get('book_block_mode', 'all pages') == 'all pages') {
+    $block['subject'] = t('Book navigation');
+    $book_menus = array();
+    $pseudo_tree = array(0 => array('below' => FALSE));
+    foreach (book_get_books() as $book_id => $book) {
+      if ($book['bid'] == $current_bid) {
+        // If the current page is a node associated with a book, the menu
+        // needs to be retrieved.
+        $book_menus[$book_id] = menu_tree_output(menu_tree_all_data($node->book['menu_name'], $node->book));
+      }
+      else {
+        // Since we know we will only display a link to the top node, there
+        // is no reason to run an additional menu tree query for each book.
+        $book['in_active_trail'] = FALSE;
+        $pseudo_tree[0]['link'] = $book;
+        $book_menus[$book_id] = menu_tree_output($pseudo_tree);
+      }
+    }
+    $block['content'] = theme('book_all_books_block', $book_menus);
+  }
+  elseif ($current_bid) {
+    // Only display this block when the user is browsing a book.
+    $select = db_select('node');
+    $select->addField('node', 'title');
+    $select->condition('nid', $node->book['bid']);
+    $select->addTag('node_access');
+    $title = $select->execute()->fetchField();
+    // Only show the block if the user has view access for the top-level node.
+    if ($title) {
+      $tree = menu_tree_all_data($node->book['menu_name'], $node->book);
+      // There should only be one element at the top level.
+      $data = array_shift($tree);
+      $block['subject'] = theme('book_title_link', $data['link']);
+      $block['content'] = ($data['below']) ? menu_tree_output($data['below']) : '';
+    }
+  }
+
+  return $block;
+}
+
+/**
+ * Implementation of hook_block_configure().
+ */
+function book_block_configure($delta = '') {
+  $block = array();
+  $options = array(
+    'all pages' => t('Show block on all pages'),
+    'book pages' => t('Show block only on book pages'),
+  );
+  $form['book_block_mode'] = array(
+    '#type' => 'radios',
+    '#title' => t('Book navigation block display'),
+    '#options' => $options,
+    '#default_value' => variable_get('book_block_mode', 'all pages'),
+    '#description' => t("If <em>Show block on all pages</em> is selected, the block will contain the automatically generated menus for all of the site's books. If <em>Show block only on book pages</em> is selected, the block will contain only the one menu corresponding to the current page's book. In this case, if the current page is not in a book, no block will be displayed. The <em>Page specific visibility settings</em> or other visibility settings can be used in addition to selectively display this block."),
+    );
+
+  return $form;
+}
+
+/**
+ * Implementation of hook_block_save().
+ */
+function book_block_save($delta = '', $edit = array()) {
+  $block = array();
+  variable_set('book_block_mode', $edit['book_block_mode']);
 }
 
 /**
@@ -278,15 +298,23 @@ function book_get_books() {
 
   if (!isset($all_books)) {
     $all_books = array();
-    $result = db_query("SELECT DISTINCT(bid) FROM {book}");
-    $nids = array();
-    while ($book = db_fetch_array($result)) {
-      $nids[] = $book['bid'];
-    }
+    $nids = db_query("SELECT DISTINCT(bid) FROM {book}")->fetchCol();
 
     if ($nids) {
-      $result2 = db_query(db_rewrite_sql("SELECT n.type, n.title, b.*, ml.* FROM {book} b INNER JOIN {node} n on b.nid = n.nid INNER JOIN {menu_links} ml ON b.mlid = ml.mlid WHERE n.nid IN (" . implode(',', $nids) . ") AND n.status = 1 ORDER BY ml.weight, ml.link_title"));
-      while ($link = db_fetch_array($result2)) {
+      $query = db_select('book', 'b', array('fetch' => PDO::FETCH_ASSOC));
+      $node_alias = $query->join('node', 'n', 'b.nid = n.nid');
+      $menu_links_alias = $query->join('menu_links', 'ml', 'b.mlid = ml.mlid');
+      $query->addField('n', 'type', 'type');
+      $query->addField('n', 'title', 'title');
+      $query->fields('b');
+      $query->fields($menu_links_alias);
+      $query->condition('n.nid', $nids, 'IN');
+      $query->condition('n.status', 1);
+      $query->orderBy('ml.weight');
+      $query->orderBy('ml.link_title');
+      $query->addTag('node_access');
+      $result2 = $query->execute();
+      foreach ($result2 as $link) {
         $link['href'] = $link['link_path'];
         $link['options'] = unserialize($link['options']);
         $all_books[$link['bid']] = $link;
@@ -478,10 +506,14 @@ function _book_update_outline(&$node) {
   else {
     // Check in case the parent is not is this book; the book takes precedence.
     if (!empty($node->book['plid'])) {
-      $parent = db_fetch_array(db_query("SELECT * FROM {book} WHERE mlid = %d", $node->book['plid']));
+      $parent = db_query("SELECT * FROM {book} WHERE mlid = :mlid", array(
+        ':mlid' => $node->book['plid'],
+      ))->fetchAssoc();
     }
     if (empty($node->book['plid']) || !$parent || $parent['bid'] != $node->book['bid']) {
-      $node->book['plid'] = db_result(db_query("SELECT mlid FROM {book} WHERE nid = %d", $node->book['bid']));
+      $node->book['plid'] = db_query("SELECT mlid FROM {book} WHERE nid = :nid", array(
+        ':nid' => $node->book['bid'],
+      ))->fetchField();
       $node->book['parent_mismatch'] = TRUE; // Likely when JS is disabled.
     }
   }
@@ -489,10 +521,18 @@ function _book_update_outline(&$node) {
   if (menu_link_save($node->book)) {
     if ($new) {
       // Insert new.
-      db_query("INSERT INTO {book} (nid, mlid, bid) VALUES (%d, %d, %d)", $node->nid, $node->book['mlid'], $node->book['bid']);
+      db_insert('book')
+        ->fields(array(
+          'nid' => $node->nid,
+          'mlid' => $node->book['mlid'],
+          'bid' => $node->book['bid'],
+        ))
+        ->execute();
     }
     else {
-      if ($node->book['bid'] != db_result(db_query("SELECT bid FROM {book} WHERE nid = %d", $node->nid))) {
+      if ($node->book['bid'] != db_query("SELECT bid FROM {book} WHERE nid = :nid", array(
+          ':nid' => $node->nid,
+        ))->fetchField()) {
         // Update the bid for this page and all children.
         book_update_bid($node->book);
       }
@@ -512,19 +552,18 @@ function _book_update_outline(&$node) {
  *   A fully loaded menu link that is part of the book hierarchy.
  */
 function book_update_bid($book_link) {
+  $query = db_select('menu_links');
+  $query->addField('menu_links', 'mlid');
   for ($i = 1; $i <= MENU_MAX_DEPTH && $book_link["p$i"]; $i++) {
-    $match[] = "p$i = %d";
-    $args[] = $book_link["p$i"];
+    $query->condition("p$i", $book_link["p$i"]);
   }
-  $result = db_query("SELECT mlid FROM {menu_links} WHERE " . implode(' AND ', $match), $args);
-
-  $mlids = array();
-  while ($a = db_fetch_array($result)) {
-    $mlids[] = $a['mlid'];
-  }
+  $mlids = $query->execute()->fetchCol();
 
   if ($mlids) {
-    db_query("UPDATE {book} SET bid = %d WHERE mlid IN (" . implode(',', $mlids) . ")", $book_link['bid']);
+    db_update('book')
+      ->fields(array('bid' => $book_link['bid']))
+      ->condition('mlid', $mlids, 'IN')
+      ->execute();
   }
 }
 
@@ -536,7 +575,7 @@ function book_update_bid($book_link) {
  * @return
  *   A linear array of menu links in the order that the links are shown in the
  *   menu, so the previous and next pages are the elements before and after the
- *   element corresponding to $node.  The children of $node (if any) will come
+ *   element corresponding to $node. The children of $node (if any) will come
  *   immediately after it in the array.
  */
 function book_get_flat_menu($book_link) {
@@ -586,7 +625,8 @@ function book_prev($book_link) {
     // The previous page in the book may be a child of the previous visible link.
     if ($prev['depth'] == $book_link['depth'] && $prev['has_children']) {
       // The subtree will have only one link at the top level - get its data.
-      $data = array_shift(book_menu_subtree_data($prev));
+      $tree = book_menu_subtree_data($prev);
+      $data = array_shift($tree);
       // The link of interest is the last child - iterate to find the deepest one.
       while ($data['below']) {
         $data = end($data['below']);
@@ -682,23 +722,20 @@ function book_build_active_trail($book_link) {
 /**
  * Implementation of hook_nodeapi_load().
  */
-function book_nodeapi_load(&$node, $teaser, $page) {
-  // Note - we cannot use book_link_load() because it will call node_load().
-  $info['book'] = db_fetch_array(db_query('SELECT * FROM {book} b INNER JOIN {menu_links} ml ON b.mlid = ml.mlid WHERE b.nid = %d', $node->nid));
-
-  if ($info['book']) {
-    $info['book']['href'] = $info['book']['link_path'];
-    $info['book']['title'] = $info['book']['link_title'];
-    $info['book']['options'] = unserialize($info['book']['options']);
-
-    return $info;
+function book_nodeapi_load($nodes, $types) {
+  $result = db_query("SELECT * FROM {book} b INNER JOIN {menu_links} ml ON b.mlid = ml.mlid WHERE b.nid IN (:nids)", array(':nids' =>  array_keys($nodes)), array('fetch' => PDO::FETCH_ASSOC));
+  foreach ($result as $record) {
+    $nodes[$record['nid']]->book = $record;
+    $nodes[$record['nid']]->book['href'] = $record['link_path'];
+    $nodes[$record['nid']]->book['title'] = $record['link_title'];
+    $nodes[$record['nid']]->book['options'] = unserialize($record['options']);
   }
 }
 
 /**
  * Implementation of hook_nodeapi_view().
  */
-function book_nodeapi_view(&$node, $teaser, $page) {
+function book_nodeapi_view($node, $teaser, $page) {
   if (!$teaser) {
     if (!empty($node->book['bid']) && $node->build_mode == NODE_BUILD_NORMAL) {
       $node->content['book_navigation'] = array(
@@ -712,15 +749,21 @@ function book_nodeapi_view(&$node, $teaser, $page) {
       }
     }
   }
+  
+  book_nodeapi_view_link($node, $teaser, $page);
 }
 
 /**
  * Implementation of hook_nodeapi_presave().
  */
-function book_nodeapi_presave(&$node, $teaser, $page) {
+function book_nodeapi_presave($node) {
   // Always save a revision for non-administrators.
   if (!empty($node->book['bid']) && !user_access('administer nodes')) {
     $node->revision = 1;
+    // The database schema requires a log message for every revision.
+    if (!isset($node->log)) {
+      $node->log = '';
+    }
   }
   // Make sure a new node gets a new menu link.
   if (empty($node->nid)) {
@@ -731,7 +774,7 @@ function book_nodeapi_presave(&$node, $teaser, $page) {
 /**
  * Implementation of hook_nodeapi_insert().
  */
-function book_nodeapi_insert(&$node, $teaser, $page) {
+function book_nodeapi_insert($node) {
   if (!empty($node->book['bid'])) {
     if ($node->book['bid'] == 'new') {
       // New nodes that are their own book.
@@ -746,7 +789,7 @@ function book_nodeapi_insert(&$node, $teaser, $page) {
 /**
  * Implementation of hook_nodeapi_update().
  */
-function book_nodeapi_update(&$node, $teaser, $page) {
+function book_nodeapi_update($node) {
   if (!empty($node->book['bid'])) {
     if ($node->book['bid'] == 'new') {
       // New nodes that are their own book.
@@ -761,26 +804,30 @@ function book_nodeapi_update(&$node, $teaser, $page) {
 /**
  * Implementation of hook_nodeapi_delete().
  */
-function book_nodeapi_delete(&$node, $teaser, $page) {
+function book_nodeapi_delete($node) {
   if (!empty($node->book['bid'])) {
     if ($node->nid == $node->book['bid']) {
       // Handle deletion of a top-level post.
-      $result = db_query("SELECT b.nid FROM {menu_links} ml INNER JOIN {book} b on b.mlid = ml.mlid WHERE ml.plid = %d", $node->book['mlid']);
-      while ($child = db_fetch_array($result)) {
-        $child_node = node_load($child['nid']);
+      $result = db_query("SELECT b.nid FROM {menu_links} ml INNER JOIN {book} b on b.mlid = ml.mlid WHERE ml.plid = :plid", array(
+        ':plid' => $node->book['mlid']
+      ));
+      foreach ($result as $child) {
+        $child_node = node_load($child->nid);
         $child_node->book['bid'] = $child_node->nid;
         _book_update_outline($child_node);
       }
     }
     menu_link_delete($node->book['mlid']);
-    db_query('DELETE FROM {book} WHERE mlid = %d', $node->book['mlid']);
+    db_delete('book')
+      ->condition('mlid', $node->book['mlid'])
+      ->execute();
   }
 }
 
 /**
  * Implementation of hook_nodeapi_prepare().
  */
-function book_nodeapi_prepare(&$node, $teaser, $page) {
+function book_nodeapi_prepare($node) {
   // Prepare defaults for the add/edit form.
   if (empty($node->book) && (user_access('add content to books') || user_access('administer book outlines'))) {
     $node->book = array();
@@ -920,7 +967,7 @@ function _book_toc_recurse($tree, $indent, &$toc, $exclude, $depth_limit) {
  * @param $bid
  *   The ID of the book whose pages are to be listed.
  * @param $exclude
- *   Optional array of mlid values.  Any link whose mlid is in this array
+ *   Optional array of mlid values. Any link whose mlid is in this array
  *   will be excluded (along with its children).
  * @param $depth_limit
  *   Any link deeper than this value will be excluded (along with its children).
@@ -1094,7 +1141,9 @@ function book_help($path, $arg) {
  * Do not call when loading a node, since this function may call node_load().
  */
 function book_link_load($mlid) {
-  if ($item = db_fetch_array(db_query("SELECT * FROM {menu_links} ml INNER JOIN {book} b ON b.mlid = ml.mlid LEFT JOIN {menu_router} m ON m.path = ml.router_path WHERE ml.mlid = %d", $mlid))) {
+  if ($item = db_query("SELECT * FROM {menu_links} ml INNER JOIN {book} b ON b.mlid = ml.mlid LEFT JOIN {menu_router} m ON m.path = ml.router_path WHERE ml.mlid = :mlid", array(
+      ':mlid' => $mlid,
+    ))->fetchAssoc()) {
     _menu_link_translate($item);
     return $item;
   }
@@ -1134,22 +1183,21 @@ function book_menu_subtree_data($item) {
 
     // If the subtree data was not in the cache, $data will be NULL.
     if (!isset($data)) {
-      $match = array("menu_name = '%s'");
-      $args = array($item['menu_name']);
-      $i = 1;
-      while ($i <= MENU_MAX_DEPTH && $item["p$i"]) {
-        $match[] = "p$i = %d";
-        $args[] = $item["p$i"];
-        $i++;
+      $query = db_select('menu_links', 'ml');
+      $menu_router_alias = $query->join('menu_router', 'm', 'm.path = ml.router_path');
+      $book_alias = $query->join('book', 'b', 'ml.mlid = b.mlid');
+      $query->fields($book_alias);
+      $query->fields($menu_router_alias, array('load_functions', 'to_arg_functions', 'access_callback', 'access_arguments', 'page_callback', 'page_arguments', 'title', 'title_callback', 'title_arguments', 'type'));
+      $query->fields('ml');
+      $query->condition('menu_name', $item['menu_name']);
+      for ($i = 1; $i <= MENU_MAX_DEPTH && $item["p$i"]; ++$i) {
+        $query->condition("p$i", $item["p$i"]);
       }
-      $sql = "
-        SELECT b.*, m.load_functions, m.to_arg_functions, m.access_callback, m.access_arguments, m.page_callback, m.page_arguments, m.title, m.title_callback, m.title_arguments, m.type, ml.*
-        FROM {menu_links} ml INNER JOIN {menu_router} m ON m.path = ml.router_path
-        INNER JOIN {book} b ON ml.mlid = b.mlid
-        WHERE " . implode(' AND ', $match) . "
-        ORDER BY p1 ASC, p2 ASC, p3 ASC, p4 ASC, p5 ASC, p6 ASC, p7 ASC, p8 ASC, p9 ASC";
+      for ($i = 1; $i <= MENU_MAX_DEPTH; ++$i) {
+        $query->orderBy("p$i");
+      }
 
-      $data['tree'] = menu_tree_data(db_query($sql, $args), array(), $item['depth']);
+      $data['tree'] = menu_tree_data($query->execute(), array(), $item['depth']);
       $data['node_links'] = array();
       menu_tree_collect_node_links($data['tree'], $data['node_links']);
       // Compute the real cid for book subtree data.

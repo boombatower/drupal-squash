@@ -14,14 +14,29 @@
 
 class DatabaseSchema_mysql extends DatabaseSchema {
 
-  public function tableExists($table) {
-    return (bool) $this->connection->query("SHOW TABLES LIKE '{" . $table . "}'", array(), array())->fetchField();
-  }
+  /**
+   * Build a condition to match a table name against a standard information_schema. 
+   *
+   * MySQL uses databases like schemas rather than catalogs so when we build
+   * a condition to query the information_schema.tables, we set the default
+   * database as the schema unless specified otherwise, and exclude table_catalog 
+   * from the condition criteria.
+   */
+  protected function buildTableNameCondition($table_name, $operator = '=') {
+    $info = Database::getConnectionInfo();
 
-  public function columnExists($table, $column) {
-    return (bool) $this->connection->query("SHOW COLUMNS FROM {" . $this->connection->escapeTable($table) . "} LIKE '" . $this->connection->escapeTable($column) . "'", array(), array())->fetchField();
-  }
+    if (strpos($table_name, '.')) {
+      list($schema, $table_name) = explode('.', $table_name);
+    }
+    else {
+      $schema = $info['default']['database'];
+    }
 
+    $condition = db_and()
+      ->condition('table_schema', $schema)
+      ->condition('table_name', $table_name, $operator);
+    return $condition;
+  }
 
   /**
    * Generate SQL to create a new table from a Drupal schema definition.
@@ -92,9 +107,13 @@ class DatabaseSchema_mysql extends DatabaseSchema {
       $sql .= ' auto_increment';
     }
 
-    if (isset($spec['default'])) {
+    // $spec['default'] can be NULL, so we explicitly check for the key here.
+    if (array_key_exists('default', $spec)) {
       if (is_string($spec['default'])) {
         $spec['default'] = "'" . $spec['default'] . "'";
+      }
+      elseif (is_null($spec['default'])) {
+        $spec['default'] = 'NULL';
       }
       $sql .= ' DEFAULT ' . $spec['default'];
     }
@@ -132,7 +151,7 @@ class DatabaseSchema_mysql extends DatabaseSchema {
   }
 
   public function getFieldTypeMap() {
-    // Put :normal last so it gets preserved by array_flip.  This makes
+    // Put :normal last so it gets preserved by array_flip. This makes
     // it much easier for modules (such as schema.module) to map
     // database types back into schema types.
     static $map = array(
@@ -259,7 +278,7 @@ class DatabaseSchema_mysql extends DatabaseSchema {
   }
 
   public function fieldSetDefault(&$ret, $table, $field, $default) {
-    if ($default == NULL) {
+    if (is_null($default)) {
       $default = 'NULL';
     }
     else {

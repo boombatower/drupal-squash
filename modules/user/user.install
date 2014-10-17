@@ -6,10 +6,10 @@
  */
 function user_schema() {
   $schema['authmap'] = array(
-    'description' => t('Stores distributed authentication mapping.'),
+    'description' => 'Stores distributed authentication mapping.',
     'fields' => array(
       'aid' => array(
-        'description' => t('Primary Key: Unique authmap ID.'),
+        'description' => 'Primary Key: Unique authmap ID.',
         'type' => 'serial',
         'unsigned' => TRUE,
         'not null' => TRUE,
@@ -18,21 +18,21 @@ function user_schema() {
         'type' => 'int',
         'not null' => TRUE,
         'default' => 0,
-        'description' => t("User's {users}.uid."),
+        'description' => "User's {users}.uid.",
       ),
       'authname' => array(
         'type' => 'varchar',
         'length' => 128,
         'not null' => TRUE,
         'default' => '',
-        'description' => t('Unique authentication name.'),
+        'description' => 'Unique authentication name.',
       ),
       'module' => array(
         'type' => 'varchar',
         'length' => 128,
         'not null' => TRUE,
         'default' => '',
-        'description' => t('Module which is controlling the authentication.'),
+        'description' => 'Module which is controlling the authentication.',
       ),
     ),
     'unique keys' => array(
@@ -42,20 +42,20 @@ function user_schema() {
   );
 
   $schema['role_permission'] = array(
-    'description' => t('Stores the permissions assigned to user roles.'),
+    'description' => 'Stores the permissions assigned to user roles.',
     'fields' => array(
       'rid' => array(
         'type' => 'int',
         'unsigned' => TRUE,
         'not null' => TRUE,
-        'description' => t('Foreign Key: {role}.rid.'),
+        'description' => 'Foreign Key: {role}.rid.',
       ),
       'permission' => array(
         'type' => 'varchar',
         'length' => 64,
         'not null' => TRUE,
         'default' => '',
-        'description' => t('A single permission granted to the role identified by rid.'),
+        'description' => 'A single permission granted to the role identified by rid.',
       ),
     ),
     'primary key' => array('rid', 'permission'),
@@ -65,20 +65,20 @@ function user_schema() {
   );
 
   $schema['role'] = array(
-    'description' => t('Stores user roles.'),
+    'description' => 'Stores user roles.',
     'fields' => array(
       'rid' => array(
         'type' => 'serial',
         'unsigned' => TRUE,
         'not null' => TRUE,
-        'description' => t('Primary Key: Unique role ID.'),
+        'description' => 'Primary Key: Unique role ID.',
       ),
       'name' => array(
         'type' => 'varchar',
         'length' => 64,
         'not null' => TRUE,
         'default' => '',
-        'description' => t('Unique role name.'),
+        'description' => 'Unique role name.',
       ),
     ),
     'unique keys' => array(
@@ -88,107 +88,107 @@ function user_schema() {
   );
 
   $schema['users'] = array(
-    'description' => t('Stores user data.'),
+    'description' => 'Stores user data.',
     'fields' => array(
       'uid' => array(
         'type' => 'serial',
         'unsigned' => TRUE,
         'not null' => TRUE,
-        'description' => t('Primary Key: Unique user ID.'),
+        'description' => 'Primary Key: Unique user ID.',
       ),
       'name' => array(
         'type' => 'varchar',
         'length' => 60,
         'not null' => TRUE,
         'default' => '',
-        'description' => t('Unique user name.'),
+        'description' => 'Unique user name.',
       ),
       'pass' => array(
         'type' => 'varchar',
         'length' => 128,
         'not null' => TRUE,
         'default' => '',
-        'description' => t("User's password (hashed)."),
+        'description' => "User's password (hashed).",
       ),
       'mail' => array(
         'type' => 'varchar',
         'length' => 64,
         'not null' => FALSE,
         'default' => '',
-        'description' => t("User's email address."),
+        'description' => "User's email address.",
       ),
       'theme' => array(
         'type' => 'varchar',
         'length' => 255,
         'not null' => TRUE,
         'default' => '',
-        'description' => t("User's default theme."),
+        'description' => "User's default theme.",
       ),
       'signature' => array(
         'type' => 'varchar',
         'length' => 255,
         'not null' => TRUE,
         'default' => '',
-        'description' => t("User's signature."),
+        'description' => "User's signature.",
       ),
       'created' => array(
         'type' => 'int',
         'not null' => TRUE,
         'default' => 0,
-        'description' => t('Timestamp for when user was created.'),
+        'description' => 'Timestamp for when user was created.',
       ),
       'access' => array(
         'type' => 'int',
         'not null' => TRUE,
         'default' => 0,
-        'description' => t('Timestamp for previous time user accessed the site.'),
+        'description' => 'Timestamp for previous time user accessed the site.',
       ),
       'login' => array(
         'type' => 'int',
         'not null' => TRUE,
         'default' => 0,
-        'description' => t("Timestamp for user's last login."),
+        'description' => "Timestamp for user's last login.",
       ),
       'status' => array(
         'type' => 'int',
         'not null' => TRUE,
         'default' => 0,
         'size' => 'tiny',
-        'description' => t('Whether the user is active(1) or blocked(0).'),
+        'description' => 'Whether the user is active(1) or blocked(0).',
       ),
       'timezone' => array(
         'type' => 'varchar',
-        'length' => 8,
+        'length' => 32,
         'not null' => FALSE,
-        'description' => t("User's timezone."),
+        'description' => "User's time zone.",
       ),
       'language' => array(
         'type' => 'varchar',
         'length' => 12,
         'not null' => TRUE,
         'default' => '',
-        'description' => t("User's default language."),
+        'description' => "User's default language.",
       ),
       'picture' => array(
         'type' => 'varchar',
         'length' => 255,
         'not null' => TRUE,
         'default' => '',
-        'description' => t("Path to the user's uploaded picture."),
+        'description' => "Path to the user's uploaded picture.",
       ),
       'init' => array(
         'type' => 'varchar',
         'length' => 64,
         'not null' => FALSE,
         'default' => '',
-        'description' => t('Email address used for initial account creation.'),
+        'description' => 'Email address used for initial account creation.',
       ),
       'data' => array(
         'type' => 'text',
         'not null' => FALSE,
         'size' => 'big',
         'serialize' => TRUE,
-        'description' => t('A serialized array of name value pairs that are related to the user. Any form values posted during user edit are stored and are loaded into the $user object during user_load(). Use of this field is discouraged and it will likely disappear in a future version of Drupal.'),
+        'description' => 'A serialized array of name value pairs that are related to the user. Any form values posted during user edit are stored and are loaded into the $user object during user_load(). Use of this field is discouraged and it will likely disappear in a future version of Drupal.',
       ),
     ),
     'indexes' => array(
@@ -203,21 +203,21 @@ function user_schema() {
   );
 
   $schema['users_roles'] = array(
-    'description' => t('Maps users to roles.'),
+    'description' => 'Maps users to roles.',
     'fields' => array(
       'uid' => array(
         'type' => 'int',
         'unsigned' => TRUE,
         'not null' => TRUE,
         'default' => 0,
-        'description' => t('Primary Key: {users}.uid for user.'),
+        'description' => 'Primary Key: {users}.uid for user.',
       ),
       'rid' => array(
         'type' => 'int',
         'unsigned' => TRUE,
         'not null' => TRUE,
         'default' => 0,
-        'description' => t('Primary Key: {role}.rid for role.'),
+        'description' => 'Primary Key: {role}.rid for role.',
       ),
     ),
     'primary key' => array('uid', 'rid'),
@@ -288,6 +288,102 @@ function user_update_7001() {
   db_drop_field($ret, 'users', 'mode');
   db_drop_field($ret, 'users', 'sort');
 
+  return $ret;
+}
+
+/**
+ * Convert user time zones from time zone offsets to time zone names.
+ */
+function user_update_7002(&$sandbox) {
+  $ret = array('#finished' => 0);
+
+  // Multi-part update.
+  if (!isset($sandbox['user_from'])) {
+    db_change_field($ret, 'users', 'timezone', 'timezone', array('type' => 'varchar', 'length' => 32, 'not null' => FALSE));
+    $sandbox['user_from'] = 0;
+    $sandbox['user_count'] = db_result(db_query("SELECT COUNT(uid) FROM {users}"));
+    $sandbox['user_not_migrated'] = 0;
+  }
+  else {
+    $timezones = system_time_zones();
+    // Update this many per page load.
+    $count = 10000;
+    $contributed_date_module = db_column_exists('users', 'timezone_name');
+    $contributed_event_module = db_column_exists('users', 'timezone_id');
+
+    $results = db_query_range("SELECT uid FROM {users} ORDER BY uid", array(), $sandbox['user_from'], $count);
+    foreach ($results as $account) {
+      $timezone = NULL;
+      // If the contributed Date module has created a users.timezone_name
+      // column, use this data to set each user's time zone.
+      if ($contributed_date_module) {
+        $date_timezone = db_query("SELECT timezone_name FROM {users} WHERE uid = :uid", array(':uid' => $account->uid))->fetchField();
+        if (isset($timezones[$date_timezone])) {
+          $timezone = $date_timezone;
+        }
+      }
+      // If the contributed Event module has stored user time zone information
+      // use that information to update the user accounts.
+      if (!$timezone && $contributed_event_module) {
+        try {
+          $event_timezone = db_query("SELECT t.name FROM {users} u LEFT JOIN {event_timezones} t ON u.timezone_id = t.timezone WHERE u.uid = :uid", array(':uid' => $account->uid))->fetchField();
+          $event_timezone = str_replace(' ', '_', $event_timezone);
+          if (isset($timezones[$event_timezone])) {
+            $timezone = $event_timezone;
+          }
+        }
+        catch (PDOException $e) {
+          // Ignore error if event_timezones table does not exist or unexpected
+          // schema found.
+        }
+      }
+      if ($timezone) {
+        db_query("UPDATE {users} SET timezone = :timezone WHERE uid = :uid", array(':timezone' => $timezone, ':uid' => $account->uid));
+      }
+      else {
+        $sandbox['user_not_migrated']++;
+        db_query("UPDATE {users} SET timezone = NULL WHERE uid = :uid", array(':uid' => $account->uid));
+      }
+      $sandbox['user_from']++;
+    }
+
+    $ret['#finished'] = $sandbox['user_from'] / $sandbox['user_count'];
+    if ($sandbox['user_from'] == $sandbox['user_count']) {
+      $ret[] = array('success' => TRUE, 'query' => "Migrate user time zones.");
+      if ($sandbox['user_not_migrated'] > 0) {
+        variable_set('empty_timezone_message', 1);
+        drupal_set_message('Some user time zones have been emptied and need to be set to the correct values. Use the new ' . l('time zone options', 'admin/settings/date-time') . ' to choose whether to remind users at login to set the correct time zone.', 'warning');
+      }
+    }
+  }
+  return $ret;
+}
+
+/**
+ * Update user settings for cancelling user accounts.
+ *
+ * Prior to 7.x, users were not able to cancel their accounts. When
+ * administrators deleted an account, all contents were assigned to uid 0,
+ * which is the same as the 'user_cancel_reassign' method now.
+ */
+function user_update_7003() {
+  $ret = array();
+  // Set the default account cancellation method.
+  variable_set('user_cancel_method', 'user_cancel_reassign');
+  // Re-assign notification setting.
+  if ($setting = variable_get('user_mail_status_deleted_notify', FALSE)) {
+    variable_set('user_mail_status_canceled_notify', $setting);
+    variable_del('user_mail_status_deleted_notify');
+  }
+  // Re-assign "Account deleted" mail strings to "Account canceled" mail.
+  if ($setting = variable_get('user_mail_status_deleted_subject', FALSE)) {
+    variable_set('user_mail_status_canceled_subject', $setting);
+    variable_del('user_mail_status_deleted_subject');
+  }
+  if ($setting = variable_get('user_mail_status_deleted_body', FALSE)) {
+    variable_set('user_mail_status_canceled_body', $setting);
+    variable_del('user_mail_status_deleted_body');
+  }
   return $ret;
 }
 

@@ -158,16 +158,20 @@ function search_perm() {
 }
 
 /**
- * Implementation of hook_block().
+ * Implementation of hook_block_list().
  */
-function search_block($op = 'list', $delta = '') {
-  if ($op == 'list') {
-    $blocks['form']['info'] = t('Search form');
-    // Not worth caching.
-    $blocks['form']['cache'] = BLOCK_NO_CACHE;
-    return $blocks;
-  }
-  elseif ($op == 'view' && user_access('search content')) {
+function search_block_list() {
+  $blocks['form']['info'] = t('Search form');
+  // Not worth caching.
+  $blocks['form']['cache'] = BLOCK_NO_CACHE;
+  return $blocks;
+}
+
+/**
+ * Implementation of hook_block_view().
+ */
+function search_block_view($delta = '') {
+  if (user_access('search content')) {
     $block['content'] = drupal_get_form('search_block_form');
     $block['subject'] = t('Search');
     return $block;
@@ -208,14 +212,14 @@ function search_menu() {
     'file path' => drupal_get_path('module', 'dblog'),
   );
 
-  foreach (module_implements('search') as $name) {
-    $items['search/' . $name . '/%menu_tail'] = array(
+  foreach (module_implements('search') as $module) {
+    $items['search/' . $module . '/%menu_tail'] = array(
       'title callback' => 'module_invoke',
-      'title arguments' => array($name, 'search', 'name', TRUE),
+      'title arguments' => array($module, 'search', 'name', TRUE),
       'page callback' => 'search_view',
-      'page arguments' => array($name),
+      'page arguments' => array($module),
       'access callback' => '_search_menu',
-      'access arguments' => array($name),
+      'access arguments' => array($module),
       'type' => MENU_LOCAL_TASK,
       'parent' => 'search',
     );
@@ -277,9 +281,7 @@ function search_cron() {
   register_shutdown_function('search_update_totals');
 
   // Update word index
-  foreach (module_list() as $module) {
-    module_invoke($module, 'update_index');
-  }
+  module_invoke_all('update_index');
 }
 
 /**
@@ -429,7 +431,7 @@ function search_index($sid, $type, $text) {
   global $base_url;
   $node_regexp = '@href=[\'"]?(?:' . preg_quote($base_url, '@') . '/|' . preg_quote(base_path(), '@') . ')(?:\?q=)?/?((?![a-z]+:)[^\'">]+)[\'">]@i';
 
-  // Multipliers for scores of words inside certain HTML tags.  The weights are stored
+  // Multipliers for scores of words inside certain HTML tags. The weights are stored
   // in a variable so that modules can overwrite the default weights.
   // Note: 'a' must be included for link ranking to work.
   $tags = variable_get('search_tag_weights', array(
@@ -457,7 +459,7 @@ function search_index($sid, $type, $text) {
   // and begins and ends with a literal (inserting $null as required).
 
   $tag = FALSE; // Odd/even counter. Tag or no tag.
-  $link = FALSE; // State variable for link analyser
+  $link = FALSE; // State variable for link analyzer
   $score = 1; // Starting score per word
   $accum = ' '; // Accumulator for cleaned up data
   $tagstack = array(); // Stack with open tags
@@ -507,7 +509,7 @@ function search_index($sid, $type, $text) {
               $linknid = $match[1];
               if ($linknid > 0) {
                 // Note: ignore links to uncachable nodes to avoid redirect bugs.
-                $node = db_fetch_object(db_query('SELECT n.title, n.nid, n.vid, r.format FROM {node} n INNER JOIN {node_revisions} r ON n.vid = r.vid WHERE n.nid = %d', $linknid));
+                $node = db_fetch_object(db_query('SELECT n.title, n.nid, n.vid, r.format FROM {node} n INNER JOIN {node_revision} r ON n.vid = r.vid WHERE n.nid = %d', $linknid));
                 if (filter_format_allowcache($node->format)) {
                   $link = TRUE;
                   $linktitle = $node->title;
@@ -580,7 +582,7 @@ function search_index($sid, $type, $text) {
   // Insert results into search index
   foreach ($results[0] as $word => $score) {
     // If a word already exists in the database, its score gets increased
-    // appropriately.  If not, we create a new record with the appropriate
+    // appropriately. If not, we create a new record with the appropriate
     // starting score.
     db_merge('search_index')->key(array(
       'word' => $word,
@@ -637,7 +639,7 @@ function search_touch_node($nid) {
 /**
  * Implementation of hook_nodeapi_update_index().
  */
-function search_nodeapi_update_index(&$node, $teaser = NULL, $page = NULL) {
+function search_nodeapi_update_index($node) {
   // Transplant links to a node into the target node.
   $result = db_query("SELECT caption FROM {search_node_links} WHERE nid = %d", $node->nid);
   $output = array();
@@ -650,26 +652,50 @@ function search_nodeapi_update_index(&$node, $teaser = NULL, $page = NULL) {
 /**
  * Implementation of hook_nodeapi_update().
  */
-function search_nodeapi_update(&$node, $teaser = NULL, $page = NULL) {
-  // Reindex the node when it is updated.  The node is automatically indexed
+function search_nodeapi_update($node) {
+  // Reindex the node when it is updated. The node is automatically indexed
   // when it is added, simply by being added to the node table.
   search_touch_node($node->nid);
 }
 
 /**
- * Implementation of hook_comment().
+ * Implementation of hook_comment_insert().
  */
-function search_comment($a1, $op) {
-  switch ($op) {
-    // Reindex the node when comments are added or changed
-    case 'insert':
-    case 'update':
-    case 'delete':
-    case 'publish':
-    case 'unpublish':
-      search_touch_node(is_array($a1) ? $a1['nid'] : $a1->nid);
-      break;
-  }
+function search_comment_insert($form_values) {
+  // Reindex the node when comments are added.
+  search_touch_node($form_values['nid']);
+}
+
+/**
+ * Implementation of hook_comment_update().
+ */
+function search_comment_update($form_values) {
+  // Reindex the node when comments are changed.
+  search_touch_node($form_values['nid']);
+}
+
+/**
+ * Implementation of hook_comment_delete().
+ */
+function search_comment_delete($comment) {
+  // Reindex the node when comments are deleted.
+  search_touch_node($comment->nid);
+}
+
+/**
+ * Implementation of hook_comment_publish().
+ */
+function search_comment_publish($form_values) {
+  // Reindex the node when comments are published.
+  search_touch_node($form_values['nid']);
+}
+
+/**
+ * Implementation of hook_comment_unpublish().
+ */
+function search_comment_unpublish($comment) {
+  // Reindex the node when comments are unpublished.
+  search_touch_node($comment->nid);
 }
 
 /**
@@ -710,9 +736,9 @@ function search_query_insert($keys, $option, $value = '') {
  *    * Arguments for this query part.
  *    * A series of exact word matches OR'd together.
  *    * Arguments for this query part.
- *    * A bool indicating whether this is a simple query or not. Negative
+ *    * A boolean indicating whether this is a simple query or not. Negative
  *      terms, presence of both AND / OR make this FALSE.
- *    * A bool indicating the presence of a lowercase or. Maybe the user
+ *    * A boolean indicating the presence of a lowercase or. Maybe the user
  *      wanted to use OR.
  */
 function search_parse_query($text) {
@@ -875,7 +901,7 @@ function _search_parse_query(&$word, &$scores, $not = FALSE) {
  * indexed search (and thus, implements hook_update_index()).
  *
  * Results are retrieved in two logical passes. However, the two passes are
- * joined together into a single query.  And in the case of most simple
+ * joined together into a single query. And in the case of most simple
  * queries the second pass is not even used.
  *
  * The first pass selects a set of all possible matches, which has the benefit
@@ -904,7 +930,7 @@ function _search_parse_query(&$word, &$scores, $not = FALSE) {
  * @param $columns2
  *   (optional) Inserted into the SELECT pat of the second query. Must contain
  *   a column selected as 'calculated_score'.
- *   defaults to 'i.relevance AS calculated_score'
+ *   defaults to 'SUM(i.relevance) AS calculated_score'
  *
  * @param $join2
  *   (optional) Inserted into the JOIN par of the second SQL query.
@@ -922,7 +948,7 @@ function _search_parse_query(&$word, &$scores, $not = FALSE) {
  *
  * @ingroup search
  */
-function do_search($keywords, $type, $join1 = '', $where1 = '1 = 1', $arguments1 = array(), $columns2 = 'i.relevance AS calculated_score', $join2 = '', $arguments2 = array(), $sort_parameters = 'ORDER BY calculated_score DESC') {
+function do_search($keywords, $type, $join1 = '', $where1 = '1 = 1', $arguments1 = array(), $columns2 = 'SUM(i.relevance) AS calculated_score', $join2 = '', $arguments2 = array(), $sort_parameters = 'ORDER BY calculated_score DESC') {
   $query = search_parse_query($keywords);
 
   if ($query[2] == '') {
@@ -954,12 +980,12 @@ function do_search($keywords, $type, $join1 = '', $where1 = '1 = 1', $arguments1
   if (!$normalize) {
     return array();
   }
-  $columns2 = str_replace('i.relevance', '(' . (1.0 / $normalize) . ' * SUM(i.score * t.count))', $columns2);
+  $columns2 = str_replace('i.relevance', '(' . (1.0 / $normalize) . ' * i.score * t.count)', $columns2);
 
   // Build query to retrieve results.
   $select = "SELECT i.type, i.sid, $columns2 FROM {search_index} i $join $join2 WHERE $conditions GROUP BY i.type, i.sid HAVING COUNT(*) >= %d";
   $count_select =  "SELECT COUNT(*) FROM ($select) n1";
-  $arguments = array_merge($arguments2, $arguments1, array($query[4]));
+  $arguments = array_values(array_merge($arguments2, $arguments1, array($query[4])));
 
   // Do actual search query
   $result = pager_query("$select $sort_parameters", 10, 0, $count_select, $arguments);

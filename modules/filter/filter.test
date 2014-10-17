@@ -2,9 +2,6 @@
 // $Id$
 
 class FilterAdminTestCase extends DrupalWebTestCase {
-  /**
-   * Implementation of getInfo().
-   */
   function getInfo() {
     return array(
       'name' => t('Filter administration functionality'),
@@ -54,7 +51,7 @@ class FilterAdminTestCase extends DrupalWebTestCase {
     $this->drupalPost('admin/settings/filters/' . $filtered . '/order', $edit, t('Save configuration'));
     $this->assertText(t('The filter ordering has been saved.'), t('Order saved successfully.'));
 
-    $result = db_query('SELECT * FROM {filters} WHERE format = %d ORDER BY weight ASC', $filtered);
+    $result = db_query('SELECT * FROM {filter} WHERE format = %d ORDER BY weight ASC', $filtered);
     $filters = array();
     while ($filter = db_fetch_object($result)) {
       if ($filter->delta == $second_filter || $filter->delta == $first_filter) {
@@ -117,7 +114,7 @@ class FilterAdminTestCase extends DrupalWebTestCase {
     $this->drupalPost('node/add/page', $edit, t('Save'));
     $this->assertRaw(t('Page %title has been created.', array('%title' => $edit['title'])), t('Filtered node created.'));
 
-    $node = node_load(array('title' => $edit['title']));
+    $node = $this->drupalGetNodeByTitle($edit['title']);
     $this->assertTrue($node, t('Node found in database.'));
 
     $this->drupalGet('node/' . $node->nid);
@@ -154,7 +151,7 @@ class FilterAdminTestCase extends DrupalWebTestCase {
    * @return Array Array containing filtered and full filter ids.
    */
   function checkFilterFormats() {
-    $result = db_query('SELECT format, name FROM {filter_formats}');
+    $result = db_query('SELECT format, name FROM {filter_format}');
 
     $filtered = -1;
     $full = -1;
@@ -177,16 +174,13 @@ class FilterAdminTestCase extends DrupalWebTestCase {
    * @return object Filter object.
    */
   function getFilter($name) {
-    return db_fetch_object(db_query("SELECT * FROM {filter_formats} WHERE name = '%s'", $name));
+    return db_fetch_object(db_query("SELECT * FROM {filter_format} WHERE name = '%s'", $name));
   }
 }
 
 class FilterTestCase extends DrupalWebTestCase {
   protected $format;
 
-  /**
-   * Implementation of getInfo().
-   */
   function getInfo() {
     return array(
       'name' => t('Core filters'),
@@ -195,9 +189,6 @@ class FilterTestCase extends DrupalWebTestCase {
     );
   }
 
-  /**
-   * Implementation of setUp().
-   */
   function setUp() {
     parent::setUp();
 
@@ -209,7 +200,14 @@ class FilterTestCase extends DrupalWebTestCase {
    * Test the line break filter
    */
   function testLineBreakFilter() {
+    $f = _filter_autop('<p><div>  </div></p>');
+    $this->assertEqual(substr_count($f, '<p>'), substr_count($f, '</p>'), t('Make sure line breaking produces matching paragraph tags.'));
+    
+    $f = _filter_autop('<div><p>  </p></div>');
+    $this->assertEqual(substr_count($f, '<p>'), substr_count($f, '</p>'), t('Make sure line breaking produces matching paragraph tags.'));
 
+    $f = _filter_autop('<blockquote><pre>aaa</pre></blockquote>');
+    $this->assertEqual(substr_count($f, '<p>'), substr_count($f, '</p>'), t('Make sure line breaking produces matching paragraph tags.'));
   }
 
   /**
@@ -226,7 +224,7 @@ class FilterTestCase extends DrupalWebTestCase {
       'filters[filter/' . $filter . ']' => TRUE,
     );
     $this->drupalPost('admin/settings/filters/add', $edit, t('Save configuration'));
-    return db_fetch_object(db_query("SELECT * FROM {filter_formats} WHERE name = '%s'", $edit['name']));
+    return db_fetch_object(db_query("SELECT * FROM {filter_format} WHERE name = '%s'", $edit['name']));
   }
 
   function deleteFormat($format) {

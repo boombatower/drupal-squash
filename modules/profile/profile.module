@@ -126,69 +126,78 @@ function profile_menu() {
 }
 
 /**
- * Implementation of hook_block().
+ * Implementation of hook_block_list().
  */
-function profile_block($op = 'list', $delta = '', $edit = array()) {
+function profile_block_list() {
+  $blocks['author-information']['info'] = t('Author information');
+  $blocks['author-information']['cache'] = BLOCK_CACHE_PER_PAGE | BLOCK_CACHE_PER_ROLE;
+  return $blocks;
+}
 
-  if ($op == 'list') {
-    $blocks['author-information']['info'] = t('Author information');
-    $blocks['author-information']['cache'] = BLOCK_CACHE_PER_PAGE | BLOCK_CACHE_PER_ROLE;
-    return $blocks;
+/**
+ * Implementation of hook_block_configure().
+ */
+function profile_block_configure($delta = '') {
+  // Compile a list of fields to show
+  $fields = array();
+  $result = db_query('SELECT name, title, weight, visibility FROM {profile_field} WHERE visibility IN (%d, %d) ORDER BY weight', PROFILE_PUBLIC, PROFILE_PUBLIC_LISTINGS);
+  while ($record = db_fetch_object($result)) {
+    $fields[$record->name] = check_plain($record->title);
   }
-  elseif ($op == 'configure') {
-    // Compile a list of fields to show
-    $fields = array();
-    $result = db_query('SELECT name, title, weight, visibility FROM {profile_fields} WHERE visibility IN (%d, %d) ORDER BY weight', PROFILE_PUBLIC, PROFILE_PUBLIC_LISTINGS);
-    while ($record = db_fetch_object($result)) {
-      $fields[$record->name] = check_plain($record->title);
-    }
-    $fields['user_profile'] = t('Link to full user profile');
-    $form['profile_block_author_fields'] = array(
-      '#type' => 'checkboxes',
-      '#title' => t('Profile fields to display'),
-      '#default_value' => variable_get('profile_block_author_fields', array()),
-      '#options' => $fields,
-      '#description' => t('Select which profile fields you wish to display in the block. Only fields designated as public in the <a href="@profile-admin">profile field configuration</a> are available.', array('@profile-admin' => url('admin/user/profile'))),
-    );
-    return $form;
-  }
-  elseif ($op == 'save') {
-    variable_set('profile_block_author_fields', $edit['profile_block_author_fields']);
-  }
-  elseif ($op == 'view') {
-    if (user_access('access user profiles')) {
-      $output = '';
-      if ((arg(0) == 'node') && is_numeric(arg(1)) && (arg(2) == NULL)) {
-        $node = node_load(arg(1));
-        $account = user_load(array('uid' => $node->uid));
+  $fields['user_profile'] = t('Link to full user profile');
+  $form['profile_block_author_fields'] = array(
+    '#type' => 'checkboxes',
+    '#title' => t('Profile fields to display'),
+    '#default_value' => variable_get('profile_block_author_fields', array()),
+    '#options' => $fields,
+    '#description' => t('Select which profile fields you wish to display in the block. Only fields designated as public in the <a href="@profile-admin">profile field configuration</a> are available.', array('@profile-admin' => url('admin/user/profile'))),
+  );
+  return $form;
+}
 
-        if ($use_fields = variable_get('profile_block_author_fields', array())) {
-          // Compile a list of fields to show.
-          $fields = array();
-          $result = db_query('SELECT name, title, type, visibility, weight FROM {profile_fields} WHERE visibility IN (%d, %d) ORDER BY weight', PROFILE_PUBLIC, PROFILE_PUBLIC_LISTINGS);
-          while ($record = db_fetch_object($result)) {
-            // Ensure that field is displayed only if it is among the defined block fields and, if it is private, the user has appropriate permissions.
-            if (isset($use_fields[$record->name]) && $use_fields[$record->name]) {
-              $fields[] = $record;
-            }
+/**
+ * Implementation of hook_block_save().
+ */
+function profile_block_save($delta = '', $edit = array()) {
+  variable_set('profile_block_author_fields', $edit['profile_block_author_fields']);
+}
+
+/**
+ * Implementation of hook_block_view().
+ */
+function profile_block_view($delta = '') {
+  if (user_access('access user profiles')) {
+    $output = '';
+    if ((arg(0) == 'node') && is_numeric(arg(1)) && (arg(2) == NULL)) {
+      $node = node_load(arg(1));
+      $account = user_load(array('uid' => $node->uid));
+
+      if ($use_fields = variable_get('profile_block_author_fields', array())) {
+        // Compile a list of fields to show.
+        $fields = array();
+        $result = db_query('SELECT name, title, type, visibility, weight FROM {profile_field} WHERE visibility IN (%d, %d) ORDER BY weight', PROFILE_PUBLIC, PROFILE_PUBLIC_LISTINGS);
+        while ($record = db_fetch_object($result)) {
+          // Ensure that field is displayed only if it is among the defined block fields and, if it is private, the user has appropriate permissions.
+          if (isset($use_fields[$record->name]) && $use_fields[$record->name]) {
+            $fields[] = $record;
           }
         }
-
-        if (!empty($fields)) {
-          $profile = _profile_update_user_fields($fields, $account);
-          $output .= theme('profile_block', $account, $profile, TRUE);
-        }
-
-        if (isset($use_fields['user_profile']) && $use_fields['user_profile']) {
-          $output .= '<div>' . l(t('View full user profile'), 'user/' . $account->uid) . '</div>';
-        }
       }
 
-      if ($output) {
-        $block['subject'] = t('About %name', array('%name' => $account->name));
-        $block['content'] = $output;
-        return $block;
+      if (!empty($fields)) {
+        $profile = _profile_update_user_fields($fields, $account);
+        $output .= theme('profile_block', $account, $profile, TRUE);
       }
+
+      if (isset($use_fields['user_profile']) && $use_fields['user_profile']) {
+        $output .= '<div>' . l(t('View full user profile'), 'user/' . $account->uid) . '</div>';
+      }
+    }
+
+    if ($output) {
+      $block['subject'] = t('About %name', array('%name' => $account->name));
+      $block['content'] = $output;
+      return $block;
     }
   }
 }
@@ -250,14 +259,19 @@ function profile_user_categories(&$edit, &$user, $category = NULL) {
 }
 
 /**
- * Implementation of hook_user_delete().
+ * Implementation of hook_user_cancel().
  */
-function profile_user_delete(&$edit, &$user, $category = NULL) {
-  db_query('DELETE FROM {profile_values} WHERE uid = %d', $user->uid);
+function profile_user_cancel(&$edit, &$account, $method) {
+  switch ($method) {
+    case 'user_cancel_reassign':
+    case 'user_cancel_delete':
+      db_delete('profile_value')->condition('uid', $account->uid)->execute();
+      break;
+  }
 }
 
 function profile_load_profile(&$user) {
-  $result = db_query('SELECT f.name, f.type, v.value FROM {profile_fields} f INNER JOIN {profile_values} v ON f.fid = v.fid WHERE uid = %d', $user->uid);
+  $result = db_query('SELECT f.name, f.type, v.value FROM {profile_field} f INNER JOIN {profile_value} v ON f.fid = v.fid WHERE uid = %d', $user->uid);
   while ($field = db_fetch_object($result)) {
     if (empty($user->{$field->name})) {
       $user->{$field->name} = _profile_field_serialize($field->type) ? unserialize($field->value) : $field->value;
@@ -271,8 +285,8 @@ function profile_save_profile(&$edit, &$user, $category, $register = FALSE) {
     if (_profile_field_serialize($field->type)) {
       $edit[$field->name] = serialize($edit[$field->name]);
     }
-    db_query("DELETE FROM {profile_values} WHERE fid = %d AND uid = %d", $field->fid, $user->uid);
-    db_query("INSERT INTO {profile_values} (fid, uid, value) VALUES (%d, %d, '%s')", $field->fid, $user->uid, $edit[$field->name]);
+    db_query("DELETE FROM {profile_value} WHERE fid = %d AND uid = %d", $field->fid, $user->uid);
+    db_query("INSERT INTO {profile_value} (fid, uid, value) VALUES (%d, %d, '%s')", $field->fid, $user->uid, $edit[$field->name]);
     // Mark field as handled (prevents saving to user->data).
     $edit[$field->name] = NULL;
   }
@@ -331,10 +345,10 @@ function profile_view_profile(&$user) {
 
   // Show private fields to administrators and people viewing their own account.
   if (user_access('administer users') || $GLOBALS['user']->uid == $user->uid) {
-    $result = db_query('SELECT * FROM {profile_fields} WHERE visibility != %d ORDER BY category, weight', PROFILE_HIDDEN);
+    $result = db_query('SELECT * FROM {profile_field} WHERE visibility != %d ORDER BY category, weight', PROFILE_HIDDEN);
   }
   else {
-    $result = db_query('SELECT * FROM {profile_fields} WHERE visibility != %d AND visibility != %d ORDER BY category, weight', PROFILE_PRIVATE, PROFILE_HIDDEN);
+    $result = db_query('SELECT * FROM {profile_field} WHERE visibility != %d AND visibility != %d ORDER BY category, weight', PROFILE_PRIVATE, PROFILE_HIDDEN);
   }
 
   $fields = array();
@@ -424,7 +438,7 @@ function profile_form_profile($edit, $user, $category, $register = FALSE) {
         break;
       case 'selection':
         $options = $field->required ? array() : array('--');
-        $lines = preg_split("/[,\n\r]/", $field->options);
+        $lines = preg_split("/[\n\r]/", $field->options);
         foreach ($lines as $line) {
           if ($line = trim($line)) {
             $options[$line] = $line;
@@ -480,7 +494,7 @@ function profile_validate_profile($edit, $category) {
 }
 
 function profile_categories() {
-  $result = db_query("SELECT DISTINCT(category) FROM {profile_fields}");
+  $result = db_query("SELECT DISTINCT(category) FROM {profile_field}");
   $data = array();
   while ($category = db_fetch_object($result)) {
     $data[] = array(
@@ -502,7 +516,7 @@ function profile_category_access($account, $category) {
     return TRUE;
   }
   else {
-    return user_edit_access($account) && db_result(db_query("SELECT COUNT(*) FROM {profile_fields} WHERE category = '%s' AND visibility <> %d", $category, PROFILE_HIDDEN));
+    return user_edit_access($account) && db_result(db_query("SELECT COUNT(*) FROM {profile_field} WHERE category = '%s' AND visibility <> %d", $category, PROFILE_HIDDEN));
   }
 }
 
@@ -589,7 +603,7 @@ function _profile_field_serialize($type = NULL) {
 
 function _profile_get_fields($category, $register = FALSE) {
   $args = array();
-  $sql = 'SELECT * FROM {profile_fields} WHERE ';
+  $sql = 'SELECT * FROM {profile_field} WHERE ';
   $filters = array();
   if ($register) {
     $filters[] = 'register = 1';

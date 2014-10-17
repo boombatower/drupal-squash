@@ -5,9 +5,6 @@ class DBLogTestCase extends DrupalWebTestCase {
   protected $big_user;
   protected $any_user;
 
-  /**
-   * Implementation of getInfo().
-   */
   function getInfo() {
     return array(
       'name' => t('DBLog functionality'),
@@ -40,7 +37,7 @@ class DBLogTestCase extends DrupalWebTestCase {
     $this->verifyReports();
 
     // Login the regular user.
-    $user = $this->drupalLogin($this->any_user);
+    $this->drupalLogin($this->any_user);
     $this->verifyReports(403);
   }
 
@@ -168,7 +165,7 @@ class DBLogTestCase extends DrupalWebTestCase {
     $this->doNode('page');
     $this->doNode('poll');
 
-    // When a user is deleted, any content they created remains but the
+    // When a user account is canceled, any content they created remains but the
     // uid = 0. Their blog entry shows as "'s blog" on the home page. Records
     // in the watchdog table related to that user have the uid set to zero.
   }
@@ -205,8 +202,13 @@ class DBLogTestCase extends DrupalWebTestCase {
     }
     $count_before = (isset($ids)) ? count($ids) : 0;
     $this->assertTrue($count_before > 0, t('DBLog contains @count records for @name', array('@count' => $count_before, '@name' => $user->name)));
+
+    // Login the admin user.
+    $this->drupalLogin($this->big_user);
     // Delete user.
-    user_delete(array(), $user->uid);
+    // We need to POST here to invoke batch_process() in the internal browser.
+    $this->drupalPost('user/' . $user->uid . '/cancel', array('user_cancel_method' => 'user_cancel_reassign'), t('Cancel account'));
+
     // Count rows that have uids for the user.
     $count = db_result(db_query('SELECT COUNT(wid) FROM {watchdog} WHERE uid = %d', $user->uid));
     $this->assertTrue($count == 0, t('DBLog contains @count records for @name', array('@count' => $count, '@name' => $user->name)));
@@ -228,8 +230,6 @@ class DBLogTestCase extends DrupalWebTestCase {
     }
     $this->assertTrue(!isset($ids), t('DBLog contains no records for @name', array('@name' => $user->name)));
 
-    // Login the admin user.
-    $this->drupalLogin($this->big_user);
     // View the dblog report.
     $this->drupalGet('admin/reports/dblog');
     $this->assertResponse(200);
@@ -265,7 +265,7 @@ class DBLogTestCase extends DrupalWebTestCase {
     $this->drupalPost('node/add/' . $type, $edit, t('Save'));
     $this->assertResponse(200);
     // Retrieve node object.
-    $node = node_load(array('title' => $title));
+    $node = $this->drupalGetNodeByTitle($title);
     $this->assertTrue($node != null, t('Node @title was loaded', array('@title' => $title)));
     // Edit node.
     $edit = $this->getContentUpdate($type);
@@ -356,5 +356,37 @@ class DBLogTestCase extends DrupalWebTestCase {
       break;
     }
     return $content;
+  }
+
+  /**
+   * Login an admin user, create dblog event, and test clearing dblog functionality through the admin interface.
+   */
+  protected function testDBLogAddAndClear() {
+    global $base_root;
+    // Get a count of how many watchdog entries there are.
+    $count = db_query('SELECT COUNT(*) FROM {watchdog}')->fetchField();
+    $log = array(
+      'type'        => 'custom',
+      'message'     => 'Log entry added to test the doClearTest clear down.',
+      'variables'   => array(),
+      'severity'    => WATCHDOG_NOTICE,
+      'link'        => NULL,
+      'user'        => $this->big_user,
+      'request_uri' => $base_root . request_uri(),
+      'referer'     => $_SERVER['HTTP_REFERER'],
+      'ip'          => ip_address(),
+      'timestamp'   => REQUEST_TIME,
+    );
+    // Add a watchdog entry.
+    dblog_watchdog($log);
+    // Make sure the table count has actually incremented.
+    $this->assertEqual($count + 1, db_query('SELECT COUNT(*) FROM {watchdog}')->fetchField(), t('dblog_watchdog() added an entry to the dblog %count', array('%count' => $count)));
+    // Login the admin user.
+    $this->drupalLogin($this->big_user);
+    // Now post to clear the db table.
+    $this->drupalPost('admin/reports/dblog', array(), t('Clear log messages'));
+    // Count rows in watchdog that previously related to the deleted user.
+    $count = db_query('SELECT COUNT(*) FROM {watchdog}')->fetchField();
+    $this->assertEqual($count, 0, t('DBLog contains %count records after a clear.', array('%count' => $count)));
   }
 }

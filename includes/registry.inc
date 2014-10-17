@@ -25,10 +25,10 @@
 function _registry_rebuild() {
 
   // The registry serves as a central autoloader for all classes, including
-  // the database query builders.  However, the registry rebuild process
+  // the database query builders. However, the registry rebuild process
   // requires write ability to the database, which means having access to the
-  // query builders that require the registry in order to be loaded.  That
-  // causes a fatal race condition.  Therefore we manually include the
+  // query builders that require the registry in order to be loaded. That
+  // causes a fatal race condition. Therefore we manually include the
   // appropriate query builders for the currently active database before the
   // registry rebuild process runs.
   $connection_info = Database::getConnectionInfo();
@@ -72,8 +72,12 @@ function _registry_rebuild() {
   $parsed_files = _registry_parse_files($files);
 
   $unchanged_resources = array();
-  foreach (_registry_get_lookup_cache() as $key => $file) {
-    // If the file for this cached resource is carried over unchanged from 
+  $lookup_cache = array();
+  if ($cache = cache_get('lookup_cache', 'cache_registry')) {
+    $lookup_cache = $cache->data;
+  }
+  foreach ($lookup_cache as $key => $file) {
+    // If the file for this cached resource is carried over unchanged from
     // the last registry build, then we can safely re-cache it.
     if ($file && in_array($file, array_keys($files)) && !in_array($file, $parsed_files)) {
       $unchanged_resources[$key] = $file;
@@ -87,7 +91,7 @@ function _registry_rebuild() {
   // We have some unchanged resources, warm up the cache - no need to pay
   // for looking them up again.
   if (count($unchanged_resources) > 0) {
-    _registry_set_lookup_cache($unchanged_resources);
+    cache_set('lookup_cache', $unchanged_resources, 'cache_registry');
   }
 }
 
@@ -169,7 +173,7 @@ function _registry_parse_file($filename, $contents, $module = '', $weight = 0) {
         );
         // Because some systems, such as cache, currently use duplicate function
         // names in separate files an insert query cannot be used here as it
-        // would cause a key constraint violation.  Instead we use a merge query.
+        // would cause a key constraint violation. Instead we use a merge query.
         // In practice this should not be an issue as those systems all initialize
         // pre-registry and therefore are never loaded by the registry so it
         // doesn't matter if those records in the registry table point to one

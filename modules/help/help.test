@@ -5,9 +5,6 @@ class HelpTestCase extends DrupalWebTestCase {
   protected $big_user;
   protected $any_user;
 
-  /**
-   * Implementation of getInfo().
-   */
   function getInfo() {
     return array(
       'name' => t('Help functionality'),
@@ -41,7 +38,7 @@ class HelpTestCase extends DrupalWebTestCase {
     $this->verifyHelp();
 
     // Login the regular user.
-    $user = $this->drupalLogin($this->any_user);
+    $this->drupalLogin($this->any_user);
     $this->verifyHelp(403);
   }
 

@@ -40,7 +40,7 @@ class PollTestCase extends DrupalWebTestCase {
     }
 
     $this->drupalPost(NULL, $edit, t('Save'));
-    $node = node_load(array('title' => $title));
+    $node = $this->drupalGetNodeByTitle($title);
     $this->assertRaw(t('@type %title has been created.', array('@type' => node_get_types('name', 'poll'), '%title' => $title)), 'Poll has been created.');
     $this->assertTrue($node->nid, t('Poll has been found in the database'));
 
@@ -74,10 +74,6 @@ class PollTestCase extends DrupalWebTestCase {
 }
 
 class PollCreateTestCase extends PollTestCase {
-
-  /**
-   * Implementation of getInfo().
-   */
   function getInfo() {
     return array('name' => t('Poll create'), 'description' => 'Adds "more choices", previews and creates a poll.', 'group' => t('Poll'));
   }
@@ -94,9 +90,6 @@ class PollCreateTestCase extends PollTestCase {
 }
 
 class PollVoteTestCase extends PollTestCase {
-  /**
-   * Implementation of getInfo().
-   */
   function getInfo() {
     return array('name' => t('Poll vote'), 'description' => 'Vote on a poll', 'group' => t('Poll'));
   }
@@ -113,7 +106,7 @@ class PollVoteTestCase extends PollTestCase {
     $title = $this->randomName();
     $choices = $this->_generateChoices(7);
     $poll_nid = $this->pollCreate($title, $choices, FALSE);
-    $this->drupalGet('logout');
+    $this->drupalLogout();
 
     $web_user = $this->drupalCreateUser(array('cancel own vote', 'inspect all votes', 'vote on polls', 'access content'));
     $this->drupalLogin($web_user);
@@ -131,3 +124,85 @@ class PollVoteTestCase extends PollTestCase {
   }
 }
 
+class PollBlockTestCase extends DrupalWebTestCase {
+  function getInfo() {
+    return array(
+      'name' => t('Block availability'),
+      'description' => t('Check if the most recent poll block is available.'),
+      'group' => t('Poll'),
+    );
+  }
+
+  function setUp() {
+    parent::setUp('poll');
+
+    // Create and login user
+    $admin_user = $this->drupalCreateUser(array('administer blocks'));
+    $this->drupalLogin($admin_user);
+  }
+
+  function testRecentBlock() {
+    // Set block title to confirm that the interface is availble.
+    $this->drupalPost('admin/build/block/configure/poll/recent', array('title' => $this->randomName(8)), t('Save block'));
+    $this->assertText(t('The block configuration has been saved.'), t('Block configuration set.'));
+
+    // Set the block to a region to confirm block is availble.
+    $edit = array();
+    $edit['poll_recent[region]'] = 'footer';
+    $this->drupalPost('admin/build/block', $edit, t('Save blocks'));
+    $this->assertText(t('The block settings have been updated.'), t('Block successfully move to footer region.'));
+  }
+}
+
+/**
+ * Test adding new choices.
+ */
+class PollJSAddChoice extends DrupalWebTestCase {
+
+  function getInfo() {
+    return array(
+      'name' => t('Poll add choice'),
+      'description' => t('Submits a POST request for an additional poll choice.'),
+      'group' => t('Poll')
+    );
+  }
+
+  function setUp() {
+    parent::setUp('poll');
+  }
+
+  /**
+   * Test adding a new choice.
+   */
+  function testAddChoice() {
+    $web_user = $this->drupalCreateUser(array('create poll content', 'access content'));
+    $this->drupalLogin($web_user);
+    $this->drupalGet('node/add/poll');
+    $edit = array(
+      'title' => $this->randomName(),
+      'choice[new:0][chtext]' => $this->randomName(),
+      'choice[new:1][chtext]' => $this->randomName(),
+    );
+
+    // @TODO: the framework should make it possible to submit a form to a
+    // different URL than its action or the current. For now, we can just force
+    // it.
+    $this->additionalCurlOptions[CURLOPT_URL] = url('poll/js', array('absolute' => TRUE));
+    $this->drupalPost(NULL, $edit, t('More choices'));
+    unset($this->additionalCurlOptions[CURLOPT_URL]);
+
+    // The response is drupal_json, so we need to undo some escaping.
+    $response = json_decode(str_replace(array('\x3c', '\x3e', '\x26'), array("<", ">", "&"), $this->drupalGetContent()));
+    $this->assertTrue(is_object($response), t('The response is an object'));
+    $this->assertIdentical($response->status, TRUE, t('Response status is true'));
+    // This response data is valid HTML so we will can reuse everything we have
+    // for HTML pages.
+    $this->content = $response->data;
+
+    // Needs to be emptied out so the new content will be parsed.
+    $this->elements = '';
+    $this->assertFieldByName('choice[chid:0][chtext]', $edit['choice[new:0][chtext]'], t('Field !i found', array('!i' => 0)));
+    $this->assertFieldByName('choice[chid:1][chtext]', $edit['choice[new:1][chtext]'], t('Field !i found', array('!i' => 1)));
+    $this->assertFieldByName('choice[new:0][chtext]', '', t('Field !i found', array('!i' => 2)));
+  }
+}

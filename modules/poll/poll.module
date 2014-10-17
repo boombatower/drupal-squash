@@ -136,31 +136,33 @@ function _poll_menu_access($node, $perm, $inspect_allowvotes) {
 }
 
 /**
- * Implementation of hook_block().
+ * Implementation of hook_block_list().
+ */
+function poll_block_list() {
+  if (user_access('access content')) {
+    $blocks['recent']['info'] = t('Most recent poll');
+    return $blocks;
+  }
+}
+
+/**
+ * Implementation of hook_block_view().
  *
  * Generates a block containing the latest poll.
  */
-function poll_block($op = 'list', $delta = '') {
+function poll_block_view($delta = '') {
   if (user_access('access content')) {
-    if ($op == 'list') {
-      $blocks['recent']['info'] = t('Most recent poll');
-      return $blocks;
-    }
-    elseif ($op == 'view') {
-      // Retrieve the latest poll.
-      $sql = db_rewrite_sql("SELECT MAX(n.created) FROM {node} n INNER JOIN {poll} p ON p.nid = n.nid WHERE n.status = 1 AND p.active = 1");
-      $timestamp = db_result(db_query($sql));
-      if ($timestamp) {
-        $poll = node_load(array('type' => 'poll', 'created' => $timestamp, 'status' => 1));
-
-        if ($poll->nid) {
-          $poll = poll_view($poll, TRUE, FALSE, TRUE);
-        }
+    // Retrieve the latest poll.
+    $record = db_query_range(db_rewrite_sql("SELECT n.nid FROM {node} n INNER JOIN {poll} p ON p.nid = n.nid WHERE n.status = :status AND p.active = :active ORDER BY n.created DESC"), array(':status' => 1, ':active' => 1), 0, 1)->fetch();
+    if ($record) {
+      $poll = node_load($record->nid);
+      if ($poll->nid) {
+        $poll = poll_view($poll, TRUE, FALSE, TRUE);
       }
-      $block['subject'] = t('Poll');
-      $block['content'] = drupal_render($poll->content);
-      return $block;
     }
+    $block['subject'] = t('Poll');
+    $block['content'] = drupal_render($poll->content);
+    return $block;
   }
 }
 
@@ -313,7 +315,8 @@ function poll_more_choices_submit($form, &$form_state) {
 
   // Make the changes we want to the form state.
   if ($form_state['values']['poll_more']) {
-    $form_state['choice_count'] = count($form_state['values']['choice']) + 5;
+    $n = $_GET['q'] == 'poll/js' ? 1 : 5;
+    $form_state['choice_count'] = count($form_state['values']['choice']) + $n;
   }
 }
 
@@ -361,55 +364,33 @@ function _poll_choice_form($key, $chid = NULL, $value = '', $votes = 0, $weight 
  * Menu callback for AHAH additions.
  */
 function poll_choice_js() {
-  // Add the new element to the stored form state. Without adding the element
-  // to the form, Drupal is not aware of this new elements existence and will
-  // not process it. We retreive the cached form, add the element, and resave.
+  $form_state = array('storage' => NULL, 'submitted' => FALSE);
   $form_build_id = $_POST['form_build_id'];
-  $form_state = array('submitted' => FALSE);
-  if (!$form = form_get_cache($form_build_id, $form_state)) {
-    exit();
-  }
 
-  $delta = count($_POST['choice']);
-  $key = isset($form['#node']->choice) ? 'new:'. ($delta - count($form['#node']->choice)) : 'new:'. $delta;
+  // Get the form from the cache.
+  $form = form_get_cache($form_build_id, $form_state);
+  $args = $form['#parameters'];
+  $form_id = array_shift($args);
 
-  // Match the new choice at the current greatest weight.
-  $weight = 0;
-  foreach ($_POST['choice'] as $choice) {
-    $weight = $choice['weight'] > $weight ? $choice['weight'] : $weight;
-  }
+  // We will run some of the submit handlers so we need to disable redirecting.
+  $form['#redirect'] = FALSE;
 
-  // Build our new form element.
-  $form_element = _poll_choice_form($key, NULL, NULL, NULL, $weight, $delta + 1);
-  drupal_alter('form', $form_element, array(), 'poll_choice_js');
+  // We need to process the form, prepare for that by setting a few internals
+  // variables.
+  $form['#post'] = $_POST;
+  $form['#programmed'] = FALSE;
+  $form_state['post'] = $_POST;
 
-  // Dynamically increase the delta of the weight field for every field added.
-  foreach(element_children($form['choice_wrapper']['choice']) as $n) {
-    $form['choice_wrapper']['choice'][$n]['weight']['#delta'] = $delta + 1;
-  }
+  // Build, validate and if possible, submit the form.
+  drupal_process_form($form_id, $form, $form_state);
 
-  // Add the new poll choice.
-  $form['choice_wrapper']['choice'][$key] = $form_element;
-
-  // Reorder the form to use the same order as post.
-  $order = array_flip(array_keys($_POST['choice']));
-  $form['choice_wrapper']['choice'] = array_merge($order, $form['choice_wrapper']['choice']);
-
-  // Resave the cache.
-  form_set_cache($form_build_id, $form, $form_state);
-  $form += array(
-    '#post' => $_POST,
-    '#programmed' => FALSE,
-  );
-
-  // Rebuild the form.
-  $form = form_builder('poll_node_form', $form, $form_state);
+  // This call recreates the form relying solely on the form_state that the
+  // drupal_process_form set up.
+  $form = drupal_rebuild_form($form_id, $form_state, $args, $form_build_id);
 
   // Render the new output.
   $choice_form = $form['choice_wrapper']['choice'];
   unset($choice_form['#prefix'], $choice_form['#suffix']); // Prevent duplicate wrappers.
-  $choice_form[$key]['#attributes']['class'] = empty($choice_form[$key]['#attributes']['class']) ? 'ahah-new-content' : $choice_form[$key]['#attributes']['class'] .' ahah-new-content';
-  $choice_form[$key]['chvotes']['#value'] = 0;
   $output = theme('status_messages') . drupal_render($choice_form);
 
   drupal_json(array('status' => TRUE, 'data' => $output));
@@ -427,7 +408,7 @@ function poll_node_form_submit(&$form, &$form_state) {
 /**
  * Implementation of hook_validate().
  */
-function poll_validate($node) {
+function poll_validate($node, $form) {
   if (isset($node->title)) {
     // Check for at least two options and validate amount of votes:
     $realchoices = 0;
@@ -451,35 +432,35 @@ function poll_validate($node) {
 /**
  * Implementation of hook_load().
  */
-function poll_load($node) {
+function poll_load($nodes) {
   global $user;
+  foreach ($nodes as $node) {
+    $poll = db_query("SELECT runtime, active FROM {poll} WHERE nid = :nid", array(':nid' => $node->nid))->fetch();
 
-  $poll = db_fetch_object(db_query("SELECT runtime, active FROM {poll} WHERE nid = %d", $node->nid));
+    // Load the appropriate choices into the $poll object.
+    $poll->choice = db_query("SELECT chid, chtext, chvotes, weight FROM {poll_choice} WHERE nid = :nid ORDER BY weight", array(':nid' => $node->nid))->fetchAllAssoc('chid', PDO::FETCH_ASSOC);
 
-  // Load the appropriate choices into the $poll object.
-  $result = db_query("SELECT chid, chtext, chvotes, weight FROM {poll_choices} WHERE nid = %d ORDER BY weight", $node->nid);
-  while ($choice = db_fetch_array($result)) {
-    $poll->choice[$choice['chid']] = $choice;
+    // Determine whether or not this user is allowed to vote.
+    $poll->allowvotes = FALSE;
+    if (user_access('vote on polls') && $poll->active) {
+      if ($user->uid) {
+        $result = db_query('SELECT chid FROM {poll_vote} WHERE nid = :nid AND uid = :uid', array(':nid' => $node->nid, ':uid' => $user->uid))->fetch();
+      }
+      else {
+        $result = db_query("SELECT chid FROM {poll_vote} WHERE nid = :nid AND hostname = :hostname", array(':nid' => $node->nid, ':hostname' => ip_address()))->fetch();
+      }
+      if ($result) {
+        $poll->vote = $result->chid;
+      }
+      else {
+        $poll->vote = -1;
+        $poll->allowvotes = TRUE;
+      }
+    }
+    foreach ($poll as $key => $value) {
+      $nodes[$node->nid]->$key = $value;
+    }
   }
-
-  // Determine whether or not this user is allowed to vote.
-  $poll->allowvotes = FALSE;
-  if (user_access('vote on polls') && $poll->active) {
-    if ($user->uid) {
-      $result = db_fetch_object(db_query('SELECT chid FROM {poll_votes} WHERE nid = %d AND uid = %d', $node->nid, $user->uid));
-    }
-    else {
-      $result = db_fetch_object(db_query("SELECT chid FROM {poll_votes} WHERE nid = %d AND hostname = '%s'", $node->nid, ip_address()));
-    }
-    if (isset($result->chid)) {
-      $poll->vote = $result->chid;
-    }
-    else {
-      $poll->vote = -1;
-      $poll->allowvotes = TRUE;
-    }
-  }
-  return $poll;
 }
 
 /**
@@ -498,7 +479,7 @@ function poll_insert($node) {
 
   foreach ($node->choice as $choice) {
     if ($choice['chtext'] != '') {
-      db_query("INSERT INTO {poll_choices} (nid, chtext, chvotes, weight) VALUES (%d, '%s', %d, %d)", $node->nid, $choice['chtext'], $choice['chvotes'], $choice['weight']);
+      db_query("INSERT INTO {poll_choice} (nid, chtext, chvotes, weight) VALUES (%d, '%s', %d, %d)", $node->nid, $choice['chtext'], $choice['chvotes'], $choice['weight']);
     }
   }
 }
@@ -515,14 +496,14 @@ function poll_update($node) {
   foreach ($node->choice as $key => $choice) {
     if (!empty($choice['chtext'])) {
       if (isset($choice['chid'])) {
-        db_query("UPDATE {poll_choices} SET chtext = '%s', chvotes = %d, weight = %d WHERE chid = %d", $choice['chtext'], (int)$choice['chvotes'], $choice['weight'], $choice['chid']);
+        db_query("UPDATE {poll_choice} SET chtext = '%s', chvotes = %d, weight = %d WHERE chid = %d", $choice['chtext'], (int)$choice['chvotes'], $choice['weight'], $choice['chid']);
       }
       else {
-        db_query("INSERT INTO {poll_choices} (nid, chtext, chvotes, weight) VALUES (%d, '%s', %d, %d)", $node->nid, $choice['chtext'], (int)$choice['chvotes'], $choice['weight']);
+        db_query("INSERT INTO {poll_choice} (nid, chtext, chvotes, weight) VALUES (%d, '%s', %d, %d)", $node->nid, $choice['chtext'], (int)$choice['chvotes'], $choice['weight']);
       }
     }
     else {
-      db_query("DELETE FROM {poll_votes} WHERE nid = %d AND chid = %d", $node->nid, $key);
+      db_query("DELETE FROM {poll_vote} WHERE nid = %d AND chid = %d", $node->nid, $key);
     }
   }
 }
@@ -532,8 +513,8 @@ function poll_update($node) {
  */
 function poll_delete($node) {
   db_query("DELETE FROM {poll} WHERE nid = %d", $node->nid);
-  db_query("DELETE FROM {poll_choices} WHERE nid = %d", $node->nid);
-  db_query("DELETE FROM {poll_votes} WHERE nid = %d", $node->nid);
+  db_query("DELETE FROM {poll_choice} WHERE nid = %d", $node->nid);
+  db_query("DELETE FROM {poll_vote} WHERE nid = %d", $node->nid);
 }
 
 /**
@@ -543,7 +524,7 @@ function poll_delete($node) {
  *   An extra parameter that adapts the hook to display a block-ready
  *   rendering of the poll.
  */
-function poll_view($node, $teaser = FALSE, $page = FALSE, $block = FALSE) {
+function poll_view($node, $teaser = FALSE, $block = FALSE) {
   global $user;
   $output = '';
 
@@ -568,7 +549,7 @@ function poll_view($node, $teaser = FALSE, $page = FALSE, $block = FALSE) {
   }
   else {
     $node->content['body'] = array(
-      '#markup' => poll_view_results($node, $teaser, $page, $block),
+      '#markup' => poll_view_results($node, $teaser, $block),
     );
   }
   return $node;
@@ -648,14 +629,14 @@ function poll_vote($form, &$form_state) {
 
   global $user;
   if ($user->uid) {
-    db_query('INSERT INTO {poll_votes} (nid, chid, uid) VALUES (%d, %d, %d)', $node->nid, $choice, $user->uid);
+    db_query('INSERT INTO {poll_vote} (nid, chid, uid) VALUES (%d, %d, %d)', $node->nid, $choice, $user->uid);
   }
   else {
-    db_query("INSERT INTO {poll_votes} (nid, chid, hostname) VALUES (%d, %d, '%s')", $node->nid, $choice, ip_address());
+    db_query("INSERT INTO {poll_vote} (nid, chid, hostname) VALUES (%d, %d, '%s')", $node->nid, $choice, ip_address());
   }
 
   // Add one to the votes.
-  db_query("UPDATE {poll_choices} SET chvotes = chvotes + 1 WHERE chid = %d", $choice);
+  db_query("UPDATE {poll_choice} SET chvotes = chvotes + 1 WHERE chid = %d", $choice);
 
   cache_clear_all();
   drupal_set_message(t('Your vote was recorded.'));
@@ -684,7 +665,7 @@ function template_preprocess_poll_vote(&$variables) {
 /**
  * Generates a graphical representation of the results of a poll.
  */
-function poll_view_results(&$node, $teaser, $page, $block) {
+function poll_view_results(&$node, $teaser, $block) {
   // Count the votes and find the maximum
   $total_votes = 0;
   $max_votes = 0;
@@ -823,20 +804,28 @@ function poll_cancel($form, &$form_state) {
   global $user;
 
   if ($user->uid) {
-    db_query('DELETE FROM {poll_votes} WHERE nid = %d and uid = %d', $node->nid, $user->uid);
+    db_query('DELETE FROM {poll_vote} WHERE nid = %d and uid = %d', $node->nid, $user->uid);
   }
   else {
-    db_query("DELETE FROM {poll_votes} WHERE nid = %d and hostname = '%s'", $node->nid, ip_address());
+    db_query("DELETE FROM {poll_vote} WHERE nid = %d and hostname = '%s'", $node->nid, ip_address());
   }
 
   // Subtract from the votes.
-  db_query("UPDATE {poll_choices} SET chvotes = chvotes - 1 WHERE chid = %d", $node->vote);
+  db_query("UPDATE {poll_choice} SET chvotes = chvotes - 1 WHERE chid = %d", $node->vote);
 }
 
 /**
- * Implementation of hook_user_delete().
+ * Implementation of hook_user_cancel().
  */
-function poll_user_delete(&$edit, &$user) {
-  db_query('UPDATE {poll_votes} SET uid = 0 WHERE uid = %d', $user->uid);
+function poll_user_cancel(&$edit, &$account, $method) {
+  switch ($method) {
+    case 'user_cancel_reassign':
+      db_update('poll_vote')->fields(array('uid' => 0))->condition('uid', $account->uid)->execute();
+      break;
+
+    case 'user_cancel_delete':
+      db_delete('poll_vote')->condition('uid', $account->uid)->execute();
+      break;
+  }
 }
 

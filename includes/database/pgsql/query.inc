@@ -9,7 +9,7 @@
 
 class InsertQuery_pgsql extends InsertQuery {
 
-  public function __construct($connection, $table, Array $options = array()) {
+  public function __construct($connection, $table, array $options = array()) {
     parent::__construct($connection, $table, $options);
     $this->queryOptions['return'] = Database::RETURN_NULL;
   }
@@ -20,6 +20,10 @@ class InsertQuery_pgsql extends InsertQuery {
     //  field and default field.
     if (array_intersect($this->insertFields, $this->defaultFields)) {
       throw new PDOException('You may not specify the same field to have a value and a schema-default value.');
+    }
+
+    if (count($this->insertFields) + count($this->defaultFields) == 0) {
+      return NULL;
     }
 
     $schema = drupal_get_schema($this->table);
@@ -92,7 +96,7 @@ class InsertQuery_pgsql extends InsertQuery {
       }
     }
     else {
-      // If there are no values, then this is a default-only query.  We still need to handle that.
+      // If there are no values, then this is a default-only query. We still need to handle that.
       $placeholders = array_fill(0, count($this->defaultFields), 'default');
       $values[] = '(' . implode(', ', $placeholders) .')';
     }

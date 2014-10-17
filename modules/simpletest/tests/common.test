@@ -1,55 +1,99 @@
 <?php
 // $Id$
 
-class CommonFormatSizeTestCase extends DrupalWebTestCase {
+class CommonSizeTestCase extends DrupalWebTestCase {
+  protected $exact_test_cases;
+  protected $rounded_test_cases;
 
-  /**
-   * Implementation of getInfo().
-   */
   function getInfo() {
     return array(
-      'name' => t('Format size test'),
+      'name' => t('Size parsing test'),
       'description' => t('Parse a predefined amount of bytes and compare the output with the expected value.'),
       'group' => t('System')
     );
   }
 
-  /**
-   * Implementation of setUp().
-   */
   function setUp() {
+    $kb = DRUPAL_KILOBYTE;
     $this->exact_test_cases = array(
-      '1 byte'    => 1, // byte
-      '1 KB'      => 1000, // kilobyte
-      '1 MB'      => 1000000, // megabyte
-      '1 GB'      => 1000000000, // gigabyte
-      '1 TB'      => 1000000000000, // terabyte
-      '1 PB'      => 1000000000000000, // petabyte
-      '1 EB'      => 1000000000000000000, // exabyte
-      '1 ZB'      => 1000000000000000000000, // zettabyte
-      '1 YB'      => 1000000000000000000000000, // yottabyte
+      '1 byte' => 1,
+      '1 KB'   => $kb,
+      '1 MB'   => $kb * $kb,
+      '1 GB'   => $kb * $kb * $kb,
+      '1 TB'   => $kb * $kb * $kb * $kb,
+      '1 PB'   => $kb * $kb * $kb * $kb * $kb,
+      '1 EB'   => $kb * $kb * $kb * $kb * $kb * $kb,
+      '1 ZB'   => $kb * $kb * $kb * $kb * $kb * $kb * $kb,
+      '1 YB'   => $kb * $kb * $kb * $kb * $kb * $kb * $kb * $kb,
     );
     $this->rounded_test_cases = array(
-      '2 bytes'   => 2, // bytes
-      '1 MB'      => 999999, // 1 MB (not 1000 kilobyte!)
-      '3.62 MB'   => 3623651, // megabytes
-      '67.23 PB'  => 67234178751368124, // petabytes
-      '235.35 YB' => 235346823821125814962843827, // yottabytes
+      '2 bytes' => 2,
+      '1 MB' => ($kb * $kb) - 1, // rounded to 1 MB (not 1000 or 1024 kilobyte!)
+      round(3623651 / ($this->exact_test_cases['1 MB']), 2) . ' MB' => 3623651, // megabytes
+      round(67234178751368124 / ($this->exact_test_cases['1 PB']), 2) . ' PB' => 67234178751368124, // petabytes
+      round(235346823821125814962843827 / ($this->exact_test_cases['1 YB']), 2) . ' YB' => 235346823821125814962843827, // yottabytes
     );
     parent::setUp();
   }
 
   /**
-   * testCommonFormatSize
+   * Check that format_size() returns the expected string.
    */
   function testCommonFormatSize() {
     foreach (array($this->exact_test_cases, $this->rounded_test_cases) as $test_cases) {
-      foreach ($test_cases as $expected => $size) {
-        $this->assertTrue(
-          ($result = format_size($size, NULL)) == $expected,
-          $expected . " == " . $result . " (" . $size . " bytes) %s"
+      foreach ($test_cases as $expected => $input) {
+        $this->assertEqual(
+          ($result = format_size($input, NULL)),
+          $expected,
+          $expected . ' == ' . $result . ' (' . $input . ' bytes)'
         );
       }
+    }
+  }
+
+  /**
+   * Check that parse_size() returns the proper byte sizes.
+   */
+  function testCommonParseSize() {
+    foreach ($this->exact_test_cases as $string => $size) {
+      $this->assertEqual(
+        $parsed_size = parse_size($string),
+        $size,
+        $size . ' == ' . $parsed_size . ' (' . $string . ')'
+      );
+    }
+
+    // Some custom parsing tests
+    $string = '23476892 bytes';
+    $this->assertEqual(
+      ($parsed_size = parse_size($string)),
+      $size = 23476892,
+      $string . ' == ' . $parsed_size . ' bytes'
+    );
+    $string = '76MRandomStringThatShouldBeIgnoredByParseSize.'; // 76 MB
+    $this->assertEqual(
+      $parsed_size = parse_size($string),
+      $size = 79691776,
+      $string . ' == ' . $parsed_size . ' bytes'
+    );
+    $string = '76.24 Giggabyte'; // Misspeld text -> 76.24 GB
+    $this->assertEqual(
+      $parsed_size = parse_size($string),
+      $size = 81862076662,
+      $string . ' == ' . $parsed_size . ' bytes'
+    );
+  }
+
+  /**
+   * Cross-test parse_size() and format_size().
+   */
+  function testCommonParseSizeFormatSize() {
+    foreach ($this->exact_test_cases as $size) {
+      $this->assertEqual(
+        $size,
+        ($parsed_size = parse_size($string = format_size($size, NULL))),
+        $size . ' == ' . $parsed_size . ' (' . $string . ')'
+      );
     }
   }
 }
@@ -65,9 +109,6 @@ class DrupalTagsHandlingTestCase extends DrupalWebTestCase {
     '"Drupal, although it rhymes with sloopal, is as awesome as a troopal!"' => 'Drupal, although it rhymes with sloopal, is as awesome as a troopal!',
   );
 
-  /**
-   * Implementation of getInfo().
-   */
   function getInfo() {
     return array(
       'name' => t('Drupal tags handling'),
@@ -105,11 +146,11 @@ class DrupalTagsHandlingTestCase extends DrupalWebTestCase {
     $original = $this->validTags;
     foreach ($tags as $tag) {
       $key = array_search($tag, $original);
-      $this->_assert($key !== FALSE, t('Make sure tag %tag shows up in the final tags array (originally %original)', array('%tag' => $tag, '%original' => $key)));
+      $this->assertTrue($key, t('Make sure tag %tag shows up in the final tags array (originally %original)', array('%tag' => $tag, '%original' => $key)));
       unset($original[$key]);
     }
     foreach ($original as $leftover) {
-      $this->_assert(FALSE, t('Leftover tag %leftover was left over.', array('%leftover' => $leftover)));
+      $this->fail(t('Leftover tag %leftover was left over.', array('%leftover' => $leftover)));
     }
   }
 }
@@ -118,9 +159,6 @@ class DrupalTagsHandlingTestCase extends DrupalWebTestCase {
  * Test the Drupal CSS system.
  */
 class CascadingStylesheetsTestCase extends DrupalWebTestCase {
-  /**
-   * Implementation of getInfo().
-   */
   function getInfo() {
     return array(
       'name' => t('Cascading stylesheets'),
@@ -129,9 +167,6 @@ class CascadingStylesheetsTestCase extends DrupalWebTestCase {
     );
   }
 
-  /**
-   * Implementation of setUp().
-   */
   function setUp() {
     parent::setUp();
     // Reset drupal_add_css() before each test.
@@ -168,9 +203,6 @@ class CascadingStylesheetsTestCase extends DrupalWebTestCase {
  * Test drupal_http_request().
  */
 class DrupalHTTPRequestTestCase extends DrupalWebTestCase {
-  /**
-   * Implementation of getInfo().
-   */
   function getInfo() {
     return array(
       'name' => t('Drupal HTTP request'),
@@ -179,9 +211,6 @@ class DrupalHTTPRequestTestCase extends DrupalWebTestCase {
     );
   }
 
-  /**
-   * Implementation of setUp().
-   */
   function setUp() {
     parent::setUp('system_test');
   }
@@ -209,40 +238,38 @@ class DrupalHTTPRequestTestCase extends DrupalWebTestCase {
     $auth = str_replace('http://', 'http://' . $username . ':' . $password .'@', $url);
     $result = drupal_http_request($auth);
 
-    // We use strpos directly.
-    // assertRaw() cannot be used because we are getting the data
-    // in a variable instead of $this->_content.
-    $this->assertTrue(strpos($result->data, $username) !== FALSE, t('$_SERVER[\'PHP_AUTH_USER\'] is passed correctly.'));
-    $this->assertTrue(strpos($result->data, $password) !== FALSE, t('$_SERVER[\'PHP_AUTH_PW\'] is passed correctly.'));
+    $this->drupalSetContent($result->data);
+    $this->assertRaw($username, t('$_SERVER["PHP_AUTH_USER"] is passed correctly.'));
+    $this->assertRaw($password, t('$_SERVER["PHP_AUTH_PW"] is passed correctly.'));
   }
 
   function testDrupalHTTPRequestRedirect() {
-    $redirect_301 = drupal_http_request(url('system-test/redirect/301', array('absolute' => TRUE)), array(), 'GET', NULL, 1);
+    $redirect_301 = drupal_http_request(url('system-test/redirect/301', array('absolute' => TRUE)), array('max_redirects' => 1));
     $this->assertEqual($redirect_301->redirect_code, 301, t('drupal_http_request follows the 301 redirect.'));
 
-    $redirect_301 = drupal_http_request(url('system-test/redirect/301', array('absolute' => TRUE)), array(), 'GET', NULL, 0);
-    $this->assertFalse(isset($redirect_301->redirect_code), t('drupal_http_request does not follow 301 redirect if $retry = 0.'));
+    $redirect_301 = drupal_http_request(url('system-test/redirect/301', array('absolute' => TRUE)), array('max_redirects' => 0));
+    $this->assertFalse(isset($redirect_301->redirect_code), t('drupal_http_request does not follow 301 redirect if max_redirects = 0.'));
 
-    $redirect_invalid = drupal_http_request(url('system-test/redirect-noscheme', array('absolute' => TRUE)), array(), 'GET', NULL, 1);
+    $redirect_invalid = drupal_http_request(url('system-test/redirect-noscheme', array('absolute' => TRUE)), array('max_redirects' => 1));
     $this->assertEqual($redirect_invalid->error, 'missing schema', t('301 redirect to invalid URL returned with error "!error".', array('!error' => $redirect_invalid->error)));
 
-    $redirect_invalid = drupal_http_request(url('system-test/redirect-noparse', array('absolute' => TRUE)), array(), 'GET', NULL, 1);
+    $redirect_invalid = drupal_http_request(url('system-test/redirect-noparse', array('absolute' => TRUE)), array('max_redirects' => 1));
     $this->assertEqual($redirect_invalid->error, 'unable to parse URL', t('301 redirect to invalid URL returned with error "!error".', array('!error' => $redirect_invalid->error)));
 
-    $redirect_invalid = drupal_http_request(url('system-test/redirect-invalid-scheme', array('absolute' => TRUE)), array(), 'GET', NULL, 1);
+    $redirect_invalid = drupal_http_request(url('system-test/redirect-invalid-scheme', array('absolute' => TRUE)), array('max_redirects' => 1));
     $this->assertEqual($redirect_invalid->error, 'invalid schema ftp', t('301 redirect to invalid URL returned with error "!error".', array('!error' => $redirect_invalid->error)));
 
-    $redirect_302 = drupal_http_request(url('system-test/redirect/302', array('absolute' => TRUE)), array(), 'GET', NULL, 1);
+    $redirect_302 = drupal_http_request(url('system-test/redirect/302', array('absolute' => TRUE)), array('max_redirects' => 1));
     $this->assertEqual($redirect_302->redirect_code, 302, t('drupal_http_request follows the 302 redirect.'));
 
-    $redirect_302 = drupal_http_request(url('system-test/redirect/302', array('absolute' => TRUE)), array(), 'GET', NULL, 0);
+    $redirect_302 = drupal_http_request(url('system-test/redirect/302', array('absolute' => TRUE)), array('max_redirects' => 0));
     $this->assertFalse(isset($redirect_302->redirect_code), t('drupal_http_request does not follow 302 redirect if $retry = 0.'));
 
-    $redirect_307 = drupal_http_request(url('system-test/redirect/307', array('absolute' => TRUE)), array(), 'GET', NULL, 1);
+    $redirect_307 = drupal_http_request(url('system-test/redirect/307', array('absolute' => TRUE)), array('max_redirects' => 1));
     $this->assertEqual($redirect_307->redirect_code, 307, t('drupal_http_request follows the 307 redirect.'));
 
-    $redirect_307 = drupal_http_request(url('system-test/redirect/307', array('absolute' => TRUE)), array(), 'GET', NULL, 0);
-    $this->assertFalse(isset($redirect_307->redirect_code), t('drupal_http_request does not follow 307 redirect if $retry = 0.'));
+    $redirect_307 = drupal_http_request(url('system-test/redirect/307', array('absolute' => TRUE)), array('max_redirects' => 0));
+    $this->assertFalse(isset($redirect_307->redirect_code), t('drupal_http_request does not follow 307 redirect if max_redirects = 0.'));
   }
 
   function testDrupalGetDestination() {
@@ -257,13 +284,10 @@ class DrupalHTTPRequestTestCase extends DrupalWebTestCase {
  * Testing drupal_set_content and drupal_get_content.
  */
 class DrupalSetContentTestCase extends DrupalWebTestCase {
-  /**
-   * Implementation of getInfo().
-   */
   function getInfo() {
     return array(
       'name' => t('Drupal set/get content'),
-      'description' => t("Performs tests on setting and retrieiving content from theme regions."),
+      'description' => t('Performs tests on setting and retrieiving content from theme regions.'),
       'group' => t('System')
     );
   }
@@ -311,23 +335,17 @@ class JavaScriptTestCase extends DrupalWebTestCase {
    */
   var $preprocess_js = NULL;
 
-  /**
-   * Implementation of getInfo().
-   */
   function getInfo() {
     return array(
       'name' => t('JavaScript'),
-      'description' => t("Tests the JavaScript system."),
+      'description' => t('Tests the JavaScript system.'),
       'group' => t('System')
     );
   }
 
-  /**
-   * Implementation of setUp().
-   */
   function setUp() {
-    // Enable locale in test environment.
-    parent::setUp('locale');
+    // Enable Locale and SimpleTest in the test environment.
+    parent::setUp('locale', 'simpletest');
 
     // Disable preprocessing
     $this->preprocess_js = variable_get('preprocess_js', 0);
@@ -337,9 +355,6 @@ class JavaScriptTestCase extends DrupalWebTestCase {
     drupal_add_js(NULL, NULL, TRUE);
   }
 
-  /**
-   * Implementation of tearDown().
-   */
   function tearDown() {
     // Restore configured value for JavaScript preprocessing.
     variable_set('preprocess_js', $this->preprocess_js);
@@ -438,6 +453,23 @@ class JavaScriptTestCase extends DrupalWebTestCase {
     $javascript = drupal_get_js();
     $this->assertTrue(strpos($javascript, 'misc/collapse.js') < strpos($javascript, 'misc/jquery.js'), t('Rendering a JavaScript file above jQuery.'));
   }
+
+  /**
+   * Test altering a JavaScript's weight via hook_js_alter().
+   *
+   * @see simpletest_js_alter()
+   */
+  function testAlter() {
+    // Add both tableselect.js and simpletest.js, with a larger weight on SimpleTest.
+    drupal_add_js('misc/tableselect.js');
+    drupal_add_js(drupal_get_path('module', 'simpletest') . '/simpletest.js', array('weight' => JS_THEME));
+
+    // Render the JavaScript, testing if simpletest.js was altered to be before
+    // tableselect.js. See simpletest_js_alter() to see where this alteration
+    // takes place.
+    $javascript = drupal_get_js();
+    $this->assertTrue(strpos($javascript, 'simpletest.js') < strpos($javascript, 'misc/tableselect.js'), t('Altering JavaScript weight through the alter hook.'));
+  }
 }
 
 /**
@@ -447,7 +479,7 @@ class DrupalErrorHandlerUnitTest extends DrupalWebTestCase {
   function getInfo() {
     return array(
       'name' => t('Drupal error handlers'),
-      'description' => t("Performs tests on the Drupal error and exception handler."),
+      'description' => t('Performs tests on the Drupal error and exception handler.'),
       'group' => t('System'),
     );
   }
@@ -475,7 +507,8 @@ class DrupalErrorHandlerUnitTest extends DrupalWebTestCase {
     $this->assertErrorMessage('Exception', 'system_test.module', 'system_test_trigger_exception()', 'Drupal is awesome');
 
     $this->drupalGet('system-test/trigger-pdo-exception');
-    $this->assertErrorMessage('PDOException', 'system_test.module', 'system_test_trigger_pdo_exception()', 'Base table or view not found');
+    // We only check for SQLSTATE because the exact error reported varies from database to database.
+    $this->assertErrorMessage('PDOException', 'system_test.module', 'system_test_trigger_pdo_exception()', 'SQLSTATE');
   }
 
   /**
@@ -486,5 +519,185 @@ class DrupalErrorHandlerUnitTest extends DrupalWebTestCase {
     $this->assertText($file, t("Found '%file' in error page.", array('%file' => $file)));
     $this->assertText($function, t("Found '%function' in error page.", array('%function' => $function)));
     $this->assertText($message, t("Found '%message' in error page.", array('%message' => $message)));
+  }
+}
+
+/**
+ * Test for valid_url().
+ */
+class ValidUrlTestCase extends DrupalWebTestCase {
+  function getInfo() {
+    return array(
+      'name' => t('Valid Url'),
+      'description' => t("Performs tests on Drupal's valid url function."),
+      'group' => t('System')
+    );
+  }
+
+  /**
+   * Test valid absolute urls.
+   */
+  function testValidAbsolute() {
+    $url_schemes = array('http', 'https', 'ftp');
+    $valid_absolute_urls = array(
+      'example.com',
+      'www.example.com',
+      'ex-ample.com',
+      '3xampl3.com',
+      'example.com/paren(the)sis',
+      'example.com/index.html#pagetop',
+      'example.com:8080',
+      'subdomain.example.com',
+      'example.com/index.php?q=node',
+      'example.com/index.php?q=node&param=false',
+      'user@www.example.com',
+      'user:pass@www.example.com:8080/login.php?do=login&style=%23#pagetop',
+      '127.0.0.1',
+      'example.org?',
+      'john%20doe:secret:foo@example.org/',
+      'example.org/~,$\'*;',
+      'caf%C3%A9.example.org',
+      '[FEDC:BA98:7654:3210:FEDC:BA98:7654:3210]:80/index.html',
+    );
+
+    foreach ($url_schemes as $scheme) {
+      foreach ($valid_absolute_urls as $url) {
+        $test_url = $scheme . '://' . $url;
+        $valid_url = valid_url($test_url, TRUE);
+        $this->assertTrue($valid_url, t('@url is a valid url.', array('@url' => $test_url)));
+      }
+    }
+  }
+
+  /**
+   * Test invalid absolute urls.
+   */
+  function testInvalidAbsolute() {
+    $url_schemes = array('http', 'https', 'ftp');
+    $invalid_ablosule_urls = array(
+      '',
+      'ex!ample.com',
+      'ex%ample.com',
+    );
+
+    foreach ($url_schemes as $scheme) {
+      foreach ($invalid_ablosule_urls as $url) {
+        $test_url = $scheme . '://' . $url;
+        $valid_url = valid_url($test_url, TRUE);
+        $this->assertFalse($valid_url, t('@url is NOT a valid url.', array('@url' => $test_url)));
+      }
+    }
+  }
+
+  /**
+   * Test valid relative urls.
+   */
+  function testValidRelative() {
+    $valid_relative_urls = array(
+      'paren(the)sis',
+      'index.html#pagetop',
+      'index.php?q=node',
+      'index.php?q=node&param=false',
+      'login.php?do=login&style=%23#pagetop',
+    );
+
+    foreach (array('', '/') as $front) {
+      foreach ($valid_relative_urls as $url) {
+        $test_url = $front . $url;
+        $valid_url = valid_url($test_url);
+        $this->assertTrue($valid_url,t('@url is a valid url.', array('@url' => $test_url)));
+      }
+    }
+  }
+
+  /**
+   * Test invalid relative urls.
+   */
+  function testInvalidRelative() {
+    $invalid_relative_urls = array(
+      'ex^mple',
+      'example<>',
+      'ex%ample',
+    );
+
+    foreach (array('', '/') as $front) {
+      foreach ($invalid_relative_urls as $url) {
+        $test_url = $front . $url;
+        $valid_url = valid_url($test_url);
+        $this->assertFALSE($valid_url,t('@url is NOT a valid url.', array('@url' => $test_url)));
+      }
+    }
+  }
+}
+
+/**
+ * Tests Simpletest error and exception collecter.
+ */
+class DrupalErrorCollectionUnitTest extends DrupalWebTestCase {
+
+  /**
+   * Errors triggered during the test.
+   *
+   * Errors are intercepted by the overriden implementation
+   * of DrupalWebTestCase::error below.
+   *
+   * @var Array
+   */
+  protected $collectedErrors = array();
+
+  function getInfo() {
+    return array(
+      'name' => t('SimpleTest error collecter'),
+      'description' => t('Performs tests on the Simpletest error and exception collecter.'),
+      'group' => t('SimpleTest'),
+    );
+  }
+
+  function setUp() {
+    parent::setUp('system_test');
+  }
+
+  /**
+   * Test that simpletest collects errors from the tested site.
+   */
+  function testErrorCollect() {
+    $this->collectedErrors = array();
+    $this->drupalGet('system-test/generate-warnings-with-report');
+
+    $this->assertEqual(count($this->collectedErrors), 3, t('Three errors were collected'));
+
+    if (count($this->collectedErrors) == 3) {
+      $this->assertError($this->collectedErrors[0], 'Notice', 'system_test_generate_warnings()', 'system_test.module', 'Undefined variable: bananas');
+      $this->assertError($this->collectedErrors[1], 'Warning', 'system_test_generate_warnings()', 'system_test.module', 'Division by zero');
+      $this->assertError($this->collectedErrors[2], 'User notice', 'system_test_generate_warnings()', 'system_test.module', 'Drupal is awesome');
+    }
+    else {
+      // Give back the errors to the log report.
+      foreach ($this->collectedErrors as $error) {
+        parent::error($error['message'], $error['group'], $error['caller']);
+      }
+    }
+  }
+
+  protected function error($message = '', $group = 'Other', array $caller = NULL) {
+    // This function overiddes DrupalWebTestCase::error(). We collect an error...
+    $this->collectedErrors[] = array(
+      'message' => $message,
+      'group' => $group,
+      'caller' => $caller
+    );
+    // ... and ignore it.
+  }
+
+  /**
+   * Assert that a collected error matches what we are expecting.
+   */
+  function assertError($error, $group, $function, $file, $message = NULL) {
+    $this->assertEqual($error['group'], $group, t("Group was %group", array('%group' => $group)));
+    $this->assertEqual($error['caller']['function'], $function, t("Function was %function", array('%function' => $function)));
+    $this->assertEqual(basename($error['caller']['file']), $file, t("File was %file", array('%file' => $file)));
+    if (isset($message)) {
+      $this->assertEqual($error['message'], $message, t("Message was %message", array('%message' => $message)));
+    }
   }
 }

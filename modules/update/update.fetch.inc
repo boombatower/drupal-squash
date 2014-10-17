@@ -56,7 +56,6 @@ function _update_refresh() {
     watchdog('update', 'Fetched information about all available new releases and updates.', array(), WATCHDOG_NOTICE, l(t('view'), 'admin/reports/updates'));
   }
   else {
-    module_invoke('system', 'check_http_request');
     watchdog('update', 'Unable to fetch any information about available new releases and updates.', array(), WATCHDOG_ERROR, l(t('view'), 'admin/reports/updates'));
   }
   return $available;
@@ -101,7 +100,7 @@ function _update_build_fetch_url($project, $site_key = '') {
  * Perform any notifications that should be done once cron fetches new data.
  *
  * This method checks the status of the site using the new data and depending
- * on the configuration of the site, notifys administrators via email if there
+ * on the configuration of the site, notifies administrators via email if there
  * are new releases or missing security updates.
  *
  * @see update_requirements()

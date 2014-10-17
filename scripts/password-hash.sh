@@ -10,7 +10,7 @@
  *   #!c:/program files/php/php.exe
  *
  * @param password1 [password2 [password3 ...]]
- *  Plain-text passwords in quotes (or with spaces backslah escaped).
+ *  Plain-text passwords in quotes (or with spaces backslash escaped).
  */
 
 function variable_get($x, $default) {
@@ -21,7 +21,7 @@ if (version_compare(PHP_VERSION, "5.2.0", "<")) {
   $version  = PHP_VERSION;
   echo <<<EOF
 
-ERROR: This script requires at least PHP version 5.2.0.  You invoked it with
+ERROR: This script requires at least PHP version 5.2.0. You invoked it with
        PHP version {$version}.
 \n
 EOF;

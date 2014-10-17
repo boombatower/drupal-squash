@@ -16,12 +16,12 @@ function dblog_admin_settings() {
   $form['dblog_row_limit'] = array(
     '#type' => 'select',
     '#title' => t('Discard log entries above the following row limit'),
-    '#default_value' => variable_get('dblog_row_limit', 1000),
+    '#default_value' => 1000,
     '#options' => drupal_map_assoc(array(100, 1000, 10000, 100000, 1000000)),
     '#description' => t('The maximum number of rows to keep in the database log. Older entries will be automatically discarded. (Requires a correctly configured <a href="@cron">cron maintenance task</a>.)', array('@cron' => url('admin/reports/status')))
   );
 
-  return system_settings_form($form);
+  return system_settings_form($form, TRUE);
 }
 
 /**
@@ -52,6 +52,7 @@ function dblog_overview() {
   );
 
   $output = drupal_get_form('dblog_filter_form');
+  $output .= drupal_get_form('dblog_clear_log_form');
 
   $header = array(
     ' ',
@@ -327,4 +328,35 @@ function dblog_filter_form_submit($form, &$form_state) {
       break;
   }
   return 'admin/reports/dblog';
+}
+
+/**
+ * Return form for dblog clear button.
+ *
+ * @ingroup forms
+ * @see dblog_clear_log_submit()
+ */
+function dblog_clear_log_form() {
+  $form['dblog_clear'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Clear log messages'),
+    '#description' => t('This will permanently remove the log messages from the database.'),
+    '#collapsible' => TRUE,
+    '#collapsed' => TRUE,
+  );
+  $form['dblog_clear']['clear'] = array(
+    '#type' => 'submit',
+    '#value' => t('Clear log messages'),
+    '#submit' => array('dblog_clear_log_submit'),
+  );
+
+  return $form;
+}
+
+/**
+ * Submit callback: clear database with log messages.
+ */
+function dblog_clear_log_submit(&$form_state, $form) {
+  db_delete('watchdog')->execute();
+  drupal_set_message(t('Database log cleared.'));
 }

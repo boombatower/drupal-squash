@@ -505,21 +505,18 @@ function locale_system_update($components) {
 }
 
 /**
- * Update JavaScript translation file, if required, and add it to the page.
+ * Implementation of hook_js_alter().
  *
  * This function checks all JavaScript files currently added via drupal_add_js()
  * and invokes parsing if they have not yet been parsed for Drupal.t()
  * and Drupal.formatPlural() calls. Also refreshes the JavaScript translation
  * file if necessary, and adds it to the page.
  */
-function locale_update_js_files() {
+function locale_js_alter(&$javascript) {
   global $language;
 
   $dir = file_create_path(variable_get('locale_js_directory', 'languages'));
   $parsed = variable_get('javascript_parsed', array());
-
-  // Get an array of all the JavaScript added so far.
-  $javascript = drupal_add_js();
   $files = $new_files = FALSE;
 
   foreach ($javascript as $item) {
@@ -563,7 +560,9 @@ function locale_update_js_files() {
 
   // Add the translation JavaScript file to the page.
   if ($files && !empty($language->javascript)) {
-    drupal_add_js($dir . '/' . $language->language . '_' . $language->javascript . '.js');
+    // Add the translation JavaScript file to the page.
+    $file = $dir . '/' . $language->language . '_' . $language->javascript . '.js';
+    $javascript[$file] = drupal_js_defaults($file);
   }
 }
 
@@ -571,20 +570,24 @@ function locale_update_js_files() {
 // Language switcher block
 
 /**
- * Implementation of hook_block().
- * Displays a language switcher. Translation links may be provided by other modules.
+ * Implementation of hook_block_list().
  */
-function locale_block($op = 'list', $delta = '') {
-  if ($op == 'list') {
-    $block['language-switcher']['info'] = t('Language switcher');
-    // Not worth caching.
-    $block['language-switcher']['cache'] = BLOCK_NO_CACHE;
-    return $block;
-  }
+function locale_block_list() {
+  $block['language-switcher']['info'] = t('Language switcher');
+  // Not worth caching.
+  $block['language-switcher']['cache'] = BLOCK_NO_CACHE;
+  return $block;
+}
 
-  // Only show if we have at least two languages and language dependent
-  // web addresses, so we can actually link to other language versions.
-  elseif ($op == 'view' && variable_get('language_count', 1) > 1 && variable_get('language_negotiation', LANGUAGE_NEGOTIATION_NONE) != LANGUAGE_NEGOTIATION_NONE) {
+/**
+ * Implementation of hook_block_view().
+ *
+ * Displays a language switcher. Translation links may be provided by other modules.
+ * Only show if we have at least two languages and language dependent
+ * web addresses, so we can actually link to other language versions.
+ */
+function locale_block_view($delta = '') {
+  if (variable_get('language_count', 1) > 1 && variable_get('language_negotiation', LANGUAGE_NEGOTIATION_NONE) != LANGUAGE_NEGOTIATION_NONE) {
     $path = drupal_is_front_page() ? '<front>' : $_GET['q'];
     $languages = language_list('enabled');
     $links = array();
@@ -598,9 +601,6 @@ function locale_block($op = 'list', $delta = '') {
     }
 
     // Allow modules to provide translations for specific links.
-    // A translation link may need to point to a different path or use
-    // a translated link text before going through l(), which will just
-    // handle the path aliases.
     drupal_alter('translation_link', $links, $path);
 
     $block['subject'] = t('Languages');

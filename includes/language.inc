@@ -25,7 +25,7 @@ function language_initialize() {
     case LANGUAGE_NEGOTIATION_DOMAIN:
       foreach ($languages as $language) {
         $parts = parse_url($language->domain);
-        if (!empty($parts['host']) && ($_SERVER['SERVER_NAME'] == $parts['host'])) {
+        if (!empty($parts['host']) && ($_SERVER['HTTP_HOST'] == $parts['host'])) {
           return $language;
         }
       }
@@ -99,7 +99,7 @@ function language_from_browser() {
 }
 
 /**
- * Rewrite URL's with language based prefix. Parameters are the same
+ * Rewrite URLs with language based prefix. Parameters are the same
  * as those of the url() function.
  */
 function language_url_rewrite(&$path, &$options) {

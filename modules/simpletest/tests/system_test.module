@@ -55,6 +55,14 @@ function system_test_menu() {
     'type' => MENU_CALLBACK,
   );
 
+  $items['system-test/generate-warnings-with-report'] = array(
+    'title' => 'Generate warnings with Simpletest reporting',
+    'page callback' => 'system_test_generate_warnings',
+    'page arguments' => array(TRUE),
+    'access callback' => TRUE,
+    'type' => MENU_CALLBACK,
+  );
+
   $items['system-test/trigger-exception'] = array(
     'title' => 'Trigger an exception',
     'page callback' => 'system_test_trigger_exception',
@@ -143,10 +151,35 @@ function system_test_modules_uninstalled($modules) {
 }
 
 /**
+ * Implementation of hook_boot().
+ */
+function system_test_boot() {
+  watchdog('system_test', 'hook_boot');
+}
+
+/**
+ * Implementation of hook_init().
+ */
+function system_test_init() {
+  // Used by FrontPageTestCase to get the results of drupal_is_front_page().
+  if (variable_get('front_page_output', 0) && drupal_is_front_page()) {
+    drupal_set_message(t('On front page.'));
+  }
+}
+
+/**
+ * Implementation of hook_exit().
+ */
+function system_test_exit() {
+  watchdog('system_test', 'hook_exit');
+}
+
+/**
  * Menu callback; generate warnings to test the error handler.
  */
-function system_test_generate_warnings() {
-  define('SIMPLETEST_DONT_COLLECT_ERRORS', TRUE);
+function system_test_generate_warnings($collect_errors = FALSE) {
+  // Tell Drupal error reporter to send errors to Simpletest or not.
+  define('SIMPLETEST_COLLECT_ERRORS', $collect_errors);
   // This will generate a notice.
   $monkey_love = $bananas;
   // This will generate a warning.
@@ -160,7 +193,7 @@ function system_test_generate_warnings() {
  * Menu callback; trigger an exception to test the exception handler.
  */
 function system_test_trigger_exception() {
-  define('SIMPLETEST_DONT_COLLECT_ERRORS', TRUE);
+  define('SIMPLETEST_COLLECT_ERRORS', FALSE);
   throw new Exception("Drupal is awesome");
 }
 
@@ -168,6 +201,6 @@ function system_test_trigger_exception() {
  * Menu callback; trigger an exception to test the exception handler.
  */
 function system_test_trigger_pdo_exception() {
-  define('SIMPLETEST_DONT_COLLECT_ERRORS', TRUE);
+  define('SIMPLETEST_COLLECT_ERRORS', FALSE);
   db_query("SELECT * FROM bananas_are_awesome");
 }

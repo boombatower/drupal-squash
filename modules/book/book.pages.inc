@@ -210,7 +210,9 @@ function book_remove_form_submit($form, &$form_state) {
   if ($node->nid != $node->book['bid']) {
     // Only allowed when this is not a book (top-level page).
     menu_link_delete($node->book['mlid']);
-    db_query('DELETE FROM {book} WHERE nid = %d', $node->nid);
+    db_delete('book')
+      ->condition('nid', $node->nid)
+      ->execute();
     drupal_set_message(t('The post has been removed from the book.'));
   }
   $form_state['redirect'] = 'node/' . $node->nid;
@@ -219,7 +221,7 @@ function book_remove_form_submit($form, &$form_state) {
 /**
  * AJAX callback to replace the book parent select options.
  *
- * This function is called when the selected book is changed.  It updates the
+ * This function is called when the selected book is changed. It updates the
  * cached form (either the node form or the book outline form) and returns
  * rendered output to be used to replace the select containing the possible
  * parent pages in the newly selected book.

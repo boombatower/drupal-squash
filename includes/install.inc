@@ -134,8 +134,8 @@ function drupal_get_installed_schema_version($module, $reset = FALSE, $array = F
 
   if (!$versions) {
     $versions = array();
-    $result = db_query("SELECT name, schema_version FROM {system} WHERE type = '%s'", 'module');
-    while ($row = db_fetch_object($result)) {
+    $result = db_query("SELECT name, schema_version FROM {system} WHERE type = :type", array(':type' => 'module'));
+    foreach ($result as $row) {
       $versions[$row->name] = $row->schema_version;
     }
   }
@@ -152,7 +152,10 @@ function drupal_get_installed_schema_version($module, $reset = FALSE, $array = F
  *   The new schema version.
  */
 function drupal_set_installed_schema_version($module, $version) {
-  db_query("UPDATE {system} SET schema_version = %d WHERE name = '%s'", $version, $module);
+  db_update('system')
+    ->fields(array('schema_version' => $version))
+    ->condition('name', $module)
+    ->execute();
 }
 
 /**
@@ -207,12 +210,12 @@ function drupal_detect_database_types() {
   $databases = array();
 
   // We define a driver as a directory in /includes/database that in turn
-  // contains a database.inc file.  That allows us to drop in additional drivers
+  // contains a database.inc file. That allows us to drop in additional drivers
   // without modifying the installer.
   // Because we have no registry yet, we need to also include the install.inc
   // file for the driver explicitly.
 
-  foreach (file_scan_directory(DRUPAL_ROOT . '/includes/database', '/^[a-z]*$/i', array('.', '..', 'CVS'), 0, FALSE) as $file) {
+  foreach (file_scan_directory(DRUPAL_ROOT . '/includes/database', '/^[a-z]*$/i', '/(\.\.?|CVS)$/', 0, FALSE) as $file) {
     include_once "{$file->filename}/install.inc";
     include_once "{$file->filename}/database.inc";
     $drivers[$file->basename] = $file->filename;
@@ -226,7 +229,7 @@ function drupal_detect_database_types() {
     }
   }
 
-  // Usability: unconditionnally put the MySQL driver on top.
+  // Usability: unconditionally put the MySQL driver on top.
   if (isset($databases['mysql'])) {
     $mysql_database = $databases['mysql'];
     unset($databases['mysql']);
@@ -554,6 +557,7 @@ function drupal_install_init_database() {
     foreach (glob(DRUPAL_ROOT . '/includes/database/' . $driver . '/*.inc') as $include_file) {
       require_once $include_file;
     }
+    $included = TRUE;
   }
 }
 
@@ -571,9 +575,18 @@ function drupal_install_system() {
 
   $system_versions = drupal_get_schema_versions('system');
   $system_version = $system_versions ? max($system_versions) : SCHEMA_INSTALLED;
-  db_query("INSERT INTO {system} (filename, name, type, owner, status, bootstrap, schema_version) VALUES('%s', '%s', '%s', '%s', %d, %d, %d)", $system_path . '/system.module', 'system', 'module', '', 1, 0, $system_version);
+  db_insert('system')
+    ->fields(array('filename', 'name', 'type', 'owner', 'status', 'schema_version'))
+    ->values(array(
+        'filename' => $system_path . '/system.module',
+        'name' => 'system',
+        'type' => 'module',
+        'owner' => '',
+        'status' => 1,
+        'schema_version' => $system_version
+        ))
+    ->execute();
   // Now that we've installed things properly, bootstrap the full Drupal environment
-  drupal_install_init_database();
   drupal_bootstrap(DRUPAL_BOOTSTRAP_FULL);
   module_rebuild_cache();
 }
@@ -609,10 +622,15 @@ function drupal_uninstall_modules($module_list = array()) {
       }
       $placeholders = implode(', ', array_fill(0, count($paths), "'%s'"));
 
-      $result = db_query('SELECT * FROM {menu_links} WHERE router_path IN (' . $placeholders . ') AND external = 0 ORDER BY depth DESC', $paths);
+      $result = db_select('menu_links')
+         ->fields('menu_links')
+         ->condition('router_path', $paths, 'IN')
+         ->condition('external', 0)
+         ->orderBy('depth')
+         ->execute();
       // Remove all such items. Starting from those with the greatest depth will
       // minimize the amount of re-parenting done by menu_link_delete().
-      while ($item = db_fetch_array($result)) {
+      foreach ($result as $item) {
         _menu_delete_item($item, TRUE);
       }
     }

@@ -15,8 +15,7 @@ function forum_enable() {
   if ($vocabulary = taxonomy_vocabulary_load(variable_get('forum_nav_vocabulary', 0))) {
     // Existing install. Add back forum node type, if the forums
     // vocabulary still exists. Keep all other node types intact there.
-    $vocabulary = (array) $vocabulary;
-    $vocabulary['nodes']['forum'] = 1;
+    $vocabulary->nodes['forum'] = 1;
     taxonomy_vocabulary_save($vocabulary);
   }
   else {
@@ -66,28 +65,28 @@ function forum_uninstall() {
  */
 function forum_schema() {
   $schema['forum'] = array(
-    'description' => t('Stores the relationship of nodes to forum terms.'),
+    'description' => 'Stores the relationship of nodes to forum terms.',
     'fields' => array(
       'nid' => array(
         'type' => 'int',
         'unsigned' => TRUE,
         'not null' => TRUE,
         'default' => 0,
-        'description' => t('The {node}.nid of the node.'),
+        'description' => 'The {node}.nid of the node.',
       ),
       'vid' => array(
         'type' => 'int',
         'unsigned' => TRUE,
         'not null' => TRUE,
         'default' => 0,
-        'description' => t('Primary Key: The {node}.vid of the node.'),
+        'description' => 'Primary Key: The {node}.vid of the node.',
       ),
       'tid' => array(
         'type' => 'int',
         'unsigned' => TRUE,
         'not null' => TRUE,
         'default' => 0,
-        'description' => t('The {term_data}.tid of the forum term assigned to the node.'),
+        'description' => 'The {taxonomy_term_data}.tid of the forum term assigned to the node.',
       ),
     ),
     'indexes' => array(
@@ -103,7 +102,7 @@ function forum_schema() {
 /**
  * Create the forum vocabulary if does not exist. Assign the
  * vocabulary a low weight so it will appear first in forum topic
- * create and edit forms.  Do not just call forum_enable() because in
+ * create and edit forms. Do not just call forum_enable() because in
  * future versions it might do something different.
  */
 function forum_update_6000() {

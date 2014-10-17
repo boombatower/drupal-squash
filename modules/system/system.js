@@ -48,7 +48,10 @@ Drupal.cleanURLsInstallCheck = function() {
   var url = location.protocol +"//"+ location.host + Drupal.settings.basePath +"admin/settings/clean-urls/check";
   $("#clean-url .description").append('<span><div id="testing">'+ Drupal.settings.cleanURL.testing +"</div></span>");
   $("#clean-url.install").css("display", "block");
+  // Submit a synchronous request to avoid database errors associated with
+  // concurrent requests during install.
   $.ajax({
+    async: false,
     url: url,
     dataType: 'json',
     success: function () {
@@ -115,5 +118,17 @@ Drupal.behaviors.dateTime = {
 
     // Trigger the event handler to show the form input if necessary.
     $('select.date-format', context).trigger('change');
+  }
+};
+
+/**
+ * Show the powered by Drupal image preview
+ */
+Drupal.behaviors.poweredByPreview = {
+  attach: function(context) {
+    $('#edit-color, #edit-size').change(function() {
+      var path = Drupal.settings.basePath + 'misc/' + $('#edit-color').val() + '-' + $('#edit-size').val() + '.png';
+      $('img.powered-by-preview').attr('src', path);
+    });
   }
 };

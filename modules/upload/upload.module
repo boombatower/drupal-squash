@@ -56,13 +56,13 @@ function upload_perm() {
 }
 
 /**
- * Implementation of hook_link().
+ * Inject links into $node for attachments.
  */
-function upload_link($type, $node = NULL, $teaser = FALSE) {
+function upload_nodeapi_links($node, $teaser) {
   $links = array();
 
   // Display a link with the number of attachments
-  if ($teaser && $type == 'node' && isset($node->files) && user_access('view uploaded files')) {
+  if ($teaser && isset($node->files) && user_access('view uploaded files')) {
     $num_files = 0;
     foreach ($node->files as $file) {
       if ($file->list) {
@@ -76,10 +76,12 @@ function upload_link($type, $node = NULL, $teaser = FALSE) {
         'attributes' => array('title' => t('Read full article to view attachments.')),
         'fragment' => 'attachments'
       );
+      $node->content['links']['upload_attachments'] = array(
+        '#type' => 'node_links',
+        '#value' => $links,
+      );
     }
   }
-
-  return $links;
 }
 
 /**
@@ -150,17 +152,16 @@ function _upload_file_limits($user) {
  */
 function upload_file_download($filepath) {
   $filepath = file_create_path($filepath);
-  $result = db_query("SELECT f.*, u.nid FROM {files} f INNER JOIN {upload} u ON f.fid = u.fid WHERE filepath = '%s'", $filepath);
-  if ($file = db_fetch_object($result)) {
-    if (user_access('view uploaded files') && ($node = node_load($file->nid)) && node_access('view', $node)) {
-      return array(
-        'Content-Type: ' . $file->filemime,
-        'Content-Length: ' . $file->filesize,
-      );
-    }
-    else {
-      return -1;
-    }
+  $file = db_query("SELECT f.*, u.nid FROM {files} f INNER JOIN {upload} u ON f.fid = u.fid WHERE filepath = :path", array(':path' => $filepath))->fetchObject();
+
+  if ($file && user_access('view uploaded files') && ($node = node_load($file->nid)) && node_access('view', $node)) {
+    return array(
+      'Content-Type: ' . $file->filemime,
+      'Content-Length: ' . $file->filesize,
+    );
+  }
+  else {
+    return -1;
   }
 }
 
@@ -260,19 +261,21 @@ function upload_form_alter(&$form, $form_state, $form_id) {
         $form['attachments']['wrapper'] += _upload_form($node);
         $form['#attributes']['enctype'] = 'multipart/form-data';
       }
+      $form['#submit'][] = 'upload_node_form_submit';
     }
-    $form['#submit'][] = 'upload_node_form_submit';
   }
 }
 
 /**
  * Implementation of hook_file_load().
  */
-function upload_file_load(&$file) {
+function upload_file_load($files) {
   // Add the upload specific data into the file object.
-  $values = db_query('SELECT * FROM {upload} u WHERE u.fid = :fid', array(':fid' => $file->fid))->fetch(PDO::FETCH_ASSOC);
-  foreach ((array)$values as $key => $value) {
-    $file->{$key} = $value;
+  $result = db_query('SELECT * FROM {upload} u WHERE u.fid IN (:fids)', array(':fids' => array_keys($files)))->fetchAll(PDO::FETCH_ASSOC);
+  foreach ($result as $record) {
+    foreach ($record as $key => $value) {
+      $files[$record['fid']]->$key = $value;
+    }
   }
 }
 
@@ -296,21 +299,48 @@ function upload_file_delete(&$file) {
   db_delete('upload')->condition('fid', $file->fid)->execute();
 }
 
-
 /**
  * Implementation of hook_nodeapi_load().
  */
-function upload_nodeapi_load(&$node, $teaser) {
-  if (variable_get("upload_$node->type", 1) == 1) {
-    $output = array('files' => upload_load($node));
-    return $output;
+function upload_nodeapi_load($nodes, $types) {
+  // Collect all the revision ids for nodes with upload enabled.
+  $node_vids = array();
+  foreach ($nodes as $node) {
+    if (variable_get("upload_$node->type", 1) == 1) {
+      $node_vids[$node->vid] = $node->vid;
+      $node->files = array();
+    }
+  }
+  // If there are no vids then there's no point trying to load files.
+  if (empty($node_vids)) {
+    return;
+  }
+
+  // Fetch the fids associated with these node revisions.
+  $result = db_query('SELECT u.fid, u.nid, u.vid FROM {upload} u WHERE u.vid IN (:node_vids) ORDER BY u.weight, u.fid', array(':node_vids' => $node_vids));
+
+  // The same file may be attached to several nodes (e.g. translated nodes) so
+  // simply calling db_query()->fetchAllAssoc('fid') would return one node
+  // per file. Instead we build one array with the file ids for
+  // file_load_multiple() and another array with upload records so we can match
+  // files back to the nodes.
+  $fids = array();
+  $uploads = array();
+  foreach ($result as $record) {
+    $fids[] = $record->fid;
+    $uploads[] = $record;
+  }
+
+  $files = file_load_multiple($fids);
+  foreach ($uploads as $upload) {
+    $nodes[$upload->nid]->files[$upload->fid] = $files[$upload->fid];
   }
 }
 
 /**
  * Implementation of hook_nodeapi_view().
  */
-function upload_nodeapi_view(&$node, $teaser) {
+function upload_nodeapi_view($node, $teaser, $page) {
   if (isset($node->files) && user_access('view uploaded files')) {
     // Add the attachments list to node body with a heavy
     // weight to ensure they're below other elements
@@ -322,13 +352,15 @@ function upload_nodeapi_view(&$node, $teaser) {
         );
       }
     }
+
+    upload_nodeapi_links($node, $teaser);
   }
 }
 
 /**
  * Implementation of hook_nodeapi_insert().
  */
-function upload_nodeapi_insert(&$node, $teaser) {
+function upload_nodeapi_insert($node) {
   if (user_access('upload files')) {
     upload_save($node);
   }
@@ -337,7 +369,7 @@ function upload_nodeapi_insert(&$node, $teaser) {
 /**
  * Implementation of hook_nodeapi_update().
  */
-function upload_nodeapi_update(&$node, $teaser) {
+function upload_nodeapi_update($node) {
   if (user_access('upload files')) {
     upload_save($node);
   }
@@ -346,7 +378,7 @@ function upload_nodeapi_update(&$node, $teaser) {
 /**
  * Implementation of hook_nodeapi_delete().
  */
-function upload_nodeapi_delete(&$node, $teaser) {
+function upload_nodeapi_delete($node) {
   db_delete('upload')->condition('nid', $node->nid)->execute();
   if (!is_array($node->files)) {
     return;
@@ -359,7 +391,7 @@ function upload_nodeapi_delete(&$node, $teaser) {
 /**
  * Implementation of hook_nodeapi_delete_revision().
  */
-function upload_nodeapi_delete_revision(&$node, $teaser) {
+function upload_nodeapi_delete_revision($node) {
   db_delete('upload')->condition('vid', $node->vid)->execute();
   if (!is_array($node->files)) {
     return;
@@ -372,14 +404,14 @@ function upload_nodeapi_delete_revision(&$node, $teaser) {
 /**
  * Implementation of hook_nodeapi_search_result().
  */
-function upload_nodeapi_search_result(&$node, $teaser) {
+function upload_nodeapi_search_result($node) {
   return isset($node->files) && is_array($node->files) ? format_plural(count($node->files), '1 attachment', '@count attachments') : NULL;
 }
 
 /**
  * Implementation of hook_nodeapi_rss_item().
  */
-function upload_nodeapi_rss_item(&$node, $teaser) {
+function upload_nodeapi_rss_item($node) {
   if (is_array($node->files)) {
     $files = array();
     foreach ($node->files as $file) {
@@ -445,7 +477,7 @@ function upload_space_used($uid) {
  *   The amount of disk space used by uploaded files in bytes.
  */
 function upload_total_space_used() {
-  return db_result(db_query('SELECT SUM(f.filesize) FROM {files} f INNER JOIN {upload} u ON f.fid = u.fid'));
+  return db_query('SELECT SUM(f.filesize) FROM {files} f INNER JOIN {upload} u ON f.fid = u.fid')->fetchField();
 }
 
 function upload_save(&$node) {
@@ -473,13 +505,30 @@ function upload_save(&$node) {
 
     // Create a new revision, or associate a new file needed.
     if (!empty($node->old_vid) || $file->new) {
-      db_query("INSERT INTO {upload} (fid, nid, vid, list, description, weight) VALUES (%d, %d, %d, %d, '%s', %d)", $file->fid, $node->nid, $node->vid, $file->list, $file->description, $file->weight);
+      db_insert('upload')
+        ->fields(array(
+          'fid' => $file->fid,
+          'nid' => $node->nid,
+          'vid' => $node->vid,
+          'list' => $file->list,
+          'description' => $file->description,
+          'weight' => $file->weight,
+        ))
+        ->execute();
     }
     // Update existing revision.
     else {
-      db_query("UPDATE {upload} SET list = %d, description = '%s', weight = %d WHERE fid = %d AND vid = %d", $file->list, $file->description, $file->weight, $file->fid, $node->vid);
+      db_update('upload')
+        ->fields(array(
+          'list' => $file->list,
+          'description' => $file->description,
+          'weight' => $file->weight,
+        ))
+        ->condition('fid', $file->fid, '=')
+        ->condition('vid', $node->vid, '=')
+        ->execute();
     }
-    $file->status &= FILE_STATUS_PERMANENT;
+    $file->status |= FILE_STATUS_PERMANENT;
     $file = file_save($file);
   }
 }
@@ -525,9 +574,7 @@ function _upload_form($node) {
         $limit_description .= t('Images may not be larger than %resolution. ', array('%resolution' => $limits['resolution']));
       }
     }
-    if ($user->uid != 1) {
-      $limit_description .= t('Only files with the following extensions may be uploaded: %extensions. ', array('%extensions' => $limits['extensions']));
-    }
+    $limit_description .= t('Only files with the following extensions may be uploaded: %extensions. ', array('%extensions' => $limits['extensions']));
 
     $form['new']['#weight'] = 10;
     $form['new']['upload'] = array(
@@ -588,19 +635,6 @@ function theme_upload_form_new($form) {
   drupal_add_tabledrag('upload-attachments', 'order', 'sibling', 'upload-weight');
   $output = drupal_render($form);
   return $output;
-}
-
-function upload_load($node) {
-  $files = array();
-
-  if ($node->vid) {
-    $result = db_query('SELECT u.fid FROM {upload} u WHERE u.vid = :vid ORDER BY u.weight, u.fid', array(':vid' => $node->vid));
-    foreach ($result as $file) {
-      $files[$file->fid] = file_load($file->fid);
-    }
-  }
-
-  return $files;
 }
 
 /**

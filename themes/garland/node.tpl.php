@@ -19,7 +19,7 @@
 
   <div class="clear-block">
     <div class="meta">
-    <?php if ($taxonomy): ?>
+    <?php if ($terms): ?>
       <div class="terms"><?php print $terms ?></div>
     <?php endif;?>
     </div>
@@ -27,6 +27,9 @@
     <?php if ($links): ?>
       <div class="links"><?php print $links; ?></div>
     <?php endif; ?>
+    
+    <?php print $comments; ?>
+    
   </div>
 
 </div>

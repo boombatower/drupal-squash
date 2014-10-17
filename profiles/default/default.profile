@@ -22,7 +22,7 @@ function default_profile_modules() {
 function default_profile_details() {
   return array(
     'name' => 'Drupal',
-    'description' => 'Select this profile to enable some basic Drupal functionality and the default theme.'
+    'description' => 'Create a Drupal site with the most commonly used features pre-installed.'
   );
 }
 
@@ -125,15 +125,13 @@ function default_profile_tasks(&$task, $url) {
   variable_set('comment_page', COMMENT_NODE_DISABLED);
 
   // Don't display date and author information for page nodes by default.
-  $theme_settings = variable_get('theme_settings', array());
-  $theme_settings['toggle_node_info_page'] = FALSE;
-  variable_set('theme_settings', $theme_settings);
+  variable_set('node_submitted_page', FALSE);
 
   // Create a default vocabulary named "Tags", enabled for the 'article' content type.
   $description = st('Use tags to group articles on similar topics into categories.');
   $help = st('Enter a comma-separated list of words.');
 
-  $vid = db_insert('vocabulary')->fields(array(
+  $vid = db_insert('taxonomy_vocabulary')->fields(array(
     'name' => 'Tags',
     'description' => $description,
     'help' => $help,
@@ -145,7 +143,7 @@ function default_profile_tasks(&$task, $url) {
     'module' => 'taxonomy',
     'weight' => 0,
   ))->execute();
-  db_insert('vocabulary_node_types')->fields(array('vid' => $vid, 'type' => 'article'))->execute();
+  db_insert('taxonomy_vocabulary_node_type')->fields(array('vid' => $vid, 'type' => 'article'))->execute();
 
   // Update the menu router information.
   menu_rebuild();

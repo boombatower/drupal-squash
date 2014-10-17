@@ -16,6 +16,7 @@ define('USERNAME_MAX_LENGTH', 60);
  */
 define('EMAIL_MAX_LENGTH', 64);
 
+
 /**
  * Invokes hook_user() in every module.
  *
@@ -23,11 +24,9 @@ define('EMAIL_MAX_LENGTH', 64);
  * be passed by reference.
  */
 function user_module_invoke($type, &$array, &$user, $category = NULL) {
-  foreach (module_list() as $module) {
+  foreach (module_implements('user_' . $type) as $module) {
     $function = $module . '_user_' . $type;
-    if (function_exists($function)) {
-      $function($array, $user, $category);
-    }
+    $function($array, $user, $category);
   }
 }
 
@@ -205,7 +204,7 @@ function user_load($array = array()) {
  *
  * @param $edit
  *   An array of fields and values to save. For example array('name'
- *   => 'My name').  Keys that do not belong to columns in the user-related
+ *   => 'My name'). Keys that do not belong to columns in the user-related
  *   tables are added to the a serialized array in the 'data' column
  *   and will be loaded in the $user->data array by user_load().
  *   Setting a field to NULL deletes it from the data column.
@@ -284,7 +283,9 @@ function user_save($account, $edit = array(), $category = 'account') {
     // the current one.
     if (!empty($edit['pass'])) {
       drupal_session_destroy_uid($account->uid);
-      drupal_session_regenerate();
+      if ($account->uid == $GLOBALS['user']->uid) {
+        drupal_session_regenerate();
+      }
     }
 
     // Refresh user object.
@@ -489,7 +490,7 @@ function user_role_permissions($roles = array(), $reset = FALSE) {
     if ($fetch) {
       // Get from the database permissions that were not in the static variable.
       // Only role IDs with at least one permission assigned will return rows.
-      $result = db_query("SELECT r.rid, p.permission FROM {role} r INNER JOIN {role_permission} p ON p.rid = r.rid WHERE r.rid IN (" . db_placeholders($fetch) . ")", $fetch);
+      $result = db_query("SELECT r.rid, p.permission FROM {role} r INNER JOIN {role_permission} p ON p.rid = r.rid WHERE r.rid IN (:fetch)", array(':fetch' => $fetch));
 
       while ($row = db_fetch_array($result)) {
         $stored_permissions[$row['rid']][$row['permission']] = TRUE;
@@ -587,6 +588,14 @@ function user_perm() {
        'title' => t('Change own username'),
        'description' => t('Select a different username.'),
      ),
+     'cancel account' => array(
+       'title' => t('Cancel account'),
+       'description' => t('Remove or disable own user account and unpublish, anonymize, or remove own submissions depending on the configured <a href="@user-settings-url">user settings</a>.', array('@user-settings-url' => url('admin/user/settings'))),
+     ),
+     'select account cancellation method' => array(
+       'title' => t('Select method for cancelling own account'),
+       'description' => t('Select the method for cancelling own user account. %warning', array('%warning' => t('Warning: Give to trusted roles only; this permission has security implications.'))),
+     ),
    );
 }
 
@@ -674,7 +683,7 @@ function user_user_view(&$edit, &$account, $category = NULL) {
 function user_user_form(&$edit, &$account, $category = NULL) {
   if ($category == 'account') {
     $form_state = array();
-    return user_edit_form($form_state, arg(1), $edit);
+    return user_edit_form($form_state, (isset($account->uid) ? $account->uid : FALSE), $edit);
   }
 }
 
@@ -683,7 +692,24 @@ function user_user_form(&$edit, &$account, $category = NULL) {
  */
 function user_user_validate(&$edit, &$account, $category = NULL) {
   if ($category == 'account') {
-    return _user_edit_validate(arg(1), $edit);
+    $uid = isset($account->uid) ? $account->uid : FALSE;
+    // Validate the username when: new user account; or user is editing own account and can change username; or an admin user.
+    if (!$uid || ($GLOBALS['user']->uid == $uid && user_access('change own username')) || user_access('administer users')) {
+      if ($error = user_validate_name($edit['name'])) {
+        form_set_error('name', $error);
+      }
+      elseif (db_result(db_query("SELECT COUNT(*) FROM {users} WHERE uid != %d AND LOWER(name) = LOWER('%s')", $uid, $edit['name'])) > 0) {
+        form_set_error('name', t('The name %name is already taken.', array('%name' => $edit['name'])));
+      }
+    }
+
+    // Validate the e-mail address:
+    if ($error = user_validate_mail($edit['mail'])) {
+      form_set_error('mail', $error);
+    }
+    elseif (db_result(db_query("SELECT COUNT(*) FROM {users} WHERE uid != %d AND LOWER(mail) = LOWER('%s')", $uid, $edit['mail'])) > 0) {
+      form_set_error('mail', t('The e-mail address %email is already registered. <a href="@password">Have you forgotten your password?</a>', array('%email' => $edit['mail'], '@password' => url('user/password'))));
+    }
   }
 }
 
@@ -692,7 +718,16 @@ function user_user_validate(&$edit, &$account, $category = NULL) {
  */
 function user_user_submit(&$edit, &$account, $category = NULL) {
   if ($category == 'account') {
-    return _user_edit_submit(arg(1), $edit);
+    // Delete picture if requested, and if no replacement picture was given.
+    if (!empty($edit['picture_delete'])) {
+      if ($account->picture && file_exists($account->picture)) {
+        file_unmanaged_delete($account->picture);
+      }
+      $edit['picture'] = '';
+    }
+    if (isset($edit['roles'])) {
+      $edit['roles'] = array_filter($edit['roles']);
+    }
   }
 }
 
@@ -735,124 +770,135 @@ function user_login_block() {
 }
 
 /**
- * Implementation of hook_block().
+ * Implementation of hook_block_list().
  */
-function user_block($op = 'list', $delta = '', $edit = array()) {
+function user_block_list() {
   global $user;
 
-  if ($op == 'list') {
-    $blocks['login']['info'] = t('User login');
-    // Not worth caching.
-    $blocks['login']['cache'] = BLOCK_NO_CACHE;
+  $blocks['login']['info'] = t('User login');
+  // Not worth caching.
+  $blocks['login']['cache'] = BLOCK_NO_CACHE;
 
-    $blocks['navigation']['info'] = t('Navigation');
-    // Menu blocks can't be cached because each menu item can have
-    // a custom access callback. menu.inc manages its own caching.
-    $blocks['navigation']['cache'] = BLOCK_NO_CACHE;
+  $blocks['navigation']['info'] = t('Navigation');
+  // Menu blocks can't be cached because each menu item can have
+  // a custom access callback. menu.inc manages its own caching.
+  $blocks['navigation']['cache'] = BLOCK_NO_CACHE;
 
-    $blocks['new']['info'] = t('Who\'s new');
+  $blocks['new']['info'] = t('Who\'s new');
 
-    // Too dynamic to cache.
-    $blocks['online']['info'] = t('Who\'s online');
-    $blocks['online']['cache'] = BLOCK_NO_CACHE;
-    return $blocks;
+  // Too dynamic to cache.
+  $blocks['online']['info'] = t('Who\'s online');
+  $blocks['online']['cache'] = BLOCK_NO_CACHE;
+  return $blocks;
+}
+
+/**
+ * Implementation of hook_block_configure().
+ */
+function user_block_configure($delta = '') {
+  global $user;
+
+  switch($delta) {
+    case 'new':
+      $form['user_block_whois_new_count'] = array(
+        '#type' => 'select',
+        '#title' => t('Number of users to display'),
+        '#default_value' => variable_get('user_block_whois_new_count', 5),
+        '#options' => drupal_map_assoc(array(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)),
+      );
+      return $form;
+
+    case 'online':
+      $period = drupal_map_assoc(array(30, 60, 120, 180, 300, 600, 900, 1800, 2700, 3600, 5400, 7200, 10800, 21600, 43200, 86400), 'format_interval');
+      $form['user_block_seconds_online'] = array('#type' => 'select', '#title' => t('User activity'), '#default_value' => variable_get('user_block_seconds_online', 900), '#options' => $period, '#description' => t('A user is considered online for this long after they have last viewed a page.'));
+      $form['user_block_max_list_count'] = array('#type' => 'select', '#title' => t('User list length'), '#default_value' => variable_get('user_block_max_list_count', 10), '#options' => drupal_map_assoc(array(0, 5, 10, 15, 20, 25, 30, 40, 50, 75, 100)), '#description' => t('Maximum number of currently online users to display.'));
+      return $form;
   }
-  elseif ($op == 'configure' && $delta == 'new') {
-    $form['user_block_whois_new_count'] = array(
-      '#type' => 'select',
-      '#title' => t('Number of users to display'),
-      '#default_value' => variable_get('user_block_whois_new_count', 5),
-      '#options' => drupal_map_assoc(array(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)),
-    );
-    return $form;
-  }
-  elseif ($op == 'configure' && $delta == 'online') {
-    $period = drupal_map_assoc(array(30, 60, 120, 180, 300, 600, 900, 1800, 2700, 3600, 5400, 7200, 10800, 21600, 43200, 86400), 'format_interval');
-    $form['user_block_seconds_online'] = array('#type' => 'select', '#title' => t('User activity'), '#default_value' => variable_get('user_block_seconds_online', 900), '#options' => $period, '#description' => t('A user is considered online for this long after they have last viewed a page.'));
-    $form['user_block_max_list_count'] = array('#type' => 'select', '#title' => t('User list length'), '#default_value' => variable_get('user_block_max_list_count', 10), '#options' => drupal_map_assoc(array(0, 5, 10, 15, 20, 25, 30, 40, 50, 75, 100)), '#description' => t('Maximum number of currently online users to display.'));
+}
 
-    return $form;
-  }
-  elseif ($op == 'save' && $delta == 'new') {
-    variable_set('user_block_whois_new_count', $edit['user_block_whois_new_count']);
-  }
-  elseif ($op == 'save' && $delta == 'online') {
-    variable_set('user_block_seconds_online', $edit['user_block_seconds_online']);
-    variable_set('user_block_max_list_count', $edit['user_block_max_list_count']);
-  }
-  elseif ($op == 'view') {
-    $block = array();
+/**
+ * Implementation of hook_block_save().
+ */
+function user_block_save($delta = '', $edit = array()) {
+  global $user;
 
-    switch ($delta) {
-      case 'login':
-        // For usability's sake, avoid showing two login forms on one page.
-        if (!$user->uid && !(arg(0) == 'user' && !is_numeric(arg(1)))) {
+  switch ($delta) {
+    case 'new':
+      variable_set('user_block_whois_new_count', $edit['user_block_whois_new_count']);
+      break;
 
-          $block['subject'] = t('User login');
-          $block['content'] = drupal_get_form('user_login_block');
+    case 'online':
+      variable_set('user_block_seconds_online', $edit['user_block_seconds_online']);
+      variable_set('user_block_max_list_count', $edit['user_block_max_list_count']);
+      break;
+  }
+}
+
+/**
+ * Implementation of hook_block_view().
+ */
+function user_block_view($delta = '') {
+  global $user;
+
+  $block = array();
+
+  switch ($delta) {
+    case 'login':
+      // For usability's sake, avoid showing two login forms on one page.
+      if (!$user->uid && !(arg(0) == 'user' && !is_numeric(arg(1)))) {
+
+        $block['subject'] = t('User login');
+        $block['content'] = drupal_get_form('user_login_block');
+      }
+      return $block;
+
+    case 'navigation':
+      if ($menu = menu_tree()) {
+        $block['subject'] = $user->uid ? check_plain($user->name) : t('Navigation');
+        $block['content'] = $menu;
+      }
+      return $block;
+
+    case 'new':
+      if (user_access('access content')) {
+        // Retrieve a list of new users who have subsequently accessed the site successfully.
+        $items = db_query_range('SELECT uid, name FROM {users} WHERE status != 0 AND access != 0 ORDER BY created DESC', array(), 0, variable_get('user_block_whois_new_count', 5))->fetchAll();
+        $output = theme('user_list', $items);
+
+        $block['subject'] = t('Who\'s new');
+        $block['content'] = $output;
+      }
+      return $block;
+
+    case 'online':
+      if (user_access('access content')) {
+        // Count users active within the defined period.
+        $interval = REQUEST_TIME - variable_get('user_block_seconds_online', 900);
+
+        // Perform database queries to gather online user lists. We use s.timestamp
+        // rather than u.access because it is much faster.
+        $anonymous_count = drupal_session_count($interval);
+        $authenticated_count = db_query("SELECT COUNT(DISTINCT s.uid) FROM {sessions} s WHERE s.timestamp >= :timestamp AND s.uid > 0", array(':timestamp' => $interval))->fetchField();
+
+        // Format the output with proper grammar.
+        if ($anonymous_count == 1 && $authenticated_count == 1) {
+          $output = t('There is currently %members and %visitors online.', array('%members' => format_plural($authenticated_count, '1 user', '@count users'), '%visitors' => format_plural($anonymous_count, '1 guest', '@count guests')));
         }
-        return $block;
-
-      case 'navigation':
-        if ($menu = menu_tree()) {
-          $block['subject'] = $user->uid ? check_plain($user->name) : t('Navigation');
-          $block['content'] = $menu;
+        else {
+          $output = t('There are currently %members and %visitors online.', array('%members' => format_plural($authenticated_count, '1 user', '@count users'), '%visitors' => format_plural($anonymous_count, '1 guest', '@count guests')));
         }
-        return $block;
 
-      case 'new':
-        if (user_access('access content')) {
-          // Retrieve a list of new users who have subsequently accessed the site successfully.
-          $result = db_query_range('SELECT uid, name FROM {users} WHERE status != 0 AND access != 0 ORDER BY created DESC', 0, variable_get('user_block_whois_new_count', 5));
-          while ($account = db_fetch_object($result)) {
-            $items[] = $account;
-          }
-          $output = theme('user_list', $items);
-
-          $block['subject'] = t('Who\'s new');
-          $block['content'] = $output;
+        // Display a list of currently online users.
+        $max_users = variable_get('user_block_max_list_count', 10);
+        if ($authenticated_count && $max_users) {
+          $items = db_query_range('SELECT u.uid, u.name, MAX(s.timestamp) AS max_timestamp FROM {users} u INNER JOIN {sessions} s ON u.uid = s.uid WHERE s.timestamp >= :interval AND s.uid > 0 GROUP BY u.uid, u.name ORDER BY max_timestamp DESC', array(':interval' => $interval), 0, $max_users)->fetchAll();
+          $output .= theme('user_list', $items, t('Online users'));
         }
-        return $block;
 
-      case 'online':
-        if (user_access('access content')) {
-          // Count users active within the defined period.
-          $interval = REQUEST_TIME - variable_get('user_block_seconds_online', 900);
-
-          // Perform database queries to gather online user lists.  We use s.timestamp
-          // rather than u.access because it is much faster.
-          $anonymous_count = drupal_session_count($interval);
-          $authenticated_users = db_query('SELECT DISTINCT u.uid, u.name, s.timestamp FROM {users} u INNER JOIN {sessions} s ON u.uid = s.uid WHERE s.timestamp >= %d AND s.uid > 0 ORDER BY s.timestamp DESC', $interval);
-          $authenticated_count = 0;
-          $max_users = variable_get('user_block_max_list_count', 10);
-          $items = array();
-          while ($account = db_fetch_object($authenticated_users)) {
-            if ($max_users > 0) {
-              $items[] = $account;
-              $max_users--;
-            }
-            $authenticated_count++;
-          }
-
-          // Format the output with proper grammar.
-          if ($anonymous_count == 1 && $authenticated_count == 1) {
-            $output = t('There is currently %members and %visitors online.', array('%members' => format_plural($authenticated_count, '1 user', '@count users'), '%visitors' => format_plural($anonymous_count, '1 guest', '@count guests')));
-          }
-          else {
-            $output = t('There are currently %members and %visitors online.', array('%members' => format_plural($authenticated_count, '1 user', '@count users'), '%visitors' => format_plural($anonymous_count, '1 guest', '@count guests')));
-          }
-
-          // Display a list of currently online users.
-          $max_users = variable_get('user_block_max_list_count', 10);
-          if ($authenticated_count && $max_users) {
-            $output .= theme('user_list', $items, t('Online users'));
-          }
-
-          $block['subject'] = t('Who\'s online');
-          $block['content'] = $output;
-        }
-        return $block;
-    }
+        $block['subject'] = t('Who\'s online');
+        $block['content'] = $output;
+      }
+      return $block;
   }
 }
 
@@ -937,6 +983,16 @@ function user_edit_access($account) {
   return (($GLOBALS['user']->uid == $account->uid) || user_access('administer users')) && $account->uid > 0;
 }
 
+/**
+ * Menu access callback; limit access to account cancellation pages.
+ *
+ * Limit access to users with the 'cancel account' permission or administrative
+ * users, and prevent the anonymous user from cancelling the account.
+ */
+function user_cancel_access($account) {
+  return ((($GLOBALS['user']->uid == $account->uid) && user_access('cancel account')) || user_access('administer users')) && $account->uid > 0;
+}
+
 function user_load_self($arg) {
   $arg[1] = user_load($GLOBALS['user']->uid);
   return $arg;
@@ -989,6 +1045,13 @@ function user_menu() {
     'page arguments' => array('user_pass_reset', 2, 3, 4),
     'access callback' => TRUE,
     'type' => MENU_CALLBACK,
+  );
+
+  $items['user/logout'] = array(
+    'title' => 'Log out',
+    'access callback' => 'user_is_logged_in',
+    'page callback' => 'user_logout',
+    'weight' => 10,
   );
 
   // User administration pages.
@@ -1047,13 +1110,6 @@ function user_menu() {
     'type' => MENU_CALLBACK,
   );
 
-  $items['logout'] = array(
-    'title' => 'Log out',
-    'access callback' => 'user_is_logged_in',
-    'page callback' => 'user_logout',
-    'weight' => 10,
-  );
-
   $items['user/%user_uid_optional'] = array(
     'title' => 'My account',
     'title callback' => 'user_page_title',
@@ -1071,12 +1127,21 @@ function user_menu() {
     'weight' => -10,
   );
 
-  $items['user/%user/delete'] = array(
-    'title' => 'Delete',
+  $items['user/%user/cancel'] = array(
+    'title' => 'Cancel account',
     'page callback' => 'drupal_get_form',
-    'page arguments' => array('user_confirm_delete', 1),
-    'access callback' => 'user_access',
-    'access arguments' => array('administer users'),
+    'page arguments' => array('user_cancel_confirm_form', 1),
+    'access callback' => 'user_cancel_access',
+    'access arguments' => array(1),
+    'type' => MENU_CALLBACK,
+  );
+
+  $items['user/%user/cancel/confirm/%/%'] = array(
+    'title' => 'Confirm account cancellation',
+    'page callback' => 'user_cancel_confirm',
+    'page arguments' => array(1, 4, 5),
+    'access callback' => 'user_cancel_access',
+    'access arguments' => array(1),
     'type' => MENU_CALLBACK,
   );
 
@@ -1375,8 +1440,11 @@ function user_authenticate_finalize(&$edit) {
   // This is also used to invalidate one-time login links.
   $user->login = REQUEST_TIME;
   db_query("UPDATE {users} SET login = %d WHERE uid = %d", $user->login, $user->uid);
-  user_module_invoke('login', $edit, $user);
+  // Regenerate the session ID to prevent against session fixation attacks.
+  // This is called before hook_user in case one of those functions fails
+  // or incorrectly does a redirect which would leave the old session in place.
   drupal_session_regenerate();
+  user_module_invoke('login', $edit, $user);
 }
 
 /**
@@ -1415,7 +1483,7 @@ function user_external_login_register($name, $module) {
       'access' => REQUEST_TIME
     );
     $account = user_save('', $userinfo);
-    // Terminate if an error occured during user_save().
+    // Terminate if an error occurred during user_save().
     if (!$account) {
       drupal_set_message(t("Error saving user account."), 'error');
       return;
@@ -1431,6 +1499,17 @@ function user_pass_reset_url($account) {
   return url("user/reset/$account->uid/$timestamp/" . user_pass_rehash($account->pass, $timestamp, $account->login), array('absolute' => TRUE));
 }
 
+/**
+ * Generate a URL to confirm an account cancellation request.
+ *
+ * @see user_mail_tokens()
+ * @see user_cancel_confirm()
+ */
+function user_cancel_url($account) {
+  $timestamp = REQUEST_TIME;
+  return url("user/$account->uid/cancel/confirm/$timestamp/" . user_pass_rehash($account->pass, $timestamp, $account->login), array('absolute' => TRUE));
+}
+
 function user_pass_rehash($password, $timestamp, $login) {
   return md5($timestamp . $password . $login);
 }
@@ -1444,7 +1523,8 @@ function user_edit_form(&$form_state, $uid, $edit, $register = FALSE) {
     '#title' => t('Account information'),
     '#weight' => -10,
   );
-  if (user_access('change own username') || $admin || $register) {
+  // Only show name field when: registration page; or user is editing own account and can change username; or an admin user.
+  if ($register || ($GLOBALS['user']->uid == $uid && user_access('change own username')) || $admin) {
     $form['account']['name'] = array('#type' => 'textfield',
       '#title' => t('Username'),
       '#default_value' => $edit['name'],
@@ -1545,57 +1625,107 @@ function user_edit_form(&$form_state, $uid, $edit, $register = FALSE) {
   return $form;
 }
 
-function _user_edit_validate($uid, &$edit) {
-  $user = user_load(array('uid' => $uid));
-  // Validate the username:
-  if (user_access('change own username') || user_access('administer users') || !$user->uid) {
-    if ($error = user_validate_name($edit['name'])) {
-      form_set_error('name', $error);
-    }
-    elseif (db_result(db_query("SELECT COUNT(*) FROM {users} WHERE uid != %d AND LOWER(name) = LOWER('%s')", $uid, $edit['name'])) > 0) {
-      form_set_error('name', t('The name %name is already taken.', array('%name' => $edit['name'])));
-    }
+/**
+ * Cancel a user account.
+ *
+ * Since the user cancellation process needs to be run in a batch, either
+ * Form API will invoke it, or batch_process() needs to be invoked after calling
+ * this function and should define the path to redirect to.
+ *
+ * @param $edit
+ *   An array of submitted form values.
+ * @param $uid
+ *   The user ID of the user account to cancel.
+ * @param $method
+ *   The account cancellation method to use.
+ *
+ * @see _user_cancel()
+ */
+function user_cancel($edit, $uid, $method) {
+  global $user;
+
+  $account = user_load(array('uid' => $uid));
+
+  if (!$account) {
+    drupal_set_message(t('The user account %id does not exist.', array('%id' => $uid)), 'error');
+    watchdog('user', 'Attempted to cancel non-existing user account: %id.', array('%id' => $uid), WATCHDOG_ERROR);
+    return;
   }
 
-  // Validate the e-mail address:
-  if ($error = user_validate_mail($edit['mail'])) {
-    form_set_error('mail', $error);
-  }
-  elseif (db_result(db_query("SELECT COUNT(*) FROM {users} WHERE uid != %d AND LOWER(mail) = LOWER('%s')", $uid, $edit['mail'])) > 0) {
-    form_set_error('mail', t('The e-mail address %email is already registered. <a href="@password">Have you forgotten your password?</a>', array('%email' => $edit['mail'], '@password' => url('user/password'))));
-  }
-}
+  // Initialize batch (to set title).
+  $batch = array(
+    'title' => t('Cancelling account'),
+    'operations' => array(),
+  );
+  batch_set($batch);
 
-function _user_edit_submit($uid, &$edit) {
-  $user = user_load(array('uid' => $uid));
-  // Delete picture if requested, and if no replacement picture was given.
-  if (!empty($edit['picture_delete'])) {
-    if ($user->picture && file_exists($user->picture)) {
-      file_unmanaged_delete($user->picture);
-    }
-    $edit['picture'] = '';
-  }
-  if (isset($edit['roles'])) {
-    $edit['roles'] = array_filter($edit['roles']);
-  }
+  // Allow modules to add further sets to this batch.
+  module_invoke_all('user_cancel', $edit, $account, $method);
+
+  // Finish the batch and actually cancel the account.
+  $batch = array(
+    'title' => t('Cancelling user account'),
+    'operations' => array(
+      array('_user_cancel', array($edit, $account, $method)),
+    ),
+  );
+  batch_set($batch);
+
+  // Batch processing is either handled via Form API or has to be invoked
+  // manually.
 }
 
 /**
- * Delete a user.
+ * Last batch processing step for cancelling a user account.
  *
- * @param $edit An array of submitted form values.
- * @param $uid The user ID of the user to delete.
+ * Since batch and session API require a valid user account, the actual
+ * cancellation of a user account needs to happen last.
+ *
+ * @see user_cancel()
  */
-function user_delete($edit, $uid) {
-  $account = user_load(array('uid' => $uid));
-  drupal_session_destroy_uid($uid);
-  _user_mail_notify('status_deleted', $account);
-  module_invoke_all('user_delete', $edit, $account);
-  db_query('DELETE FROM {users} WHERE uid = %d', $uid);
-  db_query('DELETE FROM {users_roles} WHERE uid = %d', $uid);
-  db_query('DELETE FROM {authmap} WHERE uid = %d', $uid);
-  $variables = array('%name' => $account->name, '%email' => '<' . $account->mail . '>');
-  watchdog('user', 'Deleted user: %name %email.', $variables, WATCHDOG_NOTICE);
+function _user_cancel($edit, $account, $method) {
+  global $user;
+
+  switch ($method) {
+    case 'user_cancel_block':
+    case 'user_cancel_block_unpublish':
+    default:
+      // Send account blocked notification if option was checked.
+      if (!empty($edit['user_cancel_notify'])) {
+        _user_mail_notify('status_blocked', $account);
+      }
+      db_update('users')->fields(array('status' => 0))->condition('uid', $account->uid)->execute();
+      drupal_set_message(t('%name has been disabled.', array('%name' => $account->name)));
+      break;
+
+    case 'user_cancel_reassign':
+    case 'user_cancel_delete':
+      // Send account canceled notification if option was checked.
+      if (!empty($edit['user_cancel_notify'])) {
+        _user_mail_notify('status_canceled', $account);
+      }
+      db_delete('users')->condition('uid', $account->uid)->execute();
+      db_delete('users_roles')->condition('uid', $account->uid)->execute();
+      db_delete('authmap')->condition('uid', $account->uid)->execute();
+      drupal_set_message(t('%name has been deleted.', array('%name' => $account->name)));
+      $variables = array('%name' => $account->name, '%email' => '<' . $account->mail . '>');
+      watchdog('user', 'Deleted user: %name %email.', $variables, WATCHDOG_NOTICE);
+      break;
+  }
+
+  // After cancelling account, ensure that user is logged out.
+  if ($account->uid == $user->uid) {
+    // Destroy the current session.
+    session_destroy();
+    // Load the anonymous user.
+    $user = drupal_anonymous_user();
+  }
+  else {
+    drupal_session_destroy_uid($account->uid);
+  }
+
+  // Clear the cache for anonymous users.
+  cache_clear_all();
 }
 
 /**
@@ -1668,10 +1798,28 @@ function _user_mail_text($key, $language = NULL, $variables = array()) {
         return t('Account details for !username at !site (blocked)', $variables, $langcode);
       case 'status_blocked_body':
         return t("!username,\n\nYour account on !site has been blocked.", $variables, $langcode);
-      case 'status_deleted_subject':
-        return t('Account details for !username at !site (deleted)', $variables, $langcode);
-      case 'status_deleted_body':
-        return t("!username,\n\nYour account on !site has been deleted.", $variables, $langcode);
+
+      case 'cancel_confirm_subject':
+        return t('Account cancellation request for !username at !site', $variables, $langcode);
+      case 'cancel_confirm_body':
+        return t("!username,
+
+A request to cancel your account has been made at !site.
+
+You may now cancel your account on !uri_brief by clicking this link or copying and pasting it into your browser:
+
+!cancel_url
+
+NOTE: The cancellation of your account is not reversible.
+
+This link expires in one day and nothing will happen if it is not used.", $variables, $langcode);
+
+      case 'status_canceled_subject':
+        return t('Account details for !username at !site (canceled)', $variables, $langcode);
+      case 'status_canceled_body':
+        return t("!username,
+
+Your account on !site has been canceled.", $variables, $langcode);
     }
   }
 }
@@ -1738,8 +1886,8 @@ function user_user_operations($form_state = array()) {
       'label' => t('Block the selected users'),
       'callback' => 'user_user_operations_block',
     ),
-    'delete' => array(
-      'label' => t('Delete the selected users'),
+    'cancel' => array(
+      'label' => t('Cancel the selected user accounts'),
     ),
   );
 
@@ -1852,7 +2000,7 @@ function user_multiple_role_edit($accounts, $operation, $rid) {
   }
 }
 
-function user_multiple_delete_confirm(&$form_state) {
+function user_multiple_cancel_confirm(&$form_state) {
   $edit = $form_state['post'];
 
   $form['accounts'] = array('#prefix' => '<ul>', '#suffix' => '</ul>', '#tree' => TRUE);
@@ -1861,20 +2009,64 @@ function user_multiple_delete_confirm(&$form_state) {
     $user = db_result(db_query('SELECT name FROM {users} WHERE uid = %d', $uid));
     $form['accounts'][$uid] = array('#type' => 'hidden', '#value' => $uid, '#prefix' => '<li>', '#suffix' => check_plain($user) . "</li>\n");
   }
-  $form['operation'] = array('#type' => 'hidden', '#value' => 'delete');
+
+  $form['operation'] = array('#type' => 'hidden', '#value' => 'cancel');
+
+  module_load_include('inc', 'user', 'user.pages');
+  $form['user_cancel_method'] = array(
+    '#type' => 'item',
+    '#title' => t('When cancelling these accounts'),
+  );
+  $form['user_cancel_method'] += user_cancel_methods();
+  // Remove method descriptions.
+  foreach (element_children($form['user_cancel_method']) as $element) {
+    unset($form['user_cancel_method'][$element]['#description']);
+  }
+
+  // Allow to send the account cancellation confirmation mail.
+  $form['user_cancel_confirm'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Require e-mail confirmation to cancel account.'),
+    '#default_value' => FALSE,
+    '#description' => t('When enabled, the user must confirm the account cancellation via e-mail.'),
+  );
+  // Also allow to send account canceled notification mail, if enabled.
+  $form['user_cancel_notify'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Notify user when account is canceled.'),
+    '#default_value' => FALSE,
+    '#access' => variable_get('user_mail_status_canceled_notify', FALSE),
+    '#description' => t('When enabled, the user will receive an e-mail notification after the account has been cancelled.'),
+  );
 
   return confirm_form($form,
-                      t('Are you sure you want to delete these users?'),
+                      t('Are you sure you want to cancel these user accounts?'),
                       'admin/user/user', t('This action cannot be undone.'),
-                      t('Delete all'), t('Cancel'));
+                      t('Cancel accounts'), t('Cancel'));
 }
 
-function user_multiple_delete_confirm_submit($form, &$form_state) {
+/**
+ * Submit handler for mass-account cancellation form.
+ *
+ * @see user_multiple_cancel_confirm()
+ * @see user_cancel_confirm_form_submit()
+ */
+function user_multiple_cancel_confirm_submit($form, &$form_state) {
+  global $user;
+
   if ($form_state['values']['confirm']) {
     foreach ($form_state['values']['accounts'] as $uid => $value) {
-      user_delete($form_state['values'], $uid);
+      // Prevent user administrators from deleting themselves without confirmation.
+      if ($uid == $user->uid) {
+        $admin_form_state = $form_state;
+        unset($admin_form_state['values']['user_cancel_confirm']);
+        $admin_form_state['values']['_account'] = $user;
+        user_cancel_confirm_form_submit(array(), $admin_form_state);
+      }
+      else {
+        user_cancel($form_state['values'], $uid, $form_state['values']['user_cancel_method']);
+      }
     }
-    drupal_set_message(t('The users have been deleted.'));
   }
   $form_state['redirect'] = 'admin/user/user';
   return;
@@ -1952,8 +2144,9 @@ function user_filters() {
   }
 
   $options = array();
-  foreach (module_list() as $module) {
-    if ($permissions = module_invoke($module, 'perm')) {
+  foreach (module_implements('perm') as $module) {
+    $function = $module . '_perm';
+    if ($permissions = $function('perm')) {
       asort($permissions);
       foreach ($permissions as $permission => $description) {
         $options[t('@module module', array('@module' => $module))][$permission] = t($permission);
@@ -2022,17 +2215,14 @@ function user_forms() {
 }
 
 /**
- * Implementation of hook_comment().
+ * Implementation of hook_comment_view().
  */
-function user_comment(&$comment, $op) {
-  // Validate signature.
-  if ($op == 'view') {
-    if (variable_get('user_signatures', 0) && !empty($comment->signature)) {
-      $comment->signature = check_markup($comment->signature, $comment->format);
-    }
-    else {
-      $comment->signature = '';
-    }
+function user_comment_view(&$comment) {
+  if (variable_get('user_signatures', 0) && !empty($comment->signature)) {
+    $comment->signature = check_markup($comment->signature, $comment->format);
+  }
+  else {
+    $comment->signature = '';
   }
 }
 
@@ -2057,7 +2247,7 @@ function theme_user_signature($signature) {
  * Return an array of token to value mappings for user e-mail messages.
  *
  * @param $account
- *  The user object of the account being notified.  Must contain at
+ *  The user object of the account being notified. Must contain at
  *  least the fields 'uid', 'name', and 'mail'.
  * @param $language
  *  Language object to generate the tokens with.
@@ -2070,6 +2260,7 @@ function user_mail_tokens($account, $language) {
     '!username' => $account->name,
     '!site' => variable_get('site_name', 'Drupal'),
     '!login_url' => user_pass_reset_url($account),
+    '!cancel_url' => user_cancel_url($account),
     '!uri' => $base_url,
     '!uri_brief' => preg_replace('!^https?://!', '', $base_url),
     '!mailto' => $account->mail,
@@ -2114,17 +2305,18 @@ function user_preferred_language($account, $default = NULL) {
  * @see drupal_mail()
  *
  * @param $op
- *  The operation being performed on the account.  Possible values:
+ *  The operation being performed on the account. Possible values:
  *  'register_admin_created': Welcome message for user created by the admin
  *  'register_no_approval_required': Welcome message when user self-registers
  *  'register_pending_approval': Welcome message, user pending admin approval
  *  'password_reset': Password recovery request
  *  'status_activated': Account activated
  *  'status_blocked': Account blocked
- *  'status_deleted': Account deleted
+ *  'cancel_confirm': Account cancellation request
+ *  'status_canceled': Account canceled
  *
  * @param $account
- *  The user object of the account being notified.  Must contain at
+ *  The user object of the account being notified. Must contain at
  *  least the fields 'uid', 'name', and 'mail'.
  * @param $language
  *  Optional language to use for the notification, overriding account language.
@@ -2132,8 +2324,8 @@ function user_preferred_language($account, $default = NULL) {
  *  The return value from drupal_mail_send(), if ends up being called.
  */
 function _user_mail_notify($op, $account, $language = NULL) {
-  // By default, we always notify except for deleted and blocked.
-  $default_notify = ($op != 'status_deleted' && $op != 'status_blocked');
+  // By default, we always notify except for canceled and blocked.
+  $default_notify = ($op != 'status_canceled' && $op != 'status_blocked');
   $notify = variable_get('user_mail_' . $op . '_notify', $default_notify);
   if ($notify) {
     $params['account'] = $account;
@@ -2242,7 +2434,7 @@ function user_block_user_action(&$object, $context = array()) {
   }
   db_query("UPDATE {users} SET status = 0 WHERE uid = %d", $uid);
   drupal_session_destroy_uid($uid);
-  watchdog('action', 'Blocked user %name.', array('%name' => check_plain($user->name)));
+  watchdog('action', 'Blocked user %name.', array('%name' => $user->name));
 }
 
 /**
@@ -2288,7 +2480,7 @@ function user_register_submit($form, &$form_state) {
     $merge_data['status'] = variable_get('user_register', 1) == 1;
   }
   $account = user_save('', array_merge($form_state['values'], $merge_data));
-  // Terminate if an error occured during user_save().
+  // Terminate if an error occurred during user_save().
   if (!$account) {
     drupal_set_message(t("Error saving user account."), 'error');
     $form_state['redirect'] = '';
@@ -2403,25 +2595,6 @@ function user_register() {
     $form = array_merge($form, $extra);
   }
 
-  if (variable_get('configurable_timezones', 1)) {
-    // Override field ID, so we only change timezone on user registration,
-    // and never touch it on user edit pages.
-    $form['timezone'] = array(
-      '#type' => 'hidden',
-      '#default_value' => variable_get('date_default_timezone', NULL),
-      '#id' => 'edit-user-register-timezone',
-    );
-
-    // Add the JavaScript callback to automatically set the timezone.
-    drupal_add_js('
-// Global Killswitch
-if (Drupal.jsEnabled) {
-  $(document).ready(function() {
-    Drupal.setDefaultTimezone();
-  });
-}', 'inline');
-  }
-
   $form['submit'] = array('#type' => 'submit', '#value' => t('Create new account'), '#weight' => 30);
   $form['#validate'][] = 'user_register_validate';
 
@@ -2437,8 +2610,9 @@ function user_register_validate($form, &$form_state) {
  */
 function _user_forms(&$edit, $account, $category, $hook = 'form') {
   $groups = array();
-  foreach (module_list() as $module) {
-    if ($data = module_invoke($module, 'user_' . $hook, $edit, $account, $category)) {
+  foreach (module_implements('user_' . $hook) as $module) {
+    $function = $module . '_user_' . $hook;
+    if ($data = $function($edit, $account, $category)) {
       $groups = array_merge_recursive($data, $groups);
     }
   }

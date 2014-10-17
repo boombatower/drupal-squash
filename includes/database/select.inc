@@ -28,17 +28,20 @@ class SelectQuery extends Query implements QueryConditionInterface, QueryAlterab
   /**
    * The tables against which to JOIN.
    *
-   * This property is a nested array.  Each entry is an array representing
-   * a single table against which to join.  The structure of each entry is:
+   * This property is a nested array. Each entry is an array representing
+   * a single table against which to join. The structure of each entry is:
    *
    * array(
    *   'type' => $join_type (one of INNER, LEFT OUTER, RIGHT OUTER),
-   *   'table' => $name_of_table,
+   *   'table' => $table,
    *   'alias' => $alias_of_the_table,
    *   'condition' => $condition_clause_on_which_to_join,
    *   'arguments' => $array_of_arguments_for_placeholders_in_the condition.
    *   'all_fields' => TRUE to SELECT $alias.*, FALSE or NULL otherwise.
    * )
+   *
+   * If $table is a string, it is taken as the name of a table. If it is
+   * a SelectQuery object, it is taken as a subquery.
    *
    * @var array
    */
@@ -47,7 +50,7 @@ class SelectQuery extends Query implements QueryConditionInterface, QueryAlterab
   /**
    * The fields by which to order this query.
    *
-   * This is an associative array.  The keys are the fields to order, and the value
+   * This is an associative array. The keys are the fields to order, and the value
    * is the direction to order, either ASC or DESC.
    *
    * @var array
@@ -183,7 +186,7 @@ class SelectQuery extends Query implements QueryConditionInterface, QueryAlterab
    * Returns a reference to the fields array for this query.
    *
    * Because this method returns by reference, alter hooks may edit the fields
-   * array directly to make their changes.  If just adding fields, however, the
+   * array directly to make their changes. If just adding fields, however, the
    * use of addField() is preferred.
    *
    * Note that this method must be called by reference as well:
@@ -203,7 +206,7 @@ class SelectQuery extends Query implements QueryConditionInterface, QueryAlterab
    * Returns a reference to the expressions array for this query.
    *
    * Because this method returns by reference, alter hooks may edit the expressions
-   * array directly to make their changes.  If just adding expressions, however, the
+   * array directly to make their changes. If just adding expressions, however, the
    * use of addExpression() is preferred.
    *
    * Note that this method must be called by reference as well:
@@ -223,7 +226,7 @@ class SelectQuery extends Query implements QueryConditionInterface, QueryAlterab
    * Returns a reference to the order by array for this query.
    *
    * Because this method returns by reference, alter hooks may edit the order-by
-   * array directly to make their changes.  If just adding additional ordering
+   * array directly to make their changes. If just adding additional ordering
    * fields, however, the use of orderBy() is preferred.
    *
    * Note that this method must be called by reference as well:
@@ -243,7 +246,7 @@ class SelectQuery extends Query implements QueryConditionInterface, QueryAlterab
    * Returns a reference to the tables array for this query.
    *
    * Because this method returns by reference, alter hooks may edit the tables
-   * array directly to make their changes.  If just adding tables, however, the
+   * array directly to make their changes. If just adding tables, however, the
    * use of the join() methods is preferred.
    *
    * Note that this method must be called by reference as well:
@@ -262,7 +265,8 @@ class SelectQuery extends Query implements QueryConditionInterface, QueryAlterab
   /**
    * Compiles and returns an associative array of the arguments for this prepared statement.
    *
-   * @return array
+   * @return
+   *   An associative array of all placeholder arguments for this query.
    */
   public function getArguments() {
     $this->where->compile($this->connection);
@@ -271,6 +275,10 @@ class SelectQuery extends Query implements QueryConditionInterface, QueryAlterab
     foreach ($this->tables as $table) {
       if ($table['arguments']) {
         $args += $table['arguments'];
+      }
+      // If this table is a subquery, grab its arguments recursively.
+      if ($table['table'] instanceof SelectQuery) {
+        $args += $table['table']->getArguments();
       }
     }
     foreach ($this->expressions as $expression) {
@@ -283,21 +291,15 @@ class SelectQuery extends Query implements QueryConditionInterface, QueryAlterab
   }
 
   public function execute() {
+    // Modules may alter all queries or only those having a particular tag.
     drupal_alter('query', $this);
+    if (isset($this->alterTags)) {
+      foreach ($this->alterTags as $tag => $value) {
+        drupal_alter("query_$tag", $this);
+      }
+    }
 
-    $this->where->compile($this->connection);
-    $this->having->compile($this->connection);
-    $args = $this->where->arguments() + $this->having->arguments();
-    foreach ($this->tables as $table) {
-      if ($table['arguments']) {
-        $args += $table['arguments'];
-      }
-    }
-    foreach ($this->expressions as $expression) {
-      if ($expression['arguments']) {
-        $args += $expression['arguments'];
-      }
-    }
+    $args = $this->getArguments();
 
     if (!empty($this->range)) {
       return $this->connection->queryRange((string)$this, $args, $this->range['start'], $this->range['length'], $this->queryOptions);
@@ -322,14 +324,14 @@ class SelectQuery extends Query implements QueryConditionInterface, QueryAlterab
    * Adds a field to the list to be SELECTed.
    *
    * @param $table_alias
-   *   The name of the table from which the field comes, as an alias.  Generally
+   *   The name of the table from which the field comes, as an alias. Generally
    *   you will want to use the return value of join() here to ensure that it is
    *   valid.
    * @param $field
    *   The name of the field.
    * @param $alias
-   *   The alias for this field.  If not specified, one will be generated
-   *   automatically based on the $table_alias and $field.  The alias will be
+   *   The alias for this field. If not specified, one will be generated
+   *   automatically based on the $table_alias and $field. The alias will be
    *   checked for uniqueness, so the requested alias may not be the alias
    *   that is assigned in all cases.
    * @return
@@ -366,25 +368,25 @@ class SelectQuery extends Query implements QueryConditionInterface, QueryAlterab
   /**
    * Add multiple fields from the same table to be SELECTed.
    *
-   * This method does not return the aliases set for the passed fields.  In the
+   * This method does not return the aliases set for the passed fields. In the
    * majority of cases that is not a problem, as the alias will be the field
-   * name.  However, if you do need to know the alias you can call getFields()
-   * and examine the result to determine what alias was created.  Alternatively,
+   * name. However, if you do need to know the alias you can call getFields()
+   * and examine the result to determine what alias was created. Alternatively,
    * simply use addField() for the few fields you care about and this method for
    * the rest.
    *
    * @param $table_alias
-   *   The name of the table from which the field comes, as an alias.  Generally
+   *   The name of the table from which the field comes, as an alias. Generally
    *   you will want to use the return value of join() here to ensure that it is
    *   valid.
    * @param $fields
    *   An indexed array of fields present in the specified table that should be
-   *   included in this query.  If not specified, $table_alias.* will be generated
+   *   included in this query. If not specified, $table_alias.* will be generated
    *   without any aliases.
    * @return
    *   The called object.
    */
-  public function fields($table_alias, Array $fields = array()) {
+  public function fields($table_alias, array $fields = array()) {
 
     if ($fields) {
       foreach ($fields as $field) {
@@ -410,15 +412,15 @@ class SelectQuery extends Query implements QueryConditionInterface, QueryAlterab
   /**
    * Adds an expression to the list of "fields" to be SELECTed.
    *
-   * An expression can be any arbitrary string that is valid SQL.  That includes
-   * various functions, which may in some cases be database-dependant.  This
+   * An expression can be any arbitrary string that is valid SQL. That includes
+   * various functions, which may in some cases be database-dependent. This
    * method makes no effort to correct for database-specific functions.
    *
    * @param $expression
-   *   The expression string.  May contain placeholders.
+   *   The expression string. May contain placeholders.
    * @param $alias
-   *   The alias for this expression.  If not specified, one will be generated
-   *   automatically in the form "expression_#".  The alias will be checked for
+   *   The alias for this expression. If not specified, one will be generated
+   *   automatically in the form "expression_#". The alias will be checked for
    *   uniqueness, so the requested alias may not be the alias that is assigned
    *   in all cases.
    * @param $arguments
@@ -455,12 +457,12 @@ class SelectQuery extends Query implements QueryConditionInterface, QueryAlterab
    * @param $table
    *   The table against which to join.
    * @param $alias
-   *   The alias for the table.  In most cases this should be the first letter
+   *   The alias for the table. In most cases this should be the first letter
    *   of the table, or the first letter of each "word" in the table.
    * @param $condition
-   *   The condition on which to join this table.  If the join requires values,
+   *   The condition on which to join this table. If the join requires values,
    *   this clause should use a named placeholder and the value or values to
-   *   insert should be passed in the 4th parameter.  For the first table joined
+   *   insert should be passed in the 4th parameter. For the first table joined
    *   on a query, this value is ignored as the first table is taken as the base
    *   table.
    * @param $arguments
@@ -478,12 +480,12 @@ class SelectQuery extends Query implements QueryConditionInterface, QueryAlterab
    * @param $table
    *   The table against which to join.
    * @param $alias
-   *   The alias for the table.  In most cases this should be the first letter
+   *   The alias for the table. In most cases this should be the first letter
    *   of the table, or the first letter of each "word" in the table.
    * @param $condition
-   *   The condition on which to join this table.  If the join requires values,
+   *   The condition on which to join this table. If the join requires values,
    *   this clause should use a named placeholder and the value or values to
-   *   insert should be passed in the 4th parameter.  For the first table joined
+   *   insert should be passed in the 4th parameter. For the first table joined
    *   on a query, this value is ignored as the first table is taken as the base
    *   table.
    * @param $arguments
@@ -501,12 +503,12 @@ class SelectQuery extends Query implements QueryConditionInterface, QueryAlterab
    * @param $table
    *   The table against which to join.
    * @param $alias
-   *   The alias for the table.  In most cases this should be the first letter
+   *   The alias for the table. In most cases this should be the first letter
    *   of the table, or the first letter of each "word" in the table.
    * @param $condition
-   *   The condition on which to join this table.  If the join requires values,
+   *   The condition on which to join this table. If the join requires values,
    *   this clause should use a named placeholder and the value or values to
-   *   insert should be passed in the 4th parameter.  For the first table joined
+   *   insert should be passed in the 4th parameter. For the first table joined
    *   on a query, this value is ignored as the first table is taken as the base
    *   table.
    * @param $arguments
@@ -524,12 +526,12 @@ class SelectQuery extends Query implements QueryConditionInterface, QueryAlterab
    * @param $table
    *   The table against which to join.
    * @param $alias
-   *   The alias for the table.  In most cases this should be the first letter
+   *   The alias for the table. In most cases this should be the first letter
    *   of the table, or the first letter of each "word" in the table.
    * @param $condition
-   *   The condition on which to join this table.  If the join requires values,
+   *   The condition on which to join this table. If the join requires values,
    *   this clause should use a named placeholder and the value or values to
-   *   insert should be passed in the 4th parameter.  For the first table joined
+   *   insert should be passed in the 4th parameter. For the first table joined
    *   on a query, this value is ignored as the first table is taken as the base
    *   table.
    * @param $arguments
@@ -548,19 +550,22 @@ class SelectQuery extends Query implements QueryConditionInterface, QueryAlterab
    * In some cases, that may include dipping into the Schema API to find the necessary
    * fields on which to join.
    *
+   * @param $type
+   *   The type of join. Typically one one of INNER, LEFT OUTER, and RIGHT OUTER.
    * @param $table
-   *   The table against which to join.
+   *   The table against which to join. May be a string or another SelectQuery
+   *   object. If a query object is passed, it will be used as a subselect.
    * @param $alias
-   *   The alias for the table.  In most cases this should be the first letter
-   *   of the table, or the first letter of each "word" in the table.  If omitted,
+   *   The alias for the table. In most cases this should be the first letter
+   *   of the table, or the first letter of each "word" in the table. If omitted,
    *   one will be dynamically generated.
    * @param $condition
-   *   The condition on which to join this table.  If the join requires values,
+   *   The condition on which to join this table. If the join requires values,
    *   this clause should use a named placeholder and the value or values to
-   *   insert should be passed in the 4th parameter.  For the first table joined
+   *   insert should be passed in the 4th parameter. For the first table joined
    *   on a query, this value is ignored as the first table is taken as the base
    *   table.
-   * @param $argments
+   * @param $arguments
    *   An array of arguments to replace into the $condition of this join.
    * @return
    *   The unique alias that was assigned for this table.
@@ -568,7 +573,12 @@ class SelectQuery extends Query implements QueryConditionInterface, QueryAlterab
   public function addJoin($type, $table, $alias = NULL, $condition = NULL, $arguments = array()) {
 
     if (empty($alias)) {
-      $alias = $table;
+      if ($table instanceof SelectQuery) {
+        $alias = 'subquery';
+      }
+      else {
+        $alias = $table;
+      }
     }
 
     $alias_candidate = $alias;
@@ -598,7 +608,7 @@ class SelectQuery extends Query implements QueryConditionInterface, QueryAlterab
    * @param $field
    *   The field on which to order.
    * @param $direction
-   *   The direction to sort.  Legal values are "ASC" and "DESC".
+   *   The direction to sort. Legal values are "ASC" and "DESC".
    * @return
    *   The called object.
    */
@@ -614,7 +624,7 @@ class SelectQuery extends Query implements QueryConditionInterface, QueryAlterab
    * directives that have been set.
    *
    * @param $start
-   *   The first record from the result set to return.  If NULL, removes any
+   *   The first record from the result set to return. If NULL, removes any
    *   range directives that are set.
    * @param $limit
    *   The number of records to return from the result set.
@@ -630,7 +640,7 @@ class SelectQuery extends Query implements QueryConditionInterface, QueryAlterab
    * Groups the result set by the specified field.
    *
    * @param $field
-   *   The field on which to group.  This should be the field as aliased.
+   *   The field on which to group. This should be the field as aliased.
    * @return
    *   The called object.
    */
@@ -645,7 +655,7 @@ class SelectQuery extends Query implements QueryConditionInterface, QueryAlterab
    *   A new SelectQuery object with no fields or expressions besides COUNT(*).
    */
   public function countQuery() {
-    // Shallow-clone this query.  We don't want to duplicate any of the
+    // Shallow-clone this query. We don't want to duplicate any of the
     // referenced objects, so a shallow query is all we need.
     $count = clone($this);
 
@@ -699,9 +709,19 @@ class SelectQuery extends Query implements QueryConditionInterface, QueryAlterab
       if (isset($table['join type'])) {
         $query .= $table['join type'] . ' JOIN ';
       }
+
+      // If the table is a subquery, compile it and integrate it into this query.
+      if ($table['table'] instanceof SelectQuery) {
+        $table_string = '(' . (string)$table['table'] .')';
+      }
+      else {
+        $table_string = '{' . $this->connection->escapeTable($table['table']) . '}';
+      }
+
       // Don't use the AS keyword for table aliases, as some
       // databases don't support it (e.g., Oracle).
-      $query .= '{' . $this->connection->escapeTable($table['table']) . '} ' . $table['alias'];
+      $query .=  $table_string . ' ' . $table['alias'];
+
       if (!empty($table['condition'])) {
         $query .= ' ON ' . $table['condition'];
       }
@@ -742,7 +762,7 @@ class SelectQuery extends Query implements QueryConditionInterface, QueryAlterab
   }
 
   public function __clone() {
-    // On cloning, also clone the conditional objects.  However, we do not
+    // On cloning, also clone the conditional objects. However, we do not
     // want to clone the database connection object as that would duplicate the
     // connection itself.
 

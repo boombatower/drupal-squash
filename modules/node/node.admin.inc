@@ -30,12 +30,14 @@ function node_configure() {
   }
 
   $form['default_nodes_main'] = array(
-    '#type' => 'select', '#title' => t('Number of posts on main page'), '#default_value' => variable_get('default_nodes_main', 10),
+    '#type' => 'select', '#title' => t('Number of posts on main page'),
+    '#default_value' => 10,
     '#options' => drupal_map_assoc(array(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 25, 30)),
     '#description' => t('The default maximum number of posts to display per page on overview pages such as the main page.')
   );
   $form['teaser_length'] = array(
-    '#type' => 'select', '#title' => t('Length of trimmed posts'), '#default_value' => variable_get('teaser_length', 600),
+    '#type' => 'select', '#title' => t('Length of trimmed posts'),
+    '#default_value' => 600,
     '#options' => drupal_map_assoc(array(0, 200, 400, 600, 800, 1000, 1200, 1400, 1600, 1800, 2000), '_node_characters'),
     '#description' => t("The maximum number of characters used in the trimmed version of a post. Drupal will use this setting to determine at which offset long posts should be trimmed. The trimmed version of a post is typically used as a teaser when displaying the post on the main page, in XML feeds, etc. To disable teasers, set to 'Unlimited' . Note that this setting will only affect new or updated content and will not affect existing teasers.")
   );
@@ -43,12 +45,12 @@ function node_configure() {
   $form['node_preview'] = array(
     '#type' => 'radios',
     '#title' => t('Preview post'),
-    '#default_value' => variable_get('node_preview', 0),
+    '#default_value' => 0,
     '#options' => array(t('Optional'), t('Required')),
     '#description' => t('Must users preview posts before submitting?'),
   );
 
-  return system_settings_form($form);
+  return system_settings_form($form, TRUE);
 }
 
 /**
@@ -152,7 +154,7 @@ function node_filters() {
 
   // The taxonomy filter
   if ($taxonomy = module_invoke('taxonomy', 'form_all', 1)) {
-    $filters['category'] = array('title' => t('category'), 'options' => $taxonomy);
+    $filters['term'] = array('title' => t('term'), 'options' => $taxonomy);
   }
   // Language filter if there is a list of languages
   if ($languages = module_invoke('locale', 'language_list')) {
@@ -179,10 +181,10 @@ function node_build_filter_query() {
         list($key, $value) = explode('-', $value, 2);
         $where[] = 'n.' . $key . ' = %d';
         break;
-      case 'category':
+      case 'term':
         $table = "tn$index";
         $where[] = "$table.tid = %d";
-        $join .= "INNER JOIN {term_node} $table ON n.nid = $table.nid ";
+        $join .= "INNER JOIN {taxonomy_term_node} $table ON n.nid = $table.nid ";
         break;
       case 'type':
         $where[] = "n.type = '%s'";
@@ -215,9 +217,9 @@ function node_filter_form() {
   $form['#submit'][] = 'node_filter_form_submit';
   foreach ($session as $filter) {
     list($type, $value) = $filter;
-    if ($type == 'category') {
+    if ($type == 'term') {
       // Load term name from DB rather than search and parse options array.
-      $value = module_invoke('taxonomy', 'get_term', $value);
+      $value = module_invoke('taxonomy', 'term_load', $value);
       $value = $value->name;
     }
     elseif ($type == 'language') {
@@ -561,7 +563,7 @@ function node_admin_nodes_submit($form, &$form_state) {
     cache_clear_all();
   }
   else {
-    // We need to rebuild the form to go to a second step.  For example, to
+    // We need to rebuild the form to go to a second step. For example, to
     // show the confirmation form for the deletion of nodes.
     $form_state['rebuild'] = TRUE;
   }

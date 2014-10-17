@@ -6,9 +6,6 @@ class CommentHelperCase extends DrupalWebTestCase {
   protected $web_user;
   protected $node;
 
-  /**
-   * Implementation of setUp().
-   */
   function setUp() {
     parent::setUp('comment');
     // Create users.
@@ -230,10 +227,6 @@ class CommentHelperCase extends DrupalWebTestCase {
 }
 
 class CommentInterfaceTest extends CommentHelperCase {
-
-  /**
-   * Implementation of getInfo().
-   */
   function getInfo() {
     return array(
       'name' => t('Comment interface'),
@@ -348,10 +341,6 @@ class CommentInterfaceTest extends CommentHelperCase {
 }
 
 class CommentNodePage extends CommentHelperCase {
-
-  /**
-   * Implementation of getInfo().
-   */
   function getInfo() {
     return array(
       'name' => t('Comment on a node page'),
@@ -384,13 +373,9 @@ class CommentNodePage extends CommentHelperCase {
 }
 
 class CommentAnonymous extends CommentHelperCase {
-
-  /**
-   * Implementation of getInfo().
-   */
   function getInfo() {
     return array(
-      'name' => t('Comment on a node page'),
+      'name' => t('Anonymous comments'),
       'description' => t('Test anonymous comments.'),
       'group' => t('Comment'),
     );
@@ -413,6 +398,11 @@ class CommentAnonymous extends CommentHelperCase {
     // Allow contact info.
     $this->drupalLogin($this->admin_user);
     $this->setCommentAnonymous('1');
+
+    // Attempt to edit anonymous comment.
+    $this->drupalGet('comment/edit/' . $anonymous_comment1->id);
+    $edited_comment = $this->postComment(NULL, $this->randomName(), $this->randomName());
+    $this->assertTrue($this->commentExists($edited_comment, FALSE), t('Modified reply found.'));
     $this->drupalLogout();
 
     // Post anonymous comment with contact info (optional).
@@ -479,10 +469,6 @@ class CommentAnonymous extends CommentHelperCase {
 }
 
 class CommentApprovalTest extends CommentHelperCase {
-
-  /**
-   * Implementation of getInfo().
-   */
   function getInfo() {
     return array(
       'name' => t('Comment approval'),
@@ -497,7 +483,7 @@ class CommentApprovalTest extends CommentHelperCase {
   function testApprovalAdminInterface() {
     $this->drupalLogin($this->admin_user);
 
-    // Set anonymouse comments to require approval.
+    // Set anonymous comments to require approval.
     $this->setAnonymousUserComment(TRUE, FALSE);
     $this->setCommentAnonymous('0'); // Ensure that doesn't require contact info.
     $this->drupalLogout();
@@ -506,7 +492,7 @@ class CommentApprovalTest extends CommentHelperCase {
     $subject = $this->randomName();
     $body = $this->randomName();
     $this->postComment($this->node, $subject, $body, TRUE, TRUE); // Set $contact to true so that it won't check for id and message.
-    $this->assertText(t('Your comment has been queued for moderation by site administrators and will be published after approval.'), t('Comment requires approval.'));
+    $this->assertText(t('Your comment has been queued for review by site administrators and will be published after approval.'), t('Comment requires approval.'));
 
     // Get unapproved comment id.
     $this->drupalLogin($this->admin_user);
@@ -531,7 +517,7 @@ class CommentApprovalTest extends CommentHelperCase {
   function testApprovalNodeInterface() {
     $this->drupalLogin($this->admin_user);
 
-    // Set anonymouse comments to require approval.
+    // Set anonymous comments to require approval.
     $this->setAnonymousUserComment(TRUE, FALSE);
     $this->setCommentAnonymous('0'); // Ensure that doesn't require contact info.
     $this->drupalLogout();
@@ -540,9 +526,9 @@ class CommentApprovalTest extends CommentHelperCase {
     $subject = $this->randomName();
     $body = $this->randomName();
     $this->postComment($this->node, $subject, $body, TRUE, TRUE); // Set $contact to true so that it won't check for id and message.
-    $this->assertText(t('Your comment has been queued for moderation by site administrators and will be published after approval.'), t('Comment requires approval.'));
+    $this->assertText(t('Your comment has been queued for review by site administrators and will be published after approval.'), t('Comment requires approval.'));
 
-    // Get unaproved comment id.
+    // Get unapproved comment id.
     $this->drupalLogin($this->admin_user);
     $anonymous_comment4 = $this->getUnapprovedComment($subject);
     $anonymous_comment4 = (object) array('id' => $anonymous_comment4, 'subject' => $subject, 'comment' => $body);
@@ -558,5 +544,35 @@ class CommentApprovalTest extends CommentHelperCase {
 
     $this->drupalGet('node/'. $this->node->nid);
     $this->assertTrue($this->commentExists($anonymous_comment4), t('Anonymous comment visible.'));
+  }
+}
+
+class CommentBlockTestCase extends DrupalWebTestCase {
+  function getInfo() {
+    return array(
+      'name' => t('Block availability'),
+      'description' => t('Check if the recent comments block is available.'),
+      'group' => t('Comment'),
+    );
+  }
+
+  function setUp() {
+    parent::setUp('comment');
+
+    // Create and login user
+    $admin_user = $this->drupalCreateUser(array('administer blocks'));
+    $this->drupalLogin($admin_user);
+  }
+
+  function testRecentCommentBlock() {
+    // Set block title to confirm that the interface is availble.
+    $this->drupalPost('admin/build/block/configure/comment/recent', array('title' => $this->randomName(8)), t('Save block'));
+    $this->assertText(t('The block configuration has been saved.'), t('Block configuration set.'));
+
+    // Set the block to a region to confirm block is availble.
+    $edit = array();
+    $edit['comment_recent[region]'] = 'footer';
+    $this->drupalPost('admin/build/block', $edit, t('Save blocks'));
+    $this->assertText(t('The block settings have been updated.'), t('Block successfully move to footer region.'));
   }
 }

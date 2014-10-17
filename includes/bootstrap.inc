@@ -162,6 +162,14 @@ define('DRUPAL_ANONYMOUS_RID', 1);
 define('DRUPAL_AUTHENTICATED_RID', 2);
 
 /**
+ * The number of bytes in a kilobyte. The scientific standard for kilo is 1000,
+ * but used commonly in the field of computers to represent 1024 bits. For more
+ * information on the different standards please visit:
+ * http://en.wikipedia.org/wiki/Kilobyte.
+ */
+define('DRUPAL_KILOBYTE', 1024);
+
+/**
  * No language negotiation. The default language is used.
  */
 define('LANGUAGE_NEGOTIATION_NONE', 0);
@@ -207,12 +215,12 @@ define('CHECK_PLAIN', 0);
 define('PASS_THROUGH', -1);
 
 /**
- * Signals that the registry lookup cache should be reset. 
+ * Signals that the registry lookup cache should be reset.
  */
 define('REGISTRY_RESET_LOOKUP_CACHE', 1);
 
 /**
- * Signals that the registry lookup cache should be written to storage. 
+ * Signals that the registry lookup cache should be written to storage.
  */
 define('REGISTRY_WRITE_LOOKUP_CACHE', 2);
 
@@ -307,8 +315,8 @@ function timer_stop($name) {
  * 13. $confdir/default
  *
  * If a file named sites.php is present in the $confdir, it will be loaded
- * prior to scanning for directories.  It should define an associative array
- * named $sites, which maps domains to directories.  It should be in the form
+ * prior to scanning for directories. It should define an associative array
+ * named $sites, which maps domains to directories. It should be in the form
  * of:
  *
  * $sites = array(
@@ -326,7 +334,7 @@ function timer_stop($name) {
  * "example.com" in the sites directory whenever a request comes from
  * "example.com", "devexample.com", or "localhost/example". That is useful
  * on development servers, where the domain name may not be the same as the
- * domain of the live server.  Since Drupal stores file paths into the database
+ * domain of the live server. Since Drupal stores file paths into the database
  * (files, system table, etc.) this will ensure the paths are correct while
  * accessed on development servers.
  *
@@ -384,25 +392,55 @@ function drupal_initialize_variables() {
   if (!isset($_SERVER['SERVER_PROTOCOL']) || ($_SERVER['SERVER_PROTOCOL'] != 'HTTP/1.0' && $_SERVER['SERVER_PROTOCOL'] != 'HTTP/1.1')) {
     $_SERVER['SERVER_PROTOCOL'] = 'HTTP/1.0';
   }
+  // Some pre-HTTP/1.1 clients will not send a Host header. Ensure the key is
+  // defined for E_ALL compliance.
+  if (!isset($_SERVER['HTTP_HOST'])) {
+    $_SERVER['HTTP_HOST'] = '';
+  }
+
+  if (!drupal_valid_http_host()) {
+    // HTTP_HOST is invalid, e.g. if containing slashes it may be an attack.
+    header($_SERVER['SERVER_PROTOCOL'] . ' 400 Bad Request');
+    exit;
+  }
+
   // Enforce E_ALL, but allow users to set levels not part of E_ALL.
   error_reporting(E_ALL | error_reporting());
-  // Prevent PHP from generating HTML errors messages.
+
+  // Override PHP settings required for Drupal to work properly.
+  // sites/default/default.settings.php contains more runtime settings.
+  // The .htaccess file contains settings that cannot be changed at runtime.
+
+  // Prevent PHP from generating HTML error messages.
   ini_set('html_errors', 0);
+  // Don't escape quotes when reading files from the database, disk, etc.
+  ini_set('magic_quotes_runtime', '0');
+  // Use session cookies, not transparent sessions that puts the session id in
+  // the query string.
+  ini_set('session.use_only_cookies', '1');
+  ini_set('session.use_trans_sid', '0');
+  // Don't send HTTP headers using PHP's session handler.
+  ini_set('session.cache_limiter', 'none');
 }
 
 /**
  * Validate that $_SERVER['HTTP_HOST'] is safe.
  *
  * As $_SERVER['HTTP_HOST'] is user input, ensure it only contains characters
- * allowed in hostnames.  See RFC 952 (and RFC 2181). $_SERVER['HTTP_HOST'] is
+ * allowed in hostnames. See RFC 952 (and RFC 2181). $_SERVER['HTTP_HOST'] is
  * lowercased.
  *
  * @return
  *  TRUE if only containing valid characters, or FALSE otherwise.
  */
 function drupal_valid_http_host() {
-  $_SERVER['HTTP_HOST'] = strtolower($_SERVER['HTTP_HOST']);
-  return preg_match('/^\[?(?:[a-z0-9-:\]_]+\.?)+$/', $_SERVER['HTTP_HOST']);
+  if (isset($_SERVER['HTTP_HOST']) && $_SERVER['HTTP_HOST'] != '') {
+    $_SERVER['HTTP_HOST'] = strtolower($_SERVER['HTTP_HOST']);
+    return preg_match('/^\[?(?:[a-z0-9-:\]_]+\.?)+$/', $_SERVER['HTTP_HOST']);
+  }
+  else {
+    return TRUE;
+  }
 }
 
 /**
@@ -415,12 +453,6 @@ function conf_init() {
   // Export the following settings.php variables to the global namespace
   global $databases, $db_prefix, $cookie_domain, $conf, $installed_profile, $update_free_access;
   $conf = array();
-
-  if (!drupal_valid_http_host()) {
-    // HTTP_HOST is invalid, e.g. if containing slashes it may be an attack.
-    header($_SERVER['SERVER_PROTOCOL'] . ' 400 Bad Request');
-    exit;
-  }
 
   if (file_exists(DRUPAL_ROOT . '/' . conf_path() . '/settings.php')) {
     include_once DRUPAL_ROOT . '/' . conf_path() . '/settings.php';
@@ -533,7 +565,7 @@ function drupal_get_filename($type, $name, $filename = NULL) {
     // nothing
   }
   // Verify that we have an active database connection, before querying
-  // the database.  This is required because this function is called both
+  // the database. This is required because this function is called both
   // before we have a database connection (i.e. during installation) and
   // when a database connection fails.
   elseif (db_is_active() && (($file = db_query("SELECT filename FROM {system} WHERE name = :name AND type = :type", array(':name' => $name, ':type' => $type))->fetchField()) && file_exists($file))) {
@@ -659,18 +691,6 @@ function page_get_cache() {
 }
 
 /**
- * Call all init or exit hooks without including all modules.
- *
- * @param $hook
- *   The name of the bootstrap hook we wish to invoke.
- */
-function bootstrap_invoke_all($hook) {
-  foreach (module_implements($hook) as $module) {
-    module_invoke($module, $hook);
-  }
-}
-
-/**
  * Includes a file with the provided type and name. This prevents
  * including a theme, engine, module, etc., more than once.
  *
@@ -705,7 +725,7 @@ function drupal_load($type, $name) {
  * Set HTTP headers in preparation for a page response.
  *
  * Authenticated users are always given a 'no-cache' header, and will
- * fetch a fresh page on every request.  This prevents authenticated
+ * fetch a fresh page on every request. This prevents authenticated
  * users seeing locally cached pages that show them as logged out.
  *
  * @see page_set_cache()
@@ -721,23 +741,22 @@ function drupal_page_header() {
  * Set HTTP headers in preparation for a cached page response.
  *
  * The general approach here is that anonymous users can keep a local
- * cache of the page, but must revalidate it on every request.  Then,
+ * cache of the page, but must revalidate it on every request. Then,
  * they are given a '304 Not Modified' response as long as they stay
  * logged out and the page has not been modified.
  *
  */
 function drupal_page_cache_header($cache) {
-  // Set default values:
-  $last_modified = gmdate('D, d M Y H:i:s', $cache->created) . ' GMT';
-  $etag = '"' . md5($last_modified) . '"';
+  // Create entity tag based on cache update time.
+  $etag = '"' . md5($cache->created) . '"';
 
-  // See if the client has provided the required HTTP headers:
-  $if_modified_since = isset($_SERVER['HTTP_IF_MODIFIED_SINCE']) ? stripslashes($_SERVER['HTTP_IF_MODIFIED_SINCE']) : FALSE;
+  // See if the client has provided the required HTTP headers.
+  $if_modified_since = isset($_SERVER['HTTP_IF_MODIFIED_SINCE']) ? strtotime($_SERVER['HTTP_IF_MODIFIED_SINCE']) : FALSE;
   $if_none_match = isset($_SERVER['HTTP_IF_NONE_MATCH']) ? stripslashes($_SERVER['HTTP_IF_NONE_MATCH']) : FALSE;
 
   if ($if_modified_since && $if_none_match
       && $if_none_match == $etag // etag must match
-      && $if_modified_since == $last_modified) {  // if-modified-since must match
+      && $if_modified_since == $cache->created) {  // if-modified-since must match
     header($_SERVER['SERVER_PROTOCOL'] . ' 304 Not Modified');
     // All 304 responses must send an etag if the 200 response for the same object contained an etag
     header("Etag: $etag");
@@ -745,7 +764,7 @@ function drupal_page_cache_header($cache) {
   }
 
   // Send appropriate response:
-  header("Last-Modified: $last_modified");
+  header("Last-Modified: " . gmdate(DATE_RFC1123, $cache->created));
   header("ETag: $etag");
 
   // The following headers force validation of cache:
@@ -772,13 +791,6 @@ function drupal_page_cache_header($cache) {
   }
 
   print $cache->data;
-}
-
-/**
- * Define the critical hooks that force modules to always be loaded.
- */
-function bootstrap_hooks() {
-  return array('boot', 'exit');
 }
 
 /**
@@ -886,19 +898,20 @@ function request_uri() {
  *   A link to associate with the message.
  *
  * @see watchdog_severity_levels()
+ * @see hook_watchdog()
  */
 function watchdog($type, $message, $variables = array(), $severity = WATCHDOG_NOTICE, $link = NULL) {
   global $user, $base_root;
 
   static $in_error_state = FALSE;
 
-  // It is possible that the error handling will itself trigger an error.  In that case, we could
-  // end up in an infinite loop.  To avoid that, we implement a simple static semaphore.
+  // It is possible that the error handling will itself trigger an error. In that case, we could
+  // end up in an infinite loop. To avoid that, we implement a simple static semaphore.
   if (!$in_error_state) {
     $in_error_state = TRUE;
 
     // Prepare the fields to be logged
-    $log_message = array(
+    $log_entry = array(
       'type'        => $type,
       'message'     => $message,
       'variables'   => $variables,
@@ -913,10 +926,13 @@ function watchdog($type, $message, $variables = array(), $severity = WATCHDOG_NO
 
     // Call the logging hooks to log/process the message
     foreach (module_implements('watchdog', TRUE) as $module) {
-      module_invoke($module, 'watchdog', $log_message);
+      module_invoke($module, 'watchdog', $log_entry);
     }
+
+    // It is critical that the semaphore is only cleared here, in the parent
+    // watchdog() call (not outside the loop), to prevent recursive execution.
+    $in_error_state = FALSE;
   }
-  $in_error_state = FALSE;
 }
 
 /**
@@ -1066,7 +1082,7 @@ function drupal_bootstrap($phase = NULL) {
 }
 
 /**
- * Return the current bootstrap phase for this Drupal process.  The
+ * Return the current bootstrap phase for this Drupal process. The
  * current phase is the one most recently completed by
  * drupal_bootstrap().
  *
@@ -1103,7 +1119,7 @@ function _drupal_bootstrap($phase) {
       break;
 
     case DRUPAL_BOOTSTRAP_DATABASE:
-      // Initialize the database system.  Note that the connection
+      // Initialize the database system. Note that the connection
       // won't be initialized until it is actually requested.
       require_once DRUPAL_ROOT . '/includes/database/database.inc';
       // Register autoload functions so that we can access classes and interfaces.
@@ -1132,21 +1148,21 @@ function _drupal_bootstrap($phase) {
       break;
 
     case DRUPAL_BOOTSTRAP_LATE_PAGE_CACHE:
-      // Load module handling.
-      require_once DRUPAL_ROOT . '/includes/module.inc';
       $cache_mode = variable_get('cache', CACHE_DISABLED);
       // Get the page from the cache.
       $cache = $cache_mode == CACHE_DISABLED ? '' : page_get_cache();
       // If the skipping of the bootstrap hooks is not enforced, call hook_boot.
-      if ($cache_mode != CACHE_AGGRESSIVE) {
-        bootstrap_invoke_all('boot');
+      if (!$cache || $cache_mode != CACHE_AGGRESSIVE) {
+        // Load module handling.
+        require_once DRUPAL_ROOT . '/includes/module.inc';
+        module_invoke_all('boot');
       }
       // If there is a cached page, display it.
       if ($cache) {
         drupal_page_cache_header($cache);
         // If the skipping of the bootstrap hooks is not enforced, call hook_exit.
         if ($cache_mode != CACHE_AGGRESSIVE) {
-          bootstrap_invoke_all('exit');
+          module_invoke_all('exit');
         }
         // We are done.
         exit;
@@ -1186,7 +1202,7 @@ function drupal_maintenance_theme() {
 }
 
 /**
- * Return the name of the localisation function. Use in code that needs to
+ * Return the name of the localization function. Use in code that needs to
  * run both during installation and normal operation.
  */
 function get_t() {
@@ -1270,7 +1286,7 @@ function language_default($property = NULL) {
 /**
  * If Drupal is behind a reverse proxy, we use the X-Forwarded-For header
  * instead of $_SERVER['REMOTE_ADDR'], which would be the IP address of
- * the proxy server, and not the client's.  If Drupal is run in a cluster
+ * the proxy server, and not the client's. If Drupal is run in a cluster
  * we use the X-Cluster-Client-Ip header instead.
  *
  * @param $reset
@@ -1346,18 +1362,18 @@ function drupal_get_schema($table = NULL, $rebuild = FALSE) {
         // was last called with, which is not always what you want.
         // module_load_all_includes() calls module_list(), but if this function
         // is called very early in the bootstrap process then it will be
-        // uninitialized and therefore return no modules.  Instead, we have to
+        // uninitialized and therefore return no modules. Instead, we have to
         // "prime" module_list() here to to values we want, specifically
         // "yes rebuild the list and don't limit to bootstrap".
         // TODO: Remove this call after http://drupal.org/node/222109 is fixed.
-        module_list(TRUE, FALSE);
+        module_list(TRUE);
         module_load_all_includes('install');
       }
 
+      require_once DRUPAL_ROOT . '/includes/common.inc';
       // Invoke hook_schema for all modules.
       foreach (module_implements('schema') as $module) {
         $current = module_invoke($module, 'schema');
-        require_once DRUPAL_ROOT . '/includes/common.inc';
         if (drupal_function_exists('_drupal_initialize_schema')) {
           _drupal_initialize_schema($module, $current);
         }
@@ -1369,7 +1385,9 @@ function drupal_get_schema($table = NULL, $rebuild = FALSE) {
         drupal_alter('schema', $schema);
       }
 
-      if (drupal_get_bootstrap_phase() == DRUPAL_BOOTSTRAP_FULL) {
+      // If the schema is empty, avoid saving it: some database engines require
+      // the schema to perform queries, and this could lead to infinite loops.
+      if (!empty($schema) && (drupal_get_bootstrap_phase() == DRUPAL_BOOTSTRAP_FULL)) {
         cache_set('schema', $schema);
       }
     }
@@ -1467,7 +1485,7 @@ function drupal_autoload_class($class) {
  * Helper to check for a resource in the registry.
  *
  * @param $type
- *   The type of resource we are looking up, or one of the constants 
+ *   The type of resource we are looking up, or one of the constants
  *   REGISTRY_RESET_LOOKUP_CACHE or REGISTRY_WRITE_LOOKUP_CACHE, which
  *   signal that we should reset or write the cache, respectively.
  * @param $name
@@ -1481,9 +1499,12 @@ function _registry_check_code($type, $name = NULL) {
   static $lookup_cache, $cache_update_needed;
 
   if (!isset($lookup_cache)) {
-    $lookup_cache = _registry_get_lookup_cache();
+    $lookup_cache = array();
+    if ($cache = cache_get('lookup_cache', 'cache_registry')) {
+      $lookup_cache = $cache->data;
+    }
   }
-  
+
   // When we rebuild the registry, we need to reset this cache so
   // we don't keep lookups for resources that changed during the rebuild.
   if ($type == REGISTRY_RESET_LOOKUP_CACHE) {
@@ -1496,12 +1517,12 @@ function _registry_check_code($type, $name = NULL) {
   // changes to the lookup cache for this request.
   if ($type == REGISTRY_WRITE_LOOKUP_CACHE) {
     if ($cache_update_needed) {
-      _registry_set_lookup_cache($lookup_cache);
+      cache_set('lookup_cache', $lookup_cache, 'cache_registry');
     }
     return;
   }
-  
-  // $type can be one of 'function', 'interface' or 'class', so we only need the 
+
+  // $type can be one of 'function', 'interface' or 'class', so we only need the
   // first letter to keep the cache key unique.
   $cache_key = $type[0] . $name;
   if (isset($lookup_cache[$cache_key])) {
@@ -1510,7 +1531,7 @@ function _registry_check_code($type, $name = NULL) {
     }
     return $lookup_cache[$cache_key];
   }
-  
+
   // This function may get called when the default database is not active, but
   // there is no reason we'd ever want to not use the default database for
   // this query.
@@ -1545,38 +1566,6 @@ function _registry_check_code($type, $name = NULL) {
 function registry_rebuild() {
   require_once DRUPAL_ROOT . '/includes/registry.inc';
   _registry_rebuild();
-}
-
-/**
- * Wrapper function to perform array to string conversion of lookup cache.
- */
-function _registry_set_lookup_cache(array $lookup_cache) {
-  // Cache a string, not an array, so we can avoid the memory usage hit 
-  // from serialize() in the cache system.
-  $key_value_pairs = array();
-  foreach ($lookup_cache as $key => $value) {
-    $key_value_pairs[] =  "$key|" . ($value ? $value : '');
-  }
-  return cache_set('lookup_cache', implode(';', $key_value_pairs), 'cache_registry');
-}
-
-/**
- * Wrapper function to perform string to array conversion of lookup cache.
- */
-function _registry_get_lookup_cache() {
-  // In _registry_set_lookup_cache, we cache a string, not an array, to avoid 
-  // serialize() in the cache system. serialize() makes a copy, and thus uses
-  // extra memory, which we are trying to avoid.
-  $lookup_cache = array();
-  if ($cache = cache_get('lookup_cache', 'cache_registry')) {
-    // Each item is separated by ';'.
-    foreach (explode(';', $cache->data) as $lookup) {
-      // Key value pairs are separated by '|'.
-      list($resource, $result) = explode('|', $lookup);
-      $lookup_cache[$resource] = $result;
-    }
-  }
-  return $lookup_cache;
 }
 
 /**

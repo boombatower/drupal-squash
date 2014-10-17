@@ -23,7 +23,7 @@
  *
  * Image toolkits are discovered based on the associated module's
  * hook_image_toolkits. Additionally the image toolkit include file
- * must be identified in the files array in the module.info file.  The
+ * must be identified in the files array in the module.info file. The
  * toolkit must then be enabled using the admin/settings/image-toolkit
  * form.
  *
@@ -139,7 +139,7 @@ function image_get_info($file) {
 /**
  * Scales an image to the exact width and height given. Achieves the
  * target aspect ratio by cropping the original image equally on both
- * sides, or equally on the top and bottom.  This function is, for
+ * sides, or equally on the top and bottom. This function is, for
  * example, useful to create uniform sized avatars from larger images.
  *
  * The resulting image always has the exact target dimensions.
@@ -234,7 +234,7 @@ function image_resize($source, $destination, $width, $height) {
  * @param $degrees
  *   The number of (clockwise) degrees to rotate the image.
  * @param $background
- *   An hexidecimal integer specifying the background color to use for the
+ *   An hexadecimal integer specifying the background color to use for the
  *   uncovered area of the image after the rotation. E.g. 0x000000 for black,
  *   0xff00ff for magenta, and 0xffffff for white.
  * @return

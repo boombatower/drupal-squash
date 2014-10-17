@@ -52,7 +52,7 @@ function drupal_lookup_path($action, $path = '', $path_language = '') {
 
   // Use $count to avoid looking up paths in subsequent calls if there simply are no aliases
   if (!isset($count)) {
-    $count = db_result(db_query('SELECT COUNT(pid) FROM {url_alias}'));
+    $count = db_query('SELECT COUNT(pid) FROM {url_alias}')->fetchField();
   }
 
   if ($action == 'wipe') {
@@ -66,7 +66,10 @@ function drupal_lookup_path($action, $path = '', $path_language = '') {
         return $map[$path_language][$path];
       }
       // Get the most fitting result falling back with alias without language
-      $alias = db_result(db_query("SELECT dst FROM {url_alias} WHERE src = '%s' AND language IN('%s', '') ORDER BY language DESC", $path, $path_language));
+      $alias = db_query("SELECT dst FROM {url_alias} WHERE src = :src AND language IN(:language, '') ORDER BY language DESC", array(
+        ':src' => $path,
+        ':language' => $path_language))
+        ->fetchField();
       $map[$path_language][$path] = $alias;
       return $alias;
     }
@@ -77,7 +80,10 @@ function drupal_lookup_path($action, $path = '', $path_language = '') {
       $src = '';
       if (!isset($map[$path_language]) || !($src = array_search($path, $map[$path_language]))) {
         // Get the most fitting result falling back with alias without language
-        if ($src = db_result(db_query("SELECT src FROM {url_alias} WHERE dst = '%s' AND language IN('%s', '') ORDER BY language DESC", $path, $path_language))) {
+        if ($src = db_query("SELECT src FROM {url_alias} WHERE dst = :dst AND language IN(:language, '') ORDER BY language DESC", array(
+                     ':dst' => $path,
+                     ':language' => $path_language))
+            ->fetchField()) {
           $map[$path_language][$src] = $path;
         }
         else {
@@ -142,12 +148,13 @@ function drupal_get_normal_path($path, $path_language = '') {
  * Return a component of the current Drupal path.
  *
  * When viewing a page at the path "admin/build/types", for example, arg(0)
- * would return "admin", arg(1) would return "content", and arg(2) would return
- * "types".
+ * returns "admin", arg(1) returns "content", and arg(2) returns "types".
  *
  * Avoid use of this function where possible, as resulting code is hard to read.
- * Instead, attempt to use named arguments in menu callback functions. See the
- * explanation in menu.inc for how to construct callbacks that take arguments.
+ * In menu callback functions, attempt to use named arguments. See the explanation
+ * in menu.inc for how to construct callbacks that take arguments. When attempting
+ * to use this function to load an element from the current path, e.g. loading the
+ * node on a node page, please use menu_get_object() instead.
  *
  * @param $index
  *   The index of the component, where each component is separated by a '/'
@@ -212,6 +219,7 @@ function drupal_set_title($title = NULL, $output = CHECK_PLAIN) {
   if (isset($title)) {
     $stored_title = ($output == PASS_THROUGH) ? $title : check_plain($title);
   }
+
   return $stored_title;
 }
 
@@ -222,9 +230,15 @@ function drupal_set_title($title = NULL, $output = CHECK_PLAIN) {
  *   Boolean value: TRUE if the current page is the front page; FALSE if otherwise.
  */
 function drupal_is_front_page() {
-  // As drupal_init_path updates $_GET['q'] with the 'site_frontpage' path,
-  // we can check it against the 'site_frontpage' variable.
-  return $_GET['q'] == drupal_get_normal_path(variable_get('site_frontpage', 'node'));
+  static $is_front_page;
+
+  if (!isset($is_front_page)) {
+    // As drupal_init_path updates $_GET['q'] with the 'site_frontpage' path,
+    // we can check it against the 'site_frontpage' variable.
+    $is_front_page = ($_GET['q'] == drupal_get_normal_path(variable_get('site_frontpage', 'node')));
+  }
+
+  return $is_front_page;
 }
 
 /**

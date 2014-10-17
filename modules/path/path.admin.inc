@@ -42,9 +42,19 @@ function path_admin_overview($keys = NULL) {
   $rows = array();
   $destination = drupal_get_destination();
   while ($data = db_fetch_object($result)) {
-    $row = array(check_plain($data->dst), check_plain($data->src), l(t('edit'), "admin/build/path/edit/$data->pid", array('query' => $destination)), l(t('delete'), "admin/build/path/delete/$data->pid", array('query' => $destination)));
+    $row = array(
+      // If the system path maps to a different URL alias, highlight this table
+      // row to let the user know of old aliases.
+      'class' => ($data->dst != drupal_get_path_alias($data->src, $data->language) ? 'warning' : NULL),
+      'data' => array(
+        l($data->dst, $data->src),
+        l($data->src, $data->src, array('alias' => TRUE)),
+        l(t('edit'), "admin/build/path/edit/$data->pid", array('query' => $destination)),
+        l(t('delete'), "admin/build/path/delete/$data->pid", array('query' => $destination)),
+      ),
+    );
     if ($multilanguage) {
-      array_splice($row, 2, 0, module_invoke('locale', 'language_name', $data->language));
+      array_splice($row['data'], 2, 0, module_invoke('locale', 'language_name', $data->language));
     }
     $rows[] = $row;
   }
@@ -91,7 +101,7 @@ function path_admin_form(&$form_state, $edit = array('src' => '', 'dst' => '', '
     '#type' => 'textfield',
     '#title' => t('Existing system path'),
     '#default_value' => $edit['src'],
-    '#maxlength' => 64,
+    '#maxlength' => 128,
     '#size' => 45,
     '#description' => t('Specify the existing path you wish to alias. For example: node/28, forum/1, taxonomy/term/1+2.'),
     '#field_prefix' => url(NULL, array('absolute' => TRUE)) . (variable_get('clean_url', 0) ? '' : '?q='),
@@ -101,7 +111,7 @@ function path_admin_form(&$form_state, $edit = array('src' => '', 'dst' => '', '
     '#type' => 'textfield',
     '#title' => t('Path alias'),
     '#default_value' => $edit['dst'],
-    '#maxlength' => 64,
+    '#maxlength' => 128,
     '#size' => 45,
     '#description' => t('Specify an alternative path by which this data can be accessed. For example, type "about" when writing an about page. Use a relative path and don\'t add a trailing slash or the URL alias won\'t work.'),
     '#field_prefix' => url(NULL, array('absolute' => TRUE)) . (variable_get('clean_url', 0) ? '' : '?q='),
@@ -138,8 +148,8 @@ function path_admin_form_validate($form, &$form_state) {
     form_set_error('dst', t('The alias %alias is already in use in this language.', array('%alias' => $dst)));
   }
   $item = menu_get_item($src);
-  if (!$item) {
-    form_set_error('src', t("The path '@link_path' is invalid.", array('@link_path' => $src)));
+  if (!$item || !$item['access']) {
+    form_set_error('src', t("The path '@link_path' is either invalid or you do not have access to it.", array('@link_path' => $src)));
   }
 }
 
@@ -197,7 +207,7 @@ function path_admin_filter_form(&$form_state, $keys = '') {
     '#type' => 'textfield',
     '#title' => '',
     '#default_value' => $keys,
-    '#maxlength' => 64,
+    '#maxlength' => 128,
     '#size' => 25,
   );
   $form['basic']['inline']['submit'] = array(

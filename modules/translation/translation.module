@@ -158,14 +158,13 @@ function translation_form_alter(&$form, $form_state, $form_id) {
 }
 
 /**
- * Implementation of hook_link().
+ * Implementation of hook_nodeapi_view().
  *
  * Display translation links with native language names, if this node
  * is part of a translation set.
  */
-function translation_link($type, $node = NULL, $teaser = FALSE) {
-  $links = array();
-  if ($type == 'node' && ($node->tnid) && $translations = translation_node_get_translations($node->tnid)) {
+function translation_nodeapi_view(&$node, $teaser = FALSE) {
+  if (isset($node->tnid) && $translations = translation_node_get_translations($node->tnid)) {
     // Do not show link to the same node.
     unset($translations[$node->language]);
     $languages = language_list();
@@ -177,16 +176,19 @@ function translation_link($type, $node = NULL, $teaser = FALSE) {
           'language' => $language,
           'attributes' => array('title' => $translations[$langcode]->title, 'class' => 'translation-link')
         );
+        $node->content['links']['translation'] = array(
+          '#type' => 'node_links',
+          '#value' => $links,
+        );
       }
     }
   }
-  return $links;
 }
 
 /**
  * Implementation of hook_nodeapi_prepare().
  */
-function translation_nodeapi_prepare(&$node, $teaser, $page) {
+function translation_nodeapi_prepare($node) {
   // Only act if we are dealing with a content type supporting translations.
   if (translation_supported_type($node->type)) {
     if (empty($node->nid) && isset($_GET['translation']) && isset($_GET['language']) &&
@@ -207,7 +209,7 @@ function translation_nodeapi_prepare(&$node, $teaser, $page) {
 /**
  * Implementation of hook_nodeapi_insert().
  */
-function translation_nodeapi_insert(&$node, $teaser, $page) {
+function translation_nodeapi_insert($node) {
   // Only act if we are dealing with a content type supporting translations.
   if (translation_supported_type($node->type)) {
     if (!empty($node->translation_source)) {
@@ -228,7 +230,7 @@ function translation_nodeapi_insert(&$node, $teaser, $page) {
 /**
  * Implementation of hook_nodeapi_update().
  */
-function translation_nodeapi_update(&$node, $teaser, $page) {
+function translation_nodeapi_update($node) {
   // Only act if we are dealing with a content type supporting translations.
   if (translation_supported_type($node->type)) {
     if (isset($node->translation) && $node->translation && !empty($node->language) && $node->tnid) {
@@ -245,7 +247,7 @@ function translation_nodeapi_update(&$node, $teaser, $page) {
 /**
  * Implementation of hook_nodeapi_delete().
  */
-function translation_nodeapi_delete(&$node, $teaser, $page) {
+function translation_nodeapi_delete($node) {
   // Only act if we are dealing with a content type supporting translations.
   if (translation_supported_type($node->type)) {
     translation_remove_from_set($node);
@@ -335,11 +337,11 @@ function translation_path_get_translations($path) {
 }
 
 /**
- * Implementation of hook_alter_translation_link().
+ * Implementation of hook_translation_link_alter().
  *
  * Replaces links with pointers to translated versions of the content.
  */
-function translation_translation_link_alter(&$links, $path) {
+function translation_translation_link_alter(array &$links, $path) {
   if ($paths = translation_path_get_translations($path)) {
     foreach ($links as $langcode => $link) {
       if (isset($paths[$langcode])) {
@@ -353,4 +355,3 @@ function translation_translation_link_alter(&$links, $path) {
     }
   }
 }
-

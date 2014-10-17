@@ -102,9 +102,6 @@ class CacheTestCase extends DrupalWebTestCase {
 }
 
 class CacheSavingCase extends CacheTestCase {
-  /**
-   * Implementation of getInfo().
-   */
   function getInfo() {
     return array(
       'name' => t('Cache saving test'),
@@ -145,7 +142,7 @@ class CacheSavingCase extends CacheTestCase {
    * Test the saving and restoring of an object.
    */
   function testObject() {
-    $test_object = new StdClass();
+    $test_object = new stdClass();
     $test_object->test1 = $this->randomName('100');
     $test_object->test2 = 100;
     $test_object->test3 = array('drupal1', 'drupal2' => 'drupal3', 'drupal4' => array('drupal5', 'drupal6'));
@@ -166,9 +163,6 @@ class CacheSavingCase extends CacheTestCase {
 }
 
 class CacheClearCase extends CacheTestCase {
-  /**
-   * Implementation of getInfo().
-   */
   function getInfo() {
     return array(
       'name' => t('Cache clear test'),
@@ -177,9 +171,6 @@ class CacheClearCase extends CacheTestCase {
     );
   }
 
-  /**
-   * Implementation of setUp().
-   */
   function setUp() {
     $this->default_table = 'cache_page';
     $this->default_value = $this->randomName(10);

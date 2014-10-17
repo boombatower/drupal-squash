@@ -48,7 +48,7 @@
 
 /**
  * Retrieves a form from a constructor function, or from the cache if
- * the form was built in a previous page-load. The form is then passesed
+ * the form was built in a previous page-load. The form is then passed
  * on for processing, after and rendered for display if necessary.
  *
  * @param $form_id
@@ -399,7 +399,7 @@ function drupal_process_form($form_id, &$form, &$form_state) {
 
     // form_clean_id() maintains a cache of element IDs it has seen,
     // so it can prevent duplicates. We want to be sure we reset that
-    // cache when a form is processed, so scenerios that result in
+    // cache when a form is processed, so scenarios that result in
     // the form being built behind the scenes and again for the
     // browser don't increment all the element IDs needlessly.
     form_clean_id(NULL, TRUE);
@@ -422,7 +422,7 @@ function drupal_process_form($form_id, &$form, &$form_state) {
       // drupal_execute).
       if ($batch =& batch_get() && !isset($batch['current_set'])) {
         // The batch uses its own copies of $form and $form_state for
-        // late execution of submit handers and post-batch redirection.
+        // late execution of submit handlers and post-batch redirection.
         $batch['form'] = $form;
         $batch['form_state'] = $form_state;
         $batch['progressive'] = !$form['#programmed'];
@@ -590,8 +590,7 @@ function drupal_validate_form($form_id, $form, &$form_state) {
  * @param $form
  *   An associative array containing the structure of the form.
  * @return
- *   A string containing the path of the page to display when processing
- *   is complete.
+ *   A string containing the themed HTML.
  */
 function drupal_render_form($form_id, &$form) {
   // Don't override #theme if someone already set it.
@@ -852,7 +851,7 @@ function form_error(&$element, $message = '') {
  *   $_POST data.
  */
 function form_builder($form_id, $form, &$form_state) {
-  static $complete_form, $cache;
+  static $complete_form, $cache, $file;
 
   // Initialize as unprocessed.
   $form['#processed'] = FALSE;
@@ -930,7 +929,7 @@ function form_builder($form_id, $form, &$form_state) {
   // Internet Explorer button-click scenario.
   _form_builder_ie_cleanup($form, $form_state);
 
-  // We shoud keep the buttons array until the IE clean up function
+  // We should keep the buttons array until the IE clean up function
   // has recognized the submit button so the form has been marked
   // as submitted. If we already know which button was submitted,
   // we don't need the array.
@@ -943,9 +942,20 @@ function form_builder($form_id, $form, &$form_state) {
   if (!empty($form['#cache'])) {
     $cache = $form['#cache'];
   }
-  // We are on the top form, we can copy back #cache if it's set.
-  if (isset($form['#type']) && $form['#type'] == 'form' && isset($cache)) {
-    $form['#cache'] = TRUE;
+  // If there is a file element, we need to flip a static flag so later the
+  // form encoding can be set.
+  if (isset($form['#type']) && $form['#type'] == 'file') {
+    $file = TRUE;
+  }
+  if (isset($form['#type']) && $form['#type'] == 'form') {
+    // We are on the top form, we can copy back #cache if it's set.
+    if (isset($cache)) {
+      $form['#cache'] = TRUE;
+    }
+    // If there is a file element, we set the form encoding.
+    if (isset($file)) {
+      $form['#attributes']['enctype'] = 'multipart/form-data';
+    }
   }
   return $form;
 }
@@ -974,7 +984,6 @@ function _form_builder_handle_input_element($form_id, &$form, &$form_state, $com
     $form['#id'] = form_clean_id('edit-' . implode('-', $form['#parents']));
   }
 
-  unset($edit);
   if (!empty($form['#disabled'])) {
     $form['#attributes']['disabled'] = 'disabled';
   }
@@ -1776,7 +1785,7 @@ function form_process_radios($element) {
  * Add input format selector to text elements with the #input_format property.
  *
  * The #input_format property should be the ID of an input format, found in
- * {filter_formats}.format, which gets passed to filter_form().
+ * {filter_format}.format, which gets passed to filter_form().
  *
  * If the property #input_format is set, the form element will be expanded into
  * two separate form elements, one holding the content of the element, and the
@@ -1871,7 +1880,7 @@ function form_process_ahah($element) {
         // submission via pressing the enter key triggers a click event on
         // submit inputs, inappropriately triggering AHAH behaviors.
         $element['#ahah']['event'] = 'mousedown';
-        // Attach an additional event handler so that AHAH behaviours
+        // Attach an additional event handler so that AHAH behaviors
         // can be triggered still via keyboard input.
         $element['#ahah']['keypress'] = TRUE;
         break;
@@ -2487,13 +2496,14 @@ function form_clean_id($id = NULL, $flush = FALSE) {
  *        @endcode
  *     All the other values below are optional.
  *     batch_init() provides default values for the messages.
- *     'title': title for the progress page.
+ *     'title': title for the progress page. Only safe strings should be passed.
  *       Defaults to t('Processing').
  *     'init_message': message displayed while the processing is initialized.
  *       Defaults to t('Initializing.').
  *     'progress_message': message displayed while processing the batch.
- *       Available placeholders are @current, @remaining, @total and @percent.
- *       Defaults to t('Remaining @remaining of @total.').
+ *       Available placeholders are @current, @remaining, @total, @percentage,
+ *       @estimate and @elapsed.
+ *       Defaults to t('Completed @current of @total.').
  *     'error_message': message displayed if an error occurred while processing
  *       the batch.
  *       Defaults to t('An error has occurred.').
@@ -2530,6 +2540,8 @@ function batch_set($batch_definition) {
       'sandbox' => array(),
       'results' => array(),
       'success' => FALSE,
+      'start' => microtime(TRUE),
+      'elapsed' => 0,
     );
     // Use get_t() to allow batches at install time.
     $t = get_t();

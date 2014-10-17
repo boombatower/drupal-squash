@@ -43,7 +43,7 @@ function simpletest_perm() {
 }
 
 /**
- * Implemenation of hook_theme().
+ * Implementation of hook_theme().
  */
 function simpletest_theme() {
   return array(
@@ -60,8 +60,6 @@ function simpletest_theme() {
  * Menu callback for both running tests and listing possible tests
  */
 function simpletest_test_form() {
-  global $db_prefix, $db_prefix_original;
-
   $form = array();
 
   // List out all tests in groups for selection.
@@ -210,10 +208,7 @@ function simpletest_test_form() {
 
 function theme_simpletest_test_table($table) {
   drupal_add_css(drupal_get_path('module', 'simpletest') . '/simpletest.css');
-
-  // Since SimpleTest is a special use case for the table select, stick the
-  // SimpleTest JavaScript above the table select.
-  drupal_add_js(drupal_get_path('module', 'simpletest') . '/simpletest.js', array('weight' => JS_DEFAULT - 1));
+  drupal_add_js(drupal_get_path('module', 'simpletest') . '/simpletest.js');
 
   // Create header for test selection table.
   $header = array(
@@ -236,7 +231,7 @@ function theme_simpletest_test_table($table) {
     $element = &$table[$key];
     $row = array();
 
-    // Make the class name safe for output on the pace by replacing all
+    // Make the class name safe for output on the page by replacing all
     // non-word/decimal characters with a dash (-).
     $test_class = strtolower(trim(preg_replace("/[^\w\d]/", "-", $key)));
 
@@ -301,6 +296,18 @@ function theme_simpletest_test_table($table) {
   }
 }
 
+/**
+ * Implementation of hook_js_alter().
+ */
+function simpletest_js_alter(&$javascript) {
+  // Since SimpleTest is a special use case for the table select, stick the
+  // SimpleTest JavaScript above the table select.
+  $simpletest = drupal_get_path('module', 'simpletest') . '/simpletest.js';
+  if (array_key_exists($simpletest, $javascript) && array_key_exists('misc/tableselect.js', $javascript)) {
+    $javascript[$simpletest]['weight'] = $javascript['misc/tableselect.js']['weight'] - 1;
+  }
+}
+
 function theme_simpletest_result_summary($form, $text = NULL) {
   return '<div class="simpletest-'. ($form['#ok'] ? 'pass' : 'fail') .'">' . _simpletest_format_summary_line($form) . '</div>';
 }
@@ -345,7 +352,6 @@ function simpletest_test_form_submit($form, &$form_state) {
  *   drupal being the default.
  */
 function simpletest_run_tests($test_list, $reporter = 'drupal') {
-  global $db_prefix, $db_prefix_original;
   cache_clear_all();
   $test_id = db_insert('simpletest_test_id')->useDefaults(array('test_id'))->execute();
 
@@ -364,7 +370,6 @@ function simpletest_run_tests($test_list, $reporter = 'drupal') {
     'redirect' => 'admin/build/testing',
     'progress_message' => '',
     'css' => array(drupal_get_path('module', 'simpletest') . '/simpletest.css'),
-    'js' => array(drupal_get_path('module', 'simpletest') .'/simpletest.js'),
     'init_message' => t('Processing test @num of @max - %test.', array('%test' => $info['name'], '@num' => '1', '@max' => count($test_list))),
   );
   batch_set($batch);
@@ -406,7 +411,7 @@ function _simpletest_batch_operation($test_list_init, $test_id, &$context) {
   $info = $test->getInfo();
 
   // Gather results and compose the report.
-  $test_results[$test_class] = $test->_results;
+  $test_results[$test_class] = $test->results;
   foreach ($test_results[$test_class] as $key => $value) {
     $test_results[$key] += $value;
   }
@@ -429,12 +434,12 @@ function _simpletest_batch_operation($test_list_init, $test_id, &$context) {
   $context['finished'] = 1 - $size / $max;
 }
 
-function _simpletest_batch_finished($success, $results, $operations) {
+function _simpletest_batch_finished($success, $results, $operations, $elapsed) {
   if (isset($results['test_id'])) {
     $_SESSION['test_id'] = $results['test_id'];
   }
   if ($success) {
-    drupal_set_message(t('The tests have finished running.'));
+    drupal_set_message(t('The tests finished in @elapsed.', array('@elapsed' => $elapsed)));
   }
   else {
     drupal_set_message(t('The tests did not successfully finish.'), 'error');
@@ -514,16 +519,15 @@ function simpletest_clean_environment() {
 }
 
 /**
- * Removed prefixed talbes from the database that are left over from crashed tests.
+ * Removed prefixed tables from the database that are left over from crashed tests.
  */
 function simpletest_clean_database() {
-  global $db_prefix;
   $tables = db_find_tables(Database::getActiveConnection()->prefixTables('{simpletest}') . '%');
   $schema = drupal_get_schema_unprocessed('simpletest');
   $ret = array();
   foreach (array_diff_key($tables, $schema) as $table) {
-    // Strip $db_prefix and skip tables without digits following "simpletest",
-    // e.g. {simpletest_tets_id}.
+    // Strip the prefix and skip tables without digits following "simpletest",
+    // e.g. {simpletest_test_id}.
     if (preg_match('/simpletest\d+.*/', $table, $matches)) {
       db_drop_table($ret, $matches[0]);
     }
@@ -560,7 +564,7 @@ function simpletest_clean_temporary_directories() {
 }
 
 /**
- * Remove all files from specified firectory and then remove directory.
+ * Remove all files from specified directory and then remove directory.
  *
  * @param string $path Directory path.
  */
