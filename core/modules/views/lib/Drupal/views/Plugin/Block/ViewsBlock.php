@@ -10,6 +10,7 @@ namespace Drupal\views\Plugin\Block;
 use Drupal\block\BlockBase;
 use Drupal\Component\Annotation\Plugin;
 use Drupal\Core\Annotation\Translation;
+use Drupal\Core\Entity\EntityStorageControllerInterface;
 
 /**
  * Provides a generic Views block.
@@ -47,7 +48,6 @@ class ViewsBlock extends BlockBase {
     list($name, $this->displayID) = explode('-', $delta, 2);
     // Load the view.
     $this->view = views_get_view($name);
-    $this->view->setDisplay($this->displayID);
   }
 
   /**
@@ -70,18 +70,22 @@ class ViewsBlock extends BlockBase {
   }
 
   /**
-   * Implements \Drupal\block\BlockBase::blockBuild().
+   * {@inheritdoc}
    */
-  protected function blockBuild() {
-    $output = $this->view->executeDisplay($this->displayID);
-    // Set the label to the title configured in the view.
-    $this->configuration['label'] = filter_xss_admin($this->view->getTitle());
-    // Before returning the block output, convert it to a renderable array
-    // with contextual links.
-    $this->addContextualLinks($output);
+  public function build() {
+    if ($output = $this->view->executeDisplay($this->displayID)) {
+      $output = $this->view->executeDisplay($this->displayID);
+      // Set the label to the title configured in the view.
+      $this->configuration['label'] = filter_xss_admin($this->view->getTitle());
+      // Before returning the block output, convert it to a renderable array
+      // with contextual links.
+      $this->addContextualLinks($output);
 
-    $this->view->destroy();
-    return $output;
+      $this->view->destroy();
+      return $output;
+    }
+
+    return array();
   }
 
   /**
@@ -108,5 +112,35 @@ class ViewsBlock extends BlockBase {
       views_add_contextual_links($output, $block_type, $this->view, $this->displayID);
     }
   }
+
+  /**
+   * Generates a views block instance ID.
+   *
+   * @param \Drupal\Core\Entity\EntityStorageControllerInterface $manager
+   *   The block storage controller.
+   *
+   * @return string
+   *   The new block instance ID.
+   */
+   public function generateBlockInstanceID(EntityStorageControllerInterface $manager) {
+     $this->view->setDisplay($this->displayID);
+     $original_id = 'views_block__' . $this->view->storage->id() . '_' . $this->view->current_display;
+
+     // Get an array of block IDs without the theme prefix.
+     $block_ids = array_map(function ($block_id) {
+       $parts = explode('.', $block_id);
+       return end($parts);
+     }, array_keys($manager->load()));
+
+     // Iterate through potential IDs until we get a new one. E.g.
+     // 'views_block__MYVIEW_PAGE_1_2'
+     $count = 1;
+     $id = $original_id;
+     while (in_array($id, $block_ids)) {
+       $id = $original_id . '_' . ++$count;
+     }
+
+     return $id;
+   }
 
 }

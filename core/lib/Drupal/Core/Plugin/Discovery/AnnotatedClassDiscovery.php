@@ -65,6 +65,39 @@ class AnnotatedClassDiscovery extends ComponentAnnotatedClassDiscovery {
   /**
    * {@inheritdoc}
    */
+  public function getDefinitions() {
+    $definitions = parent::getDefinitions();
+    foreach ($definitions as &$definition) {
+      // Extract the module name from the class namespace if it's not set.
+      if (!isset($definition['provider'])) {
+        $definition['provider'] = $this->getProviderFromNamespace($definition['class']);
+      }
+    }
+    return $definitions;
+  }
+
+  /**
+   * Extracts the provider name from a Drupal namespace.
+   *
+   * @param string $namespace
+   *   The namespace to extract the provider from.
+   *
+   * @return string|null
+   *   The matching provider name, or NULL otherwise.
+   */
+  protected function getProviderFromNamespace($namespace) {
+    preg_match('|^Drupal\\\\(?<provider>[\w]+)\\\\|', $namespace, $matches);
+
+    if (isset($matches['provider'])) {
+      return $matches['provider'];
+    }
+
+    return NULL;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
   protected function getPluginNamespaces() {
     $plugin_namespaces = array();
     foreach ($this->rootNamespacesIterator as $namespace => $dir) {

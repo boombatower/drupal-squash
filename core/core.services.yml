@@ -131,7 +131,7 @@ services:
     class: Drupal\Core\Path\AliasWhitelist
     tags:
       - { name: needs_destruction }
-    arguments: [path_alias_whitelist, cache, '@keyvalue', '@database']
+    arguments: [path_alias_whitelist, '@cache.cache', '@lock', '@state', '@database']
   path.alias_manager:
     class: Drupal\Core\Path\AliasManager
     arguments: ['@database', '@path.alias_whitelist', '@language_manager']
@@ -150,12 +150,20 @@ services:
       - { name: persist }
   plugin.manager.entity:
     class: Drupal\Core\Entity\EntityManager
-    arguments: ['@container.namespaces']
+    arguments: ['@container.namespaces', '@service_container', '@module_handler', '@cache.cache', '@language_manager']
   plugin.manager.archiver:
     class: Drupal\Core\Archiver\ArchiverManager
+    arguments: ['@container.namespaces', '@cache.cache', '@language_manager', '@module_handler']
+  plugin.manager.action:
+    class: Drupal\Core\Action\ActionManager
     arguments: ['@container.namespaces']
   request:
     class: Symfony\Component\HttpFoundation\Request
+    # @TODO the synthetic setting must be uncommented whenever drupal_session_initialize()
+    # is run after there is a request and the following two lines should be removed.
+    factory_class: Symfony\Component\HttpFoundation\Request
+    factory_method: createFromGlobals
+    #synthetic: true
   event_dispatcher:
     class: Symfony\Component\EventDispatcher\ContainerAwareEventDispatcher
     arguments: ['@service_container']
@@ -167,6 +175,12 @@ services:
     arguments: ['@event_dispatcher', '@service_container', '@controller_resolver']
   language_manager:
     class: Drupal\Core\Language\LanguageManager
+  string_translator.custom_strings:
+    class: Drupal\Core\StringTranslation\Translator\CustomStrings
+    tags:
+      - { name: string_translator, priority: 30 }
+  string_translation:
+    class: Drupal\Core\StringTranslation\TranslationManager
   database.slave:
     class: Drupal\Core\Database\Connection
     factory_class: Drupal\Core\Database\Database
@@ -178,7 +192,7 @@ services:
       - [setValidationConstraintManager, ['@validation.constraint']]
   validation.constraint:
     class: Drupal\Core\Validation\ConstraintManager
-    arguments: ['@container.namespaces']
+    arguments: ['@container.namespaces', '@cache.cache', '@language_manager', '@module_handler']
   lock:
     class: Drupal\Core\Lock\DatabaseLockBackend
   user.tempstore:
@@ -198,12 +212,16 @@ services:
     arguments: ['@router.route_provider']
     calls:
       - [setFinalMatcher, ['@router.matcher.final_matcher']]
-  router.generator:
+  url_generator:
     class: Drupal\Core\Routing\UrlGenerator
-    arguments: ['@router.route_provider', '@path.alias_manager.cached']
+    arguments: ['@router.route_provider', '@path_processor_manager', '@config.factory', '@settings']
+    calls:
+      - [setRequest, ['@?request']]
+    tags:
+      - { name: persist }
   router.dynamic:
     class: Symfony\Cmf\Component\Routing\DynamicRouter
-    arguments: ['@router.request_context', '@router.matcher', '@router.generator']
+    arguments: ['@router.request_context', '@router.matcher', '@url_generator']
   legacy_generator:
     class: Drupal\Core\Routing\NullGenerator
   legacy_url_matcher:
@@ -275,8 +293,8 @@ services:
     tags:
       - { name: route_enhancer, priority: 20 }
       - { name: legacy_route_enhancer, priority: 20 }
-  route_enhancer.entity_form:
-    class: Drupal\Core\Entity\Enhancer\EntityFormEnhancer
+  route_enhancer.entity:
+    class: Drupal\Core\Entity\Enhancer\EntityRouteEnhancer
     arguments: ['@content_negotiation']
     tags:
       - { name: route_enhancer, priority: 15 }
@@ -347,6 +365,12 @@ services:
       - { name: event_subscriber }
     arguments: ['@language_manager']
     scope: request
+  redirect_response_subscriber:
+    class: Drupal\Core\EventSubscriber\RedirectResponseSubscriber
+    arguments: ['@url_generator']
+    tags:
+      - { name: event_subscriber }
+    scope: request
   request_close_subscriber:
     class: Drupal\Core\EventSubscriber\RequestCloseSubscriber
     tags:
@@ -369,7 +393,7 @@ services:
     class: Drupal\Core\EventSubscriber\LanguageRequestSubscriber
     tags:
       - { name: event_subscriber }
-    arguments: ['@language_manager']
+    arguments: ['@language_manager', '@string_translation']
   exception_controller:
     class: Drupal\Core\Controller\ExceptionController
     arguments: ['@content_negotiation']
@@ -390,11 +414,13 @@ services:
     class: Drupal\Core\PathProcessor\PathProcessorFront
     tags:
       - { name: path_processor_inbound, priority: 200 }
+      - { name: path_processor_outbound, priority: 200 }
     arguments: ['@config.factory']
   path_processor_alias:
     class: Drupal\Core\PathProcessor\PathProcessorAlias
     tags:
       - { name: path_processor_inbound, priority: 100 }
+      - { name: path_processor_outbound, priority: 300 }
     arguments: ['@path.alias_manager']
   transliteration:
     class: Drupal\Core\Transliteration\PHPTransliteration
@@ -403,7 +429,7 @@ services:
     arguments: ['@database', '@request']
   plugin.manager.condition:
     class: Drupal\Core\Condition\ConditionManager
-    arguments: ['@container.namespaces']
+    arguments: ['@container.namespaces', '@cache.cache', '@language_manager', '@module_handler']
   kernel_destruct_subscriber:
     class: Drupal\Core\EventSubscriber\KernelDestructionSubscriber
     tags:
@@ -416,11 +442,80 @@ services:
       - { name: event_subscriber }
   image.toolkit.manager:
     class: Drupal\system\Plugin\ImageToolkitManager
-    arguments: ['@container.namespaces']
+    arguments: ['@container.namespaces', '@cache.cache', '@language_manager']
   image.toolkit:
     class: Drupal\system\Plugin\ImageToolkitInterface
     factory_method: getDefaultToolkit
     factory_service: image.toolkit.manager
+  breadcrumb:
+    class: Drupal\Core\Breadcrumb\BreadcrumbManager
   token:
     class: Drupal\Core\Utility\Token
     arguments: ['@module_handler']
+  batch.storage:
+    class: Drupal\Core\Utility\BatchStorage
+    arguments: ['@database']
+  slave_database_ignore__subscriber:
+    class: Drupal\Core\EventSubscriber\SlaveDatabaseIgnoreSubscriber
+    tags:
+      - {name: event_subscriber}
+  country_manager:
+    class: Drupal\Core\Locale\CountryManager
+    arguments: ['@module_handler']
+  date:
+    class: Drupal\Core\Datetime\Date
+    arguments: ['@config.factory', '@language_manager']
+  feed.bridge.reader:
+    class: Drupal\Component\Bridge\ZfExtensionManagerSfContainer
+    calls:
+      - [setContainer, ['@service_container']]
+    arguments: ['feed.reader.']
+  feed.bridge.writer:
+    class: Drupal\Component\Bridge\ZfExtensionManagerSfContainer
+    calls:
+      - [setContainer, ['@service_container']]
+    arguments: ['feed.writer.']
+# Zend Feed reader plugins
+  feed.reader.dublincoreentry:
+    class: Zend\Feed\Reader\Extension\DublinCore\Entry
+  feed.reader.dublincorefeed:
+    class: Zend\Feed\Reader\Extension\DublinCore\Feed
+  feed.reader.contententry:
+    class: Zend\Feed\Reader\Extension\Content\Entry
+  feed.reader.atomentry:
+    class: Zend\Feed\Reader\Extension\Atom\Entry
+  feed.reader.atomfeed:
+    class: Zend\Feed\Reader\Extension\Atom\Feed
+  feed.reader.slashentry:
+    class: Zend\Feed\Reader\Extension\Slash\Entry
+  feed.reader.wellformedwebentry:
+    class: Zend\Feed\Reader\Extension\WellFormedWeb\Entry
+  feed.reader.threadentry:
+    class: Zend\Feed\Reader\Extension\Thread\Entry
+  feed.reader.podcastentry:
+    class: Zend\Feed\Reader\Extension\Podcast\Entry
+  feed.reader.podcastfeed:
+    class: Zend\Feed\Reader\Extension\Podcast\Feed
+# Zend Feed writer plugins
+  feed.writer.atomrendererfeed:
+    class: Zend\Feed\Writer\Extension\Atom\Renderer\Feed
+  feed.writer.contentrendererentry:
+    class: Zend\Feed\Writer\Extension\Content\Renderer\Entry
+  feed.writer.dublincorerendererentry:
+    class: Zend\Feed\Writer\Extension\DublinCore\Renderer\Entry
+  feed.writer.dublincorerendererfeed:
+    class: Zend\Feed\Writer\Extension\DublinCore\Renderer\Feed
+  feed.writer.itunesentry:
+    class: Zend\Feed\Writer\Extension\ITunes\Entry
+  feed.writer.itunesfeed:
+    class: Zend\Feed\Writer\Extension\ITunes\Feed
+  feed.writer.itunesrendererentry:
+    class: Zend\Feed\Writer\Extension\ITunes\Renderer\Entry
+  feed.writer.itunesrendererfeed:
+    class: Zend\Feed\Writer\Extension\ITunes\Renderer\Feed
+  feed.writer.slashrendererentry:
+    class: Zend\Feed\Writer\Extension\Slash\Renderer\Entry
+  feed.writer.threadingrendererentry:
+    class: Zend\Feed\Writer\Extension\Threading\Renderer\Entry
+  feed.writer.wellformedwebrendererentry:
+    class: Zend\Feed\Writer\Extension\WellFormedWeb\Renderer\Entry

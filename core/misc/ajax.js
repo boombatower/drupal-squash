@@ -84,7 +84,7 @@ Drupal.behaviors.AJAX = {
  */
 Drupal.AjaxError = function(xmlhttp, uri) {
 
-  var statusCode, statusText, pathText, responseText, readyStateText, message;
+  var statusCode, statusText, pathText, responseText, readyStateText;
   if (xmlhttp.status) {
     statusCode = "\n" + Drupal.t("An AJAX HTTP error occurred.") +  "\n" + Drupal.t("HTTP Result Code: !status", {'!status': xmlhttp.status});
   }
@@ -163,6 +163,8 @@ Drupal.ajax = function (base, element, element_settings) {
   };
 
   $.extend(this, defaults, element_settings);
+
+  this.commands = new Drupal.AjaxCommands();
 
   // @todo Remove this after refactoring the PHP code to:
   //   - Call this 'selector'.
@@ -552,7 +554,8 @@ Drupal.ajax.prototype.error = function (response, uri) {
 /**
  * Provide a series of commands that the server can request the client perform.
  */
-Drupal.ajax.prototype.commands = {
+Drupal.AjaxCommands = function () {};
+Drupal.AjaxCommands.prototype = {
   /**
    * Command to insert new content into the DOM.
    */

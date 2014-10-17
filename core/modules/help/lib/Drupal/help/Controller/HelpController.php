@@ -6,7 +6,7 @@
 
 namespace Drupal\help\Controller;
 
-use Drupal\Core\ControllerInterface;
+use Drupal\Core\Controller\ControllerInterface;
 use Drupal\Core\Extension\ModuleHandlerInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
@@ -46,9 +46,12 @@ class HelpController implements ControllerInterface {
    *   An HTML string representing the contents of help page.
    */
   public function helpMain() {
-    // Add CSS.
-    drupal_add_css(drupal_get_path('module', 'help') . '/help.css');
-    $output = '<h2>' . t('Help topics') . '</h2><p>' . t('Help is available on the following items:') . '</p>' . $this->helpLinksAsList();
+    $output = array(
+      '#attached' => array(
+        'css' => array(drupal_get_path('module', 'help') . '/css/help.module.css'),
+      ),
+      '#markup' => '<h2>' . t('Help topics') . '</h2><p>' . t('Help is available on the following items:') . '</p>' . $this->helpLinksAsList(),
+    );
     return $output;
   }
 
@@ -85,6 +88,53 @@ class HelpController implements ControllerInterface {
     $output .= '</ul></div></div>';
 
     return $output;
+  }
+
+  /**
+   * Prints a page listing general help for a module.
+   *
+   * @param string $name
+   *   A module name to display a help page for.
+   *
+   * @return array
+   *   A render array as expected by drupal_render().
+   */
+  public function helpPage($name) {
+    $build = array();
+    if ($this->moduleHandler->implementsHook($name, 'help')) {
+      $info = system_get_info('module');
+      drupal_set_title($info[$name]['name']);
+
+      $temp = $this->moduleHandler->invoke($name, 'help', array("admin/help#$name", drupal_help_arg()));
+      if (empty($temp)) {
+        $build['top']['#markup'] = t('No help is available for module %module.', array('%module' => $info[$name]['name']));
+      }
+      else {
+        $build['top']['#markup'] = $temp;
+      }
+
+      // Only print list of administration pages if the module in question has
+      // any such pages associated to it.
+      $admin_tasks = system_get_module_admin_tasks($name, $info[$name]);
+      if (!empty($admin_tasks)) {
+        $links = array();
+        foreach ($admin_tasks as $task) {
+          $link = $task['localized_options'];
+          $link['href'] = $task['link_path'];
+          $link['title'] = $task['title'];
+          $links[] = $link;
+        }
+        $build['links']['#links'] = array(
+          '#heading' => array(
+            'level' => 'h3',
+            'text' => t('@module administration pages', array('@module' => $info[$name]['name'])),
+          ),
+          '#links' => $links,
+        );
+      }
+    }
+
+    return $build;
   }
 
 }

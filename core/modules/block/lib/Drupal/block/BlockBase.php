@@ -111,7 +111,7 @@ abstract class BlockBase extends PluginBase implements BlockPluginInterface {
    * @see \Drupal\block\BlockBase::blockForm()
    */
   public function form($form, &$form_state) {
-    $definition = $this->getDefinition();
+    $definition = $this->getPluginDefinition();
     $form['module'] = array(
       '#type' => 'value',
       '#value' => $definition['module'],
@@ -224,33 +224,4 @@ abstract class BlockBase extends PluginBase implements BlockPluginInterface {
    * @see \Drupal\block\BlockBase::submit()
    */
   public function blockSubmit($form, &$form_state) {}
-
-  /**
-   * Implements \Drupal\block\BlockInterface::build().
-   */
-  public function build() {
-    $build = array();
-    $plugin_id = $this->getPluginId();
-    if ($content = $this->blockBuild()) {
-      $build = array(
-        '#theme' => 'block',
-        'content' => $content,
-        '#configuration' => $this->configuration,
-        '#plugin_id' => $plugin_id,
-      );
-      $build['#configuration']['label'] = check_plain($this->configuration['label']);
-    }
-    list($base_id) = explode(':', $plugin_id);
-    drupal_alter(array('block_view', "block_view_$base_id"), $build, $this);
-    return $build;
-  }
-
-  /**
-   * Adds block-type-specific render handling for the block plugin.
-   *
-   * @return array
-   *   A renderable array representing the content of this block.
-   */
-  abstract protected function blockBuild();
-
 }

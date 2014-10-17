@@ -38,6 +38,7 @@
 
 use Drupal\Core\Updater\Updater;
 use Drupal\Core\FileTransfer\Local;
+use Symfony\Component\HttpFoundation\RedirectResponse;
 
 /**
  * @defgroup update_manager_update Update Manager module: update
@@ -77,7 +78,7 @@ function update_manager_update_form($form, $form_state = array(), $context) {
     return $form;
   }
 
-  $form['#attached']['css'][] = drupal_get_path('module', 'update') . '/update.css';
+  $form['#attached']['css'][] = drupal_get_path('module', 'update') . '/css/update.admin.css';
 
   // This will be a nested array. The first key is the kind of project, which
   // can be either 'enabled', 'disabled', 'manual' (projects which require
@@ -257,7 +258,6 @@ function update_manager_update_form($form, $form_state = array(), $context) {
     $prefix = '<h2>' . t('Manual updates required') . '</h2>';
     $prefix .= '<p>' . t('Updates of Drupal core are not supported at this time.') . '</p>';
     $form['manual_updates'] = array(
-      '#type' => 'markup',
       '#markup' => theme('table', array('header' => $headers, 'rows' => $projects['manual'])),
       '#prefix' => $prefix,
       '#weight' => 120,
@@ -278,7 +278,7 @@ function update_manager_update_form($form, $form_state = array(), $context) {
  */
 function theme_update_manager_update_form($variables) {
   $form = $variables['form'];
-  $last = state()->get('update.last_check') ?: 0;
+  $last = Drupal::state()->get('update.last_check') ?: 0;
   $output = theme('update_last_check', array('last' => $last));
   $output .= drupal_render_children($form);
   return $output;
@@ -356,7 +356,7 @@ function update_manager_download_batch_finished($success, $results) {
   elseif ($success) {
     drupal_set_message(t('Updates downloaded successfully.'));
     $_SESSION['update_manager_update_projects'] = $results['projects'];
-    drupal_goto('admin/update/ready');
+    return new RedirectResponse(url('admin/update/ready', array('absolute' => TRUE)));
   }
   else {
     // Ideally we're catching all Exceptions, so they should never see this,
@@ -650,7 +650,7 @@ function update_manager_install_form_submit($form, &$form_state) {
       // failure.
       return;
     }
-    $local_cache = $finfo->uri;
+    $local_cache = $finfo->getFileUri();
   }
 
   $directory = _update_manager_extract_directory();

@@ -36,26 +36,24 @@ class EntityReferenceSelectionSortTest extends WebTestBase {
    */
   public function testSort() {
     // Add text field to entity, to sort by.
-    $field_info = array(
+    entity_create('field_entity', array(
       'field_name' => 'field_text',
       'type' => 'text',
       'entity_types' => array('node'),
-    );
-    field_create_field($field_info);
+    ))->save();
 
-    $instance_info = array(
+    entity_create('field_instance', array(
       'label' => 'Text Field',
       'field_name' => 'field_text',
       'entity_type' => 'node',
       'bundle' => 'article',
       'settings' => array(),
       'required' => FALSE,
-    );
-    field_create_instance($instance_info);
+    ))->save();
 
 
-    // Build a fake field instance.
-    $field = array(
+    // Create a field and instance.
+    $field = entity_create('field_entity', array(
       'translatable' => FALSE,
       'entity_types' => array(),
       'settings' => array(
@@ -64,9 +62,12 @@ class EntityReferenceSelectionSortTest extends WebTestBase {
       'field_name' => 'test_field',
       'type' => 'entity_reference',
       'cardinality' => 1,
-    );
-
-    $instance = array(
+    ));
+    $field->save();
+    $instance = entity_create('field_instance', array(
+      'field_name' => 'test_field',
+      'entity_type' => 'test_entity',
+      'bundle' => 'test_bundle',
       'settings' => array(
         'handler' => 'default',
         'handler_settings' => array(
@@ -78,7 +79,8 @@ class EntityReferenceSelectionSortTest extends WebTestBase {
           ),
         ),
       ),
-    );
+    ));
+    $instance->save();
 
     // Build a set of test data.
     $node_values = array(
@@ -119,7 +121,7 @@ class EntityReferenceSelectionSortTest extends WebTestBase {
     $normal_user = $this->drupalCreateUser(array('access content'));
     $GLOBALS['user'] = $normal_user;
 
-    $handler = entity_reference_get_selection_handler($field, $instance);
+    $handler = entity_reference_get_selection_handler($instance);
 
     // Not only assert the result, but make sure the keys are sorted as
     // expected.
@@ -135,7 +137,7 @@ class EntityReferenceSelectionSortTest extends WebTestBase {
       'field' => 'nid',
       'direction' => 'ASC',
     );
-    $handler = entity_reference_get_selection_handler($field, $instance);
+    $handler = entity_reference_get_selection_handler($instance);
     $result = $handler->getReferencableEntities();
     $expected_result = array(
       $nodes['published1']->nid => $node_labels['published1'],

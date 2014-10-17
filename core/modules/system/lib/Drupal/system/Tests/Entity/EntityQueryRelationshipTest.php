@@ -85,14 +85,13 @@ class EntityQueryRelationshipTest extends EntityUnitTestBase  {
       'type' => 'taxonomy_term_reference',
     );
     $field['settings']['allowed_values']['vocabulary'] = $vocabulary->id();
-    field_create_field($field);
+    entity_create('field_entity', $field)->save();
     // Third, create the instance.
-    $instance = array(
+    entity_create('field_instance', array(
       'entity_type' => 'entity_test',
       'field_name' => $this->fieldName,
       'bundle' => 'entity_test',
-    );
-    field_create_instance($instance);
+    ))->save();
     // Create two terms and also two accounts.
     for ($i = 0; $i <= 1; $i++) {
       $term = entity_create('taxonomy_term', array(
@@ -111,7 +110,7 @@ class EntityQueryRelationshipTest extends EntityUnitTestBase  {
       $entity->name->value = $this->randomName();
       $index = $i ? 1 : 0;
       $entity->user_id->target_id = $this->accounts[$index]->uid;
-      $entity->{$this->fieldName}->tid = $this->terms[$index]->id();
+      $entity->{$this->fieldName}->target_id = $this->terms[$index]->id();
       $entity->save();
       $this->entities[] = $entity;
     }
@@ -153,7 +152,7 @@ class EntityQueryRelationshipTest extends EntityUnitTestBase  {
     // This returns the 0th entity as that's only one pointing to the 0th
     // term (test with specifying the column name).
     $this->queryResults = $this->factory->get('entity_test')
-      ->condition("$this->fieldName.tid.entity.name", $this->terms[0]->name->value)
+      ->condition("$this->fieldName.target_id.entity.name", $this->terms[0]->name->value)
       ->execute();
     $this->assertResults(array(0));
     // This returns the 1st and 2nd entity as those point to the 1st term.

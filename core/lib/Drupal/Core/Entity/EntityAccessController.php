@@ -7,7 +7,8 @@
 
 namespace Drupal\Core\Entity;
 
-use Drupal\user\Plugin\Core\Entity\User;
+use Drupal\Core\Language\Language;
+use Drupal\Core\Session\AccountInterface;
 
 /**
  * Defines a default implementation for entity access controllers.
@@ -24,11 +25,9 @@ class EntityAccessController implements EntityAccessControllerInterface {
   /**
    * {@inheritdoc}
    */
-  public function access(EntityInterface $entity, $operation, $langcode = LANGUAGE_DEFAULT, User $account = NULL) {
-
-    // @todo Remove this once we can rely on $account.
+  public function access(EntityInterface $entity, $operation, $langcode = Language::LANGUAGE_DEFAULT, AccountInterface $account = NULL) {
     if (!$account) {
-      $account = user_load($GLOBALS['user']->uid);
+      $account = $GLOBALS['user'];
     }
 
     if (($access = $this->getCache($entity, $operation, $langcode, $account)) !== NULL) {
@@ -44,7 +43,7 @@ class EntityAccessController implements EntityAccessControllerInterface {
     // We grant access to the entity if both of these conditions are met:
     // - No modules say to deny access.
     // - At least one module says to grant access.
-    $access = module_invoke_all($entity->entityType() . '_access', $entity, $operation, $account, $langcode);
+    $access = module_invoke_all($entity->entityType() . '_access', $entity->getBCEntity(), $operation, $account, $langcode);
 
     if (in_array(FALSE, $access, TRUE)) {
       $return = FALSE;
@@ -72,14 +71,14 @@ class EntityAccessController implements EntityAccessControllerInterface {
    *   'delete'.
    * @param string $langcode
    *   The language code for which to check access.
-   * @param \Drupal\user\Plugin\Core\Entity\User $account
+   * @param \Drupal\Core\Session\AccountInterface; $account
    *   The user for which to check access.
    *
    * @return bool|null
    *   TRUE if access was granted, FALSE if access was denied and NULL if access
    *   could not be determined.
    */
-  protected function checkAccess(EntityInterface $entity, $operation, $langcode, User $account) {
+  protected function checkAccess(EntityInterface $entity, $operation, $langcode, AccountInterface $account) {
     return NULL;
   }
 
@@ -93,7 +92,7 @@ class EntityAccessController implements EntityAccessControllerInterface {
    *   'delete'.
    * @param string $langcode
    *   The language code for which to check access.
-   * @param \Drupal\user\Plugin\Core\Entity\User $account
+   * @param \Drupal\Core\Session\AccountInterface $account
    *   The user for which to check access.
    *
    * @return bool|null
@@ -101,7 +100,7 @@ class EntityAccessController implements EntityAccessControllerInterface {
    *   is no record for the given user, operation, langcode and entity in the
    *   cache.
    */
-  protected function getCache(EntityInterface $entity, $operation, $langcode, User $account) {
+  protected function getCache(EntityInterface $entity, $operation, $langcode, AccountInterface $account) {
     $uid = $account ? $account->id() : 0;
     $uuid = $entity->uuid();
 
@@ -121,13 +120,13 @@ class EntityAccessController implements EntityAccessControllerInterface {
    *   'delete'.
    * @param string $langcode
    *   The language code for which to check access.
-   * @param \Drupal\user\Plugin\Core\Entity\User $account
+   * @param \Drupal\Core\Session\AccountInterface $account
    *   The user for which to check access.
    *
    * @return bool
    *   TRUE if access was granted, FALSE otherwise.
    */
-  protected function setCache($access, EntityInterface $entity, $operation, $langcode, User $account) {
+  protected function setCache($access, EntityInterface $entity, $operation, $langcode, AccountInterface $account) {
     $uid = $account ? $account->id() : 0;
     $uuid = $entity->uuid();
 

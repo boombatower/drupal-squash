@@ -43,18 +43,16 @@ class ImageItemTest extends FieldUnitTestBase {
 
     $this->installSchema('file', array('file_managed', 'file_usage'));
 
-    $field = array(
+    entity_create('field_entity', array(
       'field_name' => 'image_test',
       'type' => 'image',
       'cardinality' => FIELD_CARDINALITY_UNLIMITED,
-    );
-    field_create_field($field);
-    $instance = array(
+    ))->save();
+    entity_create('field_instance', array(
       'entity_type' => 'entity_test',
       'field_name' => 'image_test',
       'bundle' => 'entity_test',
-    );
-    field_create_instance($instance);
+    ))->save();
     file_unmanaged_copy(DRUPAL_ROOT . '/core/misc/druplicon.png', 'public://example.jpg');
     $this->image = entity_create('file', array(
       'uri' => 'public://example.jpg',
@@ -99,7 +97,7 @@ class ImageItemTest extends FieldUnitTestBase {
     $entity->image_test->width = NULL;
     $entity->save();
     $this->assertEqual($entity->image_test->entity->id(), $image2->id());
-    $this->assertEqual($entity->image_test->entity->uri, $image2->uri);
+    $this->assertEqual($entity->image_test->entity->getFileUri(), $image2->getFileUri());
     $info = image_get_info('public://example-2.jpg');
     $this->assertEqual($entity->image_test->width, $info['width']);
     $this->assertEqual($entity->image_test->height, $info['height']);
@@ -108,6 +106,11 @@ class ImageItemTest extends FieldUnitTestBase {
     // Check that the image item can be set to the referenced file directly.
     $entity->image_test = $this->image;
     $this->assertEqual($entity->image_test->fid, $this->image->id());
+
+    // Delete the image and try to save the entity again.
+    $this->image->delete();
+    $entity = entity_create('entity_test', array('mame' => $this->randomName()));
+    $entity->save();
   }
 
 }

@@ -65,6 +65,18 @@ function editor_element_info() {
  */
 function editor_library_info() {
   $path = drupal_get_path('module', 'editor');
+
+  $libraries['drupal.editor.admin'] = array(
+    'title' => 'Text Editor',
+    'version' => VERSION,
+    'js' => array(
+      $path . '/js/editor.admin.js' => array(),
+    ),
+    'dependencies' => array(
+      array('system', 'jquery'),
+      array('system', 'drupal'),
+    ),
+  );
   $libraries['drupal.editor'] = array(
     'title' => 'Text Editor',
     'version' => VERSION,
@@ -108,15 +120,17 @@ function editor_library_info() {
 }
 
 /**
- * Implements hook_custom_theme().
- *
- * @todo Add an event subscriber to the Ajax system to automatically set the
- *   base page theme for all Ajax requests, and then remove this one off.
+ * Implements hook_menu().
  */
-function editor_custom_theme() {
-  if (substr(current_path(), 0, 7) === 'editor/') {
-    return ajax_base_page_theme();
-  }
+function editor_menu() {
+  // @todo Remove this menu item in http://drupal.org/node/1954892 when theme
+  //   callbacks are replaced with something else.
+  $items['editor/%/%/%/%/%'] = array(
+    'route_name' => 'editor_field_untransformed_text',
+    'theme callback' => 'ajax_base_page_theme',
+  );
+
+  return $items;
 }
 
 /**
@@ -130,7 +144,7 @@ function editor_form_filter_admin_overview_alter(&$form, $form_state) {
   $form['formats']['#header'] = array_merge($start, $form['formats']['#header']);
 
   // Then splice in the name of each text editor for each text format.
-  $editors = drupal_container()->get('plugin.manager.editor')->getDefinitions();
+  $editors = Drupal::service('plugin.manager.editor')->getDefinitions();
   foreach (element_children($form['formats']) as $format_id) {
     $editor = editor_load($format_id);
     $editor_name = ($editor && isset($editors[$editor->editor])) ? $editors[$editor->editor]['label'] : drupal_placeholder('—');
@@ -148,7 +162,7 @@ function editor_form_filter_admin_format_form_alter(&$form, &$form_state) {
   if (!isset($form_state['editor'])) {
     $format_id = $form['#format']->format;
     $form_state['editor'] = editor_load($format_id);
-    $form_state['editor_manager'] = drupal_container()->get('plugin.manager.editor');
+    $form_state['editor_manager'] = Drupal::service('plugin.manager.editor');
   }
   $editor = $form_state['editor'];
   $manager = $form_state['editor_manager'];
@@ -198,6 +212,11 @@ function editor_form_filter_admin_format_form_alter(&$form, &$form_state) {
     '#weight' => -8,
     '#type' => 'container',
     '#id' => 'editor-settings-wrapper',
+    '#attached' => array(
+      'library' => array(
+        array('editor', 'drupal.editor.admin'),
+      ),
+    ),
   );
 
   // Add editor-specific validation and submit handlers.
@@ -210,6 +229,7 @@ function editor_form_filter_admin_format_form_alter(&$form, &$form_state) {
     $form['#submit'][] = array($plugin, 'settingsFormSubmit');
   }
 
+  $form['#validate'][] = 'editor_form_filter_admin_format_validate';
   $form['#submit'][] = 'editor_form_filter_admin_format_submit';
 }
 
@@ -241,6 +261,24 @@ function editor_form_filter_admin_form_ajax($form, &$form_state) {
 }
 
 /**
+ * Additional validate handler for filter_admin_format_form().
+ */
+function editor_form_filter_admin_format_validate($form, &$form_state) {
+  // This validate handler is not applicable when using the 'Configure' button.
+  if ($form_state['triggering_element']['#name'] === 'editor_configure') {
+    return;
+  }
+
+  // When using this form with JavaScript disabled in the browser, the the
+  // 'Configure' button won't be clicked automatically. So, when the user has
+  // selected a text editor and has then clicked 'Save configuration', we should
+  // point out that the user must still configure the text editor.
+  if ($form_state['values']['editor']['editor'] !== '' && $form_state['editor'] === FALSE) {
+    form_set_error('editor][editor', t('You must configure the selected text editor.'));
+  }
+}
+
+/**
  * Additional submit handler for filter_admin_format_form().
  */
 function editor_form_filter_admin_format_submit($form, &$form_state) {
@@ -252,7 +290,7 @@ function editor_form_filter_admin_format_submit($form, &$form_state) {
   }
 
   // Create a new editor or update the existing editor.
-  if ($form_state['values']['editor']['editor'] !== '') {
+  if ($form_state['editor'] !== FALSE) {
     // Ensure the text format is set: when creating a new text format, this
     // would equal the empty string.
     $form_state['editor']->format = $form['#format']->format;
@@ -324,7 +362,7 @@ function editor_pre_render_format($element) {
   $element['#attached']['library'][] = array('editor', 'drupal.editor');
 
   // Attach attachments for all available editors.
-  $manager = drupal_container()->get('plugin.manager.editor');
+  $manager = Drupal::service('plugin.manager.editor');
   $element['#attached'] = NestedArray::mergeDeep($element['#attached'], $manager->getAttachments($format_ids));
 
   return $element;

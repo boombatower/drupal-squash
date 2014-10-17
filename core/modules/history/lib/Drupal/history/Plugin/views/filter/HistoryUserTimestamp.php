@@ -33,7 +33,7 @@ class HistoryUserTimestamp extends FilterPluginBase {
     unset($form['expose']['remember']);
   }
 
-  function value_form(&$form, &$form_state) {
+  protected function valueForm(&$form, &$form_state) {
     // Only present a checkbox for the exposed filter itself. There's no way
     // to tell the difference between not checked and the default value, so
     // specifying the default value via the views UI is meaningless.
@@ -71,12 +71,12 @@ class HistoryUserTimestamp extends FilterPluginBase {
 
     $this->ensureMyTable();
     $field = "$this->tableAlias.$this->realField";
-    $node = $this->query->ensure_table('node', $this->relationship);
+    $node = $this->query->ensureTable('node_field_data', $this->relationship);
 
     $clause = '';
     $clause2 = '';
     if (module_exists('comment')) {
-      $ncs = $this->query->ensure_table('node_comment_statistics', $this->relationship);
+      $ncs = $this->query->ensureTable('node_comment_statistics', $this->relationship);
       $clause = ("OR $ncs.last_comment_timestamp > (***CURRENT_TIME*** - $limit)");
       $clause2 = "OR $field < $ncs.last_comment_timestamp";
     }
@@ -84,7 +84,7 @@ class HistoryUserTimestamp extends FilterPluginBase {
     // NULL means a history record doesn't exist. That's clearly new content.
     // Unless it's very very old content. Everything in the query is already
     // type safe cause none of it is coming from outside here.
-    $this->query->add_where_expression($this->options['group'], "($field IS NULL AND ($node.changed > (***CURRENT_TIME*** - $limit) $clause)) OR $field < $node.changed $clause2");
+    $this->query->addWhereExpression($this->options['group'], "($field IS NULL AND ($node.changed > (***CURRENT_TIME*** - $limit) $clause)) OR $field < $node.changed $clause2");
   }
 
   public function adminSummary() {

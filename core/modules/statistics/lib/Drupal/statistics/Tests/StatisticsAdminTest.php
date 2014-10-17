@@ -122,7 +122,7 @@ class StatisticsAdminTest extends WebTestBase {
       ->fetchAssoc();
     $this->assertEqual($result['nid'], $this->test_node->nid, 'Verifying that the node counter is incremented.');
 
-    node_delete($this->test_node->nid);
+    $this->test_node->delete();
 
     $result = db_select('node_counter', 'n')
       ->fields('n', array('nid'))
@@ -139,7 +139,7 @@ class StatisticsAdminTest extends WebTestBase {
     config('statistics.settings')
       ->set('count_content_views', 1)
       ->save();
-    state()->set('statistics.day_timestamp', 8640000);
+    \Drupal::state()->set('statistics.day_timestamp', 8640000);
 
     $this->drupalGet('node/' . $this->test_node->nid);
     // Manually calling statistics.php, simulating ajax behavior.

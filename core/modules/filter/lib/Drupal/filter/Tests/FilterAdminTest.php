@@ -7,6 +7,7 @@
 
 namespace Drupal\filter\Tests;
 
+use Drupal\Core\Language\Language;
 use Drupal\simpletest\WebTestBase;
 
 /**
@@ -34,10 +35,12 @@ class FilterAdminTest extends WebTestBase {
 
     // Create users.
     $basic_html_format = filter_format_load('basic_html');
+    $restricted_html_format = filter_format_load('restricted_html');
     $full_html_format = filter_format_load('full_html');
     $this->admin_user = $this->drupalCreateUser(array(
       'administer filters',
       filter_permission_name($basic_html_format),
+      filter_permission_name($restricted_html_format),
       filter_permission_name($full_html_format),
     ));
 
@@ -115,12 +118,11 @@ class FilterAdminTest extends WebTestBase {
    * Tests filter administration functionality.
    */
   function testFilterAdmin() {
-    // URL filter.
-    $first_filter = 'filter_url';
-    // Line filter.
-    $second_filter = 'filter_autop';
+    $first_filter = 'filter_autop';
+    $second_filter = 'filter_url';
 
     $basic = 'basic_html';
+    $restricted = 'restricted_html';
     $full = 'full_html';
     $plain = 'plain_text';
 
@@ -138,9 +140,9 @@ class FilterAdminTest extends WebTestBase {
     // Add an additional tag.
     $edit = array();
     $edit['filters[filter_html][settings][allowed_html]'] = '<a> <em> <strong> <cite> <code> <ul> <ol> <li> <dl> <dt> <dd> <quote>';
-    $this->drupalPost('admin/config/content/formats/' . $basic, $edit, t('Save configuration'));
+    $this->drupalPost('admin/config/content/formats/' . $restricted, $edit, t('Save configuration'));
     $this->assertUrl('admin/config/content/formats');
-    $this->drupalGet('admin/config/content/formats/' . $basic);
+    $this->drupalGet('admin/config/content/formats/' . $restricted);
     $this->assertFieldByName('filters[filter_html][settings][allowed_html]', $edit['filters[filter_html][settings][allowed_html]'], 'Allowed HTML tag added.');
 
     $this->assertTrue(cache('filter')->isEmpty(), 'Cache cleared.');
@@ -157,7 +159,7 @@ class FilterAdminTest extends WebTestBase {
     $edit['filters[' . $first_filter . '][weight]'] = 2;
     $this->drupalPost(NULL, $edit, t('Save configuration'));
     $this->assertUrl('admin/config/content/formats');
-    $this->drupalGet('admin/config/content/formats/' . $basic);
+    $this->drupalGet('admin/config/content/formats/' . $restricted);
     $this->assertFieldByName('filters[' . $second_filter . '][weight]', 1, 'Order saved successfully.');
     $this->assertFieldByName('filters[' . $first_filter . '][weight]', 2, 'Order saved successfully.');
 
@@ -167,13 +169,14 @@ class FilterAdminTest extends WebTestBase {
     ));
     $this->assertTrue(!empty($elements), 'Reorder confirmed in admin interface.');
 
-    $filter_format = entity_load('filter_format', $basic);
-    foreach ($filter_format->filters as $filter_name => $filter) {
+    $filter_format = entity_load('filter_format', $restricted);
+    foreach ($filter_format->filters() as $filter_name => $filter) {
       if ($filter_name == $second_filter || $filter_name == $first_filter) {
         $filters[] = $filter_name;
       }
     }
-    $this->assertTrue($filter_format->filters['filter_autop']['weight'] + 1 == $filter_format->filters['filter_url']['weight'], t('Order confirmed in configuration.'));
+    // Ensure that the second filter is now before the first filter.
+    $this->assertEqual($filter_format->filters($second_filter)->weight + 1, $filter_format->filters($first_filter)->weight, 'Order confirmed in configuration.');
 
     // Add format.
     $edit = array();
@@ -209,7 +212,6 @@ class FilterAdminTest extends WebTestBase {
     $this->assertRaw(t('The text format %format has been updated.', array('%format' => $format->name)), 'Full HTML format successfully updated.');
 
     // Switch user.
-    $this->drupalLogout();
     $this->drupalLogin($this->web_user);
 
     $this->drupalGet('node/add/page');
@@ -221,7 +223,7 @@ class FilterAdminTest extends WebTestBase {
     $text = $body . '<random>' . $extra_text . '</random>';
 
     $edit = array();
-    $langcode = LANGUAGE_NOT_SPECIFIED;
+    $langcode = Language::LANGCODE_NOT_SPECIFIED;
     $edit["title"] = $this->randomName();
     $edit["body[$langcode][0][value]"] = $text;
     $edit["body[$langcode][0][format]"] = $basic;
@@ -250,7 +252,6 @@ class FilterAdminTest extends WebTestBase {
       ->save();
 
     // Switch user.
-    $this->drupalLogout();
     $this->drupalLogin($this->admin_user);
 
     // Clean up.

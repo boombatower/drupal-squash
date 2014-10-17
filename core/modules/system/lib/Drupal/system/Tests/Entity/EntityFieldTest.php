@@ -10,6 +10,7 @@ namespace Drupal\system\Tests\Entity;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Entity\Field\FieldInterface;
 use Drupal\Core\Entity\Field\FieldItemInterface;
+use Drupal\Core\Language\Language;
 use Drupal\Core\TypedData\TypedDataInterface;
 
 /**
@@ -35,7 +36,7 @@ class EntityFieldTest extends EntityUnitTestBase  {
   public function setUp() {
     parent::setUp();
     $this->installSchema('user', array('users_roles', 'users_data'));
-    $this->installSchema('node', array('node', 'node_revision', 'node_type', 'node_access'));
+    $this->installSchema('node', array('node', 'node_field_data', 'node_field_revision', 'node_type', 'node_access'));
     $this->installSchema('entity_test', array(
       'entity_test_mul',
       'entity_test_mul_property_data',
@@ -117,19 +118,19 @@ class EntityFieldTest extends EntityUnitTestBase  {
     $this->assertTrue($entity->user_id[0] instanceof FieldItemInterface, format_string('%entity_type: Field item implements interface', array('%entity_type' => $entity_type)));
 
     $this->assertEqual($this->entity_user->uid, $entity->user_id->target_id, format_string('%entity_type: User id can be read.', array('%entity_type' => $entity_type)));
-    $this->assertEqual($this->entity_user->name, $entity->user_id->entity->name, format_string('%entity_type: User name can be read.', array('%entity_type' => $entity_type)));
+    $this->assertEqual($this->entity_user->name, $entity->user_id->entity->name->value, format_string('%entity_type: User name can be read.', array('%entity_type' => $entity_type)));
 
     // Change the assigned user by entity.
     $new_user = $this->createUser();
     $entity->user_id->entity = $new_user;
     $this->assertEqual($new_user->uid, $entity->user_id->target_id, format_string('%entity_type: Updated user id can be read.', array('%entity_type' => $entity_type)));
-    $this->assertEqual($new_user->name, $entity->user_id->entity->name, format_string('%entity_type: Updated user name value can be read.', array('%entity_type' => $entity_type)));
+    $this->assertEqual($new_user->name, $entity->user_id->entity->name->value, format_string('%entity_type: Updated user name value can be read.', array('%entity_type' => $entity_type)));
 
     // Change the assigned user by id.
     $new_user = $this->createUser();
     $entity->user_id->target_id = $new_user->uid;
     $this->assertEqual($new_user->uid, $entity->user_id->target_id, format_string('%entity_type: Updated user id can be read.', array('%entity_type' => $entity_type)));
-    $this->assertEqual($new_user->name, $entity->user_id->entity->name, format_string('%entity_type: Updated user name value can be read.', array('%entity_type' => $entity_type)));
+    $this->assertEqual($new_user->name, $entity->user_id->entity->name->value, format_string('%entity_type: Updated user name value can be read.', array('%entity_type' => $entity_type)));
 
     // Try unsetting a field.
     $entity->name->value = NULL;
@@ -182,8 +183,8 @@ class EntityFieldTest extends EntityUnitTestBase  {
     $this->assertFalse(isset($entity->name->value), format_string('%entity_type: Name is not set.', array('%entity_type' => $entity_type)));
 
     // Access the language field.
-    $this->assertEqual(LANGUAGE_NOT_SPECIFIED, $entity->langcode->value, format_string('%entity_type: Language code can be read.', array('%entity_type' => $entity_type)));
-    $this->assertEqual(language_load(LANGUAGE_NOT_SPECIFIED), $entity->langcode->language, format_string('%entity_type: Language object can be read.', array('%entity_type' => $entity_type)));
+    $this->assertEqual(Language::LANGCODE_NOT_SPECIFIED, $entity->langcode->value, format_string('%entity_type: Language code can be read.', array('%entity_type' => $entity_type)));
+    $this->assertEqual(language_load(Language::LANGCODE_NOT_SPECIFIED), $entity->langcode->language, format_string('%entity_type: Language object can be read.', array('%entity_type' => $entity_type)));
 
     // Change the language by code.
     $entity->langcode->value = language_default()->langcode;
@@ -191,7 +192,7 @@ class EntityFieldTest extends EntityUnitTestBase  {
     $this->assertEqual(language_default(), $entity->langcode->language, format_string('%entity_type: Language object can be read.', array('%entity_type' => $entity_type)));
 
     // Revert language by code then try setting it by language object.
-    $entity->langcode->value = LANGUAGE_NOT_SPECIFIED;
+    $entity->langcode->value = Language::LANGCODE_NOT_SPECIFIED;
     $entity->langcode->language = language_default();
     $this->assertEqual(language_default()->langcode, $entity->langcode->value, format_string('%entity_type: Language code can be read.', array('%entity_type' => $entity_type)));
     $this->assertEqual(language_default(), $entity->langcode->language, format_string('%entity_type: Language object can be read.', array('%entity_type' => $entity_type)));
@@ -217,7 +218,7 @@ class EntityFieldTest extends EntityUnitTestBase  {
     ));
     $this->assertEqual($this->entity_name, $entity->name->value, format_string('%entity_type: Name value can be read.', array('%entity_type' => $entity_type)));
     $this->assertEqual($this->entity_user->uid, $entity->user_id->target_id, format_string('%entity_type: User id can be read.', array('%entity_type' => $entity_type)));
-    $this->assertEqual($this->entity_user->name, $entity->user_id->entity->name, format_string('%entity_type: User name can be read.', array('%entity_type' => $entity_type)));
+    $this->assertEqual($this->entity_user->name, $entity->user_id->entity->name->value, format_string('%entity_type: User name can be read.', array('%entity_type' => $entity_type)));
     $this->assertEqual($this->entity_field_text, $entity->field_test_text->value, format_string('%entity_type: Text field can be read.', array('%entity_type' => $entity_type)));
 
     // Test copying field values.
@@ -253,7 +254,7 @@ class EntityFieldTest extends EntityUnitTestBase  {
     $this->assertTrue($entity->name->isEmpty(), format_string('%entity_type: Name field is empty.', array('%entity_type' => $entity_type)));
     $this->assertEqual(count($entity->name), 1, format_string('%entity_type: Empty item is considered when counting.', array('%entity_type' => $entity_type)));
     $this->assertEqual(count(iterator_to_array($entity->name->getIterator())), count($entity->name), format_string('%entity_type: Count matches iterator count.', array('%entity_type' => $entity_type)));
-    $this->assertTrue($entity->name->getValue() === array(0 => NULL), format_string('%entity_type: Name field value contains a NULL value.', array('%entity_type' => $entity_type)));
+    $this->assertTrue($entity->name->getValue() === array(0 => array('value' => NULL)), format_string('%entity_type: Name field value contains a NULL value.', array('%entity_type' => $entity_type)));
 
     // Test removing all list items by assigning an empty array.
     $entity->name = array();
@@ -325,10 +326,10 @@ class EntityFieldTest extends EntityUnitTestBase  {
     // Access the name field.
     $this->assertEqual(1, $entity->id->value, format_string('%entity_type: ID value can be read.', array('%entity_type' => $entity_type)));
     $this->assertTrue(is_string($entity->uuid->value), format_string('%entity_type: UUID value can be read.', array('%entity_type' => $entity_type)));
-    $this->assertEqual(LANGUAGE_NOT_SPECIFIED, $entity->langcode->value, format_string('%entity_type: Language code can be read.', array('%entity_type' => $entity_type)));
-    $this->assertEqual(language_load(LANGUAGE_NOT_SPECIFIED), $entity->langcode->language, format_string('%entity_type: Language object can be read.', array('%entity_type' => $entity_type)));
+    $this->assertEqual(Language::LANGCODE_NOT_SPECIFIED, $entity->langcode->value, format_string('%entity_type: Language code can be read.', array('%entity_type' => $entity_type)));
+    $this->assertEqual(language_load(Language::LANGCODE_NOT_SPECIFIED), $entity->langcode->language, format_string('%entity_type: Language object can be read.', array('%entity_type' => $entity_type)));
     $this->assertEqual($this->entity_user->uid, $entity->user_id->target_id, format_string('%entity_type: User id can be read.', array('%entity_type' => $entity_type)));
-    $this->assertEqual($this->entity_user->name, $entity->user_id->entity->name, format_string('%entity_type: User name can be read.', array('%entity_type' => $entity_type)));
+    $this->assertEqual($this->entity_user->name, $entity->user_id->entity->name->value, format_string('%entity_type: User name can be read.', array('%entity_type' => $entity_type)));
     $this->assertEqual($this->entity_field_text, $entity->field_test_text->value, format_string('%entity_type: Text field can be read.', array('%entity_type' => $entity_type)));
   }
 
@@ -357,7 +358,7 @@ class EntityFieldTest extends EntityUnitTestBase  {
       ),
       'label' => 'Test entity',
     );
-    $wrapped_entity = typed_data()->create($definition);
+    $wrapped_entity = $this->container->get('typed_data')->create($definition);
     $definitions = $wrapped_entity->getPropertyDefinitions($definition);
     $this->assertEqual($definitions['name']['type'], 'string_field', $entity_type .': Name field found.');
     $this->assertEqual($definitions['user_id']['type'], 'entity_reference_field', $entity_type .': User field found.');
@@ -477,7 +478,7 @@ class EntityFieldTest extends EntityUnitTestBase  {
       ),
       'label' => 'Test entity',
     );
-    $wrapped_entity = typed_data()->create($entity_definition, $entity);
+    $wrapped_entity = $this->container->get('typed_data')->create($entity_definition, $entity);
 
     // Test using the whole tree of typed data by navigating through the tree of
     // contained properties and getting all contained strings, limited by a
@@ -489,7 +490,7 @@ class EntityFieldTest extends EntityUnitTestBase  {
     // the user name and other user entity strings as well.
     $target_strings = array(
       $entity->uuid->value,
-      LANGUAGE_NOT_SPECIFIED,
+      Language::LANGCODE_NOT_SPECIFIED,
       $this->entity_name,
       // Bundle name.
       $entity->bundle(),
@@ -538,7 +539,7 @@ class EntityFieldTest extends EntityUnitTestBase  {
       ),
       'label' => 'Test entity',
     );
-    $wrapped_entity = typed_data()->create($entity_definition, $entity);
+    $wrapped_entity = $this->container->get('typed_data')->create($entity_definition, $entity);
 
     // Test validation the typed data object.
     $violations = $wrapped_entity->validate();
@@ -566,7 +567,7 @@ class EntityFieldTest extends EntityUnitTestBase  {
       ),
       'label' => 'Test node',
     );
-    $wrapped_entity = typed_data()->create($entity_definition, $node);
+    $wrapped_entity = $this->container->get('typed_data')->create($entity_definition, $node);
 
     $violations = $wrapped_entity->validate();
     $this->assertEqual($violations->count(), 1);
@@ -597,8 +598,8 @@ class EntityFieldTest extends EntityUnitTestBase  {
   protected function assertComputedProperties($entity_type) {
     // Make the test text field processed.
     $instance = field_info_instance($entity_type, 'field_test_text', $entity_type);
-    $instance['settings']['text_processing'] = 1;
-    field_update_instance($instance);
+    $instance->settings['text_processing'] = 1;
+    $instance->save();
 
     $entity = $this->createTestEntity($entity_type);
     $entity->field_test_text->value = "The <strong>text</strong> text to filter.";

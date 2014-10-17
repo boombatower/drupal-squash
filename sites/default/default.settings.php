@@ -289,6 +289,9 @@ $settings['update_free_access'] = FALSE;
  * When debugging is enabled:
  * - The markup of each Twig template is surrounded by HTML comments that
  *   contain theming information, such as template file name suggestions.
+ * - Note that this debugging markup will cause automated tests that directly
+ *   check rendered HTML to fail. When running automated tests, 'twig_debug'
+ *   should be set to FALSE.
  * - The dump() function can be used in Twig templates to output information
  *   about template variables.
  * - Twig templates are automatically recompiled whenever the source code
@@ -621,9 +624,9 @@ ini_set('session.cookie_lifetime', 2000000);
  *
  * Remove the leading hash signs if you would like to alter this functionality.
  */
-#$conf['system.performance]['fast_404']['exclude_paths'] = '/\/(?:styles)\//';
-#$conf['system.performance]['fast_404']['paths'] = '/\.(?:txt|png|gif|jpe?g|css|js|ico|swf|flv|cgi|bat|pl|dll|exe|asp)$/i';
-#$conf['system.performance]['fast_404']['html'] = '<!DOCTYPE html><html><head><title>404 Not Found</title></head><body><h1>Not Found</h1><p>The requested URL "@path" was not found on this server.</p></body></html>';
+#$conf['system.performance']['fast_404']['exclude_paths'] = '/\/(?:styles)\//';
+#$conf['system.performance']['fast_404']['paths'] = '/\.(?:txt|png|gif|jpe?g|css|js|ico|swf|flv|cgi|bat|pl|dll|exe|asp)$/i';
+#$conf['system.performance']['fast_404']['html'] = '<!DOCTYPE html><html><head><title>404 Not Found</title></head><body><h1>Not Found</h1><p>The requested URL "@path" was not found on this server.</p></body></html>';
 
 /**
  * Load local development override configuration, if available.

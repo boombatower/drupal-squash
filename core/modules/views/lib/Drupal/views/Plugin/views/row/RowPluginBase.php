@@ -71,7 +71,7 @@ abstract class RowPluginBase extends PluginBase {
       $relationship_options = array();
 
       foreach ($relationships as $relationship) {
-        $relationship_handler = views_get_handler($relationship, 'relationship');
+        $relationship_handler = Views::handlerManager('relationship')->getHandler($relationship);
 
         // If this relationship is valid for this type, add it to the list.
         $data = Views::viewsData()->get($relationship['table']);
@@ -121,10 +121,10 @@ abstract class RowPluginBase extends PluginBase {
     if (isset($this->base_table)) {
       if (isset($this->options['relationship']) && isset($this->view->relationship[$this->options['relationship']])) {
         $relationship = $this->view->relationship[$this->options['relationship']];
-        $this->field_alias = $this->view->query->add_field($relationship->alias, $this->base_field);
+        $this->field_alias = $this->view->query->addField($relationship->alias, $this->base_field);
       }
       else {
-        $this->field_alias = $this->view->query->add_field($this->base_table, $this->base_field);
+        $this->field_alias = $this->view->query->addField($this->base_table, $this->base_field);
       }
     }
   }
@@ -135,7 +135,7 @@ abstract class RowPluginBase extends PluginBase {
    * @param $result
    *   The full array of results from the query.
    */
-  function pre_render($result) { }
+  public function preRender($result) { }
 
   /**
    * Render a row object. This usually passes through to a theme template

@@ -13,7 +13,6 @@
  *      some_element.appendChild(pb.element);
  */
 Drupal.ProgressBar = function (id, updateCallback, method, errorCallback) {
-  var pb = this;
   this.id = id;
   this.method = method || 'GET';
   this.updateCallback = updateCallback;
@@ -88,7 +87,8 @@ $.extend(Drupal.ProgressBar.prototype, {
           pb.timer = setTimeout(function () { pb.sendPing(); }, pb.delay);
         },
         error: function (xmlhttp) {
-          throw new Drupal.AjaxError(xmlhttp, pb.uri);
+          var e = new Drupal.AjaxError(xmlhttp, pb.uri);
+          pb.displayError('<pre>' + e.message + '</pre>');
         }
       });
     }

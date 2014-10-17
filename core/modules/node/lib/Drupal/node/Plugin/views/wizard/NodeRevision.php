@@ -21,7 +21,7 @@ use Drupal\Core\Annotation\Translation;
  * @Plugin(
  *   id = "node_revision",
  *   module = "node",
- *   base_table = "node_revision",
+ *   base_table = "node_field_revision",
  *   title = @Translation("Content revisions")
  * )
  */
@@ -37,7 +37,7 @@ class NodeRevision extends WizardPluginBase {
    */
   protected $pathField = array(
     'id' => 'vid',
-    'table' => 'node_revision',
+    'table' => 'node_field_revision',
     'field' => 'vid',
     'exclude' => TRUE,
     'alter' => array(
@@ -65,28 +65,28 @@ class NodeRevision extends WizardPluginBase {
   protected $filters = array(
     'status' => array(
       'value' => TRUE,
-      'table' => 'node_revision',
+      'table' => 'node_field_revision',
       'field' => 'status'
     )
   );
 
   /**
-   * Overrides Drupal\views\Plugin\views\wizard\WizardPluginBase::row_style_options().
+   * Overrides Drupal\views\Plugin\views\wizard\WizardPluginBase::rowStyleOptions().
    *
    * Node revisions do not support full posts or teasers, so remove them.
    */
-  protected function row_style_options() {
-    $options = parent::row_style_options();
+  protected function rowStyleOptions() {
+    $options = parent::rowStyleOptions();
     unset($options['teasers']);
     unset($options['full_posts']);
     return $options;
   }
 
   /**
-   * Overrides Drupal\views\Plugin\views\wizard\WizardPluginBase::default_display_options().
+   * Overrides Drupal\views\Plugin\views\wizard\WizardPluginBase::defaultDisplayOptions().
    */
-  protected function default_display_options() {
-    $display_options = parent::default_display_options();
+  protected function defaultDisplayOptions() {
+    $display_options = parent::defaultDisplayOptions();
 
     // Add permission-based access control.
     $display_options['access']['type'] = 'perm';
@@ -97,7 +97,7 @@ class NodeRevision extends WizardPluginBase {
 
     /* Field: Content revision: Created date */
     $display_options['fields']['timestamp']['id'] = 'timestamp';
-    $display_options['fields']['timestamp']['table'] = 'node_revision';
+    $display_options['fields']['timestamp']['table'] = 'node_field_revision';
     $display_options['fields']['timestamp']['field'] = 'timestamp';
     $display_options['fields']['timestamp']['alter']['alter_text'] = 0;
     $display_options['fields']['timestamp']['alter']['make_link'] = 0;
@@ -112,7 +112,7 @@ class NodeRevision extends WizardPluginBase {
 
     /* Field: Content revision: Title */
     $display_options['fields']['title']['id'] = 'title';
-    $display_options['fields']['title']['table'] = 'node_revision';
+    $display_options['fields']['title']['table'] = 'node_field_revision';
     $display_options['fields']['title']['field'] = 'title';
     $display_options['fields']['title']['label'] = '';
     $display_options['fields']['title']['alter']['alter_text'] = 0;

@@ -7,6 +7,7 @@
 
 namespace Drupal\tracker\Tests;
 
+use Drupal\Core\Language\Language;
 use Drupal\simpletest\WebTestBase;
 
 /**
@@ -77,7 +78,7 @@ class TrackerTest extends WebTestBase {
     $this->assertLink(t('My recent content'), 0, 'User tab shows up on the global tracker page.');
 
     // Delete a node and ensure it no longer appears on the tracker.
-    node_delete($published->nid);
+    $published->delete();
     $this->drupalGet('tracker');
     $this->assertNoText($published->label(), 'Deleted node do not show up in the tracker listing.');
   }
@@ -110,7 +111,7 @@ class TrackerTest extends WebTestBase {
     ));
     $comment = array(
       'subject' => $this->randomName(),
-      'comment_body[' . LANGUAGE_NOT_SPECIFIED . '][0][value]' => $this->randomName(20),
+      'comment_body[' . Language::LANGCODE_NOT_SPECIFIED . '][0][value]' => $this->randomName(20),
     );
     $this->drupalPost('comment/reply/' . $other_published_my_comment->nid, $comment, t('Save'));
 
@@ -170,7 +171,7 @@ class TrackerTest extends WebTestBase {
     // Add a comment to the page.
     $comment = array(
       'subject' => $this->randomName(),
-      'comment_body[' . LANGUAGE_NOT_SPECIFIED . '][0][value]' => $this->randomName(20),
+      'comment_body[' . Language::LANGCODE_NOT_SPECIFIED . '][0][value]' => $this->randomName(20),
     );
     // The new comment is automatically viewed by the current user.
     $this->drupalPost('comment/reply/' . $node->nid, $comment, t('Save'));
@@ -183,7 +184,7 @@ class TrackerTest extends WebTestBase {
     // Add another comment as other_user.
     $comment = array(
       'subject' => $this->randomName(),
-      'comment_body[' . LANGUAGE_NOT_SPECIFIED . '][0][value]' => $this->randomName(20),
+      'comment_body[' . Language::LANGCODE_NOT_SPECIFIED . '][0][value]' => $this->randomName(20),
     );
     // If the comment is posted in the same second as the last one then Drupal
     // can't tell the difference, so we wait one second here.
@@ -216,12 +217,12 @@ class TrackerTest extends WebTestBase {
     $this->drupalLogin($this->other_user);
     $comment = array(
       'subject' => $this->randomName(),
-      'comment_body[' . LANGUAGE_NOT_SPECIFIED . '][0][value]' => $this->randomName(20),
+      'comment_body[' . Language::LANGCODE_NOT_SPECIFIED . '][0][value]' => $this->randomName(20),
     );
     $this->drupalPost('comment/reply/' . $nodes[3]->nid, $comment, t('Save'));
 
     // Start indexing backwards from node 3.
-    state()->set('tracker.index_nid', 3);
+    \Drupal::state()->set('tracker.index_nid', 3);
 
     // Clear the current tracker tables and rebuild them.
     db_delete('tracker_node')
@@ -256,6 +257,7 @@ class TrackerTest extends WebTestBase {
    * Tests that publish/unpublish works at admin/content/node.
    */
   function testTrackerAdminUnpublish() {
+    module_enable(array('views'));
     $admin_user = $this->drupalCreateUser(array('access content overview', 'administer nodes', 'bypass node access'));
     $this->drupalLogin($admin_user);
 
@@ -270,10 +272,10 @@ class TrackerTest extends WebTestBase {
 
     // Unpublish the node and ensure that it's no longer displayed.
     $edit = array(
-      'operation' => 'unpublish',
-      'nodes[' . $node->nid . ']' => $node->nid,
+      'action' => 'node_unpublish_action',
+      'node_bulk_form[0]' => $node->nid,
     );
-    $this->drupalPost('admin/content', $edit, t('Update'));
+    $this->drupalPost('admin/content', $edit, t('Apply'));
 
     $this->drupalGet('tracker');
     $this->assertText(t('No content available.'), 'Node is displayed on the tracker listing pages.');

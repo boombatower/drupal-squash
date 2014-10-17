@@ -8,6 +8,7 @@
 use Drupal\Core\Database\Database;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\field\FieldUpdateForbiddenException;
+use Drupal\field\Plugin\Core\Entity\Field;
 
 /**
  * Implements hook_help().
@@ -93,7 +94,7 @@ function _field_sql_storage_revision_tablename($field) {
  *   unique among all other fields.
  */
 function _field_sql_storage_columnname($name, $column) {
-  return in_array($column, field_reserved_columns()) ? $column : $name . '_' . $column;
+  return in_array($column, Field::getReservedColumns()) ? $column : $name . '_' . $column;
 }
 
 /**
@@ -265,8 +266,8 @@ function field_sql_storage_field_create_field($field) {
  * Forbids any field update that changes column definitions if there is any
  * data.
  */
-function field_sql_storage_field_update_forbid($field, $prior_field, $has_data) {
-  if ($has_data && $field['columns'] != $prior_field['columns']) {
+function field_sql_storage_field_update_forbid($field, $prior_field) {
+  if ($field->hasData() && $field['columns'] != $prior_field['columns']) {
     throw new FieldUpdateForbiddenException("field_sql_storage cannot change the schema for an existing field with data.");
   }
 }
@@ -274,8 +275,8 @@ function field_sql_storage_field_update_forbid($field, $prior_field, $has_data) 
 /**
  * Implements hook_field_storage_update_field().
  */
-function field_sql_storage_field_storage_update_field($field, $prior_field, $has_data) {
-  if (! $has_data) {
+function field_sql_storage_field_storage_update_field($field, $prior_field) {
+  if (!$field->hasData()) {
     // There is no data. Re-create the tables completely.
 
     if (Database::getConnection()->supportsTransactionalDDL()) {

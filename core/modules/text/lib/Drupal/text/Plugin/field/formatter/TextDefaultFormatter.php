@@ -7,7 +7,7 @@
 
 namespace Drupal\text\Plugin\field\formatter;
 
-use Drupal\Component\Annotation\Plugin;
+use Drupal\field\Annotation\FieldFormatter;
 use Drupal\Core\Annotation\Translation;
 use Drupal\field\Plugin\Type\Formatter\FormatterBase;
 use Drupal\Core\Entity\EntityInterface;
@@ -15,7 +15,7 @@ use Drupal\Core\Entity\EntityInterface;
 /**
  * Plugin implementation of the 'text_default' formatter.
  *
- * @Plugin(
+ * @FieldFormatter(
  *   id = "text_default",
  *   module = "text",
  *   label = @Translation("Default"),
@@ -38,7 +38,7 @@ class TextDefaultFormatter extends FormatterBase {
     $elements = array();
 
     foreach ($items as $delta => $item) {
-      $output = text_sanitize($this->instance['settings']['text_processing'], $langcode, $item, 'value');
+      $output = text_sanitize($this->getFieldSetting('text_processing'), $langcode, $item, 'value');
       $elements[$delta] = array('#markup' => $output);
     }
 

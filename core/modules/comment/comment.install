@@ -9,9 +9,6 @@
  * Implements hook_uninstall().
  */
 function comment_uninstall() {
-  // Delete comment_body field.
-  field_delete_field('comment_body');
-
   // Remove variables.
   variable_del('comment_block_count');
   $node_types = array_keys(node_type_get_types());
@@ -29,7 +26,7 @@ function comment_uninstall() {
   }
 
   // Remove states.
-  state()->delete('comment.node_comment_statistics_scale');
+  Drupal::state()->delete('comment.node_comment_statistics_scale');
 }
 
 /**
@@ -37,8 +34,8 @@ function comment_uninstall() {
  */
 function comment_enable() {
   // Insert records into the node_comment_statistics for nodes that are missing.
-  $query = db_select('node', 'n');
-  $query->leftJoin('node_comment_statistics', 'ncs', 'ncs.nid = n.nid');
+  $query = db_select('node_field_data', 'n');
+  $query->leftJoin('node_comment_statistics', 'ncs', 'ncs.nid = n.nid AND n.default_langcode = 1');
   $query->addField('n', 'created', 'last_comment_timestamp');
   $query->addField('n', 'uid', 'last_comment_uid');
   $query->addField('n', 'nid');

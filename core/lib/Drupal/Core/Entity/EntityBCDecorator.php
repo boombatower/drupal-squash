@@ -7,9 +7,11 @@
 
 namespace Drupal\Core\Entity;
 
+use Drupal\Core\Language\Language;
 use IteratorAggregate;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\TypedData\TypedDataInterface;
+use Drupal\Core\Session\AccountInterface;
 
 /**
  * Provides backwards compatible (BC) access to entity fields.
@@ -118,28 +120,29 @@ class EntityBCDecorator implements IteratorAggregate, EntityInterface {
     // an entity field, provide direct access to the plain value. This makes it
     // possible to use the BC-decorator with properties; e.g., $node->title.
     if (isset($this->definitions[$name]) && empty($this->definitions[$name]['configurable'])) {
-      if (!isset($this->decorated->values[$name][LANGUAGE_DEFAULT])) {
-        $this->decorated->values[$name][LANGUAGE_DEFAULT][0]['value'] = NULL;
+      if (!isset($this->decorated->values[$name][Language::LANGCODE_DEFAULT])) {
+        $this->decorated->values[$name][Language::LANGCODE_DEFAULT][0]['value'] = NULL;
       }
-      if (is_array($this->decorated->values[$name][LANGUAGE_DEFAULT])) {
+      if (is_array($this->decorated->values[$name][Language::LANGCODE_DEFAULT])) {
         // This will work with all defined properties that have a single value.
         // We need to ensure the key doesn't matter. Mostly it's 'value' but
         // e.g. EntityReferenceItem uses target_id.
-        if (isset($this->decorated->values[$name][LANGUAGE_DEFAULT][0]) && count($this->decorated->values[$name][LANGUAGE_DEFAULT][0]) == 1) {
-          return $this->decorated->values[$name][LANGUAGE_DEFAULT][0][key($this->decorated->values[$name][LANGUAGE_DEFAULT][0])];
+        if (isset($this->decorated->values[$name][Language::LANGCODE_DEFAULT][0]) && count($this->decorated->values[$name][Language::LANGCODE_DEFAULT][0]) == 1) {
+          return $this->decorated->values[$name][Language::LANGCODE_DEFAULT][0][key($this->decorated->values[$name][Language::LANGCODE_DEFAULT][0])];
         }
       }
-      return $this->decorated->values[$name][LANGUAGE_DEFAULT];
+      return $this->decorated->values[$name][Language::LANGCODE_DEFAULT];
     }
     else {
       // Allow accessing field values in an entity default language other than
-      // LANGUAGE_DEFAULT by mapping the values to LANGUAGE_DEFAULT. This is
-      // necessary as EntityNG always keys default language values with
-      // LANGUAGE_DEFAULT while field API expects them to be keyed by langcode.
+      // Language::LANGCODE_DEFAULT by mapping the values to
+      // Language::LANGCODE_DEFAULT. This is necessary as EntityNG always keys
+      // default language values with Language::LANGCODE_DEFAULT while field API
+      // expects them to be keyed by langcode.
       $langcode = $this->decorated->language()->langcode;
-      if ($langcode != LANGUAGE_DEFAULT && isset($this->decorated->values[$name]) && is_array($this->decorated->values[$name])) {
-        if (isset($this->decorated->values[$name][LANGUAGE_DEFAULT]) && !isset($this->decorated->values[$name][$langcode])) {
-          $this->decorated->values[$name][$langcode] = &$this->decorated->values[$name][LANGUAGE_DEFAULT];
+      if ($langcode != Language::LANGCODE_DEFAULT && isset($this->decorated->values[$name]) && is_array($this->decorated->values[$name])) {
+        if (isset($this->decorated->values[$name][Language::LANGCODE_DEFAULT]) && !isset($this->decorated->values[$name][$langcode])) {
+          $this->decorated->values[$name][$langcode] = &$this->decorated->values[$name][Language::LANGCODE_DEFAULT];
         }
       }
       if (!isset($this->decorated->values[$name])) {
@@ -160,18 +163,18 @@ class EntityBCDecorator implements IteratorAggregate, EntityInterface {
     // an entity field, directly write to the plain value. This makes it
     // possible to use the BC-decorator with properties; e.g., $node->title.
     if ($defined && empty($this->definitions[$name]['configurable'])) {
-      $this->decorated->values[$name][LANGUAGE_DEFAULT] = $value;
+      $this->decorated->values[$name][Language::LANGCODE_DEFAULT] = $value;
     }
     else {
       if ($defined && is_array($value)) {
         // If field API sets a value with a langcode in entity language, move it
-        // to LANGUAGE_DEFAULT.
+        // to Language::LANGCODE_DEFAULT.
         // This is necessary as EntityNG always keys default language values
-        // with LANGUAGE_DEFAULT while field API expects them to be keyed by
-        // langcode.
+        // with Language::LANGCODE_DEFAULT while field API expects them to be
+        // keyed by langcode.
         foreach ($value as $langcode => $data) {
-          if ($langcode != LANGUAGE_DEFAULT && $langcode == $this->decorated->language()->langcode) {
-            $value[LANGUAGE_DEFAULT] = $data;
+          if ($langcode != Language::LANGCODE_DEFAULT && $langcode == $this->decorated->language()->langcode) {
+            $value[Language::LANGCODE_DEFAULT] = $data;
             unset($value[$langcode]);
           }
         }
@@ -211,7 +214,14 @@ class EntityBCDecorator implements IteratorAggregate, EntityInterface {
   /**
    * Forwards the call to the decorated entity.
    */
-  public function access($operation = 'view', \Drupal\user\Plugin\Core\Entity\User $account = NULL) {
+  public function uriRelationships() {
+    return $this->decorated->uriRelationships();
+  }
+
+  /**
+   * Forwards the call to the decorated entity.
+   */
+  public function access($operation = 'view', AccountInterface $account = NULL) {
     return $this->decorated->access($operation, $account);
   }
 
@@ -352,8 +362,8 @@ class EntityBCDecorator implements IteratorAggregate, EntityInterface {
   /**
    * Forwards the call to the decorated entity.
    */
-  public function uri() {
-    return $this->decorated->uri();
+  public function uri($rel = 'canonical') {
+    return $this->decorated->uri($rel);
   }
 
   /**
@@ -522,5 +532,61 @@ class EntityBCDecorator implements IteratorAggregate, EntityInterface {
    */
   public function isTranslatable() {
     return $this->decorated->isTranslatable();
+  }
+
+  /**
+   * Forwards the call to the decorated entity.
+   */
+  public function applyDefaultValue($notify = TRUE) {
+    return $this->decorated->applyDefaultValue($notify);
+  }
+
+  /*
+   * {@inheritdoc}
+   */
+  public function preSave(EntityStorageControllerInterface $storage_controller) {
+    $this->decorated->preSave($storage_controller);
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function preSaveRevision(EntityStorageControllerInterface $storage_controller, \stdClass $record) {
+    $this->decorated->preSave($storage_controller, $record);
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function postSave(EntityStorageControllerInterface $storage_controller, $update = TRUE) {
+    $this->decorated->postSave($storage_controller, $update);
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public static function preCreate(EntityStorageControllerInterface $storage_controller, array &$values) {
+  }
+
+  public function postCreate(EntityStorageControllerInterface $storage_controller) {
+    $this->decorated->postCreate($storage_controller);
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public static function preDelete(EntityStorageControllerInterface $storage_controller, array $entities) {
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public static function postDelete(EntityStorageControllerInterface $storage_controller, array $entities) {
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public static function postLoad(EntityStorageControllerInterface $storage_controller, array $entities) {
   }
 }

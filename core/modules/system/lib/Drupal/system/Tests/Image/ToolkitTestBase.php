@@ -31,7 +31,7 @@ abstract class ToolkitTestBase extends WebTestBase {
     parent::setUp();
 
     // Use the image_test.module's test toolkit.
-    $manager = new ImageToolkitManager($this->container->get('container.namespaces'));
+    $manager = new ImageToolkitManager($this->container->get('container.namespaces'), $this->container->get('cache.cache'), $this->container->get('language_manager'));
     $this->toolkit = $manager->createInstance('test');
 
     // Pick a file for testing.
@@ -94,7 +94,7 @@ abstract class ToolkitTestBase extends WebTestBase {
       'crop' => array(),
       'desaturate' => array(),
     );
-    state()->set('image_test.results', $results);
+    \Drupal::state()->set('image_test.results', $results);
   }
 
   /**
@@ -106,6 +106,6 @@ abstract class ToolkitTestBase extends WebTestBase {
    *   passed to each call.
    */
   function imageTestGetAllCalls() {
-    return state()->get('image_test.results') ?: array();
+    return \Drupal::state()->get('image_test.results') ?: array();
   }
 }

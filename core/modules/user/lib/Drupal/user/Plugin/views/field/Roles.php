@@ -8,9 +8,11 @@
 namespace Drupal\user\Plugin\views\field;
 
 use Drupal\Component\Annotation\PluginID;
+use Drupal\Core\Database\Connection;
 use Drupal\views\Plugin\views\display\DisplayPluginBase;
 use Drupal\views\ViewExecutable;
 use Drupal\views\Plugin\views\field\PrerenderList;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
  * Field handler to provide a list of roles.
@@ -22,6 +24,38 @@ use Drupal\views\Plugin\views\field\PrerenderList;
 class Roles extends PrerenderList {
 
   /**
+   * Database Service Object.
+   *
+   * @var \Drupal\Core\Database\Connection
+   */
+  protected $database;
+
+  /**
+   * Constructs a Drupal\Component\Plugin\PluginBase object.
+   *
+   * @param array $configuration
+   *   A configuration array containing information about the plugin instance.
+   * @param string $plugin_id
+   *   The plugin_id for the plugin instance.
+   * @param array $plugin_definition
+   *   The plugin implementation definition.
+   * @param \Drupal\Core\Database\Connection $database
+   *   Database Service Object.
+   */
+  public function __construct(array $configuration, $plugin_id, array $plugin_definition, Connection $database) {
+    parent::__construct($configuration, $plugin_id, $plugin_definition);
+
+    $this->database = $database;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public static function create(ContainerInterface $container, array $configuration, $plugin_id, array $plugin_definition) {
+    return new static($configuration, $plugin_id, $plugin_definition, $container->get('database'));
+  }
+
+  /**
    * Overrides Drupal\views\Plugin\views\field\FieldPluginBase::init().
    */
   public function init(ViewExecutable $view, DisplayPluginBase $display, array &$options = NULL) {
@@ -31,26 +65,21 @@ class Roles extends PrerenderList {
   }
 
   public function query() {
-    $this->add_additional_fields();
+    $this->addAdditionalFields();
     $this->field_alias = $this->aliases['uid'];
   }
 
-  function pre_render(&$values) {
+  public function preRender(&$values) {
     $uids = array();
     $this->items = array();
 
     foreach ($values as $result) {
-      $uids[] = $this->get_value($result);
+      $uids[] = $this->getValue($result);
     }
 
     if ($uids) {
       $roles = user_roles();
-      $query = db_select('users_roles', 'u');
-      $query->fields('u', array('uid', 'rid'));
-      $query->condition('u.rid', array_keys($roles));
-      $query->condition('u.uid', $uids);
-
-      $result = $query->execute();
+      $result = $this->database->query('SELECT u.uid, u.rid FROM {users_roles} u WHERE u.uid IN (:uids) AND u.rid IN (:rids)', array(':uids' => $uids, ':rids' => array_keys($roles)));
       foreach ($result as $role) {
         $this->items[$role->uid][$role->rid]['role'] = check_plain($roles[$role->rid]->label());
         $this->items[$role->uid][$role->rid]['rid'] = $role->rid;
@@ -71,12 +100,12 @@ class Roles extends PrerenderList {
     return $item['role'];
   }
 
-  function document_self_tokens(&$tokens) {
+  protected function documentSelfTokens(&$tokens) {
     $tokens['[' . $this->options['id'] . '-role' . ']'] = t('The name of the role.');
     $tokens['[' . $this->options['id'] . '-rid' . ']'] = t('The role machine-name of the role.');
   }
 
-  function add_self_tokens(&$tokens, $item) {
+  protected function addSelfTokens(&$tokens, $item) {
     if (!empty($item['role'])) {
       $tokens['[' . $this->options['id'] . '-role' . ']'] = $item['role'];
       $tokens['[' . $this->options['id'] . '-rid' . ']'] = $item['rid'];

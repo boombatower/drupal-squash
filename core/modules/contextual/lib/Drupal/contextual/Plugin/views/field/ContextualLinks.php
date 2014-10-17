@@ -51,7 +51,7 @@ class ContextualLinks extends FieldPluginBase {
     );
   }
 
-  function pre_render(&$values) {
+  public function preRender(&$values) {
     // Add a row plugin css class for the contextual link.
     $class = 'contextual-region';
     if (!empty($this->view->style_plugin->options['row_class'])) {
@@ -64,11 +64,14 @@ class ContextualLinks extends FieldPluginBase {
 
   /**
    * Render the contextual fields.
+   *
+   * @see contextual_preprocess()
+   * @see contextual_contextual_links_view_alter()
    */
   function render($values) {
     $links = array();
     foreach ($this->options['fields'] as $field) {
-      $rendered_field = $this->view->style_plugin->get_field($this->view->row_index, $field);
+      $rendered_field = $this->view->style_plugin->getField($this->view->row_index, $field);
       if (empty($rendered_field)) {
         continue;
       }
@@ -79,7 +82,7 @@ class ContextualLinks extends FieldPluginBase {
       }
       if (!empty($title) && !empty($path)) {
         // Make sure that tokens are replaced for this paths as well.
-        $tokens = $this->get_render_tokens(array());
+        $tokens = $this->getRenderTokens(array());
         $path = strip_tags(decode_entities(strtr($path, $tokens)));
 
         $links[$field] = array(
@@ -92,19 +95,23 @@ class ContextualLinks extends FieldPluginBase {
       }
     }
 
+    // Renders a contextual links placeholder.
     if (!empty($links)) {
-      $build = array(
-        '#prefix' => '<div class="contextual">',
-        '#suffix' => '</div>',
-        '#theme' => 'links__contextual',
-        '#links' => $links,
-        '#attributes' => array('class' => array('contextual-links')),
-        '#attached' => array(
-          'library' => array(array('contextual', 'contextual-links')),
-        ),
-        '#access' => user_access('access contextual links'),
+      $contextual_links = array(
+        'contextual' => array(
+          '',
+          array(),
+          array(
+            'contextual-views-field-links' => drupal_encode_path(drupal_json_encode($links)),
+          )
+        )
       );
-      return drupal_render($build);
+
+      $element = array(
+        '#type' => 'contextual_links_placeholder',
+        '#id' => _contextual_links_to_id($contextual_links),
+      );
+      return drupal_render($element);
     }
     else {
       return '';

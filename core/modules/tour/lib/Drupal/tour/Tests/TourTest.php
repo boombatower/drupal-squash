@@ -49,6 +49,14 @@ class TourTest extends WebTestBase {
     ));
     $this->assertEqual(count($elements), 1, 'Found English variant of tip 1.');
 
+    $elements = $this->xpath('//li[@data-id=:data_id and @class=:classes and ./p//a[@href=:href and contains(., :text)]]', array(
+      ':classes' => 'tip-module-tour-test tip-type-text tip-tour-test-1 even last',
+      ':data_id' => 'tour-test-1',
+      ':href' =>  url('<front>', array('absolute' => TRUE)),
+      ':text' => 'Drupal',
+    ));
+    $this->assertEqual(count($elements), 1, 'Found Token replacement.');
+
     $elements = $this->xpath('//li[@data-id=:data_id and ./h2[contains(., :text)]]', array(
       ':data_id' => 'tour-test-2',
       ':text' => 'The quick brown fox',

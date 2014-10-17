@@ -7,6 +7,7 @@
 
 namespace Drupal\Tests\Core\Route;
 
+use Drupal\Core\Access\AccessCheckInterface;
 use Drupal\Core\DependencyInjection\ContainerBuilder;
 use Drupal\Tests\UnitTestCase;
 use Drupal\user\Access\RoleAccessCheck;
@@ -16,12 +17,6 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\HttpKernelInterface;
 use Symfony\Component\Routing\Route;
 use Symfony\Component\Routing\RouteCollection;
-
-// Needed because the Entity class uses this constant.
-// @todo Remove once http://drupal.org/node/1620010 is in.
-if (!defined('LANGUAGE_NOT_SPECIFIED')) {
-  define('LANGUAGE_NOT_SPECIFIED', 'und');
-}
 
 /**
  * Defines tests for role based access in routes.
@@ -112,17 +107,26 @@ class RoleAccessCheckTest extends UnitTestCase {
 
     // Setup one user with the first role, one with the second, one with both
     // and one final without any of these two roles.
-    $account_1 = new User(array('uid' => 1), 'user');
-    $account_1->roles[$rid_1] = $rid_1;
 
-    $account_2 = new User(array('uid' => 2), 'user');
-    $account_2->roles[$rid_2] = $rid_2;
+    $account_1 = (object) array(
+      'uid' => 1,
+      'roles' => array($rid_1),
+    );
 
-    $account_12 = new User(array('uid' => 3), 'user');
-    $account_12->roles[$rid_1] = $rid_1;
-    $account_12->roles[$rid_2] = $rid_2;
+    $account_2 = (object) array(
+      'uid' => 2,
+      'roles' => array($rid_2),
+    );
 
-    $account_none = new User(array('uid' => 4), 'user');
+    $account_12 = (object) array(
+      'uid' => 3,
+      'roles' => array($rid_1, $rid_2),
+    );
+
+    $account_none = (object) array(
+      'uid' => 1,
+      'roles' => array(),
+    );
 
     // Setup expected values; specify which paths can be accessed by which user.
     return array(
@@ -160,7 +164,7 @@ class RoleAccessCheckTest extends UnitTestCase {
 
       $subrequest = Request::create($path, 'GET');
       $message = sprintf('Access granted for user with the roles %s on path: %s', implode(', ', $account->roles), $path);
-      $this->assertTrue($role_access_check->access($collection->get($path), $subrequest), $message);
+      $this->assertSame(AccessCheckInterface::ALLOW, $role_access_check->access($collection->get($path), $subrequest), $message);
     }
 
     // Check all users which don't have access.
@@ -168,9 +172,9 @@ class RoleAccessCheckTest extends UnitTestCase {
       $GLOBALS['user'] = $account;
 
       $subrequest = Request::create($path, 'GET');
-      $message = sprintf('Access denied for user %s with the roles %s on path: %s', $account->id(), implode(', ', $account->roles), $path);
+      $message = sprintf('Access denied for user %s with the roles %s on path: %s', $account->uid, implode(', ', $account->roles), $path);
       $has_access = $role_access_check->access($collection->get($path), $subrequest);
-      $this->assertEmpty($has_access , $message);
+      $this->assertSame(AccessCheckInterface::DENY, $has_access , $message);
     }
   }
 

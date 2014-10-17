@@ -147,8 +147,8 @@ EOF;
       'timestamp' => $timestamp,
       'status' => FILE_STATUS_PERMANENT,
     ));
-    file_put_contents($file->uri, $po_header . $text);
-    touch(drupal_realpath($file->uri), $timestamp);
+    file_put_contents($file->getFileUri(), $po_header . $text);
+    touch(drupal_realpath($file->getFileUri()), $timestamp);
     $file->save();
   }
 
@@ -185,7 +185,7 @@ EOF;
 
     // A flag is set to let the locale_test module replace the project data with
     // a set of test projects which match the below project files.
-    state()->set('locale.test_projects_alter', TRUE);
+    \Drupal::state()->set('locale.test_projects_alter', TRUE);
 
     // Setup the environment.
     $public_path = variable_get('file_public_path', conf_path() . '/files');
@@ -226,9 +226,12 @@ EOF;
       'June' => 'Juni',
     );
     foreach ($non_customized_translations as $source => $translation) {
-      $string = locale_storage()->createString(array('source' => $source, 'context' => $context))
+      $string = $this->container->get('locale.storage')->createString(array(
+          'source' => $source,
+          'context' => $context,
+        ))
         ->save();
-      $target = locale_storage()->createTranslation(array(
+      $target = $this->container->get('locale.storage')->createTranslation(array(
         'lid' => $string->getId(),
         'language' => $langcode,
         'translation' => $translation,
@@ -243,9 +246,12 @@ EOF;
       'May' => 'Mai_customized',
     );
     foreach ($customized_translations as $source => $translation) {
-      $string = locale_storage()->createString(array('source' => $source, 'context' => $context))
-        ->save();
-      $target = locale_storage()->createTranslation(array(
+      $string = $this->container->get('locale.storage')->createString(array(
+        'source' => $source,
+        'context' => $context,
+      ))
+      ->save();
+      $target = $this->container->get('locale.storage')->createTranslation(array(
         'lid' => $string->getId(),
         'language' => $langcode,
         'translation' => $translation,
@@ -314,7 +320,7 @@ EOF;
     // Make the test modules look like a normal custom module. i.e. make the
     // modules not hidden. locale_test_system_info_alter() modifies the project
     // info of the locale_test and locale_test_translate modules.
-    state()->set('locale.test_system_info_alter', TRUE);
+    \Drupal::state()->set('locale.test_system_info_alter', TRUE);
     $this->resetAll();
 
     // Check if interface translation data is collected from hook_info.
@@ -332,7 +338,7 @@ EOF;
     $config = config('locale.settings');
 
     // Make the test modules look like a normal custom module.
-    state()->set('locale.test_system_info_alter', TRUE);
+    \Drupal::state()->set('locale.test_system_info_alter', TRUE);
     $this->resetAll();
 
     // Set test condition: include disabled modules when building a project list.
@@ -364,7 +370,7 @@ EOF;
     $config = config('locale.settings');
     // Set a flag to let the locale_test module replace the project data with a
     // set of test projects.
-    state()->set('locale.test_projects_alter', TRUE);
+    \Drupal::state()->set('locale.test_projects_alter', TRUE);
 
     // Create local and remote translations files.
     $this->setTranslationFiles();
@@ -378,7 +384,7 @@ EOF;
 
     // Get status of translation sources at local file system.
     $this->drupalGet('admin/reports/translations/check');
-    $result = state()->get('locale.translation_status');
+    $result = \Drupal::state()->get('locale.translation_status');
     $this->assertEqual($result['contrib_module_one']['de']->type, LOCALE_TRANSLATION_LOCAL, 'Translation of contrib_module_one found');
     $this->assertEqual($result['contrib_module_one']['de']->timestamp, $this->timestamp_old, 'Translation timestamp found');
     $this->assertEqual($result['contrib_module_two']['de']->type, LOCALE_TRANSLATION_LOCAL, 'Translation of contrib_module_two found');
@@ -394,7 +400,7 @@ EOF;
 
     // Get status of translation sources at both local and remote locations.
     $this->drupalGet('admin/reports/translations/check');
-    $result = state()->get('locale.translation_status');
+    $result = \Drupal::state()->get('locale.translation_status');
     $this->assertEqual($result['contrib_module_one']['de']->type, 'remote', 'Translation of contrib_module_one found');
     $this->assertEqual($result['contrib_module_one']['de']->timestamp, $this->timestamp_new, 'Translation timestamp found');
     $this->assertEqual($result['contrib_module_two']['de']->type, LOCALE_TRANSLATION_LOCAL, 'Translation of contrib_module_two found');
@@ -442,7 +448,7 @@ EOF;
     $this->drupalPost('admin/reports/translations', array(), t('Update translations'));
 
     // Check if the translation has been updated, using the status cache.
-    $status = state()->get('locale.translation_status');
+    $status = \Drupal::state()->get('locale.translation_status');
     $this->assertEqual($status['contrib_module_one']['de']->type, LOCALE_TRANSLATION_CURRENT, 'Translation of contrib_module_one found');
     $this->assertEqual($status['contrib_module_two']['de']->type, LOCALE_TRANSLATION_CURRENT, 'Translation of contrib_module_two found');
     $this->assertEqual($status['contrib_module_three']['de']->type, LOCALE_TRANSLATION_CURRENT, 'Translation of contrib_module_three found');
@@ -497,7 +503,7 @@ EOF;
     $this->drupalPost('admin/reports/translations', array(), t('Update translations'));
 
     // Check if the translation has been updated, using the status cache.
-    $status = state()->get('locale.translation_status');
+    $status = \Drupal::state()->get('locale.translation_status');
     $this->assertEqual($status['contrib_module_one']['de']->type, LOCALE_TRANSLATION_CURRENT, 'Translation of contrib_module_one found');
     $this->assertEqual($status['contrib_module_two']['de']->type, LOCALE_TRANSLATION_CURRENT, 'Translation of contrib_module_two found');
     $this->assertEqual($status['contrib_module_three']['de']->type, LOCALE_TRANSLATION_CURRENT, 'Translation of contrib_module_three found');
@@ -553,7 +559,7 @@ EOF;
     $this->drupalPost('admin/reports/translations', array(), t('Update translations'));
 
     // Check if the translation has been updated, using the status cache.
-    $status = state()->get('locale.translation_status');
+    $status = \Drupal::state()->get('locale.translation_status');
     $this->assertEqual($status['contrib_module_one']['de']->type, LOCALE_TRANSLATION_CURRENT, 'Translation of contrib_module_one found');
     $this->assertEqual($status['contrib_module_two']['de']->type, LOCALE_TRANSLATION_CURRENT, 'Translation of contrib_module_two found');
     $this->assertEqual($status['contrib_module_three']['de']->type, LOCALE_TRANSLATION_CURRENT, 'Translation of contrib_module_three found');
@@ -660,7 +666,7 @@ EOF;
    */
   function testEnableDisableModule() {
     // Make the hidden test modules look like a normal custom module.
-    state()->set('locale.test_system_info_alter', TRUE);
+    \Drupal::state()->set('locale.test_system_info_alter', TRUE);
 
     // Check if there is no translation yet.
     $this->assertTranslation('Tuesday', '', 'de');
@@ -703,7 +709,7 @@ EOF;
    */
   function testEnableDisableLanguage() {
     // Make the hidden test modules look like a normal custom module.
-    state()->set('locale.test_system_info_alter', TRUE);
+    \Drupal::state()->set('locale.test_system_info_alter', TRUE);
 
     // Enable a module.
     $edit = array(
@@ -747,7 +753,7 @@ EOF;
    */
   function testEnableCustomLanguage() {
     // Make the hidden test modules look like a normal custom module.
-    state()->set('locale.test_system_info_alter', TRUE);
+    \Drupal::state()->set('locale.test_system_info_alter', TRUE);
 
     // Enable a module.
     $edit = array(

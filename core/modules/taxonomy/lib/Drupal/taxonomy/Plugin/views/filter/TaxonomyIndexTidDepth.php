@@ -21,7 +21,7 @@ use Drupal\Component\Annotation\PluginID;
  */
 class TaxonomyIndexTidDepth extends TaxonomyIndexTid {
 
-  function operator_options($which = 'title') {
+  public function operatorOptions($which = 'title') {
     return array(
       'or' => t('Is one of'),
     );
@@ -102,7 +102,7 @@ class TaxonomyIndexTidDepth extends TaxonomyIndexTid {
     }
 
     $subquery->condition($where);
-    $this->query->add_where($this->options['group'], "$this->tableAlias.$this->realField", $subquery, 'IN');
+    $this->query->addWhere($this->options['group'], "$this->tableAlias.$this->realField", $subquery, 'IN');
   }
 
 }

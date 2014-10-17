@@ -5,9 +5,14 @@
  * Exposes global functionality for creating image styles.
  */
 
+use Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Language\Language;
+use Drupal\field\Plugin\Core\Entity\Field;
+use Drupal\field\Plugin\Core\Entity\FieldInstance;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
+use Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException;
 use Drupal\Component\Utility\Crypt;
 use Drupal\Component\Uuid\Uuid;
 use Drupal\file\Plugin\Core\Entity\File;
@@ -269,7 +274,7 @@ function image_form_system_file_system_settings_alter(&$form, &$form_state) {
  */
 function image_system_file_system_settings_submit($form, &$form_state) {
   if ($form['file_public_path']['#default_value'] !== $form_state['values']['file_public_path']) {
-    state()->set('menu_rebuild_needed', TRUE);
+    Drupal::state()->set('menu_rebuild_needed', TRUE);
   }
 }
 
@@ -330,7 +335,7 @@ function image_file_download($uri) {
  */
 function image_file_move(File $file, File $source) {
   // Delete any image derivatives at the original image path.
-  image_path_flush($source->uri);
+  image_path_flush($source->getFileUri());
 }
 
 /**
@@ -338,7 +343,7 @@ function image_file_move(File $file, File $source) {
  */
 function image_file_predelete(File $file) {
   // Delete any image derivatives of this image.
-  image_path_flush($file->uri);
+  image_path_flush($file->getFileUri());
 }
 
 /**
@@ -359,7 +364,7 @@ function image_field_delete_field($field) {
 /**
  * Implements hook_field_update_field().
  */
-function image_field_update_field($field, $prior_field, $has_data) {
+function image_field_update_field($field, $prior_field) {
   if ($field['type'] != 'image') {
     return;
   }
@@ -368,7 +373,7 @@ function image_field_update_field($field, $prior_field, $has_data) {
   $fid_new = (isset($field['settings']['default_image']['fids']) ? $field['settings']['default_image']['fids'] : $field['settings']['default_image']);
   $fid_old = (isset($prior_field['settings']['default_image']['fids']) ? $prior_field['settings']['default_image']['fids'] : $prior_field['settings']['default_image']);
 
-  $file_new = $fid_new ? file_load($fid_new[0]) : FALSE;
+  $file_new = $fid_new ? file_load($fid_new) : FALSE;
 
   if ($fid_new != $fid_old) {
 
@@ -386,7 +391,7 @@ function image_field_update_field($field, $prior_field, $has_data) {
   }
 
   // If the upload destination changed, then move the file.
-  if ($file_new && (file_uri_scheme($file_new->uri) != $field['settings']['uri_scheme'])) {
+  if ($file_new && (file_uri_scheme($file_new->getFileUri()) != $field['settings']['uri_scheme'])) {
     $directory = $field['settings']['uri_scheme'] . '://default_images/';
     file_prepare_directory($directory, FILE_CREATE_DIRECTORY);
     file_move($file_new, $directory . $file_new->filename);
@@ -453,7 +458,7 @@ function image_field_update_instance($instance, $prior_instance) {
   }
 
   // If the upload destination changed, then move the file.
-  if ($file_new && (file_uri_scheme($file_new->uri) != $field['settings']['uri_scheme'])) {
+  if ($file_new && (file_uri_scheme($file_new->getFileUri()) != $field['settings']['uri_scheme'])) {
     $directory = $field['settings']['uri_scheme'] . '://default_images/';
     file_prepare_directory($directory, FILE_CREATE_DIRECTORY);
     file_move($file_new, $directory . $file_new->filename);
@@ -532,7 +537,8 @@ function image_style_deliver($style, $scheme) {
   // denial-of-service attacks.)
   $valid = !empty($style) && file_stream_wrapper_valid_scheme($scheme);
   if (!config('image.settings')->get('allow_insecure_derivatives')) {
-    $valid = $valid && isset($_GET[IMAGE_DERIVATIVE_TOKEN]) && $_GET[IMAGE_DERIVATIVE_TOKEN] === image_style_path_token($style->name, $scheme . '://' . $target);
+    $image_derivative_token = Drupal::request()->query->get(IMAGE_DERIVATIVE_TOKEN);
+    $valid = $valid && isset($image_derivative_token) && $image_derivative_token === image_style_path_token($style->name, $scheme . '://' . $target);
   }
   if (!$valid) {
     throw new AccessDeniedHttpException();
@@ -574,10 +580,7 @@ function image_style_deliver($style, $scheme) {
     if (!$lock_acquired) {
       // Tell client to retry again in 3 seconds. Currently no browsers are known
       // to support Retry-After.
-      drupal_add_http_header('Status', '503 Service Unavailable');
-      drupal_add_http_header('Retry-After', 3);
-      print t('Image generation in progress. Try again shortly.');
-      drupal_exit();
+      throw new ServiceUnavailableHttpException(3, t('Image generation in progress. Try again shortly.'));
     }
   }
 
@@ -692,9 +695,10 @@ function image_style_transform_dimensions($style_name, array &$dimensions) {
  *   An image style array.
  */
 function image_style_flush($style) {
-  $style_directory = drupal_realpath(file_default_scheme() . '://styles/' . $style->id());
-  if (is_dir($style_directory)) {
-    file_unmanaged_delete_recursive($style_directory);
+  // Delete the style directory in each registered wrapper.
+  $wrappers = file_get_stream_wrappers(STREAM_WRAPPERS_WRITE_VISIBLE);
+  foreach ($wrappers as $wrapper => $wrapper_data) {
+    file_unmanaged_delete_recursive($wrapper . '://styles/' . $style->id());
   }
 
   // Let other modules update as necessary on flush.
@@ -718,30 +722,55 @@ function image_style_flush($style) {
  *   The name of the style to be used with this image.
  * @param $path
  *   The path to the image.
+ * @param $clean_urls
+ *   (optional) Whether clean URLs are in use.
  * @return
  *   The absolute URL where a style image can be downloaded, suitable for use
  *   in an <img> tag. Requesting the URL will cause the image to be created.
  * @see image_style_deliver()
  */
-function image_style_url($style_name, $path) {
+function image_style_url($style_name, $path, $clean_urls = NULL) {
   $uri = image_style_path($style_name, $path);
   // The token query is added even if the
   // 'image.settings:allow_insecure_derivatives' configuration is TRUE, so that
   // the emitted links remain valid if it is changed back to the default FALSE.
-  $token_query = array(IMAGE_DERIVATIVE_TOKEN => image_style_path_token($style_name, file_stream_wrapper_uri_normalize($path)));
+  // However, sites which need to prevent the token query from being emitted at
+  // all can additionally set the 'image.settings:suppress_itok_output'
+  // configuration to TRUE to achieve that (if both are set, the security token
+  // will neither be emitted in the image derivative URL nor checked for in
+  // image_style_deliver()).
+  $token_query = array();
+  if (!config('image.settings')->get('suppress_itok_output')) {
+    $token_query = array(IMAGE_DERIVATIVE_TOKEN => image_style_path_token($style_name, file_stream_wrapper_uri_normalize($path)));
+  }
+
+  if ($clean_urls === NULL) {
+    // Assume clean URLs unless the request tells us otherwise.
+    $clean_urls = TRUE;
+    try {
+      $request = Drupal::request();
+      $clean_urls = $request->attributes->get('clean_urls');
+    }
+    catch (ServiceNotFoundException $e) {
+    }
+  }
 
   // If not using clean URLs, the image derivative callback is only available
   // with the script path. If the file does not exist, use url() to ensure
   // that it is included. Once the file exists it's fine to fall back to the
   // actual file path, this avoids bootstrapping PHP once the files are built.
-  if ($GLOBALS['script_path'] && file_uri_scheme($uri) == 'public' && !file_exists($uri)) {
+  if ($clean_urls === FALSE && file_uri_scheme($uri) == 'public' && !file_exists($uri)) {
     $directory_path = file_stream_wrapper_get_instance_by_uri($uri)->getDirectoryPath();
     return url($directory_path . '/' . file_uri_target($uri), array('absolute' => TRUE, 'query' => $token_query));
   }
 
   $file_url = file_create_url($uri);
-  // Append the query string with the token.
-  return $file_url . (strpos($file_url, '?') !== FALSE ? '&' : '?') . drupal_http_build_query($token_query);
+  // Append the query string with the token, if necessary.
+  if ($token_query) {
+    $file_url .= (strpos($file_url, '?') !== FALSE ? '&' : '?') . drupal_http_build_query($token_query);
+  }
+
+  return $file_url;
 }
 
 /**
@@ -803,7 +832,7 @@ function image_style_path($style_name, $uri) {
  * @see image_effect_definition_load()
  */
 function image_effect_definitions() {
-  $language_interface = language(LANGUAGE_TYPE_INTERFACE);
+  $language_interface = language(Language::TYPE_INTERFACE);
 
   // hook_image_effect_info() includes translated strings, so each language is
   // cached separately.
@@ -1029,4 +1058,27 @@ function image_filter_keyword($value, $current_pixels, $new_pixels) {
  */
 function _image_effect_definitions_sort($a, $b) {
   return strcasecmp($a['name'], $b['name']);
+}
+
+/**
+ * Implements hook_entity_presave().
+ *
+ * Transforms default image of image field from array into single value at save.
+ */
+function image_entity_presave(EntityInterface $entity, $type) {
+  $field = FALSE;
+  if ($entity instanceof FieldInstance) {
+    $field = $entity->getField();
+  }
+  elseif ($entity instanceof Field) {
+    $field = $entity;
+  }
+  if ($field && $field->type == 'image' && is_array($entity->settings['default_image'])) {
+    if (!empty($entity->settings['default_image'][0])) {
+      $entity->settings['default_image'] = $entity->settings['default_image'][0];
+    }
+    else {
+      $entity->settings['default_image'] = 0;
+    }
+  }
 }

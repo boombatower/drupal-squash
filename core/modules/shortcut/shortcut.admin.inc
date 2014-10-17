@@ -5,6 +5,7 @@
  * Administrative page callbacks for the shortcut module.
  */
 
+use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
 /**
@@ -175,7 +176,7 @@ function shortcut_set_switch_submit($form, &$form_state) {
  */
 function shortcut_set_add() {
   $entity = entity_create('shortcut', array());
-  return entity_get_form($entity);
+  return Drupal::entityManager()->getForm($entity);
 }
 
 /**
@@ -283,7 +284,20 @@ function theme_shortcut_set_customize($variables) {
   }
 
   $header = array(t('Name'), t('Weight'), t('Operations'));
-  $output = theme('table', array('header' => $header, 'rows' => $rows, 'attributes' => array('id' => 'shortcuts'), 'empty' => t('No shortcuts available. <a href="@link">Add a shortcut</a>.', array('@link' => url('admin/config/user-interface/shortcut/manage/' . $form['#shortcut_set_name'] . '/add-link')))));
+
+  $table = array(
+    '#theme' => 'table',
+    '#header' => $header,
+    '#rows' => $rows,
+    '#empty' => t('No shortcuts available. <a href="@link">Add a shortcut</a>.', array(
+      '@link' => url('admin/config/user-interface/shortcut/manage/' . $form['#shortcut_set_name'] . '/add-link'),
+    )),
+    '#attributes' => array(
+      'id' => 'shortcuts',
+    ),
+  );
+
+  $output = drupal_render($table);
   $output .= drupal_render($form['actions']);
   $output = drupal_render_children($form) . $output;
   return $output;
@@ -361,7 +375,7 @@ function _shortcut_link_form_elements($shortcut_link = NULL) {
     ));
   }
   else {
-    $shortcut_link['link_path'] = ($shortcut_link['link_path'] == '<front>') ? '' : drupal_container()->get('path.alias_manager')->getPathAlias($shortcut_link['link_path']);
+    $shortcut_link['link_path'] = ($shortcut_link['link_path'] == '<front>') ? '' : Drupal::service('path.alias_manager')->getPathAlias($shortcut_link['link_path']);
   }
 
   $form['shortcut_link']['#tree'] = TRUE;
@@ -408,7 +422,7 @@ function shortcut_link_edit_validate($form, &$form_state) {
  */
 function shortcut_link_edit_submit($form, &$form_state) {
   // Normalize the path in case it is an alias.
-  $shortcut_path = drupal_container()->get('path.alias_manager')->getSystemPath($form_state['values']['shortcut_link']['link_path']);
+  $shortcut_path = Drupal::service('path.alias_manager')->getSystemPath($form_state['values']['shortcut_link']['link_path']);
   if (empty($shortcut_path)) {
     $shortcut_path = '<front>';
   }
@@ -452,7 +466,7 @@ function shortcut_link_add_submit($form, &$form_state) {
  */
 function shortcut_admin_add_link($shortcut_link, &$shortcut_set) {
   // Normalize the path in case it is an alias.
-  $shortcut_link['link_path'] = drupal_container()->get('path.alias_manager')->getSystemPath($shortcut_link['link_path']);
+  $shortcut_link['link_path'] = Drupal::service('path.alias_manager')->getSystemPath($shortcut_link['link_path']);
   if (empty($shortcut_link['link_path'])) {
     $shortcut_link['link_path'] = '<front>';
   }
@@ -487,7 +501,7 @@ function shortcut_link_add_inline($shortcut_set) {
     else {
       drupal_set_message(t('Unable to add a shortcut for %title.', array('%title' => $link['link_title'])));
     }
-    drupal_goto();
+    return new RedirectResponse(url('<front>', array('absolute' => TRUE)));
   }
 
   throw new AccessDeniedHttpException();

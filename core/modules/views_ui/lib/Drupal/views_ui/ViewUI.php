@@ -8,13 +8,14 @@
 namespace Drupal\views_ui;
 
 use Drupal\views\Views;
+use Drupal\Core\Entity\EntityStorageControllerInterface;
 use Drupal\views\ViewExecutable;
 use Drupal\Core\Database\Database;
 use Drupal\Core\TypedData\TypedDataInterface;
+use Drupal\Core\Session\AccountInterface;
 use Drupal\views\Plugin\views\query\Sql;
 use Drupal\views\Plugin\Core\Entity\View;
 use Drupal\views\ViewStorageInterface;
-use Drupal\user\Plugin\Core\Entity\User;
 
 /**
  * Stores UI related temporary settings.
@@ -322,7 +323,7 @@ class ViewUI implements ViewStorageInterface {
       '#value' => empty($form_state['ok_button']) ? t('Cancel') : t('Ok'),
       '#submit' => array($cancel_submit),
       '#validate' => array(),
-      '#attributes' => array('formnovalidate' => ''),
+      '#limit_validation_errors' => array(),
     );
 
     // Compatibility, to be removed later: // TODO: When is "later"?
@@ -468,7 +469,7 @@ class ViewUI implements ViewStorageInterface {
           'table' => $table,
           'field' => $field,
         );
-        $handler = views_get_handler($item, $key);
+        $handler = Views::handlerManager($key)->getHandler($item);
         if ($this->executable->displayHandlers->get('default')->useGroupBy() && $handler->usesGroupBy()) {
           $this->addFormToStack('config-item-group', $form_state['display_id'], $type, $id);
         }
@@ -534,6 +535,7 @@ class ViewUI implements ViewStorageInterface {
     $output = '';
 
     $errors = $this->executable->validate();
+    $this->executable->destroy();
     if (empty($errors)) {
       $this->ajax = TRUE;
       $this->executable->live_preview = TRUE;
@@ -543,7 +545,7 @@ class ViewUI implements ViewStorageInterface {
       // be in GET. Copy stuff but remove ajax-framework specific keys.
       // If we're clicking on links in a preview, though, we could actually
       // still have some in $_GET, so we use $_REQUEST to ensure we get it all.
-      $exposed_input = drupal_container()->get('request')->request->all();
+      $exposed_input = \Drupal::request()->request->all();
       foreach (array('view_name', 'view_display_id', 'view_args', 'view_path', 'view_dom_id', 'pager_element', 'view_base_path', 'ajax_html_ids', 'ajax_page_state', 'form_id', 'form_build_id', 'form_token') as $key) {
         if (isset($exposed_input[$key])) {
           unset($exposed_input[$key]);
@@ -942,7 +944,7 @@ class ViewUI implements ViewStorageInterface {
   /**
    * Implements \Drupal\Core\TypedData\AccessibleInterface::access().
    */
-  public function access($operation = 'view', User $account = NULL) {
+  public function access($operation = 'view', AccountInterface $account = NULL) {
     return $this->storage->access($operation, $account);
   }
 
@@ -1133,5 +1135,78 @@ class ViewUI implements ViewStorageInterface {
    */
   public function onChange($property_name) {
     $this->storage->onChange($property_name);
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function applyDefaultValue($notify = TRUE) {
+    return $this->storage->applyDefaultValue($notify);
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function preSave(EntityStorageControllerInterface $storage_controller) {
+    $this->storage->presave($storage_controller);
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function postSave(EntityStorageControllerInterface $storage_controller, $update = TRUE) {
+    $this->storage->postSave($storage_controller, $update);
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public static function preCreate(EntityStorageControllerInterface $storage_controller, array &$values) {
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function postCreate(EntityStorageControllerInterface $storage_controller) {
+    $this->storage->postCreate($storage_controller);
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public static function preDelete(EntityStorageControllerInterface $storage_controller, array $entities) {
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public static function postDelete(EntityStorageControllerInterface $storage_controller, array $entities) {
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public static function postLoad(EntityStorageControllerInterface $storage_controller, array $entities) {
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function preSaveRevision(EntityStorageControllerInterface $storage_controller, \stdClass $record) {
+    $this->storage->preSaveRevision($storage_controller, $record);
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function mergeDefaultDisplaysOptions() {
+    $this->storage->mergeDefaultDisplaysOptions();
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function uriRelationships() {
+    return $this->storage->uriRelationships();
   }
 }

@@ -12,12 +12,14 @@ use Drupal\Component\Utility\NestedArray;
 use Drupal\Core\DrupalKernel;
 use Drupal\Core\Database\Database;
 use Drupal\Core\Database\ConnectionNotDefinedException;
+use Drupal\Core\Language\Language;
 use PDO;
 use stdClass;
 use DOMDocument;
 use DOMXPath;
 use SimpleXMLElement;
 use Drupal\Core\Datetime\DrupalDateTime;
+use Symfony\Component\HttpFoundation\Request;
 
 /**
  * Test case for typical Drupal tests.
@@ -51,6 +53,16 @@ abstract class WebTestBase extends TestBase {
    * @var Array
    */
   protected $headers;
+
+  /**
+   * Indicates that headers should be dumped if verbose output is enabled.
+   *
+   * Headers are dumped to verbose by drupalGet(), drupalHead(), and
+   * drupalPost().
+   *
+   * @var bool
+   */
+  protected $dumpHeaders = FALSE;
 
   /**
    * The content of the page currently loaded in the internal browser.
@@ -215,7 +227,7 @@ abstract class WebTestBase extends TestBase {
    *   - status: NODE_PUBLISHED.
    *   - sticky: NODE_NOT_STICKY.
    *   - type: 'page'.
-   *   - langcode: LANGUAGE_NOT_SPECIFIED.
+   *   - langcode: Language::LANGCODE_NOT_SPECIFIED.
    *   - uid: The currently logged in user, or the user running test.
    *   - revision: 1. (Backwards-compatible binary flag indicating whether a
    *     new revision should be created; use 1 to specify a new revision.)
@@ -235,7 +247,7 @@ abstract class WebTestBase extends TestBase {
       'status'    => NODE_PUBLISHED,
       'sticky'    => NODE_NOT_STICKY,
       'type'      => 'page',
-      'langcode'  => LANGUAGE_NOT_SPECIFIED,
+      'langcode'  => Language::LANGCODE_NOT_SPECIFIED,
     );
 
     // Add in comment settings for nodes.
@@ -274,11 +286,6 @@ abstract class WebTestBase extends TestBase {
     }
     $node->save();
 
-    // Small hack to link revisions to our test user.
-    db_update('node_revision')
-      ->fields(array('uid' => $node->uid))
-      ->condition('vid', $node->vid)
-      ->execute();
     return $node;
   }
 
@@ -485,7 +492,7 @@ abstract class WebTestBase extends TestBase {
     $edit['pass']   = user_password();
     $edit['status'] = 1;
     if ($rid) {
-      $edit['roles'] = array($rid => $rid);
+      $edit['roles'] = array($rid);
     }
 
     $account = entity_create('user', $edit);
@@ -524,7 +531,9 @@ abstract class WebTestBase extends TestBase {
     }
     // Generate a random label.
     if (!isset($name)) {
-      $name = $this->randomString(8);
+      // In the role UI role names are trimmed and random string can start or
+      // end with a space.
+      $name = trim($this->randomString(8));
     }
 
     // Check the all the permissions strings are valid.
@@ -617,7 +626,7 @@ abstract class WebTestBase extends TestBase {
    *   $account->pass_raw = $pass_raw;
    * @endcode
    *
-   * @param \Drupal\user\Plugin\Core\Entity\User $account
+   * @param \Drupal\user\UserInterface $account
    *   User object representing the user to log in.
    *
    * @see drupalCreateUser()
@@ -646,7 +655,7 @@ abstract class WebTestBase extends TestBase {
   /**
    * Returns whether a given user account is logged in.
    *
-   * @param \Drupal\user\User $account
+   * @param \Drupal\user\UserInterface $account
    *   The user account object to check.
    */
   protected function drupalUserIsLoggedIn($account) {
@@ -900,6 +909,16 @@ abstract class WebTestBase extends TestBase {
   }
 
   /**
+   * Overrides Drupal\simpletest\TestBase::rebuildContainer().
+   */
+  protected function rebuildContainer() {
+    parent::rebuildContainer();
+    // Make sure the url generator has a request object, otherwise calls to
+    // $this->drupalGet() will fail.
+    $this->prepareRequestForGenerator();
+  }
+
+  /**
    * Reset all data structures after having enabled new modules.
    *
    * This method is called by Drupal\simpletest\WebTestBase::setUp() after enabling
@@ -1044,6 +1063,24 @@ abstract class WebTestBase extends TestBase {
       // not overwritten by Curl.
       $curl_options[CURLOPT_HTTPHEADER][] = 'Expect:';
     }
+
+    // In order to debug webtests you need to either set a cookie or have the
+    // xdebug session in the URL. If the developer listens to connection on the
+    // parent site, by default the cookie is not forwarded to the client side,
+    // so you can't debug actual running code. In order to make debuggers work
+    // this bit of information is forwarded. Make sure that the debugger listens
+    // to at least three external connections.
+    if (isset($_COOKIE['XDEBUG_SESSION'])) {
+      $curl_options += array(
+        CURLOPT_COOKIE => '',
+      );
+      // Ensure any existing cookie data string ends with the correct separator.
+      if (!empty($curl_options[CURLOPT_COOKIE])) {
+        $curl_options[CURLOPT_COOKIE] = rtrim($curl_options[CURLOPT_COOKIE], '; ') . '; ';
+      }
+      $curl_options[CURLOPT_COOKIE] .= 'XDEBUG_SESSION=' . $_COOKIE['XDEBUG_SESSION'] . '; ';
+    }
+
     curl_setopt_array($this->curlHandle, $this->additionalCurlOptions + $curl_options);
 
     if (!$redirect) {
@@ -1175,7 +1212,7 @@ abstract class WebTestBase extends TestBase {
    * @param $path
    *   Drupal path or URL to load into internal browser
    * @param $options
-   *   Options to be forwarded to url().
+   *   Options to be forwarded to the url generator.
    * @param $headers
    *   An array containing additional HTTP request headers, each formatted as
    *   "name: value".
@@ -1188,16 +1225,23 @@ abstract class WebTestBase extends TestBase {
     // We re-using a CURL connection here. If that connection still has certain
     // options set, it might change the GET into a POST. Make sure we clear out
     // previous options.
-    $out = $this->curlExec(array(CURLOPT_HTTPGET => TRUE, CURLOPT_URL => url($path, $options), CURLOPT_NOBODY => FALSE, CURLOPT_HTTPHEADER => $headers));
+    $url = $this->container->get('url_generator')->generateFromPath($path, $options);
+    $out = $this->curlExec(array(CURLOPT_HTTPGET => TRUE, CURLOPT_URL => $url, CURLOPT_NOBODY => FALSE, CURLOPT_HTTPHEADER => $headers));
     $this->refreshVariables(); // Ensure that any changes to variables in the other thread are picked up.
 
     // Replace original page output with new output from redirected page(s).
     if ($new = $this->checkForMetaRefresh()) {
       $out = $new;
     }
-    $this->verbose('GET request to: ' . $path .
-                   '<hr />Ending URL: ' . $this->getUrl() .
-                   '<hr />' . $out);
+
+    $verbose = 'GET request to: ' . $path .
+               '<hr />Ending URL: ' . $this->getUrl();
+    if ($this->dumpHeaders) {
+      $verbose .= '<hr />Headers: <pre>' . check_plain(var_export(array_map('trim', $this->headers), TRUE)) . '</pre>';
+    }
+    $verbose .= '<hr />' . $out;
+
+    $this->verbose($verbose);
     return $out;
   }
 
@@ -1299,7 +1343,7 @@ abstract class WebTestBase extends TestBase {
    *   textfield: under these conditions, no button information is added to the
    *   POST data.
    * @param $options
-   *   Options to be forwarded to url().
+   *   Options to be forwarded to the url generator.
    * @param $headers
    *   An array containing additional HTTP request headers, each formatted as
    *   "name: value".
@@ -1377,10 +1421,16 @@ abstract class WebTestBase extends TestBase {
           if ($new = $this->checkForMetaRefresh()) {
             $out = $new;
           }
-          $this->verbose('POST request to: ' . $path .
-                         '<hr />Ending URL: ' . $this->getUrl() .
-                         '<hr />Fields: ' . highlight_string('<?php ' . var_export($post_array, TRUE), TRUE) .
-                         '<hr />' . $out);
+
+          $verbose = 'POST request to: ' . $path;
+          $verbose .= '<hr />Ending URL: ' . $this->getUrl();
+          if ($this->dumpHeaders) {
+            $verbose .= '<hr />Headers: <pre>' . check_plain(var_export(array_map('trim', $this->headers), TRUE)) . '</pre>';
+          }
+          $verbose .= '<hr />Fields: ' . highlight_string('<?php ' . var_export($post_array, TRUE), TRUE);
+          $verbose .= '<hr />' . $out;
+
+          $this->verbose($verbose);
           return $out;
         }
       }
@@ -1389,9 +1439,9 @@ abstract class WebTestBase extends TestBase {
         $this->fail(t('Failed to set field @name to @value', array('@name' => $name, '@value' => $value)));
       }
       if (!$ajax && isset($submit)) {
-        $this->assertTrue($submit_matches, t('Found the @submit button', array('@submit' => $submit)));
+        $this->assertTrue($submit_matches, format_string('Found the @submit button', array('@submit' => $submit)));
       }
-      $this->fail(t('Found the requested form fields at @path', array('@path' => $path)));
+      $this->fail(format_string('Found the requested form fields at @path', array('@path' => $path)));
     }
   }
 
@@ -1418,7 +1468,7 @@ abstract class WebTestBase extends TestBase {
    *   element. In the absence of both the triggering element's Ajax path and
    *   $ajax_path 'system/ajax' will be used.
    * @param $options
-   *   (optional) Options to be forwarded to url().
+   *   (optional) Options to be forwarded to the url generator.
    * @param $headers
    *   (optional) An array containing additional HTTP request headers, each
    *   formatted as "name: value". Forwarded to drupalPost().
@@ -1595,7 +1645,7 @@ abstract class WebTestBase extends TestBase {
    * Runs cron in the Drupal installed by Simpletest.
    */
   protected function cronRun() {
-    $this->drupalGet('cron/' . state()->get('system.cron_key'));
+    $this->drupalGet('cron/' . \Drupal::state()->get('system.cron_key'));
   }
 
   /**
@@ -1612,7 +1662,7 @@ abstract class WebTestBase extends TestBase {
       if (!empty($refresh)) {
         // Parse the content attribute of the meta tag for the format:
         // "[delay]: URL=[page_to_redirect_to]".
-        if (preg_match('/\d+;\s*URL=(?P<url>.*)/i', $refresh[0]['content'], $match)) {
+        if (preg_match('/\d+;\s*URL=(?<url>.*)/i', $refresh[0]['content'], $match)) {
           return $this->drupalGet($this->getAbsoluteUrl(decode_entities($match['url'])));
         }
       }
@@ -1626,7 +1676,7 @@ abstract class WebTestBase extends TestBase {
    * @param $path
    *   Drupal path or URL to load into internal browser
    * @param $options
-   *   Options to be forwarded to url().
+   *   Options to be forwarded to the url generator.
    * @param $headers
    *   An array containing additional HTTP request headers, each formatted as
    *   "name: value".
@@ -1635,8 +1685,16 @@ abstract class WebTestBase extends TestBase {
    */
   protected function drupalHead($path, array $options = array(), array $headers = array()) {
     $options['absolute'] = TRUE;
-    $out = $this->curlExec(array(CURLOPT_NOBODY => TRUE, CURLOPT_URL => url($path, $options), CURLOPT_HTTPHEADER => $headers));
+    $url = $this->container->get('url_generator')->generateFromPath($path, $options);
+    $out = $this->curlExec(array(CURLOPT_NOBODY => TRUE, CURLOPT_URL => $url, CURLOPT_HTTPHEADER => $headers));
     $this->refreshVariables(); // Ensure that any changes to variables in the other thread are picked up.
+
+    if ($this->dumpHeaders) {
+      $this->verbose('GET request to: ' . $path .
+                     '<hr />Ending URL: ' . $this->getUrl() .
+                     '<hr />Headers: <pre>' . check_plain(var_export(array_map('trim', $this->headers), TRUE)) . '</pre>');
+    }
+
     return $out;
   }
 
@@ -2168,7 +2226,7 @@ abstract class WebTestBase extends TestBase {
    *   An array containing e-mail messages captured during the current test.
    */
   protected function drupalGetMails($filter = array()) {
-    $captured_emails = state()->get('system.test_email_collector') ?: array();
+    $captured_emails = \Drupal::state()->get('system.test_email_collector') ?: array();
     $filtered_emails = array();
 
     foreach ($captured_emails as $message) {
@@ -2216,7 +2274,7 @@ abstract class WebTestBase extends TestBase {
    * @param $path
    *   The expected system path.
    * @param $options
-   *   (optional) Any additional options to pass for $path to url().
+   *   (optional) Any additional options to pass for $path to the url generator.
    * @param $message
    *   (optional) A message to display with the assertion. Do not translate
    *   messages: use format_string() to embed variables in the message text, not
@@ -2233,11 +2291,11 @@ abstract class WebTestBase extends TestBase {
   protected function assertUrl($path, array $options = array(), $message = '', $group = 'Other') {
     if (!$message) {
       $message = t('Current URL is @url.', array(
-        '@url' => var_export(url($path, $options), TRUE),
+        '@url' => var_export($this->container->get('url_generator')->generateFromPath($path, $options), TRUE),
       ));
     }
     $options['absolute'] = TRUE;
-    return $this->assertEqual($this->getUrl(), url($path, $options), $message, $group);
+    return $this->assertEqual($this->getUrl(), $this->container->get('url_generator')->generateFromPath($path, $options), $message, $group);
   }
 
   /**
@@ -3137,7 +3195,7 @@ abstract class WebTestBase extends TestBase {
    *   TRUE on pass, FALSE on fail.
    */
   protected function assertMail($name, $value = '', $message = '', $group = 'E-mail') {
-    $captured_emails = state()->get('system.test_email_collector') ?: array();
+    $captured_emails = \Drupal::state()->get('system.test_email_collector') ?: array();
     $email = end($captured_emails);
     return $this->assertTrue($email && isset($email[$name]) && $email[$name] == $value, $message, $group);
   }
@@ -3226,5 +3284,51 @@ abstract class WebTestBase extends TestBase {
       $mail = $mails[$i];
       $this->verbose(t('Email:') . '<pre>' . print_r($mail, TRUE) . '</pre>');
     }
+  }
+
+  /**
+   * Creates a mock request and sets it on the generator.
+   *
+   * This is used to manipulate how the generator generates paths during tests.
+   * It also ensures that calls to $this->drupalGet() will work when running
+   * from run-tests.sh because the url generator no longer looks at the global
+   * variables that are set there but relies on getting this information from a
+   * request object.
+   *
+   * @param bool $clean_urls
+   *   Whether to mock the request using clean urls.
+   *
+   * @param $override_server_vars
+   *   An array of server variables to override.
+   *
+   * @return $request
+   *   The mocked request object.
+   */
+  protected function prepareRequestForGenerator($clean_urls = TRUE, $override_server_vars = array()) {
+    $generator = $this->container->get('url_generator');
+    $request = Request::createFromGlobals();
+    $server = $request->server->all();
+    if (basename($server['SCRIPT_FILENAME']) != basename($server['SCRIPT_NAME'])) {
+      // We need this for when the test is executed by run-tests.sh.
+      // @todo Remove this once run-tests.sh has been converted to use a Request
+      //   object.
+      $cwd = getcwd();
+      $server['SCRIPT_FILENAME'] = $cwd . '/' . basename($server['SCRIPT_NAME']);
+      $base_path = rtrim($server['REQUEST_URI'], '/');
+    }
+    else {
+      $base_path = $request->getBasePath();
+    }
+    if ($clean_urls) {
+      $request_path = $base_path ? $base_path . '/user' : 'user';
+    }
+    else {
+      $request_path = $base_path ? $base_path . '/index.php/user' : '/index.php/user';
+    }
+    $server = array_merge($server, $override_server_vars);
+
+    $request = Request::create($request_path, 'GET', array(), array(), array(), $server);
+    $generator->setRequest($request);
+    return $request;
   }
 }

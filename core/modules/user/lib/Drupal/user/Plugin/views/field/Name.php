@@ -76,16 +76,20 @@ class Name extends User {
 
   function render_link($data, $values) {
     $account = entity_create('user', array());
-    $account->uid = $this->get_value($values, 'uid');
-    $account->name = $this->get_value($values);
+    $account->uid = $this->getValue($values, 'uid');
+    $account->name = $this->getValue($values);
     if (!empty($this->options['link_to_user']) || !empty($this->options['overwrite_anonymous'])) {
       if (!empty($this->options['overwrite_anonymous']) && !$account->uid) {
         // This is an anonymous user, and we're overriting the text.
         return check_plain($this->options['anonymous_text']);
       }
       elseif (!empty($this->options['link_to_user'])) {
-        $account->name = $this->get_value($values);
-        return theme('username', array('account' => $account));
+        $account->name = $this->getValue($values);
+        $username = array(
+          '#theme' => 'username',
+          '#account' => $account,
+        );
+        return drupal_render($username);
       }
     }
     // If we want a formatted username, do that.

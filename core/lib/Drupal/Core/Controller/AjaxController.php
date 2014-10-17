@@ -48,6 +48,9 @@ class AjaxController extends ContainerAware {
     // Remove the accept header so the subrequest does not end up back in this
     // controller.
     $request->headers->remove('accept');
+    // Remove the header in order to let the subrequest not think that it's an
+    // ajax request, see \Drupal\Core\ContentNegotiation.
+    $request->headers->remove('x-requested-with');
 
     $response = $this->container->get('http_kernel')->forward($controller, $attributes->all(), $request->query->all());
     // For successful (HTTP status 200) responses.
@@ -64,14 +67,13 @@ class AjaxController extends ContainerAware {
         // replace the element making the ajax call. The default 'replaceWith'
         // behavior can be changed with #ajax['method'].
         $response->addCommand(new InsertCommand(NULL, $html));
-        $status_messages = theme('status_messages');
-        if (!empty($status_messages)) {
-          $response->addCommand(new PrependCommand(NULL, $status_messages));
+        $status_messages = array('#theme' => 'status_messages');
+        $output = drupal_render($status_messages);
+        if (!empty($output)) {
+          $response->addCommand(new PrependCommand(NULL, $output));
         }
       }
     }
     return $response;
   }
 }
-
-

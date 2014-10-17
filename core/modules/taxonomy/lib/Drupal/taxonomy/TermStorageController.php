@@ -14,7 +14,7 @@ use Drupal\Core\Entity\DatabaseStorageControllerNG;
 /**
  * Defines a Controller class for taxonomy terms.
  */
-class TermStorageController extends DatabaseStorageControllerNG {
+class TermStorageController extends DatabaseStorageControllerNG implements TermStorageControllerInterface {
 
   /**
    * Overrides Drupal\Core\Entity\DatabaseStorageController::create().
@@ -44,61 +44,6 @@ class TermStorageController extends DatabaseStorageControllerNG {
   }
 
   /**
-   * Overrides Drupal\Core\Entity\DatabaseStorageController::postDelete().
-   */
-  protected function postDelete($entities) {
-    // See if any of the term's children are about to be become orphans.
-    $orphans = array();
-    foreach (array_keys($entities) as $tid) {
-      if ($children = taxonomy_term_load_children($tid)) {
-        foreach ($children as $child) {
-          // If the term has multiple parents, we don't delete it.
-          $parents = taxonomy_term_load_parents($child->id());
-          // Because the parent has already been deleted, the parent count might
-          // be 0.
-          if (count($parents) <= 1) {
-            $orphans[] = $child->id();
-          }
-        }
-      }
-    }
-
-    // Delete term hierarchy information after looking up orphans but before
-    // deleting them so that their children/parent information is consistent.
-    db_delete('taxonomy_term_hierarchy')
-      ->condition('tid', array_keys($entities))
-      ->execute();
-
-    if (!empty($orphans)) {
-      entity_delete_multiple('taxonomy_term', $orphans);
-    }
-  }
-
-  /**
-   * Overrides Drupal\Core\Entity\DatabaseStorageController::postSave().
-   */
-  protected function postSave(EntityInterface $entity, $update) {
-    // Only change the parents if a value is set, keep the existing values if
-    // not.
-    if (isset($entity->parent->value)) {
-      db_delete('taxonomy_term_hierarchy')
-        ->condition('tid', $entity->id())
-        ->execute();
-
-      $query = db_insert('taxonomy_term_hierarchy')
-        ->fields(array('tid', 'parent'));
-
-      foreach ($entity->parent as $parent) {
-        $query->values(array(
-          'tid' => $entity->id(),
-          'parent' => (int) $parent->value,
-        ));
-      }
-      $query->execute();
-    }
-  }
-
-  /**
    * Overrides Drupal\Core\Entity\DatabaseStorageController::resetCache().
    */
   public function resetCache(array $ids = NULL) {
@@ -125,7 +70,7 @@ class TermStorageController extends DatabaseStorageControllerNG {
     $properties['uuid'] = array(
       'label' => t('UUID'),
       'description' => t('The term UUID.'),
-      'type' => 'string_field',
+      'type' => 'uuid_field',
       'read-only' => TRUE,
     );
     $properties['vid'] = array(
@@ -158,13 +103,42 @@ class TermStorageController extends DatabaseStorageControllerNG {
       'label' => t('Weight'),
       'description' => t('The weight of this term in relation to other terms.'),
       'type' => 'integer_field',
+      'settings' => array('default_value' => 0),
     );
     $properties['parent'] = array(
       'label' => t('Term Parents'),
       'description' => t('The parents of this term.'),
       'type' => 'integer_field',
+      // Save new terms with no parents by default.
+      'settings' => array('default_value' => 0),
       'computed' => TRUE,
     );
     return $properties;
   }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function deleteTermHierarchy($tids) {
+    $this->database->delete('taxonomy_term_hierarchy')
+      ->condition('tid', $tids)
+      ->execute();
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function updateTermHierarchy(EntityInterface $term) {
+    $query = $this->database->insert('taxonomy_term_hierarchy')
+      ->fields(array('tid', 'parent'));
+
+    foreach ($term->parent as $parent) {
+      $query->values(array(
+        'tid' => $term->id(),
+        'parent' => (int) $parent->value,
+      ));
+    }
+    $query->execute();
+  }
+
 }

@@ -18,7 +18,7 @@ use Drupal\Core\Entity\EntityInterface;
  * This hook runs after a new user object has just been instantiated. It can be
  * used to set initial values, e.g. to provide defaults.
  *
- * @param \Drupal\user\Plugin\Core\Entity\User $user
+ * @param \Drupal\user\UserInterface $user
  *   The user object.
  */
 function hook_user_create(\Drupal\user\Plugin\Core\Entity\User $user) {
@@ -119,25 +119,25 @@ function hook_user_cancel($edit, $account, $method) {
     case 'user_cancel_block_unpublish':
       // Unpublish nodes (current revisions).
       module_load_include('inc', 'node', 'node.admin');
-      $nodes = db_select('node', 'n')
+      $nodes = db_select('node_field_data', 'n')
         ->fields('n', array('nid'))
         ->condition('uid', $account->uid)
         ->execute()
         ->fetchCol();
-      node_mass_update($nodes, array('status' => 0));
+      node_mass_update($nodes, array('status' => 0), NULL, TRUE);
       break;
 
     case 'user_cancel_reassign':
       // Anonymize nodes (current revisions).
       module_load_include('inc', 'node', 'node.admin');
-      $nodes = db_select('node', 'n')
+      $nodes = db_select('node_field_data', 'n')
         ->fields('n', array('nid'))
         ->condition('uid', $account->uid)
         ->execute()
         ->fetchCol();
-      node_mass_update($nodes, array('uid' => 0));
+      node_mass_update($nodes, array('uid' => 0), NULL, TRUE);
       // Anonymize old revisions.
-      db_update('node_revision')
+      db_update('node_field_revision')
         ->fields(array('uid' => 0))
         ->condition('uid', $account->uid)
         ->execute();
@@ -203,40 +203,6 @@ function hook_user_format_name_alter(&$name, $account) {
   if (isset($account->uid)) {
     $name = t('User !uid', array('!uid' => $account->uid));
   }
-}
-
-/**
- * Add mass user operations.
- *
- * This hook enables modules to inject custom operations into the mass operations
- * dropdown found at admin/people, by associating a callback function with
- * the operation, which is called when the form is submitted. The callback function
- * receives one initial argument, which is an array of the checked users.
- *
- * @return
- *   An array of operations. Each operation is an associative array that may
- *   contain the following key-value pairs:
- *   - "label": Required. The label for the operation, displayed in the dropdown menu.
- *   - "callback": Required. The function to call for the operation.
- *   - "callback arguments": Optional. An array of additional arguments to pass to
- *     the callback function.
- *
- */
-function hook_user_operations() {
-  $operations = array(
-    'unblock' => array(
-      'label' => t('Unblock the selected users'),
-      'callback' => 'user_user_operations_unblock',
-    ),
-    'block' => array(
-      'label' => t('Block the selected users'),
-      'callback' => 'user_user_operations_block',
-    ),
-    'cancel' => array(
-      'label' => t('Cancel the selected user accounts'),
-    ),
-  );
-  return $operations;
 }
 
 /**
@@ -346,7 +312,7 @@ function hook_user_logout($account) {
  * The module should format its custom additions for display and add them to the
  * $account->content array.
  *
- * @param \Drupal\user\Plugin\Core\Entity\User $account
+ * @param \Drupal\user\UserInterface $account
  *   The user object on which the operation is being performed.
  * @param \Drupal\entity\Plugin\Core\Entity\EntityDisplay $display
  *   The entity_display object holding the display options configured for the
@@ -359,7 +325,7 @@ function hook_user_logout($account) {
  * @see hook_user_view_alter()
  * @see hook_entity_view()
  */
-function hook_user_view(\Drupal\user\Plugin\Core\Entity\User $account, \Drupal\entity\Plugin\Core\Entity\EntityDisplay $display, $view_mode, $langcode) {
+function hook_user_view(\Drupal\user\UserInterface $account, \Drupal\entity\Plugin\Core\Entity\EntityDisplay $display, $view_mode, $langcode) {
   // Only do the extra work if the component is configured to be displayed.
   // This assumes a 'mymodule_addition' extra field has been defined for the
   // user entity type in hook_field_extra_fields().
@@ -386,7 +352,7 @@ function hook_user_view(\Drupal\user\Plugin\Core\Entity\User $account, \Drupal\e
  *
  * @param $build
  *   A renderable array representing the user.
- * @param \Drupal\user\Plugin\Core\Entity\User $account
+ * @param \Drupal\user\UserInterface $account
  *   The user account being rendered.
  * @param \Drupal\entity\Plugin\Core\Entity\EntityDisplay $display
  *   The entity_display object holding the display options configured for the
@@ -395,7 +361,7 @@ function hook_user_view(\Drupal\user\Plugin\Core\Entity\User $account, \Drupal\e
  * @see user_view()
  * @see hook_entity_view_alter()
  */
-function hook_user_view_alter(&$build, \Drupal\user\Plugin\Core\Entity\User $account, \Drupal\entity\Plugin\Core\Entity\EntityDisplay $display) {
+function hook_user_view_alter(&$build, \Drupal\user\UserInterface $account, \Drupal\entity\Plugin\Core\Entity\EntityDisplay $display) {
   // Check for the existence of a field added by another module.
   if (isset($build['an_additional_field'])) {
     // Change its weight.

@@ -12,6 +12,7 @@ use Drupal\Core\Entity\Annotation\EntityType;
 use Drupal\Core\Annotation\Translation;
 use Drupal\block\BlockPluginBag;
 use Drupal\block\BlockInterface;
+use Drupal\Core\Entity\EntityStorageControllerInterface;
 
 /**
  * Defines a Block configuration entity class.
@@ -26,7 +27,8 @@ use Drupal\block\BlockInterface;
  *     "render" = "Drupal\block\BlockRenderController",
  *     "list" = "Drupal\block\BlockListController",
  *     "form" = {
- *       "default" = "Drupal\block\BlockFormController"
+ *       "default" = "Drupal\block\BlockFormController",
+ *       "delete" = "Drupal\block\Form\BlockDeleteForm"
  *     }
  *   },
  *   config_prefix = "block.block",
@@ -161,6 +163,13 @@ class Block extends ConfigEntityBase implements BlockInterface {
       $properties[$name] = $this->get($name);
     }
     return $properties;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function preSave(EntityStorageControllerInterface $storage_controller) {
+    $this->set('settings', $this->getPlugin()->getConfig());
   }
 
 }

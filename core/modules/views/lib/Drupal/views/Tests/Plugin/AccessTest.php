@@ -7,6 +7,8 @@
 
 namespace Drupal\views\Tests\Plugin;
 
+use Drupal\views\Tests\ViewTestData;
+
 /**
  * Basic test for pluggable access.
  *
@@ -35,13 +37,17 @@ class AccessTest extends PluginTestBase {
 
     $this->enableViewsTestModule();
 
+    ViewTestData::importTestViews(get_class($this), array('views_test_data'));
+
     $this->admin_user = $this->drupalCreateUser(array('access all views'));
     $this->web_user = $this->drupalCreateUser();
-    $this->web_role = current($this->web_user->roles);
+    $this->web_role = $this->web_user->roles[0];
 
     $this->normal_role = $this->drupalCreateRole(array());
     $this->normal_user = $this->drupalCreateUser(array('views_test_data test permission'));
-    $this->normal_user->roles[$this->normal_role] = $this->normal_role;
+
+    // @todo: How to add a new item to the roles field list.
+    $this->normal_user->getNGEntity()->roles[2]->value = $this->normal_role;
     // @todo when all the plugin information is cached make a reset function and
     // call it here.
   }
@@ -74,57 +80,19 @@ class AccessTest extends PluginTestBase {
     $access_plugin = $view->display_handler->getPlugin('access');
 
     $this->assertFalse($access_plugin->access($this->normal_user));
+    $this->drupalGet('test_access_static');
+    $this->assertResponse(403);
 
+    $display = &$view->storage->getDisplay('default');
+    $display['display_options']['access']['options']['access'] = TRUE;
     $access_plugin->options['access'] = TRUE;
+    $view->save();
+    $this->container->get('router.builder')->rebuild();
+
     $this->assertTrue($access_plugin->access($this->normal_user));
 
-    // FALSE comes from hook_menu caching.
-    $expected_hook_menu = array(
-      'views_test_data_test_static_access_callback', array(FALSE)
-    );
-    $hook_menu = $view->executeHookMenu('page_1');
-    $this->assertEqual($expected_hook_menu, $hook_menu['test_access_static']['access arguments'][0]);
-
-    $expected_hook_menu = array(
-      'views_test_data_test_static_access_callback', array(TRUE)
-    );
-    $this->assertTrue(views_access($expected_hook_menu));
-  }
-
-  /**
-   * Tests dynamic access plugin.
-   *
-   * @see Drupal\views_test\Plugin\views\access\DyamicTest
-   */
-  function testDynamicAccessPlugin() {
-    $view = views_get_view('test_access_dynamic');
-    $view->setDisplay();
-    $argument1 = $this->randomName();
-    $argument2 = $this->randomName();
-    state()->set('test_dynamic_access_argument1', $argument1);
-    state()->set('test_dynamic_access_argument2', $argument2);
-
-    $access_plugin = $view->display_handler->getPlugin('access');
-
-    $this->assertFalse($access_plugin->access($this->normal_user));
-
-    $access_plugin->options['access'] = TRUE;
-    $this->assertFalse($access_plugin->access($this->normal_user));
-
-    $view->setArguments(array($argument1, $argument2));
-    $this->assertTrue($access_plugin->access($this->normal_user));
-
-    // FALSE comes from hook_menu caching.
-    $expected_hook_menu = array(
-      'views_test_data_test_dynamic_access_callback', array(FALSE, 1, 2)
-    );
-    $hook_menu = $view->executeHookMenu('page_1');
-    $this->assertEqual($expected_hook_menu, $hook_menu['test_access_dynamic']['access arguments'][0]);
-
-    $expected_hook_menu = array(
-      'views_test_data_test_dynamic_access_callback', array(TRUE, 1, 2)
-    );
-    $this->assertTrue(views_access($expected_hook_menu, $argument1, $argument2));
+    $this->drupalGet('test_access_static');
+    $this->assertResponse(200);
   }
 
 }

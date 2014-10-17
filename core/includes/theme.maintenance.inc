@@ -68,7 +68,7 @@ function _drupal_maintenance_theme() {
   // Ensure that system.module is loaded.
   if (!function_exists('_system_rebuild_theme_data')) {
     $module_list['system'] = 'core/modules/system/system.module';
-    $module_handler = drupal_container()->get('module_handler');
+    $module_handler = Drupal::moduleHandler();
     $module_handler->setModuleList($module_list);
     $module_handler->load('system');
   }
@@ -95,10 +95,10 @@ function _drupal_maintenance_theme() {
   // These are usually added from system_init() -except maintenance.css.
   // When the database is inactive it's not called so we add it here.
   $path = drupal_get_path('module', 'system');
-  drupal_add_css($path . '/system.base.css');
-  drupal_add_css($path . '/system.admin.css');
-  drupal_add_css($path . '/system.theme.css');
-  drupal_add_css($path . '/system.maintenance.css');
+  drupal_add_css($path . '/css/system.module.css');
+  drupal_add_css($path . '/css/system.theme.css');
+  drupal_add_css($path . '/css/system.admin.css');
+  drupal_add_css($path . '/css/system.maintenance.css');
 }
 
 /**
@@ -119,28 +119,27 @@ function _theme_load_offline_registry($theme, $base_theme = NULL, $theme_engine 
  * @ingroup themeable
  */
 function theme_task_list($variables) {
-  $t = get_t();
   $items = $variables['items'];
   $active = $variables['active'];
 
   $done = isset($items[$active]) || $active == NULL;
-  $output = '<h2 class="element-invisible">Installation tasks</h2>';
+  $output = '<h2 class="visually-hidden">Installation tasks</h2>';
   $output .= '<ol class="task-list">';
 
   foreach ($items as $k => $item) {
     if ($active == $k) {
       $class = 'active';
-      $status = '(' . $t('active') . ')';
+      $status = '(' . t('active') . ')';
       $done = FALSE;
     }
     else {
       $class = $done ? 'done' : '';
-      $status = $done ? '(' . $t('done') . ')' : '';
+      $status = $done ? '(' . t('done') . ')' : '';
     }
     $output .= '<li';
     $output .= ($class ? ' class="' . $class . '"' : '') . '>';
     $output .= $item;
-    $output .= ($status ? '<span class="element-invisible">' . $status . '</span>' : '');
+    $output .= ($status ? '<span class="visually-hidden"> ' . $status . '</span>' : '');
     $output .= '</li>';
   }
   $output .= '</ol>';

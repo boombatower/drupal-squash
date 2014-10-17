@@ -82,7 +82,7 @@ class Numeric extends ArgumentPluginBase {
       return !empty($this->definition['invalid input']) ? $this->definition['invalid input'] : t('Invalid input');
     }
 
-    return implode($this->operator == 'or' ? ' + ' : ', ', $this->title_query());
+    return implode($this->operator == 'or' ? ' + ' : ', ', $this->titleQuery());
   }
 
   /**
@@ -90,7 +90,7 @@ class Numeric extends ArgumentPluginBase {
    * @return array
    *    Returns all titles, if it's just one title it's an array with one entry.
    */
-  function title_query() {
+  public function titleQuery() {
     return $this->value;
   }
 
@@ -109,15 +109,18 @@ class Numeric extends ArgumentPluginBase {
 
     if (count($this->value) > 1) {
       $operator = empty($this->options['not']) ? 'IN' : 'NOT IN';
-      $this->query->add_where_expression(0, "$this->tableAlias.$this->realField $operator($placeholder) $null_check", array($placeholder => $this->value));
+      $this->query->addWhereExpression(0, "$this->tableAlias.$this->realField $operator($placeholder) $null_check", array($placeholder => $this->value));
     }
     else {
       $operator = empty($this->options['not']) ? '=' : '!=';
-      $this->query->add_where_expression(0, "$this->tableAlias.$this->realField $operator $placeholder $null_check", array($placeholder => $this->argument));
+      $this->query->addWhereExpression(0, "$this->tableAlias.$this->realField $operator $placeholder $null_check", array($placeholder => $this->argument));
     }
   }
 
-  function get_sort_name() {
+  /**
+   * {@inheritdoc}
+   */
+  public function getSortName() {
     return t('Numerical', array(), array('context' => 'Sort order'));
   }
 

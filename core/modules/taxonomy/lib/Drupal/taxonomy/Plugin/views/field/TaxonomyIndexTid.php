@@ -28,8 +28,8 @@ class TaxonomyIndexTid extends PrerenderList {
     parent::init($view, $display, $options);
 
     // @todo: Wouldn't it be possible to use $this->base_table and no if here?
-    if ($view->storage->get('base_table') == 'node_revision') {
-      $this->additional_fields['nid'] = array('table' => 'node_revision', 'field' => 'nid');
+    if ($view->storage->get('base_table') == 'node_field_revision') {
+      $this->additional_fields['nid'] = array('table' => 'node_field_revision', 'field' => 'nid');
     }
     else {
       $this->additional_fields['nid'] = array('table' => 'node', 'field' => 'nid');
@@ -88,10 +88,10 @@ class TaxonomyIndexTid extends PrerenderList {
    * Add this term to the query
    */
   public function query() {
-    $this->add_additional_fields();
+    $this->addAdditionalFields();
   }
 
-  function pre_render(&$values) {
+  public function preRender(&$values) {
     $vocabularies = entity_load_multiple('taxonomy_vocabulary');
     $this->field_alias = $this->aliases['nid'];
     $nids = array();
@@ -134,14 +134,14 @@ class TaxonomyIndexTid extends PrerenderList {
     return $item['name'];
   }
 
-  function document_self_tokens(&$tokens) {
+  protected function documentSelfTokens(&$tokens) {
     $tokens['[' . $this->options['id'] . '-tid' . ']'] = t('The taxonomy term ID for the term.');
     $tokens['[' . $this->options['id'] . '-name' . ']'] = t('The taxonomy term name for the term.');
     $tokens['[' . $this->options['id'] . '-vocabulary-vid' . ']'] = t('The machine name for the vocabulary the term belongs to.');
     $tokens['[' . $this->options['id'] . '-vocabulary' . ']'] = t('The name for the vocabulary the term belongs to.');
   }
 
-  function add_self_tokens(&$tokens, $item) {
+  protected function addSelfTokens(&$tokens, $item) {
     foreach (array('tid', 'name', 'vocabulary_vid', 'vocabulary') as $token) {
       // Replace _ with - for the vocabulary vid.
       $tokens['[' . $this->options['id'] . '-' . str_replace('_', '-', $token) . ']'] = isset($item[$token]) ? $item[$token] : '';

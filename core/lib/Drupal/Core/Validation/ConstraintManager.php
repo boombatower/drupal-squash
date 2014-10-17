@@ -7,14 +7,11 @@
 
 namespace Drupal\Core\Validation;
 
-use Drupal\Component\Plugin\Factory\DefaultFactory;
-use Drupal\Component\Plugin\PluginManagerBase;
 use Drupal\Component\Plugin\Discovery\StaticDiscoveryDecorator;
-use Drupal\Component\Plugin\Discovery\DerivativeDiscoveryDecorator;
-use Drupal\Component\Plugin\Discovery\ProcessDecorator;
-use Drupal\Core\Plugin\Discovery\AlterDecorator;
-use Drupal\Core\Plugin\Discovery\AnnotatedClassDiscovery;
-use Drupal\Core\Plugin\Discovery\CacheDecorator;
+use Drupal\Core\Cache\CacheBackendInterface;
+use Drupal\Core\Extension\ModuleHandlerInterface;
+use Drupal\Core\Language\LanguageManager;
+use Drupal\Core\Plugin\DefaultPluginManager;
 
 /**
  * Constraint plugin manager.
@@ -34,24 +31,48 @@ use Drupal\Core\Plugin\Discovery\CacheDecorator;
  * types FALSE may be specified. The key defaults to an empty array, i.e. no
  * types are supported.
  */
-class ConstraintManager extends PluginManagerBase {
+class ConstraintManager extends DefaultPluginManager {
 
   /**
    * Overrides \Drupal\Component\Plugin\PluginManagerBase::__construct().
    *
    * @param \Traversable $namespaces
    *   An object that implements \Traversable which contains the root paths
-   *   keyed by the corresponding namespace to look for plugin implementations,
+   *   keyed by the corresponding namespace to look for plugin implementations.
+   * @param \Drupal\Core\Cache\CacheBackendInterface $cache_backend
+   *   Cache backend instance to use.
+   * @param \Drupal\Core\Language\LanguageManager $language_manager
+   *   The language manager.
+   * @param \Drupal\Core\Extension\ModuleHandlerInterface $module_handler
+   *   The module handler to invoke the alter hook with.
    */
-  public function __construct(\Traversable $namespaces) {
-    $this->discovery = new AnnotatedClassDiscovery('Validation/Constraint', $namespaces);
+  public function __construct(\Traversable $namespaces, CacheBackendInterface $cache_backend, LanguageManager $language_manager, ModuleHandlerInterface $module_handler) {
+    parent::__construct('Validation/Constraint', $namespaces);
     $this->discovery = new StaticDiscoveryDecorator($this->discovery, array($this, 'registerDefinitions'));
-    $this->discovery = new DerivativeDiscoveryDecorator($this->discovery);
-    $this->discovery = new ProcessDecorator($this->discovery, array($this, 'processDefinition'));
-    $this->discovery = new AlterDecorator($this->discovery, 'validation_constraint');
-    $this->discovery = new CacheDecorator($this->discovery, 'validation_constraints:' . language(LANGUAGE_TYPE_INTERFACE)->langcode);
+    $this->alterInfo($module_handler, 'validation_constraint');
+    $this->setCacheBackend($cache_backend, $language_manager, 'validation_constraint');
+  }
 
-    $this->factory = new DefaultFactory($this);
+  /**
+   * Creates a validation constraint.
+   *
+   * @param string $name
+   *   The name or plugin id of the constraint.
+   * @param mixed $options
+   *   The options to pass to the constraint class. Required and supported
+   *   options depend on the constraint class.
+   *
+   * @return \Symfony\Component\Validator\Constraint
+   *   A validation constraint plugin.
+   */
+  public function create($name, $options) {
+    if (!is_array($options)) {
+      // Plugins need an array as configuration, so make sure we have one.
+      // The constraint classes support passing the options as part of the
+      // 'value' key also.
+      $options = array('value' => $options);
+    }
+    return $this->createInstance($name, $options);
   }
 
   /**

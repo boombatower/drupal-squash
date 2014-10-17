@@ -9,22 +9,6 @@ use Drupal\aggregator\Plugin\Core\Entity\Feed;
 use Drupal\Core\Entity\EntityInterface;
 
 /**
- * Page callback: Displays the most recent items gathered from any feed.
- *
- * @return string
- *   The rendered list of items for the feed.
- *
- * @see aggregator_menu()
- */
-function aggregator_page_last() {
-  drupal_add_feed('aggregator/rss', config('system.site')->get('name') . ' ' . t('aggregator'));
-
-  $items = aggregator_load_feed_items('sum');
-
-  return _aggregator_page_list($items, arg(1));
-}
-
-/**
  * Page callback: Displays all the items captured from the particular feed.
  *
  * @param \Drupal\aggregator\Plugin\Core\Entity\Feed $feed
@@ -297,9 +281,14 @@ function theme_aggregator_summary_item($variables) {
 }
 
 /**
- * Processes variables for aggregator-item.tpl.php.
+ * Prepares variables for aggregator item templates.
  *
- * @see aggregator-item.tpl.php
+ * Default template: aggregator-item.html.twig.
+ *
+ * @param array $variables
+ *   An associative array containing:
+ *   - aggregator_item: An individual feed item for display on the aggregator
+ *     page.
  */
 function template_preprocess_aggregator_item(&$variables) {
   $item = $variables['aggregator_item'];
@@ -325,46 +314,8 @@ function template_preprocess_aggregator_item(&$variables) {
   foreach ($item->categories as $category) {
     $variables['categories'][$category->cid] = l($category->title, 'aggregator/categories/' . $category->cid);
   }
-}
 
-/**
- * Page callback: Displays all the feeds used by the Aggregator module.
- *
- * @return string
- *   An HTML-formatted string.
- *
- * @see aggregator_menu()
- */
-function aggregator_page_sources() {
-  $feeds = entity_load_multiple('aggregator_feed');
-
-  $build = array(
-    '#type' => 'container',
-    '#attributes' => array('class' => array('aggregator-wrapper')),
-    '#sorted' => TRUE,
-  );
-  foreach ($feeds as $feed) {
-    // Most recent items:
-    $summary_items = array();
-    $aggregator_summary_items = config('aggregator.settings')->get('source.list_max');
-    if ($aggregator_summary_items) {
-      if ($items = aggregator_load_feed_items('source', $feed, $aggregator_summary_items)) {
-        $summary_items = entity_view_multiple($items, 'summary');
-      }
-    }
-    $feed->url = url('aggregator/sources/' . $feed->id());
-    $build[$feed->id()] = array(
-      '#theme' => 'aggregator_summary_items',
-      '#summary_items' => $summary_items,
-      '#source' => $feed,
-    );
-  }
-  $build['feed_icon'] = array(
-    '#theme' => 'feed_icon',
-    '#url' => 'aggregator/opml',
-    '#title' => t('OPML feed'),
-  );
-  return $build;
+  $variables['attributes']['class'][] = 'feed-item';
 }
 
 /**
@@ -425,7 +376,12 @@ function aggregator_page_rss() {
   }
 
   $feeds = $result->fetchAll();
-  return theme('aggregator_page_rss', array('feeds' => $feeds, 'category' => $category));
+  $aggregator_page_rss = array(
+    '#theme' => 'aggregator_page_rss',
+    '#feeds' => $feeds,
+    '#category' => $category,
+  );
+  return drupal_render($aggregator_page_rss);
 }
 
 /**
@@ -497,7 +453,11 @@ function aggregator_page_opml($cid = NULL) {
   }
 
   $feeds = $result->fetchAll();
-  return theme('aggregator_page_opml', array('feeds' => $feeds));
+  $aggregator_page_opml = array(
+    '#theme' => 'aggregator_page_opml',
+    '#feeds' => $feeds,
+  );
+  return drupal_render($aggregator_page_opml);
 }
 
 /**
@@ -531,9 +491,15 @@ function theme_aggregator_page_opml($variables) {
 }
 
 /**
- * Processes variables for aggregator-summary-items.tpl.php.
+ * Prepares variables for aggregator summary templates.
  *
- * @see aggregator-summary-items.tpl.php
+ * Default template: aggregator-summary-items.html.twig.
+ *
+ * @param array $variables
+ *   An associative array containing:
+ *   - source: A Drupal\aggregator\Plugin\Core\Entity\Feed instance representing
+ *     the feed source.
+ *   - summary_items: An array of feed items.
  */
 function template_preprocess_aggregator_summary_items(&$variables) {
   $variables['title'] = check_plain($variables['source'] instanceof EntityInterface ? $variables['source']->label() : $variables['source']->title);
@@ -549,9 +515,14 @@ function template_preprocess_aggregator_summary_items(&$variables) {
 }
 
 /**
- * Processes variables for aggregator-summary-item.tpl.php.
+ * Processes variables for aggregator summary item templates.
  *
- * @see aggregator-summary-item.tpl.php
+ * Default template: aggregator-summary-item.html.twig.
+ *
+ * @param array $variables
+ *   An associative array containing:
+ *   - aggregator_item: The feed item.
+ *   - view_mode: How the item is being displayed.
  */
 function template_preprocess_aggregator_summary_item(&$variables) {
   $item = $variables['aggregator_item'];
@@ -561,28 +532,45 @@ function template_preprocess_aggregator_summary_item(&$variables) {
       'class' => array('feed-item-url',),
     ),
   ));
-  $variables['item_age'] = theme('datetime', array(
-    'attributes' => array(
+  $datetime = array(
+    '#theme' => 'datetime',
+    '#attributes' => array(
       'datetime' => format_date($item->timestamp->value, 'html_datetime', '', 'UTC'),
       'class' => array('feed-item-age',),
     ),
-    'text' => t('%age old', array('%age' => format_interval(REQUEST_TIME - $item->timestamp->value))),
-    'html' => TRUE,
-  ));
+    '#text' => t('%age old', array('%age' => format_interval(REQUEST_TIME - $item->timestamp->value))),
+    '#html' => TRUE,
+  );
+  $variables['item_age'] = drupal_render($datetime);
 }
 
 /**
- * Processes variables for aggregator-feed-source.tpl.php.
+ * Prepares variables for aggregator feed source templates.
  *
- * @see aggregator-feed-source.tpl.php
+ * Default template: aggregator-feed-source.html.twig.
+ *
+ * @param array $variables
+ *   An associative array containing:
+ *   - aggregator_feed: A Drupal\aggregator\Plugin\Core\Entity\Feed instance
+ *     representing the feed source.
  */
 function template_preprocess_aggregator_feed_source(&$variables) {
   $feed = $variables['aggregator_feed'];
 
-  $variables['source_icon'] = theme('feed_icon', array('url' => $feed->url->value, 'title' => t('!title feed', array('!title' => $feed->label()))));
+  $feed_icon = array(
+    '#theme' => 'feed_icon',
+    '#url' => $feed->url->value,
+    '#title' => t('!title feed', array('!title' => $feed->label())),
+  );
+  $variables['source_icon'] = drupal_render($feed_icon);
 
   if (!empty($feed->image->value) && $feed->label() && !empty($feed->link->value)) {
-    $variables['source_image'] = l(theme('image', array('path' => $feed->image->value, 'alt' => $feed->title->value)), $feed->link->value, array('html' => TRUE, 'attributes' => array('class' => 'feed-image')));
+    $image = array(
+      '#theme' => 'image',
+      '#path' => $feed->image->value,
+      '#alt' => $feed->title->value,
+    );
+    $variables['source_image'] = l($image, $feed->link->value, array('html' => TRUE, 'attributes' => array('class' => 'feed-image')));
   }
   else {
     $variables['source_image'] = '';
@@ -600,4 +588,6 @@ function template_preprocess_aggregator_feed_source(&$variables) {
   if (user_access('administer news feeds')) {
     $variables['last_checked'] = l($variables['last_checked'], 'admin/config/services/aggregator');
   }
+
+  $variables['attributes']['class'][] = 'feed-source';
 }

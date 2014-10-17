@@ -32,7 +32,7 @@ class Rss extends StylePluginBase {
    */
   protected $usesRowPlugin = TRUE;
 
-  function attach_to($display_id, $path, $title) {
+  public function attachTo($display_id, $path, $title) {
     $display = $this->view->displayHandlers->get($display_id);
     $url_options = array();
     $input = $this->view->getExposedInput();
@@ -51,8 +51,12 @@ class Rss extends StylePluginBase {
       if (empty($this->view->feed_icon)) {
         $this->view->feed_icon = '';
       }
-
-      $this->view->feed_icon .= theme('feed_icon', array('url' => $url, 'title' => $title));
+      $feed_icon = array(
+        '#theme' => 'feed_icon',
+        '#url' => $url,
+        '#title' => $title,
+      );
+      $this->view->feed_icon .= drupal_render($feed_icon);
       drupal_add_html_head_link(array(
         'rel' => 'alternate',
         'type' => 'application/rss+xml',
@@ -88,7 +92,7 @@ class Rss extends StylePluginBase {
    * @return
    *   An array that can be passed to format_xml_elements().
    */
-  function get_channel_elements() {
+  protected function getChannelElements() {
     return array();
   }
 
@@ -98,11 +102,11 @@ class Rss extends StylePluginBase {
    * @return string
    *   The string containing the description with the tokens replaced.
    */
-  function get_description() {
+  public function getDescription() {
     $description = $this->options['description'];
 
     // Allow substitutions from the first row.
-    $description = $this->tokenize_value($description, 0);
+    $description = $this->tokenizeValue($description, 0);
 
     return $description;
   }
@@ -120,7 +124,7 @@ class Rss extends StylePluginBase {
 
     // Fetch any additional elements for the channel and merge in their
     // namespaces.
-    $this->channel_elements = $this->get_channel_elements();
+    $this->channel_elements = $this->getChannelElements();
     foreach ($this->channel_elements as $element) {
       if (isset($element['namespace'])) {
         $this->namespaces = array_merge($this->namespaces, $element['namespace']);

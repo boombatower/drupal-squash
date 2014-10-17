@@ -96,7 +96,7 @@ class ConfigItem extends ViewsFormBase {
           if ($type == 'relationship' && $id == $relationship['id']) {
             break;
           }
-          $relationship_handler = views_get_handler($relationship, 'relationship');
+          $relationship_handler = Views::handlerManager('relationship')->getHandler($relationship);
           // ignore invalid/broken relationships.
           if (empty($relationship_handler)) {
             continue;
@@ -105,7 +105,7 @@ class ConfigItem extends ViewsFormBase {
           // If this relationship is valid for this type, add it to the list.
           $data = Views::viewsData()->get($relationship['table']);
           $base = $data[$relationship['field']]['relationship']['base'];
-          $base_fields = views_fetch_fields($base, $form_state['type'], $executable->display_handler->useGroupBy());
+          $base_fields = Views::viewsDataHelper()->fetchFields($base, $form_state['type'], $executable->display_handler->useGroupBy());
           if (isset($base_fields[$item['table'] . '.' . $item['field']])) {
             $relationship_handler->init($executable, $executable->display_handler, $relationship);
             $relationship_options[$relationship['id']] = $relationship_handler->adminLabel();
@@ -115,7 +115,7 @@ class ConfigItem extends ViewsFormBase {
         if (!empty($relationship_options)) {
           // Make sure the existing relationship is even valid. If not, force
           // it to none.
-          $base_fields = views_fetch_fields($view->get('base_table'), $form_state['type'], $executable->display_handler->useGroupBy());
+          $base_fields = Views::viewsDataHelper()->fetchFields($view->get('base_table'), $form_state['type'], $executable->display_handler->useGroupBy());
           if (isset($base_fields[$item['table'] . '.' . $item['field']])) {
             $relationship_options = array_merge(array('none' => t('Do not use a relationship')), $relationship_options);
           }
@@ -217,7 +217,7 @@ class ConfigItem extends ViewsFormBase {
       if (empty($executable->query)) {
         $executable->initQuery();
       }
-      $aggregate = $executable->query->get_aggregation_info();
+      $aggregate = $executable->query->getAggregationInfo();
       if (!empty($aggregate[$item['group_type']]['handler'][$type])) {
         $override = $aggregate[$item['group_type']]['handler'][$type];
       }
@@ -225,7 +225,7 @@ class ConfigItem extends ViewsFormBase {
 
     // Create a new handler and unpack the options from the form onto it. We
     // can use that for storage.
-    $handler = views_get_handler($item, $handler_type, $override);
+    $handler = Views::handlerManager($handler_type)->getHandler($item, $override);
     $handler->init($executable, $executable->display_handler, $item);
 
     // Add the incoming options to existing options because items using

@@ -72,7 +72,7 @@ class NodeTermData extends RelationshipPluginBase  {
     $def['table'] = 'taxonomy_term_data';
 
     if (!array_filter($this->options['vids'])) {
-      $taxonomy_index = $this->query->add_table('taxonomy_index', $this->relationship);
+      $taxonomy_index = $this->query->addTable('taxonomy_index', $this->relationship);
       $def['left_table'] = $taxonomy_index;
       $def['left_field'] = 'tid';
       $def['field'] = 'tid';
@@ -95,12 +95,12 @@ class NodeTermData extends RelationshipPluginBase  {
       $def['table formula'] = $query;
     }
 
-    $join = drupal_container()->get('plugin.manager.views.join')->createInstance('standard', $def);
+    $join = \Drupal::service('plugin.manager.views.join')->createInstance('standard', $def);
 
     // use a short alias for this:
     $alias = $def['table'] . '_' . $this->table;
 
-    $this->alias = $this->query->add_relationship($alias, $join, 'taxonomy_term_data', $this->relationship);
+    $this->alias = $this->query->addRelationship($alias, $join, 'taxonomy_term_data', $this->relationship);
   }
 
 }

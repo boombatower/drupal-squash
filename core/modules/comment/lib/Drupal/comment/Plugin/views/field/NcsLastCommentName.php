@@ -40,13 +40,12 @@ class NcsLastCommentName extends FieldPluginBase {
     $join = drupal_container()->get('plugin.manager.views.join')->createInstance('standard', $definition);
 
     // ncs_user alias so this can work with the sort handler, below.
-//    $this->user_table = $this->query->add_relationship(NULL, $join, 'users', $this->relationship);
-    $this->user_table = $this->query->ensure_table('ncs_users', $this->relationship, $join);
+    $this->user_table = $this->query->ensureTable('ncs_users', $this->relationship, $join);
 
-    $this->field_alias = $this->query->add_field(NULL, "COALESCE($this->user_table.name, $this->tableAlias.$this->field)", $this->tableAlias . '_' . $this->field);
+    $this->field_alias = $this->query->addField(NULL, "COALESCE($this->user_table.name, $this->tableAlias.$this->field)", $this->tableAlias . '_' . $this->field);
 
-    $this->user_field = $this->query->add_field($this->user_table, 'name');
-    $this->uid = $this->query->add_field($this->tableAlias, 'last_comment_uid');
+    $this->user_field = $this->query->addField($this->user_table, 'name');
+    $this->uid = $this->query->addField($this->tableAlias, 'last_comment_uid');
   }
 
   protected function defineOptions() {
@@ -60,14 +59,14 @@ class NcsLastCommentName extends FieldPluginBase {
   function render($values) {
     if (!empty($this->options['link_to_user'])) {
       $account = entity_create('user', array());
-      $account->name = $this->get_value($values);
+      $account->name = $this->getValue($values);
       $account->uid = $values->{$this->uid};
       return theme('username', array(
         'account' => $account
       ));
     }
     else {
-      return $this->sanitizeValue($this->get_value($values));
+      return $this->sanitizeValue($this->getValue($values));
     }
   }
 

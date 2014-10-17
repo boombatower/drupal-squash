@@ -2,7 +2,7 @@
 
 /**
  * @file
- * Definition of Drupal\comment\Plugin\views\field\LinkReply.
+ * Contains \Drupal\comment\Plugin\views\field\LinkReply.
  */
 
 namespace Drupal\comment\Plugin\views\field;
@@ -10,7 +10,7 @@ namespace Drupal\comment\Plugin\views\field;
 use Drupal\Component\Annotation\PluginID;
 
 /**
- * Field handler to present a link to delete a node.
+ * Field handler to present a link to reply to a comment.
  *
  * @ingroup views_field_handlers
  *
@@ -25,8 +25,8 @@ class LinkReply extends Link {
 
   function render_link($data, $values) {
     $text = !empty($this->options['text']) ? $this->options['text'] : t('reply');
-    $nid =  $this->get_value($values, 'nid');
-    $cid =  $this->get_value($values, 'cid');
+    $nid =  $this->getValue($values, 'nid');
+    $cid =  $this->getValue($values, 'cid');
 
     $this->options['alter']['make_link'] = TRUE;
     $this->options['alter']['path'] = "comment/reply/" . $nid . '/' . $cid;

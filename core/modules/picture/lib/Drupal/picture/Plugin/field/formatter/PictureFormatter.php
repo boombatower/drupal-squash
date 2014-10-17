@@ -7,7 +7,7 @@
 
 namespace Drupal\picture\Plugin\field\formatter;
 
-use Drupal\Component\Annotation\Plugin;
+use Drupal\field\Annotation\FieldFormatter;
 use Drupal\Core\Annotation\Translation;
 use Drupal\field\Plugin\Type\Formatter\FormatterBase;
 use Drupal\Core\Entity\EntityInterface;
@@ -15,7 +15,7 @@ use Drupal\Core\Entity\EntityInterface;
 /**
  * Plugin for picture formatter.
  *
- * @Plugin(
+ * @FieldFormatter(
  *   id = "picture",
  *   module = "picture",
  *   label = @Translation("Picture"),
@@ -167,7 +167,7 @@ class PictureFormatter extends FormatterBase {
     foreach ($items as $delta => $item) {
       if (isset($link_file)) {
         $uri = array(
-          'path' => file_create_url($item['uri']),
+          'path' => file_create_url($item['entity']->getFileUri()),
           'options' => array(),
         );
       }

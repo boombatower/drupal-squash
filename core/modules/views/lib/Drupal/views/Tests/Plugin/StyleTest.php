@@ -9,6 +9,7 @@ namespace Drupal\views\Tests\Plugin;
 
 use Drupal\views\Tests\ViewTestBase;
 use Drupal\views_test_data\Plugin\views\row\RowTest;
+use Drupal\views\Plugin\views\row\Fields;
 use Drupal\views_test_data\Plugin\views\style\StyleTest as StyleTestPlugin;
 
 /**
@@ -50,23 +51,6 @@ class StyleTest extends ViewTestBase {
    * Tests the general renderering of styles.
    */
   public function testStyle() {
-    $view = views_get_view('test_view');
-    $view->setDisplay();
-    $style = $view->display_handler->getOption('style');
-    $style['type'] = 'test_style';
-    $view->display_handler->setOption('style', $style);
-    $view->initDisplay();
-    $view->initStyle();
-    $this->assertTrue($view->style_plugin instanceof StyleTestPlugin, 'Make sure the right style plugin class is loaded.');
-
-    $random_text = $this->randomName();
-    // Set some custom text to the output and make sure that this value is
-    // rendered.
-    $view->style_plugin->setOutput($random_text);
-    $output = $view->preview();
-    $output = drupal_render($output);
-    $this->assertTrue(strpos($output, $random_text) !== FALSE, 'Take sure that the rendering of the style plugin appears in the output of the view.');
-
     // This run use the test row plugin and render with it.
     $view = views_get_view('test_view');
     $view->setDisplay();
@@ -78,7 +62,6 @@ class StyleTest extends ViewTestBase {
     $view->display_handler->setOption('row', $row);
     $view->initDisplay();
     $view->initStyle();
-    $view->style_plugin->setUsesRowPlugin(TRUE);
     // Reinitialize the style as it supports row plugins now.
     $view->style_plugin->init($view, $view->display_handler);
     $this->assertTrue($view->rowPlugin instanceof RowTest, 'Make sure the right row plugin class is loaded.');
@@ -88,7 +71,27 @@ class StyleTest extends ViewTestBase {
 
     $output = $view->preview();
     $output = drupal_render($output);
-    $this->assertTrue(strpos($output, $random_text) !== FALSE, 'Take sure that the rendering of the row plugin appears in the output of the view.');
+    $this->assertTrue(strpos($output, $random_text) !== FALSE, 'Make sure that the rendering of the row plugin appears in the output of the view.');
+
+    // Test without row plugin support.
+    $view = views_get_view('test_view');
+    $view->setDisplay();
+    $style = $view->display_handler->getOption('style');
+    $style['type'] = 'test_style';
+    $view->display_handler->setOption('style', $style);
+    $view->initDisplay();
+    $view->initStyle();
+    $view->style_plugin->setUsesRowPlugin(FALSE);
+    $this->assertTrue($view->style_plugin instanceof StyleTestPlugin, 'Make sure the right style plugin class is loaded.');
+    $this->assertTrue($view->rowPlugin instanceof Fields, 'Make sure that rowPlugin is now a fields instance.');
+
+    $random_text = $this->randomName();
+    // Set some custom text to the output and make sure that this value is
+    // rendered.
+    $view->style_plugin->setOutput($random_text);
+    $output = $view->preview();
+    $output = drupal_render($output);
+    $this->assertTrue(strpos($output, $random_text) !== FALSE, 'Make sure that the rendering of the style plugin appears in the output of the view.');
   }
 
   function testGrouping() {
@@ -191,13 +194,13 @@ class StyleTest extends ViewTestBase {
 
 
     // The newer api passes the value of the grouping as well.
-    $sets_new_rendered = $view->style_plugin->render_grouping($view->result, $view->style_plugin->options['grouping'], TRUE);
+    $sets_new_rendered = $view->style_plugin->renderGrouping($view->result, $view->style_plugin->options['grouping'], TRUE);
 
     $this->assertEqual($sets_new_rendered, $expected, t('The style plugins should proper group the results with grouping by the rendered output.'));
 
     // Don't test stripped case, because the actual value is not stripped.
     if (!$stripped) {
-      $sets_new_value = $view->style_plugin->render_grouping($view->result, $view->style_plugin->options['grouping'], FALSE);
+      $sets_new_value = $view->style_plugin->renderGrouping($view->result, $view->style_plugin->options['grouping'], FALSE);
 
       // Reorder the group structure to grouping by value.
       $expected['Singer'] = $expected['Job: Singer'];
@@ -238,7 +241,7 @@ class StyleTest extends ViewTestBase {
       $this->assertTrue(strpos($class, $random_name) !== FALSE, 'Take sure that a custom css class is added to the output.');
 
       // Check token replacement.
-      $name = $view->field['name']->get_value($view->result[$count]);
+      $name = $view->field['name']->getValue($view->result[$count]);
       $this->assertTrue(strpos($class, "test-token-$name") !== FALSE, 'Take sure that a token in custom css class is replaced.');
 
       $count++;

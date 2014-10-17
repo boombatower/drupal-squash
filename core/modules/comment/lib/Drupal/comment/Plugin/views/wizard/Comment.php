@@ -58,24 +58,24 @@ class Comment extends WizardPluginBase {
     ),
     'status_node' => array(
       'value' => TRUE,
-      'table' => 'node',
+      'table' => 'node_field_data',
       'field' => 'status',
       'relationship' => 'nid'
     )
   );
 
   /**
-   * Overrides Drupal\views\Plugin\views\wizard\WizardPluginBase::row_style_options().
+   * Overrides Drupal\views\Plugin\views\wizard\WizardPluginBase::rowStyleOptions().
    */
-  protected function row_style_options() {
+  protected function rowStyleOptions() {
     $options = array();
     $options['comment'] = t('comments');
     $options['fields'] = t('fields');
     return $options;
   }
 
-  protected function build_form_style(array &$form, array &$form_state, $type) {
-    parent::build_form_style($form, $form_state, $type);
+  protected function buildFormStyle(array &$form, array &$form_state, $type) {
+    parent::buildFormStyle($form, $form_state, $type);
     $style_form =& $form['displays'][$type]['options']['style'];
     // Some style plugins don't support row plugins so stop here if that's the
     // case.
@@ -100,10 +100,10 @@ class Comment extends WizardPluginBase {
   }
 
   /**
-   * Overrides Drupal\views\Plugin\views\wizard\WizardPluginBase::page_display_options().
+   * {@inheritdoc}
    */
-  protected function page_display_options(array $form, array &$form_state) {
-    $display_options = parent::page_display_options($form, $form_state);
+  protected function pageDisplayOptions(array $form, array &$form_state) {
+    $display_options = parent::pageDisplayOptions($form, $form_state);
     $row_plugin = isset($form_state['values']['page']['style']['row_plugin']) ? $form_state['values']['page']['style']['row_plugin'] : NULL;
     $row_options = isset($form_state['values']['page']['style']['row_options']) ? $form_state['values']['page']['style']['row_options'] : array();
     $this->display_options_row($display_options, $row_plugin, $row_options);
@@ -111,10 +111,10 @@ class Comment extends WizardPluginBase {
   }
 
   /**
-   * Overrides Drupal\views\Plugin\views\wizard\WizardPluginBase::page_display_options().
+   * Overrides Drupal\views\Plugin\views\wizard\WizardPluginBase::blockDisplayOptions().
    */
-  protected function block_display_options(array $form, array &$form_state) {
-    $display_options = parent::block_display_options($form, $form_state);
+  protected function blockDisplayOptions(array $form, array &$form_state) {
+    $display_options = parent::blockDisplayOptions($form, $form_state);
     $row_plugin = isset($form_state['values']['block']['style']['row_plugin']) ? $form_state['values']['block']['style']['row_plugin'] : NULL;
     $row_options = isset($form_state['values']['block']['style']['row_options']) ? $form_state['values']['block']['style']['row_options'] : array();
     $this->display_options_row($display_options, $row_plugin, $row_options);
@@ -127,17 +127,17 @@ class Comment extends WizardPluginBase {
   protected  function display_options_row(&$display_options, $row_plugin, $row_options) {
     switch ($row_plugin) {
       case 'comment':
-        $display_options['row']['type'] = 'comment';
+        $display_options['row']['type'] = 'entity:comment';
         $display_options['row']['options']['links'] = !empty($row_options['links']);
         break;
     }
   }
 
   /**
-   * Overrides Drupal\views\Plugin\views\wizard\WizardPluginBase::default_display_options().
+   * Overrides Drupal\views\Plugin\views\wizard\WizardPluginBase::defaultDisplayOptions().
    */
-  protected function default_display_options() {
-    $display_options = parent::default_display_options();
+  protected function defaultDisplayOptions() {
+    $display_options = parent::defaultDisplayOptions();
 
     // Add permission-based access control.
     $display_options['access']['type'] = 'perm';

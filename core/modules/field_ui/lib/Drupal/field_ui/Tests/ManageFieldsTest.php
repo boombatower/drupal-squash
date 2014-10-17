@@ -2,10 +2,12 @@
 
 /**
  * @file
- * Definition of Drupal\field_ui\Tests\ManageFieldsTest.
+ * Contains \Drupal\field_ui\Tests\ManageFieldsTest.
  */
 
 namespace Drupal\field_ui\Tests;
+
+use Drupal\Core\Language\Language;
 
 /**
  * Tests the functionality of the 'Manage fields' screen.
@@ -35,7 +37,7 @@ class ManageFieldsTest extends FieldUiTestBase {
     $vocabulary = entity_create('taxonomy_vocabulary', array(
       'name' => 'Tags',
       'vid' => 'tags',
-      'langcode' => LANGUAGE_NOT_SPECIFIED,
+      'langcode' => Language::LANGCODE_NOT_SPECIFIED,
     ));
     $vocabulary->save();
 
@@ -43,7 +45,7 @@ class ManageFieldsTest extends FieldUiTestBase {
       'field_name' => 'field_' . $vocabulary->id(),
       'type' => 'taxonomy_term_reference',
     );
-    field_create_field($field);
+    entity_create('field_entity', $field)->save();
 
     $instance = array(
       'field_name' => 'field_' . $vocabulary->id(),
@@ -51,7 +53,7 @@ class ManageFieldsTest extends FieldUiTestBase {
       'label' => 'Tags',
       'bundle' => 'article',
     );
-    field_create_instance($instance);
+    entity_create('field_instance', $instance)->save();
 
     entity_get_form_display('node', 'article', 'default')
       ->setComponent('field_' . $vocabulary->id())
@@ -243,28 +245,57 @@ class ManageFieldsTest extends FieldUiTestBase {
   }
 
   /**
+   * Tests that the 'field_prefix' setting works on Field UI.
+   */
+  function testFieldPrefix() {
+    // Change default field prefix.
+    $field_prefix = strtolower($this->randomName(10));
+    \Drupal::config('field_ui.settings')->set('field_prefix', $field_prefix)->save();
+
+    // Create a field input and label exceeding the new maxlength, which is 22.
+    $field_exceed_max_length_label = $this->randomString(23);
+    $field_exceed_max_length_input = $this->randomName(23);
+
+    // Try to create the field.
+    $edit = array(
+      'fields[_add_new_field][label]' => $field_exceed_max_length_label,
+      'fields[_add_new_field][field_name]' => $field_exceed_max_length_input,
+    );
+    $this->drupalPost('admin/structure/types/manage/' . $this->type . '/fields', $edit, t('Save'));
+    $this->assertText('New field name cannot be longer than 22 characters but is currently 23 characters long.');
+
+    // Create a valid field.
+    $edit = array(
+      'fields[_add_new_field][label]' => $this->field_label,
+      'fields[_add_new_field][field_name]' => $this->field_name_input,
+    );
+    $this->fieldUIAddNewField('admin/structure/types/manage/' . $this->type, $edit);
+    $this->drupalGet('admin/structure/types/manage/' . $this->type . '/fields/node.' . $this->type . '.' . $field_prefix . $this->field_name_input);
+    $this->assertText(format_string('@label settings for @type', array('@label' => $this->field_label, '@type' => $this->type)));
+  }
+
+  /**
    * Tests that default value is correctly validated and saved.
    */
   function testDefaultValue() {
     // Create a test field and instance.
     $field_name = 'test';
-    $field = array(
+    entity_create('field_entity', array(
       'field_name' => $field_name,
       'type' => 'test_field'
-    );
-    field_create_field($field);
-    $instance = array(
+    ))->save();
+    $instance = entity_create('field_instance', array(
       'field_name' => $field_name,
       'entity_type' => 'node',
       'bundle' => $this->type,
-    );
-    $instance = field_create_instance($instance);
+    ));
+    $instance->save();
 
     entity_get_form_display('node', $this->type, 'default')
       ->setComponent($field_name)
       ->save();
 
-    $langcode = LANGUAGE_NOT_SPECIFIED;
+    $langcode = Language::LANGCODE_NOT_SPECIFIED;
     $admin_path = 'admin/structure/types/manage/' . $this->type . '/fields/' . $instance->id();
     $element_id = "edit-$field_name-$langcode-0-value";
     $element_name = "{$field_name}[$langcode][0][value]";
@@ -399,14 +430,14 @@ class ManageFieldsTest extends FieldUiTestBase {
 
     // Create a field and an instance programmatically.
     $field_name = 'hidden_test_field';
-    field_create_field(array('field_name' => $field_name, 'type' => $field_name));
+    entity_create('field_entity', array('field_name' => $field_name, 'type' => $field_name))->save();
     $instance = array(
       'field_name' => $field_name,
       'bundle' => $this->type,
       'entity_type' => 'node',
       'label' => t('Hidden field'),
     );
-    field_create_instance($instance);
+    entity_create('field_instance', $instance)->save();
     entity_get_form_display('node', $this->type, 'default')
       ->setComponent($field_name)
       ->save();
@@ -422,6 +453,15 @@ class ManageFieldsTest extends FieldUiTestBase {
     $bundle_path = 'admin/structure/types/manage/article/fields/';
     $this->drupalGet($bundle_path);
     $this->assertFalse($this->xpath('//select[@id="edit-add-existing-field-field-name"]//option[@value=:field_name]', array(':field_name' => $field_name)), "The 're-use existing field' select respects field types 'no_ui' property.");
+
+    // Remove the form display component to check the fallback label.
+    entity_get_form_display('node', $this->type, 'default')
+      ->removeComponent($field_name)
+      ->save();
+
+    $this->drupalGet('admin/structure/types/manage/' . $this->type . '/fields/');
+    $this->assertLinkByHref(url('admin/structure/types/manage/' . $this->type . '/fields/node.' . $this->type . '.'  . $field_name . '/widget-type'));
+    $this->assertLink('- Hidden -');
   }
 
   /**
@@ -522,4 +562,37 @@ class ManageFieldsTest extends FieldUiTestBase {
     $this->assertNull(field_info_field($this->field_name), 'Field was deleted.');
   }
 
+  /**
+   * Tests that help descriptions render valid HTML.
+   */
+  function testHelpDescriptions() {
+    // Create an image field
+    entity_create('field_entity', array(
+      'field_name' => 'field_image',
+      'type' => 'image',
+    ))->save();
+
+    entity_create('field_instance', array(
+      'field_name' => 'field_image',
+      'entity_type' => 'node',
+      'label' => 'Image',
+      'bundle' => 'article',
+    ))->save();
+
+    entity_get_form_display('node', 'article', 'default')->setComponent('field_image')->save();
+
+    $edit = array(
+      'instance[description]' => '<strong>Test with an upload field.',
+    );
+    $this->drupalPost('admin/structure/types/manage/article/fields/node.article.field_image', $edit, t('Save settings'));
+
+    $edit = array(
+      'instance[description]' => '<em>Test with a non upload field.',
+    );
+    $this->drupalPost('admin/structure/types/manage/article/fields/node.article.field_tags', $edit, t('Save settings'));
+
+    $this->drupalGet('node/add/article');
+    $this->assertRaw('<strong>Test with an upload field.</strong>');
+    $this->assertRaw('<em>Test with a non upload field.</em>');
+  }
 }

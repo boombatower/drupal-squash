@@ -78,7 +78,7 @@ class EntityReference extends StylePluginBase {
     }
 
     // Group the rows according to the grouping field, if specified.
-    $sets = $this->render_grouping($this->view->result, $this->options['grouping']);
+    $sets = $this->renderGrouping($this->view->result, $this->options['grouping']);
 
     // Grab the alias of the 'id' field added by
     // entity_reference_plugin_display.
@@ -102,9 +102,9 @@ class EntityReference extends StylePluginBase {
   }
 
   /**
-   * Overrides \Drupal\views\Plugin\views\style\StylePluginBase\StylePluginBase::even_empty().
+   * {@inheritdoc}
    */
-  function even_empty() {
+  public function evenEmpty() {
     return TRUE;
   }
 }

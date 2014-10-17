@@ -2,11 +2,12 @@
 
 /**
  * @file
- * Definition of Drupal\field_ui\Tests\FieldUiTestBase.
+ * Contains \Drupal\field_ui\Tests\FieldUiTestBase.
  */
 
 namespace Drupal\field_ui\Tests;
 
+use Drupal\Core\Language\Language;
 use Drupal\simpletest\WebTestBase;
 
 /**
@@ -19,13 +20,13 @@ abstract class FieldUiTestBase extends WebTestBase {
    *
    * @var array
    */
-  public static $modules = array('node', 'field_ui', 'field_test', 'taxonomy');
+  public static $modules = array('node', 'field_ui', 'field_test', 'taxonomy', 'image');
 
   function setUp() {
     parent::setUp();
 
     // Create test user.
-    $admin_user = $this->drupalCreateUser(array('access content', 'administer content types', 'administer node fields', 'administer node display', 'administer taxonomy', 'administer taxonomy_term fields', 'administer taxonomy_term display', 'administer users', 'administer user display'));
+    $admin_user = $this->drupalCreateUser(array('access content', 'administer content types', 'administer node fields', 'administer node display', 'administer taxonomy', 'administer taxonomy_term fields', 'administer taxonomy_term display', 'administer users', 'administer user display', 'bypass node access'));
     $this->drupalLogin($admin_user);
 
     // Create content type, with underscores.
@@ -38,7 +39,7 @@ abstract class FieldUiTestBase extends WebTestBase {
       'name' => $this->randomName(),
       'description' => $this->randomName(),
       'vid' => drupal_strtolower($this->randomName()),
-      'langcode' => LANGUAGE_NOT_SPECIFIED,
+      'langcode' => Language::LANGCODE_NOT_SPECIFIED,
       'help' => '',
       'nodes' => array('article' => 'article'),
       'weight' => mt_rand(0, 10),

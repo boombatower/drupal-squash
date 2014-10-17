@@ -8,7 +8,8 @@
 namespace Drupal\system;
 
 use Drupal\Component\Transliteration\TransliterationInterface;
-use Drupal\Core\ControllerInterface;
+use Drupal\Component\Utility\Unicode;
+use Drupal\Core\Controller\ControllerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -63,7 +64,7 @@ class MachineNameController implements ControllerInterface {
 
     $transliterated = $this->transliteration->transliterate($text, $langcode, '_');
     if($lowercase) {
-      $transliterated = drupal_strtolower($transliterated);
+      $transliterated = Unicode::strtolower($transliterated);
     }
     if(isset($replace_pattern) && isset($replace)) {
       $transliterated = preg_replace('@' . $replace_pattern . '@', $replace, $transliterated);

@@ -7,6 +7,7 @@
 
 namespace Drupal\rdf\Tests;
 
+use Drupal\Core\Language\Language;
 use Drupal\simpletest\WebTestBase;
 
 /**
@@ -19,7 +20,7 @@ class RdfaMarkupTest extends WebTestBase {
    *
    * @var array
    */
-  public static $modules = array('rdf', 'field_test', 'rdf_test');
+  public static $modules = array('rdf', 'entity_test', 'rdf_test');
 
   protected $profile = 'standard';
 
@@ -39,7 +40,7 @@ class RdfaMarkupTest extends WebTestBase {
     $expected_attributes = array(
       'property' => array('dc:title'),
     );
-    $mapping = rdf_mapping_load('test_entity', 'test_bundle');
+    $mapping = rdf_mapping_load('entity_test', 'entity_test');
     $attributes = rdf_rdfa_attributes($mapping['title']);
     ksort($expected_attributes);
     ksort($attributes);
@@ -53,7 +54,7 @@ class RdfaMarkupTest extends WebTestBase {
       'property' => array('dc:created'),
       'content' => $isoDate,
     );
-    $mapping = rdf_mapping_load('test_entity', 'test_bundle');
+    $mapping = rdf_mapping_load('entity_test', 'entity_test');
     $attributes = rdf_rdfa_attributes($mapping['created'], $date);
     ksort($expected_attributes);
     ksort($attributes);
@@ -64,7 +65,7 @@ class RdfaMarkupTest extends WebTestBase {
       'datatype' => 'foo:bar1type',
       'property' => array('foo:bar1'),
     );
-    $mapping = rdf_mapping_load('test_entity', 'test_bundle');
+    $mapping = rdf_mapping_load('entity_test', 'entity_test');
     $attributes = rdf_rdfa_attributes($mapping['foobar1']);
     ksort($expected_attributes);
     ksort($attributes);
@@ -74,7 +75,7 @@ class RdfaMarkupTest extends WebTestBase {
     $expected_attributes = array(
       'rel' => array('sioc:has_creator', 'dc:creator'),
     );
-    $mapping = rdf_mapping_load('test_entity', 'test_bundle');
+    $mapping = rdf_mapping_load('entity_test', 'entity_test');
     $attributes = rdf_rdfa_attributes($mapping['foobar_objproperty1']);
     ksort($expected_attributes);
     ksort($attributes);
@@ -84,7 +85,7 @@ class RdfaMarkupTest extends WebTestBase {
     $expected_attributes = array(
       'rev' => array('sioc:reply_of'),
     );
-    $mapping = rdf_mapping_load('test_entity', 'test_bundle');
+    $mapping = rdf_mapping_load('entity_test', 'entity_test');
     $attributes = rdf_rdfa_attributes($mapping['foobar_objproperty2']);
     ksort($expected_attributes);
     ksort($attributes);
@@ -102,21 +103,19 @@ class RdfaMarkupTest extends WebTestBase {
     $admin_user = $this->drupalCreateUser(array('edit own article content', 'revert article revisions', 'administer content types'));
     $this->drupalLogin($admin_user);
 
-    $langcode = LANGUAGE_NOT_SPECIFIED;
+    $langcode = Language::LANGCODE_NOT_SPECIFIED;
     $bundle_name = "article";
 
     $field_name = 'file_test';
-    $field = array(
+    entity_create('field_entity', array(
       'field_name' => $field_name,
       'type' => 'file',
-    );
-    field_create_field($field);
-    $instance = array(
+    ))->save();
+    entity_create('field_instance', array(
       'field_name' => $field_name,
       'entity_type' => 'node',
       'bundle' => $bundle_name,
-    );
-    field_create_instance($instance);
+    ))->save();
 
     entity_get_form_display('node', $bundle_name, 'default')
       ->setComponent($field_name, array(
@@ -155,15 +154,15 @@ class RdfaMarkupTest extends WebTestBase {
     // Prepares filenames for lookup in RDF graph.
     $node = node_load($node->nid);
     $node_uri = url('node/' . $node->nid, array('absolute' => TRUE));
-    $file_uri = file_create_url(file_load($node->file_test['und'][0]['fid'])->uri);
-    $image_uri = image_style_url('medium', file_load($node->field_image['und'][0]['fid'])->uri);
+    $file_uri = file_create_url(file_load($node->file_test['und'][0]['fid'])->getFileUri());
+    $image_uri = image_style_url('medium', file_load($node->field_image['und'][0]['fid'])->getFileUri());
     $base_uri = url('<front>', array('absolute' => TRUE));
 
     // Edits the node to add tags.
     $tag1 = $this->randomName(8);
     $tag2 = $this->randomName(8);
     $edit = array();
-    $edit['field_tags[' . LANGUAGE_NOT_SPECIFIED . ']'] = "$tag1, $tag2";
+    $edit['field_tags[' . Language::LANGCODE_NOT_SPECIFIED . ']'] = "$tag1, $tag2";
     $this->drupalPost('node/' . $node->nid . '/edit', $edit, t('Save'));
     $term_1_id = key(taxonomy_term_load_multiple_by_name($tag1));
     $taxonomy_term_1_uri = url('taxonomy/term/' . $term_1_id, array('absolute' => TRUE));

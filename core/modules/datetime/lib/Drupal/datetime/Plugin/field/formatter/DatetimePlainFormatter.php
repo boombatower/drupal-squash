@@ -7,7 +7,7 @@
 
 namespace Drupal\datetime\Plugin\field\formatter;
 
-use Drupal\Component\Annotation\Plugin;
+use Drupal\field\Annotation\FieldFormatter;
 use Drupal\Core\Annotation\Translation;
 use Drupal\field\Plugin\Type\Formatter\FormatterBase;
 use Drupal\Core\Entity\EntityInterface;
@@ -16,7 +16,7 @@ use Drupal\Core\Datetime\DrupalDateTime;
 /**
  * Plugin implementation of the 'datetime_plain' formatter.
  *
- * @Plugin(
+ * @FieldFormatter(
  *   id = "datetime_plain",
  *   module = "datetime",
  *   label = @Translation("Plain"),
@@ -28,7 +28,7 @@ use Drupal\Core\Datetime\DrupalDateTime;
 class DateTimePlainFormatter extends FormatterBase {
 
   /**
-   * Implements Drupal\field\Plugin\Type\Formatter\FormatterInterface::viewElements().
+   * {@inheritdoc}
    */
   public function viewElements(EntityInterface $entity, $langcode, array $items) {
 
@@ -43,7 +43,7 @@ class DateTimePlainFormatter extends FormatterBase {
         $date = $item['date'];
         $date->setTimeZone(timezone_open(drupal_get_user_timezone()));
         $format = DATETIME_DATETIME_STORAGE_FORMAT;
-        if ($this->field['settings']['datetime_type'] == 'date') {
+        if ($this->getFieldSetting('datetime_type') == 'date') {
           // A date without time will pick up the current time, use the default.
           datetime_date_default_time($date);
           $format = DATETIME_DATE_STORAGE_FORMAT;

@@ -99,7 +99,7 @@ class EntityReference extends DisplayPluginBase {
    * Overrides \Drupal\views\Plugin\views\display\DisplayPluginBase::render().
    */
   public function render() {
-    if (!empty($this->view->result) && $this->view->style_plugin->even_empty()) {
+    if (!empty($this->view->result) && $this->view->style_plugin->evenEmpty()) {
       return $this->view->style_plugin->render($this->view->result);
     }
     return '';
@@ -122,7 +122,7 @@ class EntityReference extends DisplayPluginBase {
 
     // Make sure the id field is included in the results.
     $id_field = $this->view->storage->get('base_field');
-    $this->id_field_alias = $this->view->query->add_field($this->view->storage->get('base_table'), $id_field);
+    $this->id_field_alias = $this->view->query->addField($this->view->storage->get('base_table'), $id_field);
 
     $options = $this->getOption('entity_reference_options');
 
@@ -147,12 +147,12 @@ class EntityReference extends DisplayPluginBase {
         }
       }
 
-      $this->view->query->add_where(0, $conditions);
+      $this->view->query->addWhere(0, $conditions);
     }
 
     // Add an IN condition for validation.
     if (!empty($options['ids'])) {
-      $this->view->query->add_where(0, $id_field, $options['ids']);
+      $this->view->query->addWhere(0, $id_field, $options['ids']);
     }
 
     $this->view->setItemsPerPage($options['limit']);

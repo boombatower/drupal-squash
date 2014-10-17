@@ -60,8 +60,8 @@ class NodeFieldMultilingualTestCase extends WebTestBase {
 
     // Make node body translatable.
     $field = field_info_field('body');
-    $field['translatable'] = TRUE;
-    field_update_field($field);
+    $field->translatable = TRUE;
+    $field->save();
   }
 
   /**
@@ -99,7 +99,7 @@ class NodeFieldMultilingualTestCase extends WebTestBase {
     $this->assertTrue($node->language()->langcode == $langcode && $node->body->value == $body_value, 'Field language correctly changed.');
 
     // Enable content language URL detection.
-    language_negotiation_set(LANGUAGE_TYPE_CONTENT, array(LANGUAGE_NEGOTIATION_URL => 0));
+    language_negotiation_set(Language::TYPE_CONTENT, array(LANGUAGE_NEGOTIATION_URL => 0));
 
     // Test multilingual field language fallback logic.
     $this->drupalGet("it/node/{$node->id()}");
@@ -138,4 +138,5 @@ class NodeFieldMultilingualTestCase extends WebTestBase {
     ));
     $this->assertEqual(current($body), $node->body['en'][0]['value'], 'Node body found.');
   }
+
 }

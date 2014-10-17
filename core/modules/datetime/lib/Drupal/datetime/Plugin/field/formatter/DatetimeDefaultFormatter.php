@@ -7,7 +7,7 @@
 
 namespace Drupal\datetime\Plugin\field\formatter;
 
-use Drupal\Component\Annotation\Plugin;
+use Drupal\field\Annotation\FieldFormatter;
 use Drupal\Core\Annotation\Translation;
 use Drupal\field\Plugin\Type\Formatter\FormatterBase;
 use Drupal\Core\Entity\EntityInterface;
@@ -17,7 +17,7 @@ use Drupal\Core\Template\Attribute;
 /**
  * Plugin implementation of the 'datetime_default' formatter.
  *
- * @Plugin(
+ * @FieldFormatter(
  *   id = "datetime_default",
  *   module = "datetime",
  *   label = @Translation("Default"),
@@ -53,7 +53,7 @@ class DateTimeDefaultFormatter extends FormatterBase {
 
         // The formatted output will be in local time.
         $date->setTimeZone(timezone_open(drupal_get_user_timezone()));
-        if ($this->field['settings']['datetime_type'] == 'date') {
+        if ($this->getFieldSetting('datetime_type') == 'date') {
           // A date without time will pick up the current time, use the default.
           datetime_date_default_time($date);
         }

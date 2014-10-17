@@ -20,8 +20,9 @@
 function tracker_page($account = NULL, $set_title = FALSE) {
   if ($account) {
     $query = db_select('tracker_user', 't')
-      ->extend('Drupal\Core\Database\Query\PagerSelectExtender');
-    $query->condition('t.uid', $account->uid);
+      ->extend('Drupal\Core\Database\Query\PagerSelectExtender')
+      ->addMetaData('base_table', 'tracker_user')
+      ->condition('t.uid', $account->uid);
 
     if ($set_title) {
       // When viewed from user/%user/track, display the name of the user
@@ -32,14 +33,14 @@ function tracker_page($account = NULL, $set_title = FALSE) {
   }
   else {
     $query = db_select('tracker_node', 't', array('target' => 'slave'))
-      ->extend('Drupal\Core\Database\Query\PagerSelectExtender');
+      ->extend('Drupal\Core\Database\Query\PagerSelectExtender')
+      ->addMetaData('base_table', 'tracker_node');
   }
 
   // This array acts as a placeholder for the data selected later
   // while keeping the correct order.
   $tracker_data = $query
     ->addTag('node_access')
-    ->addMetaData('base_table', 'tracker_node')
     ->fields('t', array('nid', 'changed'))
     ->condition('t.published', 1)
     ->orderBy('t.changed', 'DESC')
@@ -50,9 +51,11 @@ function tracker_page($account = NULL, $set_title = FALSE) {
   $rows = array();
   if (!empty($tracker_data)) {
     $nids = array_keys($tracker_data);
-    $nodes = entity_load_multiple('node', $nids);
+    $nodes = node_load_multiple($nids);
     // Now, get the data and put into the placeholder array.
-    $result = db_query('SELECT n.nid, l.comment_count FROM {node} n INNER JOIN {node_comment_statistics} l ON n.nid = l.nid INNER JOIN {users} u ON n.uid = u.uid WHERE n.nid IN (:nids)', array(':nids' => $nids), array('target' => 'slave'))->fetchAllKeyed();
+    // @todo This should be actually filtering on the desired language and just
+    //   fall back to the default language.
+    $result = db_query('SELECT n.nid, l.comment_count FROM {node_field_data} n INNER JOIN {node_comment_statistics} l ON n.nid = l.nid WHERE n.nid IN (:nids) AND n.default_langcode = 1 ORDER BY n.changed DESC', array(':nids' => $nids), array('target' => 'slave'))->fetchAllKeyed();
     foreach ($result as $nid => $comment_count) {
       $nodes[$nid]->last_activity = $tracker_data[$nid]->changed;
       $nodes[$nid]->comment_count = $comment_count;
@@ -71,11 +74,16 @@ function tracker_page($account = NULL, $set_title = FALSE) {
         }
       }
 
+      $mark_build = array(
+        '#theme' => 'mark',
+        '#mark_type' => node_mark($node->nid, $node->changed),
+      );
+
       $row = array(
         'type' => check_plain(node_get_type_label($node)),
         // Do not use $node->label(), because $node comes from the database.
-        'title' => array('data' => l($node->title, 'node/' . $node->nid) . ' ' . theme('mark', array('type' => node_mark($node->nid, $node->changed)))),
-        'author' => array('data' => theme('username', array('account' => $node))),
+        'title' => array('data' => l($node->title, 'node/' . $node->nid) . ' ' . drupal_render($mark_build)),
+        'author' => array('data' => array('#theme' => 'username', '#account' => $node)),
         'replies' => array('class' => array('replies'), 'data' => $comments),
         'last updated' => array('data' => t('!time ago', array('!time' => format_interval(REQUEST_TIME - $node->last_activity)))),
       );

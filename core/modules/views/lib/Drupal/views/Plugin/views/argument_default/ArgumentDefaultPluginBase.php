@@ -34,7 +34,7 @@ abstract class ArgumentDefaultPluginBase extends PluginBase {
    *
    * This needs to be overridden by every default argument handler to properly do what is needed.
    */
-  function get_argument() { }
+  public function getArgument() { }
 
   /**
    * Sets the parent argument this plugin is associated with.
@@ -80,7 +80,7 @@ abstract class ArgumentDefaultPluginBase extends PluginBase {
    * This is only called by child objects if specified in the buildOptionsForm(),
    * so it will not always be used.
    */
-  function check_access(&$form, $option_name) {
+  protected function checkAccess(&$form, $option_name) {
     if (!$this->access()) {
       $form[$option_name]['#disabled'] = TRUE;
       $form[$option_name]['#value'] = $form[$this->option_name]['#default_value'];

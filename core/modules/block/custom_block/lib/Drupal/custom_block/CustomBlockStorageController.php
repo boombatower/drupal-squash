@@ -8,43 +8,15 @@
 namespace Drupal\custom_block;
 
 use Drupal\Core\Entity\DatabaseStorageControllerNG;
-use Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Entity\EntityStorageControllerInterface;
 
 /**
  * Controller class for custom blocks.
  *
- * This extends the Drupal\Core\Entity\DatabaseStorageController class, adding
- * required special handling for custom block entities.
+ * This extends the Drupal\Core\Entity\DatabaseStorageControllerNG class,
+ * adding required special handling for custom block entities.
  */
-class CustomBlockStorageController extends DatabaseStorageControllerNG {
-
-  /**
-   * Overrides \Drupal\Core\Entity\DatabaseStorageController::preSaveRevision().
-   */
-  protected function preSaveRevision(\stdClass $record, EntityInterface $entity) {
-    if ($entity->isNewRevision()) {
-      // When inserting either a new custom block or a new custom_block
-      // revision, $entity->log must be set because {block_custom_revision}.log
-      // is a text column and therefore cannot have a default value. However,
-      // it might not be set at this point (for example, if the user submitting
-      // the form does not have permission to create revisions), so we ensure
-      // that it is at least an empty string in that case.
-      // @todo: Make the {block_custom_revision}.log column nullable so that we
-      // can remove this check.
-      if (!isset($record->log)) {
-        $record->log = '';
-      }
-    }
-    elseif (!isset($record->log) || $record->log === '') {
-      // If we are updating an existing custom_block without adding a new
-      // revision, we need to make sure $entity->log is unset whenever it is
-      // empty. As long as $entity->log is unset, drupal_write_record() will not
-      // attempt to update the existing database column when re-saving the
-      // revision; therefore, this code allows us to avoid clobbering an
-      // existing log entry with an empty one.
-      unset($record->log);
-    }
-  }
+class CustomBlockStorageController extends DatabaseStorageControllerNG implements EntityStorageControllerInterface {
 
   /**
    * Overrides \Drupal\Core\Entity\DatabaseStorageController::attachLoad().
@@ -65,14 +37,6 @@ class CustomBlockStorageController extends DatabaseStorageControllerNG {
   }
 
   /**
-   * Overrides \Drupal\Core\Entity\DatabaseStorageController::postSave().
-   */
-  protected function postSave(EntityInterface $block, $update) {
-    // Invalidate the block cache to update custom block-based derivatives.
-    drupal_container()->get('plugin.manager.block')->clearCachedDefinitions();
-  }
-
-  /**
    * Implements \Drupal\Core\Entity\DataBaseStorageControllerNG::basePropertyDefinitions().
    */
   public function baseFieldDefinitions() {
@@ -85,7 +49,7 @@ class CustomBlockStorageController extends DatabaseStorageControllerNG {
     $properties['uuid'] = array(
       'label' => t('UUID'),
       'description' => t('The custom block UUID.'),
-      'type' => 'string_field',
+      'type' => 'uuid_field',
     );
     $properties['revision_id'] = array(
       'label' => t('Revision ID'),

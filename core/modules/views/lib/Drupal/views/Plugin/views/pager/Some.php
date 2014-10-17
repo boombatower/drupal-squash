@@ -60,17 +60,17 @@ class Some extends PagerPluginBase {
     );
   }
 
-  function use_pager() {
+  public function usePager() {
     return FALSE;
   }
 
-  function use_count_query() {
+  public function useCountQuery() {
     return FALSE;
   }
 
   public function query() {
-    $this->view->query->set_limit($this->options['items_per_page']);
-    $this->view->query->set_offset($this->options['offset']);
+    $this->view->query->setLimit($this->options['items_per_page']);
+    $this->view->query->setOffset($this->options['offset']);
   }
 
 }

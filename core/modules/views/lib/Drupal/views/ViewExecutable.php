@@ -105,7 +105,7 @@ class ViewExecutable {
   /**
    * The total number of rows returned from the query.
    *
-   * @var array
+   * @var int
    */
   public $total_rows = NULL;
 
@@ -208,7 +208,7 @@ class ViewExecutable {
   /**
    * The current used style plugin.
    *
-   * @var Drupal\views\Plugin\views\style\StylePluginBase
+   * @var \Drupal\views\Plugin\views\style\StylePluginBase
    */
   public $style_plugin;
 
@@ -342,24 +342,6 @@ class ViewExecutable {
   public $inited;
 
   /**
-   * The name of the active style plugin of the view.
-   *
-   * @todo remove this and just use $this->style_plugin
-   *
-   * @var string
-   */
-  public $plugin_name;
-
-  /**
-   * The options used by the style plugin of this running view.
-   *
-   * @todo To be able to remove it, Drupal\views\Plugin\views\argument\ArgumentPluginBase::default_summary()
-   *   should instantiate the style plugin.
-   * @var array
-   */
-  public $style_options;
-
-  /**
    * The rendered output of the exposed form.
    *
    * @var string
@@ -442,7 +424,7 @@ class ViewExecutable {
     $this->storage->set('executable', $this);
 
     // Add the default css for a view.
-    $this->element['#attached']['css'][] = drupal_get_path('module', 'views') . '/css/views.base.css';
+    $this->element['#attached']['library'][] = array('views', 'views.module');
   }
 
   /**
@@ -468,7 +450,7 @@ class ViewExecutable {
 
     // If the pager is already initialized, pass it through to the pager.
     if (!empty($this->pager)) {
-      return $this->pager->set_current_page($page);
+      return $this->pager->setCurrentPage($page);
     }
   }
 
@@ -478,7 +460,7 @@ class ViewExecutable {
   public function getCurrentPage() {
     // If the pager is already initialized, pass it through to the pager.
     if (!empty($this->pager)) {
-      return $this->pager->get_current_page();
+      return $this->pager->getCurrentPage();
     }
 
     if (isset($this->current_page)) {
@@ -492,7 +474,7 @@ class ViewExecutable {
   public function getItemsPerPage() {
     // If the pager is already initialized, pass it through to the pager.
     if (!empty($this->pager)) {
-      return $this->pager->get_items_per_page();
+      return $this->pager->getItemsPerPage();
     }
 
     if (isset($this->items_per_page)) {
@@ -508,7 +490,7 @@ class ViewExecutable {
 
     // If the pager is already initialized, pass it through to the pager.
     if (!empty($this->pager)) {
-      $this->pager->set_items_per_page($items_per_page);
+      $this->pager->setItemsPerPage($items_per_page);
     }
   }
 
@@ -518,7 +500,7 @@ class ViewExecutable {
   public function getOffset() {
     // If the pager is already initialized, pass it through to the pager.
     if (!empty($this->pager)) {
-      return $this->pager->get_offset();
+      return $this->pager->getOffset();
     }
 
     if (isset($this->offset)) {
@@ -534,7 +516,7 @@ class ViewExecutable {
 
     // If the pager is already initialized, pass it through to the pager.
     if (!empty($this->pager)) {
-      $this->pager->set_offset($offset);
+      $this->pager->setOffset($offset);
     }
   }
 
@@ -543,7 +525,7 @@ class ViewExecutable {
    */
   public function usePager() {
     if (!empty($this->pager)) {
-      return $this->pager->use_pager();
+      return $this->pager->usePager();
     }
   }
 
@@ -695,10 +677,13 @@ class ViewExecutable {
       $this->rowPlugin = NULL;
     }
 
-    // Set a shortcut.
-    $this->display_handler = $this->displayHandlers->get($display_id);
+    if ($display = $this->displayHandlers->get($display_id)) {
+      // Set a shortcut.
+      $this->display_handler = $display;
+      return TRUE;
+    }
 
-    return TRUE;
+    return FALSE;
   }
 
   /**
@@ -709,23 +694,15 @@ class ViewExecutable {
    */
   public function initStyle() {
     if (isset($this->style_plugin)) {
-      return is_object($this->style_plugin);
+      return TRUE;
     }
 
-    if (!isset($this->plugin_name)) {
-      $style = $this->display_handler->getOption('style');
-      $this->plugin_name = $style['type'];
-      $this->style_options = $style['options'];
-    }
-
-    $this->style_plugin = Views::pluginManager("style")->createInstance($this->plugin_name);
+    $this->style_plugin = $this->display_handler->getPlugin('style');
 
     if (empty($this->style_plugin)) {
       return FALSE;
     }
 
-    // init the new style handler with data.
-    $this->style_plugin->init($this, $this->display_handler, $this->style_options);
     return TRUE;
   }
 
@@ -752,18 +729,18 @@ class ViewExecutable {
     if (!isset($this->pager)) {
       $this->pager = $this->display_handler->getPlugin('pager');
 
-      if ($this->pager->use_pager()) {
-        $this->pager->set_current_page($this->current_page);
+      if ($this->pager->usePager()) {
+        $this->pager->setCurrentPage($this->current_page);
       }
 
       // These overrides may have been set earlier via $view->set_*
       // functions.
       if (isset($this->items_per_page)) {
-        $this->pager->set_items_per_page($this->items_per_page);
+        $this->pager->setItemsPerPage($this->items_per_page);
       }
 
       if (isset($this->offset)) {
-        $this->pager->set_offset($this->offset);
+        $this->pager->setOffset($this->offset);
       }
     }
   }
@@ -772,7 +749,7 @@ class ViewExecutable {
    * Render the pager, if necessary.
    */
   public function renderPager($exposed_input) {
-    if (!empty($this->pager) && $this->pager->use_pager()) {
+    if (!empty($this->pager) && $this->pager->usePager()) {
       return $this->pager->render($exposed_input);
     }
 
@@ -881,9 +858,9 @@ class ViewExecutable {
       $arg = isset($this->args[$position]) ? $this->args[$position] : NULL;
       $argument->position = $position;
 
-      if (isset($arg) || $argument->has_default_argument()) {
+      if (isset($arg) || $argument->hasDefaultArgument()) {
         if (!isset($arg)) {
-          $arg = $argument->get_default_argument();
+          $arg = $argument->getDefaultArgument();
           // make sure default args get put back.
           if (isset($arg)) {
             $this->args[$position] = $arg;
@@ -893,16 +870,16 @@ class ViewExecutable {
         }
 
         // Set the argument, which will also validate that the argument can be set.
-        if (!$argument->set_argument($arg)) {
+        if (!$argument->setArgument($arg)) {
           $status = $argument->validateFail($arg);
           break;
         }
 
-        if ($argument->is_exception()) {
-          $arg_title = $argument->exception_title();
+        if ($argument->isException()) {
+          $arg_title = $argument->exceptionTitle();
         }
         else {
-          $arg_title = $argument->get_title();
+          $arg_title = $argument->getTitle();
           $argument->query($this->display_handler->useGroupBy());
         }
 
@@ -912,7 +889,7 @@ class ViewExecutable {
 
         // Since we're really generating the breadcrumb for the item above us,
         // check the default action of this argument.
-        if ($this->display_handler->usesBreadcrumb() && $argument->uses_breadcrumb()) {
+        if ($this->display_handler->usesBreadcrumb() && $argument->usesBreadcrumb()) {
           $path = $this->getUrl($breadcrumb_args);
           if (strpos($path, '%') === FALSE) {
             if (!empty($argument->options['breadcrumb_enable']) && !empty($argument->options['breadcrumb'])) {
@@ -926,7 +903,7 @@ class ViewExecutable {
         }
 
         // Allow the argument to muck with this breadcrumb.
-        $argument->set_breadcrumb($this->build_info['breadcrumb']);
+        $argument->setBreadcrumb($this->build_info['breadcrumb']);
 
         // Test to see if we should use this argument's title
         if (!empty($argument->options['title_enable']) && !empty($argument->options['title'])) {
@@ -937,7 +914,7 @@ class ViewExecutable {
       }
       else {
         // determine default condition and handle.
-        $status = $argument->default_action();
+        $status = $argument->defaultAction();
         break;
       }
 
@@ -1023,7 +1000,7 @@ class ViewExecutable {
 
     if ($this->display_handler->usesExposed()) {
       $exposed_form = $this->display_handler->getPlugin('exposed_form');
-      $this->exposed_widgets = $exposed_form->render_exposed_form();
+      $this->exposed_widgets = $exposed_form->renderExposedForm();
       if (form_set_error() || !empty($this->build_info['abort'])) {
         $this->built = TRUE;
         // Don't execute the query, but rendering will still be executed to display the empty text.
@@ -1039,9 +1016,9 @@ class ViewExecutable {
     if (!empty($this->filter)) {
       $filter_groups = $this->display_handler->getOption('filter_groups');
       if ($filter_groups) {
-        $this->query->set_group_operator($filter_groups['operator']);
+        $this->query->setGroupOperator($filter_groups['operator']);
         foreach ($filter_groups['groups'] as $id => $operator) {
-          $this->query->set_where_group($operator, $id);
+          $this->query->setWhereGroup($operator, $id);
         }
       }
     }
@@ -1073,11 +1050,11 @@ class ViewExecutable {
     // Build our sort criteria if we were instructed to do so.
     if (!empty($this->build_sort)) {
       // Allow the style handler to deal with sorting.
-      if ($this->style_plugin->build_sort()) {
+      if ($this->style_plugin->buildSort()) {
         $this->_build('sort');
       }
       // allow the plugin to build second sorts as well.
-      $this->style_plugin->build_sort_post();
+      $this->style_plugin->buildSortPost();
     }
 
     // Allow area handlers to affect the query.
@@ -1097,7 +1074,7 @@ class ViewExecutable {
     }
 
     if (config('views.settings')->get('sql_signature')) {
-      $this->query->add_signature($this);
+      $this->query->addSignature($this);
     }
 
     // Let modules modify the query just prior to finalizing it.
@@ -1137,15 +1114,15 @@ class ViewExecutable {
       if (!empty($handlers[$id]) && is_object($handlers[$id])) {
         $multiple_exposed_input = array(0 => NULL);
         if ($handlers[$id]->multipleExposedInput()) {
-          $multiple_exposed_input = $handlers[$id]->group_multiple_exposed_input($this->exposed_data);
+          $multiple_exposed_input = $handlers[$id]->groupMultipleExposedInput($this->exposed_data);
         }
         foreach ($multiple_exposed_input as $group_id) {
           // Give this handler access to the exposed filter input.
           if (!empty($this->exposed_data)) {
             $converted = FALSE;
             if ($handlers[$id]->isAGroup()) {
-              $converted = $handlers[$id]->convert_exposed_input($this->exposed_data, $group_id);
-              $handlers[$id]->store_group_input($this->exposed_data, $converted);
+              $converted = $handlers[$id]->convertExposedInput($this->exposed_data, $group_id);
+              $handlers[$id]->storeGroupInput($this->exposed_data, $converted);
               if (!$converted) {
                 continue;
               }
@@ -1201,10 +1178,11 @@ class ViewExecutable {
     else {
       $cache = $this->display_handler->getPlugin('cache');
     }
-    if ($cache->cache_get('results')) {
-      if ($this->pager->use_pager()) {
+
+    if ($cache->cacheGet('results')) {
+      if ($this->pager->usePager()) {
         $this->pager->total_items = $this->total_rows;
-        $this->pager->update_page_info();
+        $this->pager->updatePageInfo();
       }
     }
     else {
@@ -1213,7 +1191,7 @@ class ViewExecutable {
       // views_plugin_query::execute().
       $this->result = array_values($this->result);
       $this->_postExecute();
-      $cache->cache_set('results');
+      $cache->cacheSet('results');
     }
 
     // Let modules modify the view just after executing it.
@@ -1249,7 +1227,7 @@ class ViewExecutable {
     $config = config('views.settings');
 
     $exposed_form = $this->display_handler->getPlugin('exposed_form');
-    $exposed_form->pre_render($this->result);
+    $exposed_form->preRender($this->result);
 
     $module_handler = \Drupal::moduleHandler();
 
@@ -1261,16 +1239,16 @@ class ViewExecutable {
       $cache = $this->display_handler->getPlugin('cache');
     }
 
-    if ($cache && $cache->cache_get('output')) {
+    if ($cache && $cache->cacheGet('output')) {
     }
     else {
       if ($cache) {
-        $cache->cache_start();
+        $cache->cacheStart();
       }
 
-      // Run pre_render for the pager as it might change the result.
+      // Run preRender for the pager as it might change the result.
       if (!empty($this->pager)) {
-        $this->pager->pre_render($this->result);
+        $this->pager->preRender($this->result);
       }
 
       // Initialize the style plugin.
@@ -1286,12 +1264,12 @@ class ViewExecutable {
       if ($this->style_plugin->usesFields()) {
         foreach ($this->field as $id => $handler) {
           if (!empty($this->field[$id])) {
-            $this->field[$id]->pre_render($this->result);
+            $this->field[$id]->preRender($this->result);
           }
         }
       }
 
-      $this->style_plugin->pre_render($this->result);
+      $this->style_plugin->preRender($this->result);
 
       // Let each area handler have access to the result set.
       $areas = array('header', 'footer');
@@ -1317,14 +1295,14 @@ class ViewExecutable {
 
       $this->display_handler->output = $this->display_handler->render();
       if ($cache) {
-        $cache->cache_set('output');
+        $cache->cacheSet('output');
       }
     }
 
-    $exposed_form->post_render($this->display_handler->output);
+    $exposed_form->postRender($this->display_handler->output);
 
     if ($cache) {
-      $cache->post_render($this->display_handler->output);
+      $cache->postRender($this->display_handler->output);
     }
 
     // Let modules modify the view output after it is rendered.
@@ -1502,7 +1480,7 @@ class ViewExecutable {
     $displays = (array)$displays;
     foreach ($displays as $display_id) {
       if ($this->displayHandlers->has($display_id)) {
-        if ($this->displayHandlers->get($display_id)->access($account)) {
+        if (($display = $this->displayHandlers->get($display_id)) && $display->access($account)) {
           return TRUE;
         }
       }
@@ -1555,7 +1533,7 @@ class ViewExecutable {
 
     // Allow substitutions from the first row.
     if ($this->initStyle()) {
-      $title = $this->style_plugin->tokenize_value($title, 0);
+      $title = $this->style_plugin->tokenizeValue($title, 0);
     }
     return $title;
   }
@@ -1692,8 +1670,8 @@ class ViewExecutable {
       }
 
       if ($set) {
-        if ($base) {
-          $breadcrumb = array_merge(drupal_get_breadcrumb(), $breadcrumb);
+        if ($base && $current_breadcrumbs = drupal_set_breadcrumb()) {
+          $breadcrumb = array_merge($current_breadcrumbs, $breadcrumb);
         }
         drupal_set_breadcrumb($breadcrumb);
       }

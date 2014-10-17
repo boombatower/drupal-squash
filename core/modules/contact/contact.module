@@ -58,28 +58,19 @@ function contact_permission() {
  */
 function contact_menu() {
   $items['admin/structure/contact'] = array(
-    'title' => 'Contact form',
+    'title' => 'Contact form categories',
     'description' => 'Create a system contact form and set up categories for the form to use.',
-    'page callback' => 'contact_category_list',
-    'access arguments' => array('administer contact forms'),
-    'file' => 'contact.admin.inc',
+    'route_name' => 'contact_category_list',
   );
   $items['admin/structure/contact/add'] = array(
     'title' => 'Add category',
-    'page callback' => 'contact_category_add',
-    'access arguments' => array('administer contact forms'),
+    'route_name' => 'contact_category_add',
     'type' => MENU_LOCAL_ACTION,
     'weight' => 1,
-    'file' => 'contact.admin.inc',
   );
   $items['admin/structure/contact/manage/%contact_category'] = array(
     'title' => 'Edit contact category',
-    'title callback' => 'entity_page_label',
-    'title arguments' => array(4),
-    'page callback' => 'contact_category_edit',
-    'page arguments' => array(4),
-    'access arguments' => array('administer contact forms'),
-    'file' => 'contact.admin.inc',
+    'route_name' => 'contact_category_edit',
   );
   $items['admin/structure/contact/manage/%contact_category/edit'] = array(
     'title' => 'Edit',
@@ -156,7 +147,7 @@ function _contact_personal_tab_access($account) {
 
   // If the requested user has disabled their contact form, do not allow users
   // to contact them.
-  $account_data = drupal_container()->get('user.data')->get('contact', $account->id(), 'enabled');
+  $account_data = Drupal::service('user.data')->get('contact', $account->id(), 'enabled');
   if (isset($account_data) && empty($account_data)) {
     return FALSE;
   }
@@ -197,12 +188,13 @@ function contact_field_extra_fields() {
       'description' => t('E-mail'),
       'weight' => -40,
     );
-    // @todo Recipient only makes sense if user contact form is a bundle/category.
-    $fields['contact_message'][$bundle]['form']['recipient'] = array(
-      'label' => t('Recipient user name'),
-      'description' => t('User'),
-      'weight' => -30,
-    );
+    if ($bundle == 'personal') {
+      $fields['contact_message'][$bundle]['form']['recipient'] = array(
+        'label' => t('Recipient user name'),
+        'description' => t('User'),
+        'weight' => -30,
+      );
+    }
     $fields['contact_message'][$bundle]['form']['subject'] = array(
       'label' => t('Subject'),
       'description' => t('Text'),
@@ -272,8 +264,8 @@ function contact_mail($key, &$message, $params) {
 
   $variables = array(
     '!site-name' => config('system.site')->get('name'),
-    '!subject' => $contact_message->subject,
-    '!category' => isset($params['contact_category']) ? $params['contact_category']->label() : NULL,
+    '!subject' => $contact_message->getSubject(),
+    '!category' => !empty($params['contact_category']) ? $params['contact_category']->label() : NULL,
     '!form-url' => url(current_path(), array('absolute' => TRUE, 'language' => $language)),
     '!sender-name' => user_format_name($sender),
   );
@@ -311,8 +303,8 @@ function contact_mail($key, &$message, $params) {
       $message['body'][] = t('Hello !recipient-name,', $variables, $options);
       $message['body'][] = t("!sender-name (!sender-url) has sent you a message via your contact form at !site-name.", $variables, $options);
       $message['body'][] = t("If you don't want to receive such e-mails, you can change your settings at !recipient-edit-url.", $variables, $options);
-      $message['body'][] = t('Message:', array(), $options);
-      $message['body'][] = $contact_message->message;
+      $build = entity_view($contact_message, 'mail', $language->langcode);
+      $message['body'][] = drupal_render($build);
       break;
   }
 }
@@ -331,7 +323,7 @@ function contact_form_user_profile_form_alter(&$form, &$form_state) {
     '#weight' => 5,
   );
   $account = $form_state['controller']->getEntity();
-  $account_data = drupal_container()->get('user.data')->get('contact', $account->id(), 'enabled');
+  $account_data = Drupal::service('user.data')->get('contact', $account->id(), 'enabled');
   $form['contact']['contact'] = array(
     '#type' => 'checkbox',
     '#title' => t('Personal contact form'),
@@ -345,7 +337,7 @@ function contact_form_user_profile_form_alter(&$form, &$form_state) {
  */
 function contact_user_update($account) {
   if (isset($account->contact)) {
-    drupal_container()->get('user.data')->set('contact', $account->id(), 'enabled', (int) $account->contact);
+    Drupal::service('user.data')->set('contact', $account->id(), 'enabled', (int) $account->contact);
   }
 }
 

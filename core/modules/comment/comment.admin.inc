@@ -6,6 +6,7 @@
  */
 
 use Drupal\comment\Plugin\Core\Entity\Comment;
+use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 /**
@@ -19,7 +20,7 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
  * @see comment_multiple_delete_confirm()
  */
 function comment_admin($type = 'new') {
-  $edit = $_POST;
+  $edit = Drupal::request()->request->all();
 
   if (isset($edit['operation']) && ($edit['operation'] == 'delete') && isset($edit['comments']) && $edit['comments']) {
     return drupal_get_form('comment_multiple_delete_confirm');
@@ -59,7 +60,7 @@ function comment_admin_overview($form, &$form_state, $arg) {
 
   $form['options']['operation'] = array(
     '#type' => 'select',
-    '#title' => t('Operation'),
+    '#title' => t('Action'),
     '#title_display' => 'invisible',
     '#options' => $options,
     '#default_value' => 'publish',
@@ -82,24 +83,27 @@ function comment_admin_overview($form, &$form_state, $arg) {
   $query = db_select('comment', 'c')
     ->extend('Drupal\Core\Database\Query\PagerSelectExtender')
     ->extend('Drupal\Core\Database\Query\TableSortExtender');
-  $query->join('node', 'n', 'n.nid = c.nid');
-  $query->addField('n', 'title', 'node_title');
+  $query->join('node_field_data', 'n', 'n.nid = c.nid');
   $query->addTag('node_access');
   $result = $query
-    ->fields('c', array('cid', 'subject', 'name', 'changed'))
+    ->fields('c', array('cid', 'nid', 'subject', 'name', 'changed'))
     ->condition('c.status', $status)
     ->limit(50)
     ->orderByHeader($header)
     ->execute();
 
+  $nids = array();
   $cids = array();
 
   // We collect a sorted list of node_titles during the query to attach to the
   // comments later.
   foreach ($result as $row) {
+    $nids[] = $row->nid;
     $cids[] = $row->cid;
-    $node_titles[] = $row->node_title;
   }
+  // Ensure all nodes are statically cached so that we do not have to load them
+  // individually when getting their labels below.
+  node_load_multiple($nids);
   $comments = comment_load_multiple($cids);
 
   // Build a table listing the appropriate comments.
@@ -109,7 +113,7 @@ function comment_admin_overview($form, &$form_state, $arg) {
   foreach ($comments as $comment) {
     // Remove the first node title from the node_titles array and attach to
     // the comment.
-    $node_title = array_shift($node_titles);
+    $node_title = $comment->nid->entity->label();
     $options[$comment->id()] = array(
       'subject' => array(
         'data' => array(
@@ -186,7 +190,7 @@ function comment_admin_overview_submit($form, &$form_state) {
   $cids = $form_state['values']['comments'];
 
   if ($operation == 'delete') {
-    comment_delete_multiple($cids);
+    entity_delete_multiple('comment', $cids);
   }
   else {
     foreach ($cids as $cid => $value) {
@@ -198,7 +202,7 @@ function comment_admin_overview_submit($form, &$form_state) {
       elseif ($operation == 'publish') {
         $comment->status->value = COMMENT_PUBLISHED;
       }
-      comment_save($comment);
+      $comment->save();
     }
   }
   drupal_set_message(t('The update has been performed.'));
@@ -235,7 +239,7 @@ function comment_multiple_delete_confirm($form, &$form_state) {
 
   if (!$comment_counter) {
     drupal_set_message(t('There do not appear to be any comments to delete, or your selected comment was deleted by another administrator.'));
-    drupal_goto('admin/content/comment');
+    return new RedirectResponse(url('admin/content/comment', array('absolute' => TRUE)));
   }
   else {
     return confirm_form($form,
@@ -250,7 +254,7 @@ function comment_multiple_delete_confirm($form, &$form_state) {
  */
 function comment_multiple_delete_confirm_submit($form, &$form_state) {
   if ($form_state['values']['confirm']) {
-    comment_delete_multiple(array_keys($form_state['values']['comments']));
+    entity_delete_multiple('comment', array_keys($form_state['values']['comments']));
     cache_invalidate_tags(array('content' => TRUE));
     $count = count($form_state['values']['comments']);
     watchdog('content', 'Deleted @count comments.', array('@count' => $count));

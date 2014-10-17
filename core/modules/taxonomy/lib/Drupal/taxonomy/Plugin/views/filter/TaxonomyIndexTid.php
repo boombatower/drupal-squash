@@ -37,7 +37,7 @@ class TaxonomyIndexTid extends ManyToOne {
 
   public function hasExtraOptions() { return TRUE; }
 
-  function get_value_options() { /* don't overwrite the value options */ }
+  public function getValueOptions() { /* don't overwrite the value options */ }
 
   protected function defineOptions() {
     $options = parent::defineOptions();
@@ -95,7 +95,7 @@ class TaxonomyIndexTid extends ManyToOne {
     );
   }
 
-  function value_form(&$form, &$form_state) {
+  protected function valueForm(&$form, &$form_state) {
     $vocabulary = entity_load('taxonomy_vocabulary', $this->options['vid']);
     if (empty($vocabulary) && $this->options['limit']) {
       $form['markup'] = array(
@@ -165,7 +165,7 @@ class TaxonomyIndexTid extends ManyToOne {
         $identifier = $this->options['expose']['identifier'];
 
         if (!empty($this->options['expose']['reduce'])) {
-          $options = $this->reduce_value_options($options);
+          $options = $this->reduceValueOptions($options);
 
           if (!empty($this->options['expose']['multiple']) && empty($this->options['expose']['required'])) {
             $default_value = array();
@@ -211,7 +211,7 @@ class TaxonomyIndexTid extends ManyToOne {
     }
   }
 
-  function value_validate($form, &$form_state) {
+  protected function valueValidate($form, &$form_state) {
     // We only validate if they've chosen the text field style.
     if ($this->options['type'] != 'textfield') {
       return;
@@ -330,7 +330,7 @@ class TaxonomyIndexTid extends ManyToOne {
     return $tids;
   }
 
-  function value_submit($form, &$form_state) {
+  protected function valueSubmit($form, &$form_state) {
     // prevent array_filter from messing up our arrays in parent submit.
   }
 

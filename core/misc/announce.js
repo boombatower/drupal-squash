@@ -16,6 +16,8 @@
  */
 (function (Drupal, debounce) {
 
+  "use strict";
+
   var liveElement;
   var announcements = [];
 
@@ -29,7 +31,7 @@
       if (!liveElement) {
         liveElement = document.createElement('div');
         liveElement.id = 'drupal-live-announce';
-        liveElement.className = 'element-invisible';
+        liveElement.className = 'visually-hidden';
         liveElement.setAttribute('aria-live', 'polite');
         liveElement.setAttribute('aria-busy', 'false');
         document.body.appendChild(liveElement);

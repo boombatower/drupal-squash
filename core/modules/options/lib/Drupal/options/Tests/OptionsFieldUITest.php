@@ -78,7 +78,7 @@ class OptionsFieldUITest extends FieldTestBase {
     // Create a node with actual data for the field.
     $settings = array(
       'type' => $this->type,
-      $this->field_name =>array(array('value' => 1)),
+      $this->field_name => array(array('value' => 1)),
     );
     $node = $this->drupalCreateNode($settings);
 
@@ -95,7 +95,7 @@ class OptionsFieldUITest extends FieldTestBase {
     $this->assertAllowedValuesInput("0|Zero", 'some values are being removed while currently in use', 'Values in use cannot be removed.');
 
     // Delete the node, remove the value.
-    node_delete($node->nid);
+    $node->delete();
     $string = "0|Zero";
     $array = array('0' => 'Zero');
     $this->assertAllowedValuesInput($string, $array, 'Values not in use can be removed.');
@@ -145,7 +145,7 @@ class OptionsFieldUITest extends FieldTestBase {
     $this->assertAllowedValuesInput("0|Zero", 'some values are being removed while currently in use', 'Values in use cannot be removed.');
 
     // Delete the node, remove the value.
-    node_delete($node->nid);
+    $node->delete();
     $string = "0|Zero";
     $array = array('0' => 'Zero');
     $this->assertAllowedValuesInput($string, $array, 'Values not in use can be removed.');
@@ -200,7 +200,7 @@ class OptionsFieldUITest extends FieldTestBase {
     $this->assertAllowedValuesInput("Zero", 'some values are being removed while currently in use', 'Values in use cannot be removed.');
 
     // Delete the node, remove the value.
-    node_delete($node->nid);
+    $node->delete();
     $string = "Zero";
     $array = array('Zero' => 'Zero');
     $this->assertAllowedValuesInput($string, $array, 'Values not in use can be removed.');
@@ -258,17 +258,15 @@ class OptionsFieldUITest extends FieldTestBase {
    */
   protected function createOptionsField($type) {
     // Create a test field and instance.
-    $field = array(
+    entity_create('field_entity', array(
       'field_name' => $this->field_name,
       'type' => $type,
-    );
-    field_create_field($field);
-    $instance = array(
+    ))->save();
+    entity_create('field_instance', array(
       'field_name' => $this->field_name,
       'entity_type' => 'node',
       'bundle' => $this->type,
-    );
-    field_create_instance($instance);
+    ))->save();
 
     entity_get_form_display('node', $this->type, 'default')->setComponent($this->field_name)->save();
 

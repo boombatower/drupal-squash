@@ -15,14 +15,34 @@ function theme_views_ui_container($variables) {
   return '<div' . new Attribute($element['#attributes']) . '>' . $element['#children'] . '</div>';
 }
 
+/**
+ * Prepares variables for Views UI display tab setting templates.
+ *
+ * Default template: views-ui-display-tab-setting.html.twig.
+ *
+ * @param array $variables
+ *   An associative array containing:
+ *   - link: The setting's primary link.
+ *   - settings_links: An array of links for this setting.
+ *   - defaulted: A boolean indicating the setting is in its default state.
+ *   - overridden: A boolean indicating the setting has been overridden from
+ *     the default.
+ *   - description: The setting's description.
+ *   - description_separator: A boolean indicating a separator colon should be
+ *     appended to the setting's description.
+ */
 function template_preprocess_views_ui_display_tab_setting(&$variables) {
   static $zebra = 0;
-  $variables['zebra'] = ($zebra % 2 === 0 ? 'odd' : 'even');
+
+  // Add default class attributes.
+  $variables['attributes']['class'][] = 'views-display-setting';
+  $variables['attributes']['class'][] = ($zebra % 2 === 0 ? 'odd' : 'even');
+  $variables['attributes']['class'][] = 'clearfix';
+
   $zebra++;
 
-  // Put the main link to the left side
+  // Put the primary link to the left side.
   array_unshift($variables['settings_links'], $variables['link']);
-  $variables['settings_links'] = implode('<span class="label">&nbsp;|&nbsp;</span>', $variables['settings_links']);
 
   $variables['attributes']['class'][] = 'views-ui-display-tab-setting';
 
@@ -31,7 +51,7 @@ function template_preprocess_views_ui_display_tab_setting(&$variables) {
   }
   if (!empty($variables['overridden'])) {
     $variables['attributes']['class'][] = 'overridden';
-    $variables['attributes_array']['title'][] = t('Overridden');
+    $variables['attributes']['title'][] = t('Overridden');
   }
 
   // Append a colon to the description, if requested.
@@ -40,6 +60,16 @@ function template_preprocess_views_ui_display_tab_setting(&$variables) {
   }
 }
 
+/**
+ * Prepares variables for Views UI display tab bucket templates.
+ *
+ * Default template: views-ui-display-tab-bucket.html.twig.
+ *
+ * @param array $variables
+ *   An associative array containing:
+ *   - element: An associative array containing the properties of the element.
+ *     Properties used: #name, #overridden, #children, #title, #actions.
+ */
 function template_preprocess_views_ui_display_tab_bucket(&$variables) {
   $element = $variables['element'];
 
@@ -50,12 +80,12 @@ function template_preprocess_views_ui_display_tab_bucket(&$variables) {
   }
   if (!empty($element['#overridden'])) {
     $variables['attributes']['class'][] = 'overridden';
-    $variables['attributes_array']['title'][] = t('Overridden');
+    $variables['attributes']['title'][] = t('Overridden');
   }
 
   $variables['content'] = $element['#children'];
   $variables['title'] = $element['#title'];
-  $variables['actions'] = !empty($element['#actions']) ? render($element['#actions']) : '';
+  $variables['actions'] = !empty($element['#actions']) ? $element['#actions'] : array();
 }
 
 /**
@@ -63,9 +93,7 @@ function template_preprocess_views_ui_display_tab_bucket(&$variables) {
  */
 function template_preprocess_views_ui_view_info(&$variables) {
   $variables['title'] = $variables['view']->label();
-
-  $displays = $variables['view']->getDisplaysList();
-  $variables['displays'] = empty($displays) ? t('None') : format_plural(count($displays), 'Display', 'Displays') . ': ' . '<em>' . implode(', ', $displays) . '</em>';
+  $variables['displays'] = empty($variables['displays']) ? t('None') : format_plural(count($variables['displays']), 'Display', 'Displays') . ': ' . '<em>' . implode(', ', $variables['displays']) . '</em>';
 }
 
 /**
@@ -186,64 +214,6 @@ function theme_views_ui_build_group_filter_form($variables) {
   drupal_add_tabledrag('views-filter-groups', 'order', 'sibling', 'weight');
   $render_form = drupal_render_children($form);
   return $output . $render_form . $table . $more;
-}
-
-/**
- * Turn the reorder form into a proper table
- */
-function theme_views_ui_reorder_displays_form($vars) {
-  $form = $vars['form'];
-  $rows = array();
-  foreach (element_children($form) as $key) {
-    if (isset($form[$key]['#display'])) {
-      $display = &$form[$key];
-
-      $row = array();
-      $row[] = drupal_render($display['title']);
-      $form[$key]['weight']['#attributes']['class'] = array('weight');
-      $row[] = drupal_render($form[$key]['weight']);
-      if (isset($display['removed'])) {
-        $row[] = drupal_render($form[$key]['removed']) .
-          l('<span>' . t('Remove') . '</span>',
-            'javascript:void()',
-            array(
-              'attributes' => array(
-                'id' => 'display-remove-link-' . $key,
-                'class' => array('views-button-remove display-remove-link'),
-                'alt' => t('Remove this display'),
-                'title' => t('Remove this display')),
-              'html' => TRUE));
-      }
-      else {
-        $row[] = '';
-      }
-      $class = array();
-      $styles = array();
-      if (isset($form[$key]['weight']['#type'])) {
-        $class[] = 'draggable';
-      }
-      if (isset($form[$key]['deleted']['#value']) && $form[$key]['deleted']['#value']) {
-        $styles[] = 'display: none;';
-      }
-      $rows[] = array('data' => $row, 'class' => $class, 'id' => 'display-row-' . $key, 'style' => $styles);
-    }
-  }
-
-  $header = array(t('Display'), t('Weight'), t('Remove'));
-  $output = '';
-  drupal_add_tabledrag('reorder-displays', 'order', 'sibling', 'weight');
-
-  $output = drupal_render($form['override']);
-  $output .= '<div class="scroll">';
-  $output .= theme('table',
-    array('header' => $header,
-    'rows' => $rows,
-    'attributes' => array('id' => 'reorder-displays'),
-  ));
-  $output .= '</div>';
-  $output .= drupal_render_children($form);
-
-  return $output;
 }
 
 /**
@@ -489,5 +459,5 @@ function template_preprocess_views_ui_view_preview_section(&$vars) {
 function theme_views_ui_view_preview_section($vars) {
   return '<h1 class="section-title">' . $vars['title'] . '</h1>'
   . $vars['links']
-  . '<div class="preview-section">'. $vars['content'] . '</div>';
+  . '<div class="preview-section">'. drupal_render($vars['content']) . '</div>';
 }

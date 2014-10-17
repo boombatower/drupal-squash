@@ -72,7 +72,7 @@ abstract class ArgumentValidatorPluginBase extends PluginBase {
    * This is only called by child objects if specified in the buildOptionsForm(),
    * so it will not always be used.
    */
-  function check_access(&$form, $option_name) {
+  protected function checkAccess(&$form, $option_name) {
     if (!$this->access()) {
       $form[$option_name]['#disabled'] = TRUE;
       $form[$option_name]['#value'] = $form[$this->option_name]['#default_value'];
@@ -80,7 +80,7 @@ abstract class ArgumentValidatorPluginBase extends PluginBase {
     }
   }
 
-  function validate_argument($arg) { return TRUE; }
+  public function validateArgument($arg) { return TRUE; }
 
   /**
    * Process the summary arguments for displaying.
@@ -90,7 +90,7 @@ abstract class ArgumentValidatorPluginBase extends PluginBase {
    * for a faster query. But there are use cases where you want to use
    * the old value again, for example the summary.
    */
-  function process_summary_arguments(&$args) { }
+  public function processSummaryArguments(&$args) { }
 
 }
 

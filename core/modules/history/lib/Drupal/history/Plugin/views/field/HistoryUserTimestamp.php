@@ -32,8 +32,8 @@ class HistoryUserTimestamp extends Node {
 
     global $user;
     if ($user->uid) {
-      $this->additional_fields['created'] = array('table' => 'node', 'field' => 'created');
-      $this->additional_fields['changed'] = array('table' => 'node', 'field' => 'changed');
+      $this->additional_fields['created'] = array('table' => 'node_field_data', 'field' => 'created');
+      $this->additional_fields['changed'] = array('table' => 'node_field_data', 'field' => 'changed');
       if (module_exists('comment') && !empty($this->options['comments'])) {
         $this->additional_fields['last_comment'] = array('table' => 'node_comment_statistics', 'field' => 'last_comment_timestamp');
       }
@@ -76,10 +76,10 @@ class HistoryUserTimestamp extends Node {
     $mark = MARK_READ;
     global $user;
     if ($user->uid) {
-      $last_read = $this->get_value($values);
-      $changed = $this->get_value($values, 'changed');
+      $last_read = $this->getValue($values);
+      $changed = $this->getValue($values, 'changed');
 
-      $last_comment = module_exists('comment') && !empty($this->options['comments']) ?  $this->get_value($values, 'last_comment') : 0;
+      $last_comment = module_exists('comment') && !empty($this->options['comments']) ?  $this->getValue($values, 'last_comment') : 0;
 
       if (!$last_read && $changed > HISTORY_READ_LIMIT) {
         $mark = MARK_NEW;
@@ -90,7 +90,11 @@ class HistoryUserTimestamp extends Node {
       elseif ($last_comment > $last_read && $last_comment > HISTORY_READ_LIMIT) {
         $mark = MARK_UPDATED;
       }
-      return $this->render_link(theme('mark', array('type' => $mark)), $values);
+      $build = array(
+        '#theme' => 'mark',
+        '#mark_type' => $mark,
+      );
+      return $this->render_link(drupal_render($build), $values);
     }
   }
 

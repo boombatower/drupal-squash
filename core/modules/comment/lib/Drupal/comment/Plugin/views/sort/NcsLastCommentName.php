@@ -33,12 +33,11 @@ class NcsLastCommentName extends SortPluginBase {
     // @todo this might be safer if we had an ensure_relationship rather than guessing
     // the table alias. Though if we did that we'd be guessing the relationship name
     // so that doesn't matter that much.
-//    $this->user_table = $this->query->add_relationship(NULL, $join, 'users', $this->relationship);
-    $this->user_table = $this->query->ensure_table('ncs_users', $this->relationship, $join);
-    $this->user_field = $this->query->add_field($this->user_table, 'name');
+    $this->user_table = $this->query->ensureTable('ncs_users', $this->relationship, $join);
+    $this->user_field = $this->query->addField($this->user_table, 'name');
 
     // Add the field.
-    $this->query->add_orderby(NULL, "LOWER(COALESCE($this->user_table.name, $this->tableAlias.$this->field))", $this->options['order'], $this->tableAlias . '_' . $this->field);
+    $this->query->addOrderBy(NULL, "LOWER(COALESCE($this->user_table.name, $this->tableAlias.$this->field))", $this->options['order'], $this->tableAlias . '_' . $this->field);
   }
 
 }

@@ -32,7 +32,7 @@ class Rss extends RowPluginBase {
 
   var $base_field = 'nid';
 
-  // Stores the nodes loaded with pre_render.
+  // Stores the nodes loaded with preRender.
   var $nodes = array();
 
   protected function defineOptions() {
@@ -79,7 +79,7 @@ class Rss extends RowPluginBase {
     return check_plain($options[$this->options['item_length']]);
   }
 
-  function pre_render($values) {
+  public function preRender($values) {
     $nids = array();
     foreach ($values as $row) {
       $nids[] = $row->{$this->field_alias};
@@ -168,12 +168,13 @@ class Rss extends RowPluginBase {
     $item->link = $node->link;
     $item->elements = $node->rss_elements;
     $item->nid = $node->nid;
-
-    return theme($this->themeFunctions(), array(
-      'view' => $this->view,
-      'options' => $this->options,
-      'row' => $item
-    ));
+    $theme_function = array(
+      '#theme' => $this->themeFunctions(),
+      '#view' => $this->view,
+      '#options' => $this->options,
+      '#row' => $item,
+    );
+    return drupal_render($theme_function);
   }
 
 }

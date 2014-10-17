@@ -65,7 +65,7 @@ class EntityReverse extends RelationshipPluginBase  {
     $first_join = drupal_container()->get('plugin.manager.views.join')->createInstance($id, $first);
 
 
-    $this->first_alias = $this->query->add_table($this->definition['field table'], $this->relationship, $first_join);
+    $this->first_alias = $this->query->addTable($this->definition['field table'], $this->relationship, $first_join);
 
     // Second, relate the field table to the entity specified using
     // the entity id on the field table and the entity's id field.
@@ -93,7 +93,7 @@ class EntityReverse extends RelationshipPluginBase  {
     // use a short alias for this:
     $alias = $this->definition['field_name'] . '_' . $this->table;
 
-    $this->alias = $this->query->add_relationship($alias, $second_join, $this->definition['base'], $this->relationship);
+    $this->alias = $this->query->addRelationship($alias, $second_join, $this->definition['base'], $this->relationship);
   }
 
 }

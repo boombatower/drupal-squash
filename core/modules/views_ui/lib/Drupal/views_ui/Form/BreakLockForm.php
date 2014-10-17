@@ -7,18 +7,17 @@
 
 namespace Drupal\views_ui\Form;
 
-use Symfony\Component\DependencyInjection\ContainerInterface;
-
-use Drupal\Core\ControllerInterface;
-use Drupal\Core\Form\ConfirmFormBase;
-use Drupal\views\ViewStorageInterface;
+use Drupal\Core\Entity\EntityConfirmFormBase;
+use Drupal\Core\Entity\EntityControllerInterface;
 use Drupal\Core\Entity\EntityManager;
 use Drupal\user\TempStoreFactory;
+use Symfony\Component\DependencyInjection\ContainerInterface;
+use Symfony\Component\HttpFoundation\Request;
 
 /**
  * Builds the form to break the lock of an edited view.
  */
-class BreakLockForm extends ConfirmFormBase implements ControllerInterface {
+class BreakLockForm extends EntityConfirmFormBase implements EntityControllerInterface {
 
   /**
    * Stores the Entity manager.
@@ -35,13 +34,6 @@ class BreakLockForm extends ConfirmFormBase implements ControllerInterface {
   protected $tempStore;
 
   /**
-   * The view being deleted.
-   *
-   * @var \Drupal\views\ViewStorageInterface
-   */
-  protected $view;
-
-  /**
    * Constructs a \Drupal\views_ui\Form\BreakLockForm object.
    *
    * @param \Drupal\Core\Entity\EntityManager $entity_manager
@@ -55,9 +47,9 @@ class BreakLockForm extends ConfirmFormBase implements ControllerInterface {
   }
 
   /**
-   * Implements \Drupal\Core\ControllerInterface::create().
+   * {@inheritdoc}
    */
-  public static function create(ContainerInterface $container) {
+  public static function createInstance(ContainerInterface $container, $entity_type, array $entity_info) {
     return new static(
       $container->get('plugin.manager.entity'),
       $container->get('user.tempstore')
@@ -65,60 +57,59 @@ class BreakLockForm extends ConfirmFormBase implements ControllerInterface {
   }
 
   /**
-   * Implements \Drupal\Core\Form\FormInterface::getFormID().
+   * {@inheritdoc}
    */
   public function getFormID() {
     return 'views_ui_break_lock_confirm';
   }
 
   /**
-   * Implements \Drupal\Core\Form\ConfirmFormBase::getQuestion().
+   * {@inheritdoc}
    */
-  protected function getQuestion() {
-    return t('Do you want to break the lock on view %name?', array('%name' => $this->view->id()));
+  public function getQuestion() {
+    return t('Do you want to break the lock on view %name?', array('%name' => $this->entity->id()));
   }
 
   /**
-   * Implements \Drupal\Core\Form\ConfirmFormBase::getDescription().
+   * {@inheritdoc}
    */
-  protected function getDescription() {
-    $locked = $this->tempStore->getMetadata($this->view->id());
+  public function getDescription() {
+    $locked = $this->tempStore->getMetadata($this->entity->id());
     $accounts = $this->entityManager->getStorageController('user')->load(array($locked->owner));
     return t('By breaking this lock, any unsaved changes made by !user will be lost.', array('!user' => theme('username', array('account' => reset($accounts)))));
   }
 
   /**
-   * Implements \Drupal\Core\Form\ConfirmFormBase::getCancelPath().
+   * {@inheritdoc}
    */
-  protected function getCancelPath() {
-    return 'admin/structure/views/view/' . $this->view->id();
+  public function getCancelPath() {
+    return 'admin/structure/views/view/' . $this->entity->id();
   }
 
   /**
-   * Implements \Drupal\Core\Form\ConfirmFormBase::getConfirmText().
+   * {@inheritdoc}
    */
-  protected function getConfirmText() {
+  public function getConfirmText() {
     return t('Break lock');
   }
 
   /**
-   * Implements \Drupal\Core\Form\FormInterface::buildForm().
+   * {@inheritdoc}
    */
-  public function buildForm(array $form, array &$form_state, ViewStorageInterface $view = NULL) {
-    $this->view = $view;
-    if (!$this->tempStore->getMetadata($this->view->id())) {
-      $form['message']['#markup'] = t('There is no lock on view %name to break.', array('%name' => $this->view->id()));
+  public function buildForm(array $form, array &$form_state, Request $request = NULL) {
+    if (!$this->tempStore->getMetadata($this->entity->id())) {
+      $form['message']['#markup'] = t('There is no lock on view %name to break.', array('%name' => $this->entity->id()));
       return $form;
     }
-    return parent::buildForm($form, $form_state);
+    return parent::buildForm($form, $form_state, $request);
   }
 
   /**
-   * Implements \Drupal\Core\Form\FormInterface::submitForm().
+   * {@inheritdoc}
    */
-  public function submitForm(array &$form, array &$form_state) {
-    $this->tempStore->delete($this->view->id());
-    $form_state['redirect'] = 'admin/structure/views/view/' . $this->view->id();
+  public function submit(array $form, array &$form_state) {
+    $this->tempStore->delete($this->entity->id());
+    $form_state['redirect'] = 'admin/structure/views/view/' . $this->entity->id();
     drupal_set_message(t('The lock has been broken and you may now edit this view.'));
   }
 

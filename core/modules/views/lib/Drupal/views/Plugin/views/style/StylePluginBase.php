@@ -75,12 +75,24 @@ abstract class StylePluginBase extends PluginBase {
   /**
     * Stores the rendered field values, keyed by the row index and field name.
     *
-    * @see \Drupal\views\Plugin\views\style\StylePluginBase::render_fields()
-    * @see \Drupal\views\Plugin\views\style\StylePluginBase::get_field()
+    * @see \Drupal\views\Plugin\views\style\StylePluginBase::renderFields()
+    * @see \Drupal\views\Plugin\views\style\StylePluginBase::getField()
     *
     * @var array|null
     */
   protected $rendered_fields;
+
+  /**
+   * The theme function used to render the grouping set.
+   *
+   * Plugins may override this attribute if they wish to use some other theme
+   * function to render the grouping set.
+   *
+   * @var string
+   *
+   * @see StylePluginBase::renderGroupingSets()
+   */
+  protected $groupingTheme = 'views_view_grouping';
 
   /**
    * Overrides \Drupal\views\Plugin\views\PluginBase::init().
@@ -146,8 +158,8 @@ abstract class StylePluginBase extends PluginBase {
     // If we use a row plugin, ask the row plugin. Chances are, we don't
     // care, it does.
     $row_uses_fields = FALSE;
-    if ($this->usesRowPlugin() && !empty($this->view->rowPlugin)) {
-      $row_uses_fields = $this->view->rowPlugin->usesFields();
+    if ($this->usesRowPlugin() && ($row_plugin = $this->displayHandler->getPlugin('row'))) {
+      $row_uses_fields = $row_plugin->usesFields();
     }
     // Otherwise, check the definition or the option.
     return $row_uses_fields || $this->usesFields || !empty($this->options['uses_fields']);
@@ -158,7 +170,7 @@ abstract class StylePluginBase extends PluginBase {
    *
    * Used to ensure we don't fetch tokens when not needed for performance.
    */
-  function uses_tokens() {
+  public function usesTokens() {
     if ($this->usesRowClass()) {
       $class = $this->options['row_class'];
       if (strpos($class, '[') !== FALSE || strpos($class, '!') !== FALSE || strpos($class, '%') !== FALSE) {
@@ -170,11 +182,11 @@ abstract class StylePluginBase extends PluginBase {
   /**
    * Return the token replaced row class for the specified row.
    */
-  function get_row_class($row_index) {
+  public function getRowClass($row_index) {
     if ($this->usesRowClass()) {
       $class = $this->options['row_class'];
       if ($this->usesFields() && $this->view->field) {
-        $class = strip_tags($this->tokenize_value($class, $row_index));
+        $class = strip_tags($this->tokenizeValue($class, $row_index));
       }
 
       $classes = explode(' ', $class);
@@ -188,7 +200,7 @@ abstract class StylePluginBase extends PluginBase {
   /**
    * Take a value and apply token replacement logic to it.
    */
-  function tokenize_value($value, $row_index) {
+  public function tokenizeValue($value, $row_index) {
     if (strpos($value, '[') !== FALSE || strpos($value, '!') !== FALSE || strpos($value, '%') !== FALSE) {
       $fake_item = array(
         'alter_text' => TRUE,
@@ -212,7 +224,7 @@ abstract class StylePluginBase extends PluginBase {
   /**
    * Should the output of the style plugin be rendered even if it's a empty view.
    */
-  function even_empty() {
+  public function evenEmpty() {
     return !empty($this->definition['even empty']);
   }
 
@@ -347,7 +359,7 @@ abstract class StylePluginBase extends PluginBase {
    * @param string $type
    *    The display type, either block or page.
    */
-  function wizard_form(&$form, &$form_state, $type) {
+  public function wizardForm(&$form, &$form_state, $type) {
   }
 
   /**
@@ -365,7 +377,7 @@ abstract class StylePluginBase extends PluginBase {
    * @param string $display_type
    *   The display type, either block or page.
    */
-  function wizard_submit(&$form, &$form_state, WizardInterface $wizard, &$display_options, $display_type) {
+  public function wizardSubmit(&$form, &$form_state, WizardInterface $wizard, &$display_options, $display_type) {
   }
 
   /**
@@ -373,13 +385,13 @@ abstract class StylePluginBase extends PluginBase {
    * interfere with the sorts. If so it should build; if it returns
    * any non-TRUE value, normal sorting will NOT be added to the query.
    */
-  function build_sort() { return TRUE; }
+  public function buildSort() { return TRUE; }
 
   /**
    * Called by the view builder to let the style build a second set of
    * sorts that will come after any other sorts in the view.
    */
-  function build_sort_post() { }
+  public function buildSortPost() { }
 
   /**
    * Allow the style to do stuff before each row is rendered.
@@ -387,9 +399,9 @@ abstract class StylePluginBase extends PluginBase {
    * @param $result
    *   The full array of results from the query.
    */
-  function pre_render($result) {
+  public function preRender($result) {
     if (!empty($this->view->rowPlugin)) {
-      $this->view->rowPlugin->pre_render($result);
+      $this->view->rowPlugin->preRender($result);
     }
   }
 
@@ -420,13 +432,13 @@ abstract class StylePluginBase extends PluginBase {
     }
 
     // Group the rows according to the grouping instructions, if specified.
-    $sets = $this->render_grouping(
+    $sets = $this->renderGrouping(
       $this->view->result,
       $this->options['grouping'],
       TRUE
     );
 
-    return $this->render_grouping_sets($sets);
+    return $this->renderGroupingSets($sets);
   }
 
   /**
@@ -443,9 +455,9 @@ abstract class StylePluginBase extends PluginBase {
    * @return string
    *   Rendered output of given grouping sets.
    */
-  function render_grouping_sets($sets, $level = 0) {
+  public function renderGroupingSets($sets, $level = 0) {
     $output = array();
-    $theme_functions = views_theme_functions('views_view_grouping', $this->view, $this->view->display_handler->display);
+    $theme_functions = views_theme_functions($this->groupingTheme, $this->view, $this->view->display_handler->display);
     foreach ($sets as $set) {
       $row = reset($set['rows']);
       // Render as a grouping set.
@@ -519,7 +531,7 @@ abstract class StylePluginBase extends PluginBase {
    *   )
    *   @endcode
    */
-  function render_grouping($records, $groupings = array(), $group_rendered = NULL) {
+  public function renderGrouping($records, $groupings = array(), $group_rendered = NULL) {
     // This is for backward compability, when $groupings was a string containing
     // the ID of a single field.
     if (is_string($groupings)) {
@@ -528,7 +540,7 @@ abstract class StylePluginBase extends PluginBase {
     }
 
     // Make sure fields are rendered
-    $this->render_fields($this->view->result);
+    $this->renderFields($this->view->result);
     $sets = array();
     if ($groupings) {
       foreach ($records as $index => $row) {
@@ -546,7 +558,7 @@ abstract class StylePluginBase extends PluginBase {
           // we can control any special formatting of the grouping field through
           // the admin or theme layer or anywhere else we'd like.
           if (isset($this->view->field[$field])) {
-            $group_content = $this->get_field($index, $field);
+            $group_content = $this->getField($index, $field);
             if ($this->view->field[$field]->options['label']) {
               $group_content = $this->view->field[$field]->options['label'] . ': ' . $group_content;
             }
@@ -557,7 +569,7 @@ abstract class StylePluginBase extends PluginBase {
               }
             }
             else {
-              $grouping = $this->get_field_value($index, $field);
+              $grouping = $this->getFieldValue($index, $field);
               // Not all field handlers return a scalar value,
               // e.g. views_handler_field_field.
               if (!is_scalar($grouping)) {
@@ -607,7 +619,7 @@ abstract class StylePluginBase extends PluginBase {
    * @param array $result
    *   The result array from $view->result
    */
-  protected function render_fields(array $result) {
+  protected function renderFields(array $result) {
     if (!$this->usesFields()) {
       return;
     }
@@ -626,7 +638,7 @@ abstract class StylePluginBase extends PluginBase {
             $this->rendered_fields[$count][$id] = $this->view->field[$id]->theme($row);
           }
 
-          $this->row_tokens[$count] = $this->view->field[$id]->get_render_tokens(array());
+          $this->row_tokens[$count] = $this->view->field[$id]->getRenderTokens(array());
         }
       }
       unset($this->view->row_index);
@@ -644,9 +656,9 @@ abstract class StylePluginBase extends PluginBase {
    * @return string|null
    *   The output of the field, or NULL if it was empty.
    */
-  public function get_field($index, $field) {
+  public function getField($index, $field) {
     if (!isset($this->rendered_fields)) {
-      $this->render_fields($this->view->result);
+      $this->renderFields($this->view->result);
     }
 
     if (isset($this->rendered_fields[$index][$field])) {
@@ -662,9 +674,9 @@ abstract class StylePluginBase extends PluginBase {
   * @param $field
   *    The id of the field.
   */
-  function get_field_value($index, $field) {
+  protected function getFieldValue($index, $field) {
     $this->view->row_index = $index;
-    $value = $this->view->field[$field]->get_value($this->view->result[$index]);
+    $value = $this->view->field[$field]->getValue($this->view->result[$index]);
     unset($this->view->row_index);
     return $value;
   }

@@ -115,7 +115,7 @@ abstract class ExposedFormPluginBase extends PluginBase {
    * also assign data to the appropriate handlers for use in building the
    * query.
    */
-  function render_exposed_form($block = FALSE) {
+  public function renderExposedForm($block = FALSE) {
     // Deal with any exposed filters we may have, before building.
     $form_state = array(
       'view' => &$this->view,
@@ -139,13 +139,12 @@ abstract class ExposedFormPluginBase extends PluginBase {
 
     $form_state['exposed_form_plugin'] = $this;
     $form = drupal_build_form('views_exposed_form', $form_state);
-    $output = drupal_render($form);
 
     if (!$this->view->display_handler->displaysExposed() || (!$block && $this->view->display_handler->getOption('exposed_block'))) {
-      return "";
+      return array();
     }
     else {
-      return $output;
+      return $form;
     }
   }
 
@@ -174,15 +173,15 @@ abstract class ExposedFormPluginBase extends PluginBase {
     }
   }
 
-  function pre_render($values) { }
+  public function preRender($values) { }
 
-  function post_render(&$output) { }
+  public function postRender(&$output) { }
 
-  function pre_execute() { }
+  public function preExecute() { }
 
   public function postExecute() { }
 
-  function exposed_form_alter(&$form, &$form_state) {
+  public function exposedFormAlter(&$form, &$form_state) {
     $form['submit']['#value'] = $this->options['submit_button'];
     // Check if there is exposed sorts for this view
     $exposed_sorts = array();
@@ -249,14 +248,14 @@ abstract class ExposedFormPluginBase extends PluginBase {
 
     $pager = $this->view->display_handler->getPlugin('pager');
     if ($pager) {
-      $pager->exposed_form_alter($form, $form_state);
+      $pager->exposedFormAlter($form, $form_state);
       $form_state['pager_plugin'] = $pager;
     }
   }
 
-  function exposed_form_validate(&$form, &$form_state) {
+  public function exposedFormValidate(&$form, &$form_state) {
     if (isset($form_state['pager_plugin'])) {
-      $form_state['pager_plugin']->exposed_form_validate($form, $form_state);
+      $form_state['pager_plugin']->exposedFormValidate($form, $form_state);
     }
   }
 
@@ -271,17 +270,17 @@ abstract class ExposedFormPluginBase extends PluginBase {
   *   Nested array of keys to exclude of insert into
   *   $view->exposed_raw_input
   */
-  function exposed_form_submit(&$form, &$form_state, &$exclude) {
+  public function exposedFormSubmit(&$form, &$form_state, &$exclude) {
     if (!empty($form_state['values']['op']) && $form_state['values']['op'] == $this->options['reset_button_label']) {
-      $this->reset_form($form, $form_state);
+      $this->resetForm($form, $form_state);
     }
     if (isset($form_state['pager_plugin'])) {
-      $form_state['pager_plugin']->exposed_form_submit($form, $form_state, $exclude);
+      $form_state['pager_plugin']->exposedFormSubmit($form, $form_state, $exclude);
       $exclude[] = 'pager_plugin';
     }
   }
 
-  function reset_form(&$form, &$form_state) {
+  public function resetForm(&$form, &$form_state) {
     // _SESSION is not defined for users who are not logged in.
 
     // If filters are not overridden, store the 'remember' settings on the

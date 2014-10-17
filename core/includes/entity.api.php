@@ -91,7 +91,7 @@ function hook_entity_bundle_info_alter(&$bundles) {
 function hook_entity_bundle_create($entity_type, $bundle) {
   // When a new bundle is created, the menu needs to be rebuilt to add the
   // Field UI menu item tabs.
-  state()->set('menu_rebuild_needed', TRUE);
+  Drupal::state()->set('menu_rebuild_needed', TRUE);
 }
 
 /**
@@ -344,7 +344,7 @@ function hook_entity_view(\Drupal\Core\Entity\EntityInterface $entity, \Drupal\e
  * If a module wishes to act on the rendered HTML of the entity rather than the
  * structured content array, it may use this hook to add a #post_render
  * callback. Alternatively, it could also implement hook_preprocess_HOOK() for
- * the particular entity type template, if there is one (e.g., node.tpl.php).
+ * the particular entity type template, if there is one (e.g., node.html.twig).
  * See drupal_render() and theme() for details.
  *
  * @param $build
@@ -473,26 +473,26 @@ function hook_entity_form_display_alter(\Drupal\entity\Plugin\Core\Entity\Entity
 }
 
 /**
- * Define custom entity properties.
+ * Define custom entity fields.
  *
  * @param string $entity_type
- *   The entity type for which to define entity properties.
+ *   The entity type for which to define entity fields.
  *
  * @return array
- *   An array of property information having the following optional entries:
- *   - definitions: An array of property definitions to add all entities of this
- *     type, keyed by property name. See
- *     Drupal\Core\TypedData\TypedDataManager::create() for a list of supported
- *     keys in property definitions.
- *   - optional: An array of property definitions for optional properties keyed
- *     by property name. Optional properties are properties that only exist for
- *     certain bundles of the entity type.
- *   - bundle map: An array keyed by bundle name containing the names of
- *     optional properties that entities of this bundle have.
+ *   An array of entity field information having the following optional entries:
+ *   - definitions: An array of field definitions to add all entities of this
+ *     type, keyed by field name. See
+ *     \Drupal\Core\Entity\EntityManager::getFieldDefinitions() for a list of
+ *     supported keys in field definitions.
+ *   - optional: An array of field definitions for optional entity fields, keyed
+ *     by field name. Optional fields are fields that only exist for certain
+ *     bundles of the entity type.
+ *   - bundle map: An array keyed by bundle name, containing the names of
+ *     optional fields that entities of this bundle have.
  *
- * @see Drupal\Core\TypedData\TypedDataManager::create()
  * @see hook_entity_field_info_alter()
- * @see Drupal\Core\Entity\StorageControllerInterface::getPropertyDefinitions()
+ * @see \Drupal\Core\Entity\EntityManager::getFieldDefinitions()
+ * @see \Drupal\Core\TypedData\TypedDataManager::create()
  */
 function hook_entity_field_info($entity_type) {
   if (mymodule_uses_entity_type($entity_type)) {
@@ -521,12 +521,12 @@ function hook_entity_field_info($entity_type) {
 }
 
 /**
- * Alter defined entity properties.
+ * Alter defined entity fields.
  *
  * @param array $info
- *   The property info array as returned by hook_entity_field_info().
+ *   The entity field info array as returned by hook_entity_field_info().
  * @param string $entity_type
- *   The entity type for which entity properties are defined.
+ *   The entity type for which entity fields are defined.
  *
  * @see hook_entity_field_info()
  */
@@ -535,6 +535,24 @@ function hook_entity_field_info_alter(&$info, $entity_type) {
     // Alter the mymodule_text property to use a custom class.
     $info['definitions']['mymodule_text']['class'] = '\Drupal\anothermodule\EntityComputedText';
   }
+}
+
+/**
+ * Alter entity operations.
+ *
+ * @param array $operations
+ *   Operations array as returned by
+ *   \Drupal\Core\Entity\EntityStorageControllerInterface::getOperations().
+ * @param \Drupal\Core\Entity\EntityInterface $entity
+ *   The entity on which the linked operations will be performed.
+ */
+function hook_entity_operation_alter(array &$operations, \Drupal\Core\Entity\EntityInterface $entity) {
+  $uri = $entity->uri();
+  $operations['translate'] = array(
+    'title' => t('Translate'),
+    'href' => $uri['path'] . '/translate',
+    'weight' => 50,
+  );
 }
 
 /**
@@ -548,14 +566,14 @@ function hook_entity_field_info_alter(&$info, $entity_type) {
  *   \Drupal\Core\TypedData\AccessibleInterface::access() for possible values.
  * @param \Drupal\Core\Entity\Field\Type\Field $field
  *   The entity field object on which the operation is to be performed.
- * @param \Drupal\user\Plugin\Core\Entity\User $account
+ * @param \Drupal\Core\Session\AccountInterface $account
  *   The user account to check.
  *
  * @return bool|NULL
  *   TRUE if access should be allowed, FALSE if access should be denied and NULL
  *   if the implementation has no opinion.
  */
-function hook_entity_field_access($operation, $field, $account) {
+function hook_entity_field_access($operation, $field, \Drupal\Core\Session\AccountInterface $account) {
   if ($field->getName() == 'field_of_interest' && $operation == 'update') {
     return user_access('update field of interest', $account);
   }

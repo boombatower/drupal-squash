@@ -110,7 +110,9 @@ pre {
 body,
 #site-slogan,
 .ui-widget,
-.comment-form label {
+.comment-form label,
+.node-form label,
+.node-form .description {
   font-family: Georgia, "Times New Roman", Times, serif;
 }
 #header,
@@ -345,7 +347,7 @@ h1#site-name {
   padding: 0;
 }
 .region-header .block > h2 {
-  /* @extend .element-invisible */
+  /* @extend .visually-hidden */
   position: absolute !important;
   clip: rect(1px, 1px, 1px, 1px);
   overflow: hidden;
@@ -441,13 +443,6 @@ h1#site-name {
 .region-header #block-user-login .item-list li.last {
   padding-left: 0.5em; /* LTR */
 }
-.region-header #block-user-login ul.openid-links li.last {
-  padding-left: 0; /* LTR */
-}
-.region-header #user-login-form li.openid-link a,
-.region-header #user-login li.openid-link a {
-  padding-left: 20px; /* LTR */
-}
 .region-header #block-user-login .form-actions {
   margin: 4px 0 0;
   padding: 0;
@@ -488,7 +483,7 @@ h1#site-name {
   font-size: 0.929em;
   margin: 0 5px;
   padding: 0;
-  text-align: left;
+  text-align: left; /* LTR */
 }
 #main-menu-links li {
   float: none;
@@ -507,7 +502,7 @@ h1#site-name {
   text-shadow: 0 1px #eee;
   border-radius: 8px;
   margin-bottom: 4px;
-  padding: 0.9em 0 0.9em 10px;
+  padding: 0.9em 0 0.9em 10px; /* LTR */
 }
 #main-menu-links a:hover,
 #main-menu-links a:focus {
@@ -885,7 +880,7 @@ ul.links {
   margin-top: 0;
 }
 #footer .block > h2 {
-  /* @extend .element-invisible */
+  /* @extend .visually-hidden */
   position: absolute !important;
   clip: rect(1px, 1px, 1px, 1px);
   overflow: hidden;
@@ -1201,6 +1196,15 @@ input.form-submit:focus {
 }
 .form-actions {
   padding-top: 10px;
+}
+
+/* Node Form */
+#edit-body {
+  margin-bottom: 2em;
+}
+
+.node-form .form-wrapper {
+  margin-bottom: 2em;
 }
 
 /* Contact Form */
@@ -1559,14 +1563,14 @@ div.admin-panel .description {
     text-align: center;
   }
   #main-menu-links li {
-    float: left;
-    margin-right: 5px;
+    float: left; /* LTR */
+    margin-right: 5px; /* LTR */
     padding: 0;
     display: inline-block;
     width: 32.75%;
   }
   #main-menu-links li:nth-child(3n) {
-    margin-right: -5px;
+    margin-right: -5px; /* LTR */
   }
   #main-menu-links a {
     float: none;
@@ -1613,8 +1617,8 @@ div.admin-panel .description {
   }
   .featured #main-menu-links li a:active,
   .featured #main-menu-links li a.active {
-  background: #f0f0f0;
-  background: rgba(240, 240, 240, 1.0);
+    background: #f0f0f0;
+    background: rgba(240, 240, 240, 1.0);
   }
 }
 

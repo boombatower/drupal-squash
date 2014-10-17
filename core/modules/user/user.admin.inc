@@ -6,158 +6,9 @@
  */
 
 /**
- * Page callback: Generates the appropriate user administration form.
- *
- * This function generates the user registration, multiple user cancellation,
- * or filtered user list admin form, depending on the argument and the POST
- * form values.
- *
- * @param string $callback_arg
- *   (optional) Indicates which form to build. Defaults to '', which will
- *   trigger the user filter form. If the POST value 'op' is present, this
- *   function uses that value as the callback argument.
- *
- * @return string
- *   A renderable form array for the respective request.
- */
-function user_admin($callback_arg = '') {
-  $op = isset($_POST['op']) ? $_POST['op'] : $callback_arg;
-
-  switch ($op) {
-    case t('Create new account'):
-    case 'create':
-      $account = entity_create('user', array());
-      $build['user_register'] = entity_get_form($account, 'register');
-      break;
-    default:
-      if (!empty($_POST['accounts']) && isset($_POST['operation']) && ($_POST['operation'] == 'cancel')) {
-        $build['user_multiple_cancel_confirm'] = drupal_get_form('user_multiple_cancel_confirm');
-      }
-      else {
-        $build['user_filter_form'] = drupal_get_form('user_filter_form');
-        $build['user_admin_account'] = drupal_get_form('user_admin_account');
-      }
-  }
-  return $build;
-}
-
-/**
- * Form builder; Return form for user administration filters.
- *
- * @ingroup forms
- * @see user_filter_form_submit()
- */
-function user_filter_form() {
-  $session = isset($_SESSION['user_overview_filter']) ? $_SESSION['user_overview_filter'] : array();
-  $filters = user_filters();
-
-  $i = 0;
-  $form['filters'] = array(
-    '#type' => 'details',
-    '#title' => t('Show only users where'),
-    '#theme' => 'exposed_filters__user',
-  );
-  foreach ($session as $filter) {
-    list($type, $value) = $filter;
-    if ($type == 'permission') {
-      // Merge arrays of module permissions into one.
-      // Slice past the first element '[any]' whose value is not an array.
-      $options = call_user_func_array('array_merge', array_slice($filters[$type]['options'], 1));
-      $value = $options[$value];
-    }
-    else {
-      $value = $filters[$type]['options'][$value];
-    }
-    $t_args = array('%property' => $filters[$type]['title'], '%value' => $value);
-    if ($i++) {
-      $form['filters']['current'][] = array('#markup' => t('and where %property is %value', $t_args));
-    }
-    else {
-      $form['filters']['current'][] = array('#markup' => t('%property is %value', $t_args));
-    }
-  }
-
-  $form['filters']['status'] = array(
-    '#type' => 'container',
-    '#attributes' => array('class' => array('clearfix')),
-    '#prefix' => ($i ? '<div class="additional-filters">' . t('and where') . '</div>' : ''),
-  );
-  $form['filters']['status']['filters'] = array(
-    '#type' => 'container',
-    '#attributes' => array('class' => array('filters')),
-  );
-  foreach ($filters as $key => $filter) {
-    $form['filters']['status']['filters'][$key] = array(
-      '#type' => 'select',
-      '#options' => $filter['options'],
-      '#title' => $filter['title'],
-      '#default_value' => '[any]',
-    );
-  }
-
-  $form['filters']['status']['actions'] = array(
-    '#type' => 'actions',
-    '#attributes' => array('class' => array('container-inline')),
-  );
-  $form['filters']['status']['actions']['submit'] = array(
-    '#type' => 'submit',
-    '#value' => (count($session) ? t('Refine') : t('Filter')),
-  );
-  if (count($session)) {
-    $form['filters']['status']['actions']['undo'] = array(
-      '#type' => 'submit',
-      '#value' => t('Undo'),
-    );
-    $form['filters']['status']['actions']['reset'] = array(
-      '#type' => 'submit',
-      '#value' => t('Reset'),
-    );
-  }
-
-  drupal_add_library('system', 'drupal.form');
-
-  return $form;
-}
-
-/**
- * Process result from user administration filter form.
- */
-function user_filter_form_submit($form, &$form_state) {
-  $op = $form_state['values']['op'];
-  $filters = user_filters();
-  switch ($op) {
-    case t('Filter'):
-    case t('Refine'):
-      // Apply every filter that has a choice selected other than 'any'.
-      foreach ($filters as $filter => $options) {
-        if (isset($form_state['values'][$filter]) && $form_state['values'][$filter] != '[any]') {
-          $_SESSION['user_overview_filter'][] = array($filter, $form_state['values'][$filter]);
-        }
-      }
-      break;
-    case t('Undo'):
-      array_pop($_SESSION['user_overview_filter']);
-      break;
-    case t('Reset'):
-      $_SESSION['user_overview_filter'] = array();
-      break;
-    case t('Update'):
-      return;
-  }
-
-  $form_state['redirect'] = 'admin/people';
-  return;
-}
-
-/**
- * Form builder; User administration page.
- *
- * @ingroup forms
- * @see user_admin_account_validate()
- * @see user_admin_account_submit()
+ * Page callback: User administration page.
  */
 function user_admin_account() {
-
   $header = array(
     'username' => array('data' => t('Username'), 'field' => 'u.name'),
     'status' => array('data' => t('Status'), 'field' => 'u.status', 'class' => array(RESPONSIVE_PRIORITY_LOW)),
@@ -184,28 +35,6 @@ function user_admin_account() {
     ->setCountQuery($count_query);
   $result = $query->execute();
 
-  $form['options'] = array(
-    '#type' => 'details',
-    '#title' => t('Update options'),
-    '#attributes' => array('class' => array('container-inline')),
-  );
-  $options = array();
-  foreach (module_invoke_all('user_operations') as $operation => $array) {
-    $options[$operation] = $array['label'];
-  }
-  $form['options']['operation'] = array(
-    '#type' => 'select',
-    '#title' => t('Operation'),
-    '#title_display' => 'invisible',
-    '#options' => $options,
-    '#default_value' => 'unblock',
-  );
-  $options = array();
-  $form['options']['submit'] = array(
-    '#type' => 'submit',
-    '#value' => t('Update'),
-  );
-
   $destination = drupal_get_destination();
   $status = array(t('blocked'), t('active'));
   $roles = array_map('check_plain', user_role_names(TRUE));
@@ -218,13 +47,20 @@ function user_admin_account() {
       $users_roles[] = $roles[$user_role->rid];
     }
     asort($users_roles);
-
+    $username = array(
+      '#theme' => 'username',
+      '#account' => $account,
+    );
+    $item_list = array(
+      '#theme' => 'item_list',
+      '#items' => $users_roles,
+    );
     $options[$account->uid] = array(
-      'username' => theme('username', array('account' => $account)),
-      'status' =>  $status[$account->status],
-      'roles' => theme('item_list', array('items' => $users_roles)),
+      'username' => drupal_render($username),
+      'status' => $status[$account->status],
+      'roles' => drupal_render($item_list),
       'member_for' => format_interval(REQUEST_TIME - $account->created),
-      'access' =>  $account->access ? t('@time ago', array('@time' => format_interval(REQUEST_TIME - $account->access))) : t('never'),
+      'access' => $account->access ? t('@time ago', array('@time' => format_interval(REQUEST_TIME - $account->access))) : t('never'),
     );
     $links = array();
     $links['edit'] = array(
@@ -249,43 +85,16 @@ function user_admin_account() {
   }
 
   $form['accounts'] = array(
-    '#type' => 'tableselect',
+    '#theme' => 'table',
     '#header' => $header,
-    '#options' => $options,
+    '#rows' => $options,
     '#empty' => t('No people available.'),
   );
-  $form['pager'] = array('#markup' => theme('pager'));
+  $form['pager'] = array(
+    '#theme' =>'pager',
+  );
 
   return $form;
-}
-
-/**
- * Submit the user administration update form.
- */
-function user_admin_account_submit($form, &$form_state) {
-  $operations = module_invoke_all('user_operations', $form, $form_state);
-  $operation = $operations[$form_state['values']['operation']];
-  // Filter out unchecked accounts.
-  $accounts = array_filter($form_state['values']['accounts']);
-  if ($function = $operation['callback']) {
-    // Add in callback arguments if present.
-    if (isset($operation['callback arguments'])) {
-      $args = array_merge(array($accounts), $operation['callback arguments']);
-    }
-    else {
-      $args = array($accounts);
-    }
-    call_user_func_array($function, $args);
-
-    drupal_set_message(t('The update has been performed.'));
-  }
-}
-
-function user_admin_account_validate($form, &$form_state) {
-  $form_state['values']['accounts'] = array_filter($form_state['values']['accounts']);
-  if (count($form_state['values']['accounts']) == 0) {
-    form_set_error('', t('No users selected.'));
-  }
 }
 
 /**
@@ -303,7 +112,7 @@ function user_admin_permissions($form, $form_state, $rid = NULL) {
     $role_names = array($rid => $role_names[$rid]);
   }
   // Fetch permissions for all roles or the one selected role.
-  $role_permissions = user_role_permissions($role_names);
+  $role_permissions = user_role_permissions(array_keys($role_names));
 
   // Store $role_names for use when saving the data.
   $form['role_names'] = array(
@@ -337,10 +146,15 @@ function user_admin_permissions($form, $form_state, $rid = NULL) {
           'warning' => !empty($perm_item['restrict access']) ? t('Warning: Give to trusted roles only; this permission has security implications.') : '',
         );
         $options[$perm] = '';
+        $user_permission_description = array(
+          '#theme' => 'user_permission_description',
+          '#permission_item' => $perm_item,
+          '#hide' => $hide_descriptions,
+        );
         $form['permission'][$perm] = array(
           '#type' => 'item',
           '#markup' => $perm_item['title'],
-          '#description' => theme('user_permission_description', array('permission_item' => $perm_item, 'hide' => $hide_descriptions)),
+          '#description' => drupal_render($user_permission_description),
         );
         foreach ($role_names as $rid => $name) {
           // Builds arrays for checked boxes for each role
@@ -424,8 +238,19 @@ function theme_user_admin_permissions($variables) {
   foreach (element_children($form['role_names']) as $rid) {
     $header[] = array('data' => drupal_render($form['role_names'][$rid]), 'class' => array('checkbox'));
   }
-  $output = theme('system_compact_link');
-  $output .= theme('table', array('header' => $header, 'rows' => $rows, 'attributes' => array('id' => 'permissions')));
+  $system_compact_link = array(
+    '#theme' => 'system_compact_link',
+  );
+  $table = array(
+    '#theme' => 'table',
+    '#header' => $header,
+    '#rows' => $rows,
+    '#attributes' => array(
+      'id' => 'permissions',
+    ),
+  );
+  $output = drupal_render($system_compact_link);
+  $output .= drupal_render($table);
   $output .= drupal_render_children($form);
   return $output;
 }
@@ -459,25 +284,4 @@ function theme_user_permission_description($variables) {
       return implode(' ', $description);
     }
   }
-}
-
-/**
- * Page callback: Lists roles and allows to reorder them.
- *
- * @see user_menu()
- */
-function user_admin_roles_list() {
-  return Drupal::entityManager()
-    ->getListController('user_role')->render();
-}
-
-/**
- * Page callback: Presents the role creation form.
- *
- * @see user_menu()
- */
-function user_admin_role_add() {
-  drupal_set_title(t('Add role'));
-  $role = entity_create('user_role', array());
-  return entity_get_form($role);
 }

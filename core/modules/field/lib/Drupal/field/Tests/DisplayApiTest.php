@@ -7,7 +7,51 @@
 
 namespace Drupal\field\Tests;
 
+use Drupal\Core\Language\Language;
+
 class DisplayApiTest extends FieldUnitTestBase {
+
+  /**
+   * The field name to use in this test.
+   *
+   * @var string
+   */
+  protected $field_name;
+
+  /**
+   * The field label to use in this test.
+   *
+   * @var string
+   */
+  protected $label;
+
+  /**
+   * The field cardinality to use in this test.
+   *
+   * @var number
+   */
+  protected $cardinality;
+
+  /**
+   * The field display options to use in this test.
+   *
+   * @var array
+   */
+  protected $display_options;
+
+  /**
+   * The field display options to use in this test.
+   *
+   * @var \Drupal\Core\Entity\EntityInterface
+   */
+  protected $entity;
+
+  /**
+   * An array of random values, in the format expected for field values.
+   *
+   * @var array
+   */
+  protected $values;
 
   public static function getInfo() {
     return array(
@@ -25,12 +69,12 @@ class DisplayApiTest extends FieldUnitTestBase {
     $this->label = $this->randomName();
     $this->cardinality = 4;
 
-    $this->field = array(
+    $field = array(
       'field_name' => $this->field_name,
       'type' => 'test_field',
       'cardinality' => $this->cardinality,
     );
-    $this->instance = array(
+    $instance = array(
       'field_name' => $this->field_name,
       'entity_type' => 'test_entity',
       'bundle' => 'test_bundle',
@@ -52,14 +96,14 @@ class DisplayApiTest extends FieldUnitTestBase {
       ),
     );
 
-    field_create_field($this->field);
-    field_create_instance($this->instance);
+    entity_create('field_entity', $field)->save();
+    entity_create('field_instance', $instance)->save();
     // Create a display for the default view mode.
-    entity_get_display($this->instance['entity_type'], $this->instance['bundle'], 'default')
+    entity_get_display($instance['entity_type'], $instance['bundle'], 'default')
       ->setComponent($this->field_name, $this->display_options['default'])
       ->save();
     // Create a display for the teaser view mode.
-    entity_get_display($this->instance['entity_type'], $this->instance['bundle'], 'teaser')
+    entity_get_display($instance['entity_type'], $instance['bundle'], 'teaser')
       ->setComponent($this->field_name, $this->display_options['teaser'])
       ->save();
 
@@ -67,7 +111,7 @@ class DisplayApiTest extends FieldUnitTestBase {
     $this->values = $this->_generateTestFieldValues($this->cardinality);
     $this->entity = field_test_create_entity();
     $this->is_new = TRUE;
-    $this->entity->{$this->field_name}[LANGUAGE_NOT_SPECIFIED] = $this->values;
+    $this->entity->{$this->field_name}[Language::LANGCODE_NOT_SPECIFIED] = $this->values;
     field_test_entity_save($this->entity);
   }
 
@@ -99,7 +143,7 @@ class DisplayApiTest extends FieldUnitTestBase {
     $setting = $display['settings']['test_formatter_setting_multiple'];
     $this->assertNoText($this->label, 'Label was not displayed.');
     $this->assertText('field_test_field_attach_view_alter', 'Alter fired, display passed.');
-    $this->assertText('field language is ' . LANGUAGE_NOT_SPECIFIED, 'Language is placed onto the context.');
+    $this->assertText('field language is ' . Language::LANGCODE_NOT_SPECIFIED, 'Language is placed onto the context.');
     $array = array();
     foreach ($this->values as $delta => $value) {
       $array[] = $delta . ':' . $value['value'];
@@ -153,7 +197,7 @@ class DisplayApiTest extends FieldUnitTestBase {
     $settings = field_info_formatter_settings('field_test_default');
     $setting = $settings['test_formatter_setting'];
     foreach ($this->values as $delta => $value) {
-      $item = $this->entity->{$this->field_name}[LANGUAGE_NOT_SPECIFIED][$delta];
+      $item = $this->entity->{$this->field_name}[Language::LANGCODE_NOT_SPECIFIED][$delta];
       $output = field_view_value($this->entity, $this->field_name, $item);
       $this->content = drupal_render($output);
       $this->assertText($setting . '|' . $value['value'], format_string('Value @delta was displayed with expected setting.', array('@delta' => $delta)));
@@ -169,7 +213,7 @@ class DisplayApiTest extends FieldUnitTestBase {
     $setting = $display['settings']['test_formatter_setting_multiple'];
     $array = array();
     foreach ($this->values as $delta => $value) {
-      $item = $this->entity->{$this->field_name}[LANGUAGE_NOT_SPECIFIED][$delta];
+      $item = $this->entity->{$this->field_name}[Language::LANGCODE_NOT_SPECIFIED][$delta];
       $output = field_view_value($this->entity, $this->field_name, $item, $display);
       $this->content = drupal_render($output);
       $this->assertText($setting . '|0:' . $value['value'], format_string('Value @delta was displayed with expected setting.', array('@delta' => $delta)));
@@ -185,7 +229,7 @@ class DisplayApiTest extends FieldUnitTestBase {
     $setting = $display['settings']['test_formatter_setting_additional'];
     $array = array();
     foreach ($this->values as $delta => $value) {
-      $item = $this->entity->{$this->field_name}[LANGUAGE_NOT_SPECIFIED][$delta];
+      $item = $this->entity->{$this->field_name}[Language::LANGCODE_NOT_SPECIFIED][$delta];
       $output = field_view_value($this->entity, $this->field_name, $item, $display);
       $this->content = drupal_render($output);
       $this->assertText($setting . '|' . $value['value'] . '|' . ($value['value'] + 1), format_string('Value @delta was displayed with expected setting.', array('@delta' => $delta)));
@@ -195,7 +239,7 @@ class DisplayApiTest extends FieldUnitTestBase {
     // used.
     $setting = $this->display_options['teaser']['settings']['test_formatter_setting'];
     foreach ($this->values as $delta => $value) {
-      $item = $this->entity->{$this->field_name}[LANGUAGE_NOT_SPECIFIED][$delta];
+      $item = $this->entity->{$this->field_name}[Language::LANGCODE_NOT_SPECIFIED][$delta];
       $output = field_view_value($this->entity, $this->field_name, $item, 'teaser');
       $this->content = drupal_render($output);
       $this->assertText($setting . '|' . $value['value'], format_string('Value @delta was displayed with expected setting.', array('@delta' => $delta)));
@@ -205,7 +249,7 @@ class DisplayApiTest extends FieldUnitTestBase {
     // are used.
     $setting = $this->display_options['default']['settings']['test_formatter_setting'];
     foreach ($this->values as $delta => $value) {
-      $item = $this->entity->{$this->field_name}[LANGUAGE_NOT_SPECIFIED][$delta];
+      $item = $this->entity->{$this->field_name}[Language::LANGCODE_NOT_SPECIFIED][$delta];
       $output = field_view_value($this->entity, $this->field_name, $item, 'unknown_view_mode');
       $this->content = drupal_render($output);
       $this->assertText($setting . '|' . $value['value'], format_string('Value @delta was displayed with expected setting.', array('@delta' => $delta)));
@@ -234,7 +278,7 @@ class DisplayApiTest extends FieldUnitTestBase {
     $this->assertNoText($display['settings']['test_empty_string']);
 
     // Now remove the values from the test field and retest.
-    $this->entity->{$this->field_name}[LANGUAGE_NOT_SPECIFIED] = array();
+    $this->entity->{$this->field_name}[Language::LANGCODE_NOT_SPECIFIED] = array();
     field_test_entity_save($this->entity);
     $output = field_view_field($this->entity, $this->field_name, $display);
     $view = drupal_render($output);

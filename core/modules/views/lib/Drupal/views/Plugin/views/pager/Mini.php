@@ -57,19 +57,19 @@ class Mini extends SqlBase {
 
     // Don't query for the next page if we have a pager that has a limited
     // amount of pages.
-    if (empty($this->options['total_pages']) || ($this->get_current_page() < $this->options['total_pages'])) {
+    if (empty($this->options['total_pages']) || ($this->getCurrentPage() < $this->options['total_pages'])) {
       // Increase the items in the query in order to be able to find out whether
       // there is another page.
       $limit = $this->view->query->getLimit();
       $limit += 1;
-      $this->view->query->set_limit($limit);
+      $this->view->query->setLimit($limit);
     }
   }
 
   /**
-   * Overrides \Drupal\views\Plugin\views\pager\PagerPluginBase::use_count_query().
+   * Overrides \Drupal\views\Plugin\views\pager\PagerPluginBase::useCountQuery().
    */
-  public function use_count_query() {
+  public function useCountQuery() {
     return FALSE;
   }
 
@@ -79,12 +79,17 @@ class Mini extends SqlBase {
   public function postExecute(&$result) {
     // In query() one more item might have been retrieved than necessary. If so,
     // the next link needs to be displayed and the item removed.
-    if (count($result) > $this->get_items_per_page()) {
+    if (count($result) > $this->getItemsPerPage()) {
       array_pop($result);
       // Make sure the pager shows the next link by setting the total items to
-      // the biggest possible number.
-      pager_default_initialize(PHP_INT_MAX, $this->get_items_per_page(), $this->options['id']);
+      // the biggest possible number but prevent failing calculations like
+      // ceil(PHP_INT_MAX) we take PHP_INT_MAX / 2.
+      $total = PHP_INT_MAX / 2;
     }
+    else {
+      $total = $this->getCurrentPage() * $this->getItemsPerPage() + count($result);
+    }
+    pager_default_initialize($total, $this->getItemsPerPage(), $this->options['id']);
   }
 
   /**

@@ -226,6 +226,7 @@ function field_ui_theme() {
   return array(
     'field_ui_table' => array(
       'render element' => 'elements',
+      'file' => 'field_ui.admin.inc',
     ),
   );
 }
@@ -237,10 +238,16 @@ function field_ui_element_info() {
   return array(
     'field_ui_table' => array(
       '#theme' => 'field_ui_table',
-      '#pre_render' => array('field_ui_table_pre_render'),
       '#regions' => array('' => array()),
     ),
   );
+}
+
+/**
+ * Implements hook_entity_info().
+ */
+function field_ui_entity_info(&$entity_info) {
+  $entity_info['field_instance']['controllers']['form']['delete'] = 'Drupal\field_ui\Form\FieldDeleteForm';
 }
 
 /**
@@ -249,7 +256,7 @@ function field_ui_element_info() {
 function field_ui_entity_bundle_create($entity_type, $bundle) {
   // When a new bundle is created, the menu needs to be rebuilt to add our
   // menu item tabs.
-  state()->set('menu_rebuild_needed', TRUE);
+  Drupal::state()->set('menu_rebuild_needed', TRUE);
 }
 
 /**
@@ -258,41 +265,7 @@ function field_ui_entity_bundle_create($entity_type, $bundle) {
 function field_ui_entity_bundle_rename($entity_type, $bundle_old, $bundle_new) {
   // When a bundle is renamed, the menu needs to be rebuilt to add our
   // menu item tabs.
-  state()->set('menu_rebuild_needed', TRUE);
-}
-
-/**
- * Identifies inactive fields within a bundle.
- */
-function field_ui_inactive_instances($entity_type, $bundle_name = NULL) {
-  $params = array('entity_type' => $entity_type);
-
-  if (empty($bundle_name)) {
-    $active = field_info_instances($entity_type);
-    $inactive = array();
-  }
-  else {
-    // Restrict to the specified bundle. For consistency with the case where
-    // $bundle_name is NULL, the $active and  $inactive arrays are keyed by
-    // bundle name first.
-    $params['bundle'] = $bundle_name;
-    $active = array($bundle_name => field_info_instances($entity_type, $bundle_name));
-    $inactive = array($bundle_name => array());
-  }
-
-  // Iterate on existing definitions, and spot those that do not appear in the
-  // $active list collected earlier.
-  $all_instances = field_read_instances($params, array('include_inactive' => TRUE));
-  foreach ($all_instances as $instance) {
-    if (!isset($active[$instance['bundle']][$instance['field_name']])) {
-      $inactive[$instance['bundle']][$instance['field_name']] = $instance;
-    }
-  }
-
-  if (!empty($bundle_name)) {
-    return $inactive[$bundle_name];
-  }
-  return $inactive;
+  Drupal::state()->set('menu_rebuild_needed', TRUE);
 }
 
 /**
@@ -338,7 +311,7 @@ function field_ui_library_info() {
       drupal_get_path('module', 'field_ui') . '/field_ui.js' => array(),
     ),
     'css' => array(
-      drupal_get_path('module', 'field_ui') . '/field_ui.admin.css' => array(),
+      drupal_get_path('module', 'field_ui') . '/css/field_ui.admin.css' => array(),
     ),
     'dependencies' => array(
       array('system', 'jquery'),
@@ -355,12 +328,12 @@ function field_ui_library_info() {
  * Implements hook_view_mode_presave().
  */
 function field_ui_view_mode_presave(EntityViewModeInterface $view_mode) {
-  state()->set('menu_rebuild_needed', TRUE);
+  Drupal::state()->set('menu_rebuild_needed', TRUE);
 }
 
 /**
  * Implements hook_view_mode_delete().
  */
 function field_ui_view_mode_delete(EntityViewModeInterface $view_mode) {
-  state()->set('menu_rebuild_needed', TRUE);
+  Drupal::state()->set('menu_rebuild_needed', TRUE);
 }

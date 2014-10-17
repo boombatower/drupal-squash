@@ -48,7 +48,7 @@ class Search extends FilterPluginBase {
   /**
    * Provide simple equality operator
    */
-  function operator_form(&$form, &$form_state) {
+  protected function operatorForm(&$form, &$form_state) {
     $form['operator'] = array(
       '#type' => 'radios',
       '#title' => t('On empty input'),
@@ -63,7 +63,7 @@ class Search extends FilterPluginBase {
   /**
    * Provide a simple textfield for equality
    */
-  function value_form(&$form, &$form_state) {
+  protected function valueForm(&$form, &$form_state) {
     $form['value'] = array(
       '#type' => 'textfield',
       '#size' => 15,
@@ -130,7 +130,7 @@ class Search extends FilterPluginBase {
     }
     if ($required) {
       if ($this->operator == 'required') {
-        $this->query->add_where($this->options['group'], 'FALSE');
+        $this->query->addWhere($this->options['group'], 'FALSE');
       }
     }
     else {
@@ -147,9 +147,9 @@ class Search extends FilterPluginBase {
       );
       $join = drupal_container()->get('plugin.manager.views.join')->createInstance('standard', $definition);
 
-      $search_total = $this->query->add_relationship('search_total', $join, $search_index);
+      $search_total = $this->query->addRelationship('search_total', $join, $search_index);
 
-      $this->search_score = $this->query->add_field('', "SUM($search_index.score * $search_total.count)", 'score', array('aggregate' => TRUE));
+      $this->search_score = $this->query->addField('', "SUM($search_index.score * $search_total.count)", 'score', array('aggregate' => TRUE));
 
       if (empty($this->query->relationships[$this->relationship])) {
         $base_table = $this->view->storage->get('base_table');
@@ -159,7 +159,7 @@ class Search extends FilterPluginBase {
       }
       $search_condition->condition("$search_index.type", $base_table);
       if (!$this->search_query->simple()) {
-        $search_dataset = $this->query->add_table('search_dataset');
+        $search_dataset = $this->query->addTable('search_dataset');
         $conditions = $this->search_query->conditions();
         $condition_conditions =& $conditions->conditions();
         foreach ($condition_conditions  as $key => &$condition) {
@@ -182,11 +182,11 @@ class Search extends FilterPluginBase {
         $search_condition->condition($or);
       }
 
-      $this->query->add_where($this->options['group'], $search_condition);
-      $this->query->add_groupby("$search_index.sid");
+      $this->query->addWhere($this->options['group'], $search_condition);
+      $this->query->addGroupBy("$search_index.sid");
       $matches = $this->search_query->matches();
       $placeholder = $this->placeholder();
-      $this->query->add_having_expression($this->options['group'], "COUNT(*) >= $placeholder", array($placeholder => $matches));
+      $this->query->addHavingExpression($this->options['group'], "COUNT(*) >= $placeholder", array($placeholder => $matches));
     }
     // Set to NULL to prevent PDO exception when views object is cached.
     $this->search_query = NULL;

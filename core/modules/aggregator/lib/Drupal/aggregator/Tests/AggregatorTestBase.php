@@ -7,6 +7,7 @@
 
 namespace Drupal\aggregator\Tests;
 
+use Drupal\Core\Language\Language;
 use Drupal\simpletest\WebTestBase;
 use Drupal\aggregator\Plugin\Core\Entity\Feed;
 
@@ -136,7 +137,7 @@ abstract class AggregatorTestBase extends WebTestBase {
    */
   function getDefaultFeedItemCount() {
     // Our tests are based off of rss.xml, so let's find out how many elements should be related.
-    $feed_count = db_query_range('SELECT COUNT(*) FROM {node} n WHERE n.promote = 1 AND n.status = 1', 0, config('system.rss')->get('items.limit'))->fetchField();
+    $feed_count = db_query_range('SELECT COUNT(DISTINCT nid) FROM {node_field_data} n WHERE n.promote = 1 AND n.status = 1', 0, config('system.rss')->get('items.limit'))->fetchField();
     return $feed_count > 10 ? 10 : $feed_count;
   }
 
@@ -335,17 +336,17 @@ EOF;
   }
 
   function getRSS091Sample() {
-    return $GLOBALS['base_url'] . '/' . drupal_get_path('module', 'aggregator') . '/tests/aggregator_test_rss091.xml';
+    return $GLOBALS['base_url'] . '/' . drupal_get_path('module', 'aggregator') . '/tests/modules/aggregator_test/aggregator_test_rss091.xml';
   }
 
   function getAtomSample() {
     // The content of this sample ATOM feed is based directly off of the
     // example provided in RFC 4287.
-    return $GLOBALS['base_url'] . '/' . drupal_get_path('module', 'aggregator') . '/tests/aggregator_test_atom.xml';
+    return $GLOBALS['base_url'] . '/' . drupal_get_path('module', 'aggregator') . '/tests/modules/aggregator_test/aggregator_test_atom.xml';
   }
 
   function getHtmlEntitiesSample() {
-    return $GLOBALS['base_url'] . '/' . drupal_get_path('module', 'aggregator') . '/tests/aggregator_test_title_entities.xml';
+    return $GLOBALS['base_url'] . '/' . drupal_get_path('module', 'aggregator') . '/tests/modules/aggregator_test/aggregator_test_title_entities.xml';
   }
 
   /**
@@ -355,7 +356,7 @@ EOF;
    *   (optional) The number of nodes to generate. Defaults to five.
    */
   function createSampleNodes($count = 5) {
-    $langcode = LANGUAGE_NOT_SPECIFIED;
+    $langcode = Language::LANGCODE_NOT_SPECIFIED;
     // Post $count article nodes.
     for ($i = 0; $i < $count; $i++) {
       $edit = array();

@@ -29,7 +29,7 @@ function menu_overview_page() {
  */
 function menu_menu_add() {
   $menu = entity_create('menu', array());
-  return entity_get_form($menu);
+  return Drupal::entityManager()->getForm($menu);
 }
 
 /**
@@ -45,7 +45,7 @@ function menu_menu_add() {
  */
 function menu_menu_edit(Menu $menu) {
   drupal_set_title(t('Edit menu %label', array('%label' => $menu->label())), PASS_THROUGH);
-  return entity_get_form($menu);
+  return Drupal::entityManager()->getForm($menu);
 }
 
 /**
@@ -71,7 +71,7 @@ function menu_overview_form($form, &$form_state) {
   $form['#theme'] = 'menu_overview_form';
   $form_state += array('menu_overview_form_parents' => array());
 
-  $form['#attached']['css'] = array(drupal_get_path('module', 'menu') . '/menu.admin.css');
+  $form['#attached']['css'] = array(drupal_get_path('module', 'menu') . '/css/menu.admin.css');
 
   $links = array();
   $query = Drupal::entityQuery('menu_link')
@@ -288,8 +288,13 @@ function theme_menu_overview_form($variables) {
       // Change the parent field to a hidden. This allows any value but hides the field.
       $element['plid']['#type'] = 'hidden';
 
+      $indent = array(
+        '#theme' => 'indentation',
+        '#size' => $element['#item']['depth'] - 1,
+      );
+
       $row = array();
-      $row[] = theme('indentation', array('size' => $element['#item']['depth'] - 1)) . drupal_render($element['title']);
+      $row[] = drupal_render($indent) . drupal_render($element['title']);
       $row[] = array('data' => drupal_render($element['hidden']), 'class' => array('checkbox', 'menu-enabled'));
       $row[] = drupal_render($element['weight']) . drupal_render($element['plid']) . drupal_render($element['mlid']);
       $row[] = drupal_render($element['operations']);
@@ -303,8 +308,18 @@ function theme_menu_overview_form($variables) {
   if (empty($rows)) {
     $rows[] = array(array('data' => $form['#empty_text'], 'colspan' => '7'));
   }
+
+  $table = array(
+    '#theme' => 'table',
+    '#header' => $header,
+    '#rows' => $rows,
+    '#attributes' => array(
+      'id' => 'menu-overview',
+    ),
+  );
+
   $output .= drupal_render($form['inline_actions']);
-  $output .= theme('table', array('header' => $header, 'rows' => $rows, 'attributes' => array('id' => 'menu-overview')));
+  $output .= drupal_render($table);
   $output .= drupal_render_children($form);
   return $output;
 }
@@ -372,5 +387,5 @@ function menu_link_add(Menu $menu) {
     'menu_name' => $menu->id(),
   ));
   drupal_set_title(t('Add menu link'));
-  return entity_get_form($menu_link);
+  return Drupal::entityManager()->getForm($menu_link);
 }

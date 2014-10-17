@@ -179,9 +179,9 @@ class MenuRouterTest extends WebTestBase {
   }
 
   /**
-   * Make sure the maintenance mode can be bypassed using hook_menu_site_status_alter().
+   * Make sure the maintenance mode can be bypassed using an EventSubscriber.
    *
-   * @see hook_menu_site_status_alter().
+   * @see \Drupal\menu_test\EventSubscriber\MaintenanceModeSubscriber::onKernelRequestMaintenance().
    */
   function testMaintenanceModeLoginPaths() {
     config('system.maintenance')->set('enabled', 1)->save();
@@ -190,7 +190,7 @@ class MenuRouterTest extends WebTestBase {
     $this->drupalGet('test-page');
     $this->assertText($offline_message);
     $this->drupalGet('menu_login_callback');
-    $this->assertText('This is menu_login_callback().', 'Maintenance mode can be bypassed through hook_menu_site_status_alter().');
+    $this->assertText('This is menu_login_callback().', 'Maintenance mode can be bypassed using an event subscriber.');
 
     config('system.maintenance')->set('enabled', 0)->save();
   }
@@ -252,7 +252,7 @@ class MenuRouterTest extends WebTestBase {
   function testHookCustomTheme() {
     // Trigger hook_custom_theme() to dynamically request the Stark theme for
     // the requested page.
-    state()->set('menu_test.hook_custom_theme_name', $this->alternate_theme);
+    \Drupal::state()->set('menu_test.hook_custom_theme_name', $this->alternate_theme);
     theme_enable(array($this->alternate_theme, $this->admin_theme));
 
     // Visit a page that does not implement a theme callback. The above request
@@ -268,7 +268,7 @@ class MenuRouterTest extends WebTestBase {
   function testThemeCallbackHookCustomTheme() {
     // Trigger hook_custom_theme() to dynamically request the Stark theme for
     // the requested page.
-    state()->set('menu_test.hook_custom_theme_name', $this->alternate_theme);
+    \Drupal::state()->set('menu_test.hook_custom_theme_name', $this->alternate_theme);
     theme_enable(array($this->alternate_theme, $this->admin_theme));
 
     // The menu "theme callback" should take precedence over a value set in
@@ -338,6 +338,7 @@ class MenuRouterTest extends WebTestBase {
     // Change the menu_name parameter in menu_test.module, then force a menu
     // rebuild.
     menu_test_menu_name('changed');
+    \Drupal::service('router.builder')->rebuild();
     menu_router_rebuild();
 
     $menu_links = entity_load_multiple_by_properties('menu_link', array('router_path' => 'menu_name_test'));
@@ -461,7 +462,7 @@ class MenuRouterTest extends WebTestBase {
    * Test menu_get_item() with empty ancestors.
    */
   function testMenuGetItemNoAncestors() {
-    state()->set('menu.masks', array());
+    \Drupal::state()->set('menu.masks', array());
     $this->drupalGet('');
   }
 

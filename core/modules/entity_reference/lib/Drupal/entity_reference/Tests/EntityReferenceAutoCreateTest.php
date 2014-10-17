@@ -7,6 +7,7 @@
 
 namespace Drupal\entity_reference\Tests;
 
+use Drupal\Core\Language\Language;
 use Drupal\simpletest\WebTestBase;
 
 /**
@@ -34,7 +35,7 @@ class EntityReferenceAutoCreateTest extends WebTestBase {
     $referenced = $this->drupalCreateContentType();
     $this->referenced_type = $referenced->type;
 
-    $field = array(
+    entity_create('field_entity', array(
       'translatable' => FALSE,
       'entity_types' => array(),
       'settings' => array(
@@ -43,11 +44,9 @@ class EntityReferenceAutoCreateTest extends WebTestBase {
       'field_name' => 'test_field',
       'type' => 'entity_reference',
       'cardinality' => FIELD_CARDINALITY_UNLIMITED,
-    );
+    ))->save();
 
-    field_create_field($field);
-
-    $instance = array(
+    entity_create('field_instance', array(
       'label' => 'Entity reference field',
       'field_name' => 'test_field',
       'entity_type' => 'node',
@@ -63,9 +62,7 @@ class EntityReferenceAutoCreateTest extends WebTestBase {
           'auto_create' => TRUE,
         ),
       ),
-    );
-
-    field_create_instance($instance);
+    ))->save();
 
     entity_get_form_display('node', $referencing->type, 'default')
       ->setComponent('test_field', array(
@@ -112,6 +109,6 @@ class EntityReferenceAutoCreateTest extends WebTestBase {
 
     $referencing_nid = key($result);
     $referencing_node = node_load($referencing_nid);
-    $this->assertEqual($referenced_nid, $referencing_node->test_field[LANGUAGE_NOT_SPECIFIED][0]['target_id'], 'Newly created node is referenced from the referencing node.');
+    $this->assertEqual($referenced_nid, $referencing_node->test_field[Language::LANGCODE_NOT_SPECIFIED][0]['target_id'], 'Newly created node is referenced from the referencing node.');
   }
 }

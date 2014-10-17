@@ -17,31 +17,26 @@ var options = $.extend({
 /**
  * Initializes a contextual link: updates its DOM, sets up model and views
  *
- * @param DOM links
- *   A contextual links DOM element as rendered by the server.
+ * @param jQuery $contextual
+ *   A contextual links placeholder DOM element, containing the actual
+ *   contextual links as rendered by the server.
  */
-function initContextual (index, links) {
-  var $links = $(links);
-  var $region = $links.closest('.contextual-region');
+function initContextual ($contextual) {
+  var $region = $contextual.closest('.contextual-region');
   var contextual = Drupal.contextual;
 
-  // Create a contextual links wrapper to provide positioning and behavior
-  // attachment context.
-  var $wrapper = $(Drupal.theme('contextualWrapper'))
-    .insertBefore($links)
-    // In the wrapper, first add the trigger element.
-    .append(Drupal.theme('contextualTrigger'))
-    // In the wrapper, then add the contextual links.
-    .append($links);
+  $contextual
+    // Use the placeholder as a wrapper with a specific class to provide
+    // positioning and behavior attachment context.
+    .addClass('contextual')
+    // Ensure a trigger element exists before the actual contextual links.
+    .prepend(Drupal.theme('contextualTrigger'));
 
-  // Create a model, add it to the collection.
+  // Create a model and the appropriate views.
   var model = new contextual.Model({
     title: $region.find('h2:first').text().trim()
   });
-  contextual.collection.add(model);
-
-  // Create the appropriate views for this model.
-  var viewOptions = $.extend({ el: $wrapper, model: model }, options);
+  var viewOptions = $.extend({ el: $contextual, model: model }, options);
   contextual.views.push({
     visual: new contextual.VisualView(viewOptions),
     aural: new contextual.AuralView(viewOptions),
@@ -51,15 +46,20 @@ function initContextual (index, links) {
     $.extend({ el: $region, model: model }, options))
   );
 
+  // Add the model to the collection. This must happen after the views have been
+  // associated with it, otherwise collection change event handlers can't
+  // trigger the model change event handler in its views.
+  contextual.collection.add(model);
+
   // Let other JavaScript react to the adding of a new contextual link.
   $(document).trigger('drupalContextualLinkAdded', {
-    $el: $links,
+    $el: $contextual,
     $region: $region,
     model: model
   });
 
   // Fix visual collisions between contextual link triggers.
-  adjustIfNestedAndOverlapping($wrapper);
+  adjustIfNestedAndOverlapping($contextual);
 }
 
 /**
@@ -68,7 +68,8 @@ function initContextual (index, links) {
  * This only deals with two levels of nesting; deeper levels are not touched.
  *
  * @param jQuery $contextual
- *   A contextual link.
+ *   A contextual links placeholder DOM element, containing the actual
+ *   contextual links as rendered by the server.
  */
 function adjustIfNestedAndOverlapping ($contextual) {
   var $contextuals = $contextual
@@ -90,11 +91,11 @@ function adjustIfNestedAndOverlapping ($contextual) {
     // Retrieve height of nested contextual link.
     var height = 0;
     var $trigger = $nestedContextual.find('.trigger');
-    // Elements with the .element-invisible class have no dimensions, so this
+    // Elements with the .visually-hidden class have no dimensions, so this
     // class must be temporarily removed to the calculate the height.
-    $trigger.removeClass('element-invisible');
+    $trigger.removeClass('visually-hidden');
     height = $nestedContextual.height();
-    $trigger.addClass('element-invisible');
+    $trigger.addClass('visually-hidden');
 
     // Adjust nested contextual link's position.
     $nestedContextual.css({ top: $nestedContextual.position().top + height });
@@ -110,7 +111,40 @@ function adjustIfNestedAndOverlapping ($contextual) {
  */
 Drupal.behaviors.contextual = {
   attach: function (context) {
-    $(context).find('.contextual-links').once('contextual').each(initContextual);
+    var $context = $(context);
+
+    // Find all contextual links placeholders, if any.
+    var $placeholders = $context.find('[data-contextual-id]').once('contextual-render');
+    if ($placeholders.length === 0) {
+      return;
+    }
+
+    // Collect the IDs for all contextual links placeholders.
+    var ids = [];
+    $placeholders.each(function () {
+      ids.push($(this).attr('data-contextual-id'));
+    });
+
+    // Perform an AJAX request to let the server render the contextual links for
+    // each of the placeholders.
+    $.ajax({
+      url: Drupal.url('contextual/render') + '?destination=' + Drupal.encodePath(drupalSettings.currentPath),
+      type: 'POST',
+      data: { 'ids[]' : ids },
+      dataType: 'json',
+      success: function (results) {
+        for (var id in results) {
+          if (results.hasOwnProperty(id)) {
+            // Update the placeholder to contain its rendered contextual links.
+            var $placeholder = $context.find('[data-contextual-id="' + id + '"]')
+              .html(results[id]);
+
+            // Initialize the contextual link.
+            initContextual($placeholder);
+          }
+        }
+      }
+     });
   }
 };
 
@@ -241,7 +275,7 @@ Drupal.contextual = {
         // The open state determines if the links are visible.
         .toggleClass('open', isOpen)
         // Update the visibility of the trigger.
-        .find('.trigger').toggleClass('element-invisible', !isVisible);
+        .find('.trigger').toggleClass('visually-hidden', !isVisible);
 
       // Nested contextual region handling: hide any nested contextual triggers.
       if ('isOpen' in this.model.changed) {
@@ -370,17 +404,6 @@ Drupal.contextual = {
 // A Backbone.Collection of Drupal.contextual.Model instances.
 Drupal.contextual.collection = new Backbone.Collection([], { model: Drupal.contextual.Model });
 
-
-/**
- * Wraps contextual links.
- *
- * @return String
- *   A string representing a DOM fragment.
- */
-Drupal.theme.contextualWrapper = function () {
-  return '<div class="contextual" />';
-};
-
 /**
  * A trigger is an interactive element often bound to a click handler.
  *
@@ -388,7 +411,7 @@ Drupal.theme.contextualWrapper = function () {
  *   A string representing a DOM fragment.
  */
 Drupal.theme.contextualTrigger = function () {
-  return '<button class="trigger element-invisible element-focusable" type="button"></button>';
+  return '<button class="trigger visually-hidden focusable" type="button"></button>';
 };
 
 })(jQuery, Drupal, drupalSettings, Backbone, Modernizr);

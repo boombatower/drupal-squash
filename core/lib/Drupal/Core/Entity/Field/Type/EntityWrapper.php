@@ -90,7 +90,7 @@ class EntityWrapper extends TypedData implements IteratorAggregate, ComplexDataI
     if ($value instanceof EntityInterface && $value->isNew()) {
       $this->newEntity = $value;
       $this->entityType = $value->entityType();
-      $value = FALSE;
+      $value = 0;
     }
     elseif ($value instanceof EntityInterface) {
       $this->entityType = $value->entityType();
@@ -178,7 +178,7 @@ class EntityWrapper extends TypedData implements IteratorAggregate, ComplexDataI
    */
   public function getPropertyDefinitions() {
     // @todo: Support getting definitions if multiple bundles are specified.
-    return \Drupal::entityManager()->getStorageController($this->entityType)->getFieldDefinitions($this->definition['constraints']);
+    return \Drupal::entityManager()->getFieldDefinitionsByConstraints($this->entityType, $this->definition['constraints']);
   }
 
   /**

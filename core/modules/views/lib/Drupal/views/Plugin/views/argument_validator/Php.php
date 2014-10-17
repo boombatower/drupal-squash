@@ -38,7 +38,7 @@ class Php extends ArgumentValidatorPluginBase {
       '#description' => t('Enter PHP code that returns TRUE or FALSE. No return is the same as FALSE, so be SURE to return something if you do not want to declare the argument invalid. Do not use &lt;?php ?&gt;. The argument to validate will be "$argument" and the view will be "$view". You may change the argument by setting "$handler->argument". You may change the title used for substitutions for this argument by setting "$handler->validated_title".'),
     );
 
-    $this->check_access($form, 'code');
+    $this->checkAccess($form, 'code');
   }
 
   /**
@@ -49,7 +49,7 @@ class Php extends ArgumentValidatorPluginBase {
     return user_access('use PHP for settings');
   }
 
-  function validate_argument($argument) {
+  public function validateArgument($argument) {
     // set up variables to make it easier to reference during the argument.
     $view = &$this->view;
     $handler = &$this->argument;

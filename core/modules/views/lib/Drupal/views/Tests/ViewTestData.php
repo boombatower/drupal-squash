@@ -112,6 +112,13 @@ class ViewTestData {
           'not null' => TRUE,
           'default' => 0,
         ),
+        'status' => array(
+          'description' => "The status of this record",
+          'type' => 'int',
+          'unsigned' => TRUE,
+          'not null' => TRUE,
+          'default' => 0,
+        ),
       ),
       'primary key' => array('id'),
       'unique keys' => array(
@@ -130,18 +137,18 @@ class ViewTestData {
   public static function viewsData() {
     // Declaration of the base table.
     $data['views_test_data']['table'] = array(
-      'group' => t('Views test'),
+      'group' => 'Views test',
       'base' => array(
         'field' => 'id',
-        'title' => t('Views test data'),
-        'help' => t('Users who have created accounts on your site.'),
+        'title' => 'Views test data',
+        'help' => 'Users who have created accounts on your site.',
       ),
     );
 
     // Declaration of fields.
     $data['views_test_data']['id'] = array(
-      'title' => t('ID'),
-      'help' => t('The test data ID'),
+      'title' => 'ID',
+      'help' => 'The test data ID',
       'field' => array(
         'id' => 'numeric',
       ),
@@ -156,8 +163,8 @@ class ViewTestData {
       ),
     );
     $data['views_test_data']['name'] = array(
-      'title' => t('Name'),
-      'help' => t('The name of the person'),
+      'title' => 'Name',
+      'help' => 'The name of the person',
       'field' => array(
         'id' => 'standard',
       ),
@@ -172,8 +179,8 @@ class ViewTestData {
       ),
     );
     $data['views_test_data']['age'] = array(
-      'title' => t('Age'),
-      'help' => t('The age of the person'),
+      'title' => 'Age',
+      'help' => 'The age of the person',
       'field' => array(
         'id' => 'numeric',
       ),
@@ -188,8 +195,8 @@ class ViewTestData {
       ),
     );
     $data['views_test_data']['job'] = array(
-      'title' => t('Job'),
-      'help' => t('The job of the person'),
+      'title' => 'Job',
+      'help' => 'The job of the person',
       'field' => array(
         'id' => 'standard',
       ),
@@ -204,8 +211,8 @@ class ViewTestData {
       ),
     );
     $data['views_test_data']['created'] = array(
-      'title' => t('Created'),
-      'help' => t('The creation date of this record'),
+      'title' => 'Created',
+      'help' => 'The creation date of this record',
       'field' => array(
         'id' => 'date',
       ),
@@ -217,6 +224,19 @@ class ViewTestData {
       ),
       'sort' => array(
         'id' => 'date',
+      ),
+    );
+    $data['views_test_data']['status'] = array(
+      'title' => t('Status'),
+      'help' => t('The status of this record'),
+      'field' => array(
+        'id' => 'boolean',
+      ),
+      'filter' => array(
+        'id' => 'boolean',
+      ),
+      'sort' => array(
+        'id' => 'standard',
       ),
     );
     return $data;
@@ -232,30 +252,35 @@ class ViewTestData {
         'age' => 25,
         'job' => 'Singer',
         'created' => gmmktime(0, 0, 0, 1, 1, 2000),
+        'status' => 1,
       ),
       array(
         'name' => 'George',
         'age' => 27,
         'job' => 'Singer',
         'created' => gmmktime(0, 0, 0, 1, 2, 2000),
+        'status' => 0,
       ),
       array(
         'name' => 'Ringo',
         'age' => 28,
         'job' => 'Drummer',
         'created' => gmmktime(6, 30, 30, 1, 1, 2000),
+        'status' => 1,
       ),
       array(
         'name' => 'Paul',
         'age' => 26,
         'job' => 'Songwriter',
         'created' => gmmktime(6, 0, 0, 1, 1, 2000),
+        'status' => 0,
       ),
       array(
         'name' => 'Meredith',
         'age' => 30,
         'job' => 'Speaker',
         'created' => gmmktime(6, 30, 10, 1, 1, 2000),
+        'status' => 1,
       ),
     );
   }

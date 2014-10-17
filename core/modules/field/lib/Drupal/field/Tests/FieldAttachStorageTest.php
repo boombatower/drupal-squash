@@ -7,6 +7,8 @@
 
 namespace Drupal\field\Tests;
 
+use Drupal\Core\Language\Language;
+
 /**
  * Unit test class for storage-related field_attach_* functions.
  *
@@ -14,6 +16,21 @@ namespace Drupal\field\Tests;
  * all hook_field_attach_pre_{load,insert,update}() hooks.
  */
 class FieldAttachStorageTest extends FieldUnitTestBase {
+
+  /**
+   * The field instance.
+   *
+   * @var \Drupal\field\Plugin\Core\Entity\FieldInstance
+   */
+  protected $instance;
+
+  /**
+   * Field name to use in the test.
+   *
+   * @var string
+   */
+  protected $field_name;
+
   public static function getInfo() {
     return array(
       'name' => 'Field attach tests (storage-related)',
@@ -37,8 +54,8 @@ class FieldAttachStorageTest extends FieldUnitTestBase {
     // Configure the instance so that we test hook_field_load() (see
     // field_test_field_load() in field_test.module).
     $this->instance['settings']['test_hook_field_load'] = TRUE;
-    field_update_instance($this->instance);
-    $langcode = LANGUAGE_NOT_SPECIFIED;
+    $this->instance->save();
+    $langcode = Language::LANGCODE_NOT_SPECIFIED;
 
     $entity_type = 'test_entity';
     $values = array();
@@ -95,7 +112,7 @@ class FieldAttachStorageTest extends FieldUnitTestBase {
    */
   function testFieldAttachLoadMultiple() {
     $entity_type = 'test_entity';
-    $langcode = LANGUAGE_NOT_SPECIFIED;
+    $langcode = Language::LANGCODE_NOT_SPECIFIED;
 
     // Define 2 bundles.
     $bundles = array(
@@ -115,11 +132,11 @@ class FieldAttachStorageTest extends FieldUnitTestBase {
     );
     for ($i = 1; $i <= 3; $i++) {
       $field_names[$i] = 'field_' . $i;
-      $field = array('field_name' => $field_names[$i], 'type' => 'test_field');
-      $field = field_create_field($field);
+      $field = entity_create('field_entity', array('field_name' => $field_names[$i], 'type' => 'test_field'));
+      $field->save();
       $field_ids[$i] = $field['uuid'];
       foreach ($field_bundles_map[$i] as $bundle) {
-        $instance = array(
+        entity_create('field_instance', array(
           'field_name' => $field_names[$i],
           'entity_type' => 'test_entity',
           'bundle' => $bundles[$bundle],
@@ -128,8 +145,7 @@ class FieldAttachStorageTest extends FieldUnitTestBase {
             // (see field_test_field_load() in field_test.module).
             'test_hook_field_load' => TRUE,
           ),
-        );
-        field_create_instance($instance);
+        ))->save();
       }
     }
 
@@ -171,7 +187,7 @@ class FieldAttachStorageTest extends FieldUnitTestBase {
    */
   function testFieldAttachSaveLoadDifferentStorage() {
     $entity_type = 'test_entity';
-    $langcode = LANGUAGE_NOT_SPECIFIED;
+    $langcode = Language::LANGCODE_NOT_SPECIFIED;
 
     // Create two fields using different storage backends, and their instances.
     $fields = array(
@@ -189,13 +205,13 @@ class FieldAttachStorageTest extends FieldUnitTestBase {
       ),
     );
     foreach ($fields as $field) {
-      field_create_field($field);
+      entity_create('field_entity', $field)->save();
       $instance = array(
         'field_name' => $field['field_name'],
         'entity_type' => 'test_entity',
         'bundle' => 'test_bundle',
       );
-      field_create_instance($instance);
+      entity_create('field_instance', $instance)->save();
     }
 
     $entity_init = field_test_create_entity();
@@ -224,22 +240,19 @@ class FieldAttachStorageTest extends FieldUnitTestBase {
    */
   function testFieldStorageDetailsAlter() {
     $field_name = 'field_test_change_my_details';
-    $field = array(
+    $field = entity_create('field_entity', array(
       'field_name' => $field_name,
       'type' => 'test_field',
       'cardinality' => 4,
       'storage' => array('type' => 'field_test_storage'),
-    );
-    $field = field_create_field($field);
-    $instance = array(
+    ));
+    $field->save();
+    $instance = entity_create('field_instance', array(
       'field_name' => $field_name,
       'entity_type' => 'test_entity',
       'bundle' => 'test_bundle',
-    );
-    field_create_instance($instance);
-
-    $field = field_info_field($instance['field_name']);
-    $instance = field_info_instance($instance['entity_type'], $instance['field_name'], $instance['bundle']);
+    ));
+    $instance->save();
 
     // The storage details are indexed by a storage engine type.
     $this->assertTrue(array_key_exists('drupal_variables', $field['storage_details']), 'The storage type is Drupal variables.');
@@ -265,7 +278,7 @@ class FieldAttachStorageTest extends FieldUnitTestBase {
   function testFieldAttachSaveMissingData() {
     $entity_type = 'test_entity';
     $entity_init = field_test_create_entity();
-    $langcode = LANGUAGE_NOT_SPECIFIED;
+    $langcode = Language::LANGCODE_NOT_SPECIFIED;
 
     // Insert: Field is missing.
     $entity = clone($entity_init);
@@ -343,12 +356,12 @@ class FieldAttachStorageTest extends FieldUnitTestBase {
   function testFieldAttachSaveMissingDataDefaultValue() {
     // Add a default value function.
     $this->instance['default_value_function'] = 'field_test_default_value';
-    field_update_instance($this->instance);
+    $this->instance->save();
 
     // Verify that fields are populated with default values.
     $entity_type = 'test_entity';
     $entity_init = field_test_create_entity();
-    $langcode = LANGUAGE_NOT_SPECIFIED;
+    $langcode = Language::LANGCODE_NOT_SPECIFIED;
     $default = field_test_default_value($entity_init, $this->field, $this->instance);
     $this->assertEqual($entity_init->{$this->field_name}[$langcode], $default, 'Default field value correctly populated.');
 
@@ -383,7 +396,7 @@ class FieldAttachStorageTest extends FieldUnitTestBase {
    */
   function testFieldAttachDelete() {
     $entity_type = 'test_entity';
-    $langcode = LANGUAGE_NOT_SPECIFIED;
+    $langcode = Language::LANGCODE_NOT_SPECIFIED;
     $rev[0] = field_test_create_entity(0, 0, $this->instance['bundle']);
 
     // Create revision 0
@@ -442,12 +455,12 @@ class FieldAttachStorageTest extends FieldUnitTestBase {
     field_test_create_bundle($new_bundle);
 
     // Add an instance to that bundle.
-    $this->instance['bundle'] = $new_bundle;
-    field_create_instance($this->instance);
+    $this->instance_definition['bundle'] = $new_bundle;
+    entity_create('field_instance', $this->instance_definition)->save();
 
     // Save an entity with data in the field.
     $entity = field_test_create_entity(0, 0, $this->instance['bundle']);
-    $langcode = LANGUAGE_NOT_SPECIFIED;
+    $langcode = Language::LANGCODE_NOT_SPECIFIED;
     $values = $this->_generateTestFieldValues($this->field['cardinality']);
     $entity->{$this->field_name}[$langcode] = $values;
     $entity_type = 'test_entity';
@@ -481,13 +494,13 @@ class FieldAttachStorageTest extends FieldUnitTestBase {
     field_test_create_bundle($new_bundle);
 
     // Add an instance to that bundle.
-    $this->instance['bundle'] = $new_bundle;
-    field_create_instance($this->instance);
+    $this->instance_definition['bundle'] = $new_bundle;
+    entity_create('field_instance', $this->instance_definition)->save();
 
     // Create a second field for the test bundle
     $field_name = drupal_strtolower($this->randomName() . '_field_name');
     $field = array('field_name' => $field_name, 'type' => 'test_field', 'cardinality' => 1);
-    field_create_field($field);
+    entity_create('field_entity', $field)->save();
     $instance = array(
       'field_name' => $field_name,
       'entity_type' => 'test_entity',
@@ -496,11 +509,11 @@ class FieldAttachStorageTest extends FieldUnitTestBase {
       'description' => $this->randomName() . '_description',
       'weight' => mt_rand(0, 127),
     );
-    field_create_instance($instance);
+    entity_create('field_instance', $instance)->save();
 
     // Save an entity with data for both fields
     $entity = field_test_create_entity(0, 0, $this->instance['bundle']);
-    $langcode = LANGUAGE_NOT_SPECIFIED;
+    $langcode = Language::LANGCODE_NOT_SPECIFIED;
     $values = $this->_generateTestFieldValues($this->field['cardinality']);
     $entity->{$this->field_name}[$langcode] = $values;
     $entity->{$field_name}[$langcode] = $this->_generateTestFieldValues(1);
@@ -525,4 +538,5 @@ class FieldAttachStorageTest extends FieldUnitTestBase {
     $this->assertFalse(field_read_instance('test_entity', $this->field_name, $this->instance['bundle']), "First field is deleted");
     $this->assertFalse(field_read_instance('test_entity', $field_name, $instance['bundle']), "Second field is deleted");
   }
+
 }

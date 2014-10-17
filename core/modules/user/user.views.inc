@@ -48,7 +48,7 @@ function user_views_data() {
       'title' => t('Content authored'),
       'help' => t('Relate content to the user who created it. This relationship will create one record for each content item created by the user.'),
       'id' => 'standard',
-      'base' => 'node',
+      'base' => 'node_field_data',
       'base field' => 'uid',
       'field' => 'uid',
       'label' => t('nodes'),
@@ -76,7 +76,7 @@ function user_views_data() {
       'argument field' => 'uid',
       'base' => 'node',
       'field' => 'nid',
-      'relationship' => 'node:uid'
+      'relationship' => 'node_field_data:uid'
     ),
   );
 
@@ -281,7 +281,7 @@ function user_views_data() {
     ),
   );
 
-  if (drupal_container()->get('module_handler')->moduleExists('translation_entity')) {
+  if (Drupal::moduleHandler()->moduleExists('translation_entity')) {
     $data['users']['translation_link'] = array(
       'title' => t('Translation link'),
       'help' => t('Provide a link to the translations overview for users.'),
@@ -315,6 +315,14 @@ function user_views_data() {
     'real field' => 'uid',
     'field' => array(
       'id' => 'user_data',
+    ),
+  );
+
+  $data['users']['user_bulk_form'] = array(
+    'title' => t('Bulk update'),
+    'help' => t('Add a form element that lets you run operations on multiple users.'),
+    'field' => array(
+      'id' => 'user_bulk_form',
     ),
   );
 
@@ -376,4 +384,16 @@ function user_views_data() {
   );
 
   return $data;
+}
+
+/**
+ * Implements hook_views_plugins_row_alter().
+ *
+ * Replaces the generic row plugin by a custom one for users.
+ *
+ * @see \Drupal\views\Plugin\views\row\EntityRow
+ */
+function user_views_plugins_row_alter(array &$plugins) {
+  $plugins['entity:user']['class'] = 'Drupal\user\Plugin\views\row\UserRow';
+  $plugins['entity:user']['module'] = 'user';
 }

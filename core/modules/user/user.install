@@ -6,6 +6,7 @@
  */
 
 use Drupal\Component\Uuid\Uuid;
+use Drupal\Core\Language\Language;
 
 /**
  * Implements hook_schema().
@@ -59,7 +60,7 @@ function user_schema() {
       ),
       'theme' => array(
         'type' => 'varchar',
-        'length' => 255,
+        'length' => DRUPAL_EXTENSION_NAME_MAX_LENGTH,
         'not null' => TRUE,
         'default' => '',
         'description' => "User's default theme.",
@@ -166,7 +167,7 @@ function user_schema() {
       ),
       'module' => array(
         'type' => 'varchar',
-        'length' => 255,
+        'length' => DRUPAL_EXTENSION_NAME_MAX_LENGTH,
         'not null' => TRUE,
         'default' => '',
         'description' => "The module declaring the permission.",
@@ -197,7 +198,7 @@ function user_schema() {
       'module' => array(
         'description' => 'The name of the module declaring the variable.',
         'type' => 'varchar',
-        'length' => 204,
+        'length' => DRUPAL_EXTENSION_NAME_MAX_LENGTH,
         'not null' => TRUE,
         'default' => '',
       ),
@@ -302,8 +303,6 @@ function user_install() {
  * helper function so that other install profiles can reuse it.
  */
 function user_install_picture_field() {
-  $t = get_t();
-
   $field = array(
     'field_name' => 'user_picture',
     'module' => 'image',
@@ -316,14 +315,14 @@ function user_install_picture_field() {
       'default_image' => FALSE,
     ),
   );
-  $field = field_create_field($field);
+  entity_create('field_entity', $field)->save();
 
   $instance = array(
     'field_name' => 'user_picture',
     'entity_type' => 'user',
     'label' => 'Picture',
     'bundle' => 'user',
-    'description' => $t('Your virtual face or picture.'),
+    'description' => t('Your virtual face or picture.'),
     'required' => FALSE,
     'settings' => array(
       'file_extensions' => 'png gif jpg jpeg',
@@ -336,7 +335,7 @@ function user_install_picture_field() {
       'default_image' => 0,
     ),
   );
-  field_create_instance($instance);
+  entity_create('field_instance', $instance)->save();
 
   // Assign form display settings for the 'default' view mode.
   entity_get_form_display('user', 'user', 'default')
@@ -373,6 +372,18 @@ function user_install_picture_field() {
     // Additionally, hide 'summary' pseudo-field from compact view mode..
     ->removeComponent('member_for')
     ->save();
+}
+
+/**
+ * Implements hook_update_dependencies().
+ */
+function user_update_dependencies() {
+  // Convert user picture to field after the fields and instances are converted
+  // to ConfigEntities.
+  $dependencies['user'][8011] = array(
+    'field' => 8003,
+  );
+  return $dependencies;
 }
 
 /**
@@ -656,13 +667,11 @@ function user_update_8011() {
   // User pictures can only be migrated to the new user picture image field
   // if Image module is installed.
   if (!module_exists('image')) {
-    // Install image.module with schema version 8002 as a previous version
-    // would have to create tables that would be removed again.
-    $old_schema = update_module_enable(array('image'), 8002);
+    $old_schema = module_enable(array('image'));
     if ($old_schema['image'] == SCHEMA_UNINSTALLED) {
-      // If image.module was not installed before, install default
-      // configuration and run the install hook.
-      config_install_default_config('module', 'image');
+      // Install image.module with schema version 8002 as a previous version
+      // would have to create tables that would be removed again.
+      update_set_schema('image', 8002);
       // Inlined version of image_install(), make sure that the styles
       // directory exists.
       $directory = update_variable_get('file_default_scheme', 'public') . '://styles';
@@ -689,7 +698,7 @@ function user_update_8011() {
         'status' => FILE_STATUS_PERMANENT,
         'filename' => drupal_basename($destination),
         'uuid' => $uuid->generate(),
-        'langcode' => LANGUAGE_NOT_SPECIFIED,
+        'langcode' => Language::LANGCODE_NOT_SPECIFIED,
         'filesize' => filesize($destination),
         'filemime' => file_get_mimetype($destination),
         'timestamp' => REQUEST_TIME,
@@ -700,7 +709,7 @@ function user_update_8011() {
 
   // Create the field and instance.
   $field = array(
-    'field_name' => 'user_picture',
+    'id' => 'user_picture',
     'module' => 'image',
     'type' => 'image',
     'cardinality' => 1,
@@ -710,15 +719,11 @@ function user_update_8011() {
       'uri_scheme' => 'public',
       'default_image' => FALSE,
     ),
-    'storage' => array(
-      'type' => 'field_sql_storage',
-      'settings' => array(),
-    ),
   );
-  _update_7000_field_create_field($field);
+  _update_8003_field_create_field($field);
 
   $instance = array(
-    'field_name' => 'user_picture',
+    'id' => 'user.user.user_picture',
     'entity_type' => 'user',
     'label' => 'Picture',
     'bundle' => 'user',
@@ -732,10 +737,10 @@ function user_update_8011() {
       'title_field' => 0,
       'max_resolution' => update_variable_get('user_picture_dimensions', '85x85'),
       'min_resolution' => '',
-      'default_image' => !empty($default_image_fid) ? $default_image_fid : 0,
+      'default_image' => !empty($default_image_fid) ? array($default_image_fid) : array(),
     ),
   );
-  _update_7000_field_create_instance($field, $instance);
+  _update_8003_field_create_instance($field, $instance);
 
   module_load_install('entity');
   if (update_variable_get('user_pictures', 0)) {
@@ -757,7 +762,6 @@ function user_update_8011() {
       'weight' => -1,
     ))
     ->save();
-  update_config_manifest_add('entity.form_display', array($form_display->get('id')));
 
   // Assign display settings for the 'default' and 'compact' view modes.
   $display = _update_8000_entity_get_display('user', 'user', 'default');
@@ -771,7 +775,6 @@ function user_update_8011() {
       'weight' => 0,
     ))
     ->save();
-  update_config_manifest_add('entity.display', array($display->get('id')));
 
   $display = _update_8000_entity_get_display('user', 'user', 'compact');
   $display->set('content.user_picture', array(
@@ -782,9 +785,11 @@ function user_update_8011() {
         'image_link' => 'content',
       ),
       'weight' => 0,
-    ))
-    ->save();
-  update_config_manifest_add('entity.display', array($display->get('id')));
+    ));
+  $display->set('content.member_for', array(
+      'visible' => FALSE,
+    ));
+  $display->save();
 
   // Add file usage for the default field.
   if (!empty($default_image_fid)) {
@@ -793,19 +798,11 @@ function user_update_8011() {
         'fid' => $default_image_fid,
         'module' => 'image',
         'type' => 'default_image',
-        'id' => $field['id'],
+        'id' => $field['uuid'],
         'count' => 1,
       ))
       ->execute();
   }
-
-  // Update the user bundle settings and hide the member_for extra field.
-  $settings = update_variable_get('field_bundle_settings_user__user');
-  $settings['extra_fields']['display']['member_for']['compact'] = array(
-    'weight' => 0,
-    'visible' => FALSE,
-  );
-  update_variable_set('field_bundle_settings_user__user', $settings);
 
   // Delete old variables.
   update_variable_del('user_pictures');
@@ -838,7 +835,7 @@ function user_update_8012(&$sandbox) {
           'bundle' => 'user',
           'entity_id' => $uid,
           'revision_id' => $uid,
-          'langcode' => LANGUAGE_NOT_SPECIFIED,
+          'langcode' => Language::LANGCODE_NOT_SPECIFIED,
           'delta' => 0,
           'user_picture_fid' => $fid,
         ))
@@ -849,7 +846,7 @@ function user_update_8012(&$sandbox) {
           'bundle' => 'user',
           'entity_id' => $uid,
           'revision_id' => $uid,
-          'langcode' => LANGUAGE_NOT_SPECIFIED,
+          'langcode' => Language::LANGCODE_NOT_SPECIFIED,
           'delta' => 0,
           'user_picture_fid' => $fid,
         ))
@@ -1047,13 +1044,47 @@ function user_update_8017() {
       ->set('uuid', $uuid->generate())
       ->set('label', $role->name)
       ->set('weight', $role->weight)
-      ->set('langcode', LANGUAGE_NOT_SPECIFIED)
+      ->set('langcode', Language::LANGCODE_NOT_SPECIFIED)
       ->save();
   }
+}
 
-  update_config_manifest_add('user.role', array_map(function ($role) {
-    return $role->rid;
-  }, $roles));
+/**
+ * Use the maximum allowed module name length in module name database fields.
+ */
+function user_update_8018() {
+  if (db_field_exists('role_permission', 'module')) {
+    $spec = array(
+      'type' => 'varchar',
+      'length' => 50,
+      'not null' => TRUE,
+      'default' => '',
+      'description' => 'The module declaring the permission.',
+    );
+    db_change_field('role_permission', 'module', 'module', $spec);
+  }
+
+  if (db_field_exists('users_data', 'module')) {
+    $spec = array(
+      'description' => 'The name of the module declaring the variable.',
+      'type' => 'varchar',
+      'length' => 50,
+      'not null' => TRUE,
+      'default' => '',
+    );
+    db_change_field('users_data', 'module', 'module', $spec);
+  }
+
+  if (db_field_exists('users', 'theme')) {
+    $spec = array(
+      'type' => 'varchar',
+      'length' => 50,
+      'not null' => TRUE,
+      'default' => '',
+      'description' => "User's default theme.",
+    );
+    db_change_field('users', 'theme', 'theme', $spec);
+  }
 }
 
 /**

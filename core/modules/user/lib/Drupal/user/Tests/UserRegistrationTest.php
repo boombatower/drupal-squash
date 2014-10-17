@@ -7,6 +7,7 @@
 
 namespace Drupal\user\Tests;
 
+use Drupal\Core\Language\Language;
 use Drupal\simpletest\WebTestBase;
 
 class UserRegistrationTest extends WebTestBase {
@@ -45,7 +46,7 @@ class UserRegistrationTest extends WebTestBase {
     $this->assertText(t('A welcome message with further instructions has been sent to your e-mail address.'), 'User registered successfully.');
     $accounts = entity_load_multiple_by_properties('user', array('name' => $name, 'mail' => $mail));
     $new_user = reset($accounts);
-    $this->assertTrue($new_user->status, 'New account is active after registration.');
+    $this->assertTrue($new_user->status->value, 'New account is active after registration.');
 
     // Allow registration by site visitors, but require administrator approval.
     $config->set('register', USER_REGISTER_VISITORS_ADMINISTRATIVE_APPROVAL)->save();
@@ -56,7 +57,7 @@ class UserRegistrationTest extends WebTestBase {
     $this->container->get('plugin.manager.entity')->getStorageController('user')->resetCache();
     $accounts = entity_load_multiple_by_properties('user', array('name' => $name, 'mail' => $mail));
     $new_user = reset($accounts);
-    $this->assertFalse($new_user->status, 'New account is blocked until approved by an administrator.');
+    $this->assertFalse($new_user->status->value, 'New account is blocked until approved by an administrator.');
   }
 
   function testRegistrationWithoutEmailVerification() {
@@ -114,7 +115,7 @@ class UserRegistrationTest extends WebTestBase {
     $edit = array(
       'status' => 1,
     );
-    $this->drupalPost('user/' . $new_user->uid . '/edit', $edit, t('Save'));
+    $this->drupalPost('user/' . $new_user->id() . '/edit', $edit, t('Save'));
     $this->drupalLogout();
 
     // Login after administrator approval.
@@ -177,16 +178,16 @@ class UserRegistrationTest extends WebTestBase {
     // Check user fields.
     $accounts = entity_load_multiple_by_properties('user', array('name' => $name, 'mail' => $mail));
     $new_user = reset($accounts);
-    $this->assertEqual($new_user->name, $name, 'Username matches.');
-    $this->assertEqual($new_user->mail, $mail, 'E-mail address matches.');
-    $this->assertEqual($new_user->theme, '', 'Correct theme field.');
-    $this->assertEqual($new_user->signature, '', 'Correct signature field.');
-    $this->assertTrue(($new_user->created > REQUEST_TIME - 20 ), 'Correct creation time.');
-    $this->assertEqual($new_user->status, $config_user_settings->get('register') == USER_REGISTER_VISITORS ? 1 : 0, 'Correct status field.');
-    $this->assertEqual($new_user->timezone, $config_system_timezone->get('default'), 'Correct time zone field.');
-    $this->assertEqual($new_user->langcode, language_default()->langcode, 'Correct language field.');
-    $this->assertEqual($new_user->preferred_langcode, language_default()->langcode, 'Correct preferred language field.');
-    $this->assertEqual($new_user->init, $mail, 'Correct init field.');
+    $this->assertEqual($new_user->name->value, $name, 'Username matches.');
+    $this->assertEqual($new_user->mail->value, $mail, 'E-mail address matches.');
+    $this->assertEqual($new_user->theme->value, '', 'Correct theme field.');
+    $this->assertEqual($new_user->signature->value, '', 'Correct signature field.');
+    $this->assertTrue(($new_user->created->value > REQUEST_TIME - 20 ), 'Correct creation time.');
+    $this->assertEqual($new_user->status->value, $config_user_settings->get('register') == USER_REGISTER_VISITORS ? 1 : 0, 'Correct status field.');
+    $this->assertEqual($new_user->timezone->value, $config_system_timezone->get('default'), 'Correct time zone field.');
+    $this->assertEqual($new_user->langcode->value, language_default()->langcode, 'Correct language field.');
+    $this->assertEqual($new_user->preferred_langcode->value, language_default()->langcode, 'Correct preferred language field.');
+    $this->assertEqual($new_user->init->value, $mail, 'Correct init field.');
   }
 
   /**
@@ -194,34 +195,34 @@ class UserRegistrationTest extends WebTestBase {
    */
   function testRegistrationWithUserFields() {
     // Create a field, and an instance on 'user' entity type.
-    $field = array(
+    $field = entity_create('field_entity', array(
       'type' => 'test_field',
       'field_name' => 'test_user_field',
       'cardinality' => 1,
-    );
-    field_create_field($field);
-    $instance = array(
+    ));
+    $field->save();
+    $instance = entity_create('field_instance', array(
       'field_name' => 'test_user_field',
       'entity_type' => 'user',
       'label' => 'Some user field',
       'bundle' => 'user',
       'required' => TRUE,
       'settings' => array('user_register_form' => FALSE),
-    );
-    field_create_instance($instance);
+    ));
+    $instance->save();
     entity_get_form_display('user', 'user', 'default')
       ->setComponent('test_user_field', array('type' => 'test_field_widget'))
       ->save();
 
     // Check that the field does not appear on the registration form.
     $this->drupalGet('user/register');
-    $this->assertNoText($instance['label'], 'The field does not appear on user registration form');
+    $this->assertNoText($instance->label(), 'The field does not appear on user registration form');
 
     // Have the field appear on the registration form.
-    $instance['settings']['user_register_form'] = TRUE;
-    field_update_instance($instance);
+    $instance->settings['user_register_form'] = TRUE;
+    $instance->save();
     $this->drupalGet('user/register');
-    $this->assertText($instance['label'], 'The field appears on user registration form');
+    $this->assertText($instance->label(), 'The field appears on user registration form');
 
     // Check that validation errors are correctly reported.
     $edit = array();
@@ -230,11 +231,11 @@ class UserRegistrationTest extends WebTestBase {
     // Missing input in required field.
     $edit['test_user_field[und][0][value]'] = '';
     $this->drupalPost(NULL, $edit, t('Create new account'));
-    $this->assertRaw(t('@name field is required.', array('@name' => $instance['label'])), 'Field validation error was correctly reported.');
+    $this->assertRaw(t('@name field is required.', array('@name' => $instance->label())), 'Field validation error was correctly reported.');
     // Invalid input.
     $edit['test_user_field[und][0][value]'] = '-1';
     $this->drupalPost(NULL, $edit, t('Create new account'));
-    $this->assertRaw(t('%name does not accept the value -1.', array('%name' => $instance['label'])), 'Field validation error was correctly reported.');
+    $this->assertRaw(t('%name does not accept the value -1.', array('%name' => $instance->label())), 'Field validation error was correctly reported.');
 
     // Submit with valid data.
     $value = rand(1, 255);
@@ -243,11 +244,11 @@ class UserRegistrationTest extends WebTestBase {
     // Check user fields.
     $accounts = entity_load_multiple_by_properties('user', array('name' => $name, 'mail' => $mail));
     $new_user = reset($accounts);
-    $this->assertEqual($new_user->test_user_field[LANGUAGE_NOT_SPECIFIED][0]['value'], $value, 'The field value was correclty saved.');
+    $this->assertEqual($new_user->test_user_field->value, $value, 'The field value was correclty saved.');
 
     // Check that the 'add more' button works.
-    $field['cardinality'] = FIELD_CARDINALITY_UNLIMITED;
-    field_update_field($field);
+    $field->cardinality = FIELD_CARDINALITY_UNLIMITED;
+    $field->save();
     foreach (array('js', 'nojs') as $js) {
       $this->drupalGet('user/register');
       // Add two inputs.
@@ -271,9 +272,9 @@ class UserRegistrationTest extends WebTestBase {
       // Check user fields.
       $accounts = entity_load_multiple_by_properties('user', array('name' => $name, 'mail' => $mail));
       $new_user = reset($accounts);
-      $this->assertEqual($new_user->test_user_field[LANGUAGE_NOT_SPECIFIED][0]['value'], $value, format_string('@js : The field value was correclty saved.', array('@js' => $js)));
-      $this->assertEqual($new_user->test_user_field[LANGUAGE_NOT_SPECIFIED][1]['value'], $value + 1, format_string('@js : The field value was correclty saved.', array('@js' => $js)));
-      $this->assertEqual($new_user->test_user_field[LANGUAGE_NOT_SPECIFIED][2]['value'], $value + 2, format_string('@js : The field value was correclty saved.', array('@js' => $js)));
+      $this->assertEqual($new_user->test_user_field[0]->value, $value, format_string('@js : The field value was correclty saved.', array('@js' => $js)));
+      $this->assertEqual($new_user->test_user_field[1]->value, $value + 1, format_string('@js : The field value was correclty saved.', array('@js' => $js)));
+      $this->assertEqual($new_user->test_user_field[2]->value, $value + 2, format_string('@js : The field value was correclty saved.', array('@js' => $js)));
     }
   }
 }

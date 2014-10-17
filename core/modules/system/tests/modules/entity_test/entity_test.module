@@ -57,7 +57,7 @@ function entity_test_entity_types($filter = NULL) {
  */
 function entity_test_entity_info_alter(&$info) {
   // Optionally specify a translation handler for testing translations.
-  if (state()->get('entity_test.translation')) {
+  if (Drupal::state()->get('entity_test.translation')) {
     foreach(entity_test_entity_types() as $entity_type) {
       $info[$entity_type]['translation'][$entity_type] = TRUE;
     }
@@ -122,13 +122,36 @@ function entity_test_delete_bundle($bundle, $entity_type = 'entity_test') {
 }
 
 /**
- * Implements hook_entity_bundle_info_alter().
+ * Implements hook_entity_bundle_info().
  */
-function entity_test_entity_bundle_info_alter(&$bundles) {
+function entity_test_entity_bundle_info() {
+  $bundles = array();
   $entity_info = entity_get_info();
-  foreach ($bundles as $entity_type => $info) {
-    if ($entity_info[$entity_type]['module'] == 'entity_test') {
+  foreach ($entity_info as $entity_type => $info) {
+    if ($info['module'] == 'entity_test') {
       $bundles[$entity_type] = Drupal::state()->get($entity_type . '.bundles') ?: array($entity_type => array('label' => 'Entity Test Bundle'));
+    }
+  }
+  return $bundles;
+}
+
+/**
+ * Implements hook_entity_view_mode_info_alter().
+ */
+function entity_test_entity_view_mode_info_alter(&$view_modes) {
+  $entity_info = entity_get_info();
+  foreach ($entity_info as $entity_type => $info) {
+    if ($entity_info[$entity_type]['module'] == 'entity_test') {
+      $view_modes[$entity_type] = array(
+        'full' => array(
+          'label' => t('Full object'),
+          'status' => TRUE,
+        ),
+        'teaser' => array(
+          'label' => t('Teaser'),
+          'status' => TRUE,
+        ),
+      );
     }
   }
 }
@@ -217,7 +240,7 @@ function entity_test_menu() {
  */
 function entity_test_form_node_form_alter(&$form, &$form_state, $form_id) {
   $langcode = $form_state['controller']->getFormLangcode($form_state);
-  state()->set('entity_test.form_langcode', $langcode);
+  Drupal::state()->set('entity_test.form_langcode', $langcode);
 }
 
 /**
@@ -234,7 +257,7 @@ function entity_test_form_node_form_alter(&$form, &$form_state, $form_id) {
 function entity_test_add($entity_type) {
   drupal_set_title(t('Create an @type', array('@type' => $entity_type)));
   $entity = entity_create($entity_type, array());
-  return entity_get_form($entity);
+  return Drupal::entityManager()->getForm($entity);
 }
 
 /**
@@ -250,7 +273,7 @@ function entity_test_add($entity_type) {
  */
 function entity_test_edit(EntityInterface $entity) {
   drupal_set_title($entity->label(), PASS_THROUGH);
-  return entity_get_form($entity);
+  return Drupal::entityManager()->getForm($entity);
 }
 
 /**
@@ -378,4 +401,34 @@ function entity_test_entity_form_display_alter(EntityFormDisplay $form_display, 
       $form_display->setComponent('field_test_text', $component_options);
     }
   }
+}
+
+/**
+ * Implements hook_entity_presave()
+ */
+function entity_test_entity_presave(EntityInterface $entity) {
+  if (isset($GLOBALS['entity_test_throw_exception'])) {
+    throw new Exception('Entity presave exception', 1);
+  }
+}
+
+/**
+ * Implements hook_entity_predelete()
+ */
+function entity_test_entity_predelete(EntityInterface $entity) {
+  if (isset($GLOBALS['entity_test_throw_exception'])) {
+    throw new Exception('Entity predelete exception', 2);
+  }
+}
+
+/**
+ * Implements hook_entity_operation_alter().
+ */
+function entity_test_entity_operation_alter(array &$operations, EntityInterface $entity) {
+  $uri = $entity->uri();
+  $operations['test_operation'] = array(
+    'title' => format_string('Test Operation: @label', array('@label' => $entity->label())),
+    'href' => $uri['path'] . '/test_operation',
+    'weight' => 50,
+  );
 }

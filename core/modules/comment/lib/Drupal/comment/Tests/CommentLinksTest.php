@@ -7,6 +7,8 @@
 
 namespace Drupal\comment\Tests;
 
+use Drupal\Core\Language\Language;
+
 /**
  * Tests comment links based on environment configurations.
  */
@@ -50,7 +52,8 @@ class CommentLinksTest extends CommentTestBase {
 
     // Remove additional user permissions from $this->web_user added by setUp(),
     // since this test is limited to anonymous and authenticated roles only.
-    entity_delete_multiple('user_role', array(key($this->web_user->roles)));
+    $roles = $this->web_user->roles;
+    entity_delete_multiple('user_role', array(reset($roles)));
 
     // Matrix of possible environmental conditions and configuration settings.
     // See setEnvironment() for details.
@@ -146,10 +149,10 @@ class CommentLinksTest extends CommentTestBase {
           'status' => COMMENT_PUBLISHED,
           'subject' => $this->randomName(),
           'hostname' => '127.0.0.1',
-          'langcode' => LANGUAGE_NOT_SPECIFIED,
-          'comment_body' => array(LANGUAGE_NOT_SPECIFIED => array($this->randomName())),
+          'langcode' => Language::LANGCODE_NOT_SPECIFIED,
+          'comment_body' => array(Language::LANGCODE_NOT_SPECIFIED => array($this->randomName())),
         ));
-        comment_save($comment);
+        $comment->save();
         $this->comment = $comment;
 
         // comment_num_new() relies on history_read(), so ensure that no one has
@@ -158,7 +161,7 @@ class CommentLinksTest extends CommentTestBase {
       }
       else {
         $cids = db_query("SELECT cid FROM {comment}")->fetchCol();
-        comment_delete_multiple($cids);
+        entity_delete_multiple('comment', $cids);
         unset($this->comment);
       }
     }
@@ -168,7 +171,7 @@ class CommentLinksTest extends CommentTestBase {
     variable_set('comment_anonymous_' . $this->node->type, $info['contact']);
     if ($this->node->comment != $info['comments']) {
       $this->node->comment = $info['comments'];
-      node_save($this->node);
+      $this->node->save();
     }
 
     // Change user settings.

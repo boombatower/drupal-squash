@@ -7,7 +7,7 @@
 
 namespace Drupal\aggregator\Form;
 
-use Drupal\Core\ControllerInterface;
+use Drupal\Core\Controller\ControllerInterface;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Entity\EntityManager;
 use Drupal\Core\Entity\Query\QueryFactory;
@@ -157,7 +157,7 @@ class OpmlFeedAdd implements ControllerInterface, FormInterface {
     $data = '';
     $validators = array('file_validate_extensions' => array('opml xml'));
     if ($file = file_save_upload('upload', $validators, FALSE, 0)) {
-      $data = file_get_contents($file->uri);
+      $data = file_get_contents($file->getFileUri());
     }
     else {
       // @todo Move this to a fetcher implementation.

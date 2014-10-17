@@ -7,7 +7,7 @@
 
 namespace Drupal\common_test\Controller;
 
-use Drupal\Core\ControllerInterface;
+use Drupal\Core\Controller\ControllerInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
@@ -16,7 +16,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
 class CommonTestController implements ControllerInterface {
 
   /**
-   * Implements \Drupal\Core\ControllerInterface::create().
+   * {@inheritdoc}
    */
   public static function create(ContainerInterface $container) {
     return new static();
@@ -25,9 +25,9 @@ class CommonTestController implements ControllerInterface {
   /**
    * Returns links to the current page, with and without query strings.
    *
-   * Using #type causes these links to be rendered with l().
+   * Using #type 'link' causes these links to be rendered with l().
    */
-  public function lActiveClass() {
+  public function typeLinkActiveClass() {
     return array(
       'no_query' => array(
         '#type' => 'link',
@@ -49,43 +49,6 @@ class CommonTestController implements ControllerInterface {
         '#type' => 'link',
         '#title' => t('Link with the same query string in reverse order'),
         '#href' => current_path(),
-        '#options' => array(
-          'query' => array(
-            'one' => 'two',
-            'foo' => 'bar',
-          ),
-        ),
-      ),
-    );
-  }
-
-  /**
-   * Returns links to the current page, with and without query strings.
-   *
-   * Using #theme causes these links to be rendered with theme_link().
-   */
-  public function themeLinkActiveClass() {
-    return array(
-      'no_query' => array(
-        '#theme' => 'link',
-        '#text' => t('Link with no query string'),
-        '#path' => current_path(),
-      ),
-      'with_query' => array(
-        '#theme' => 'link',
-        '#text' => t('Link with a query string'),
-        '#path' => current_path(),
-        '#options' => array(
-          'query' => array(
-            'foo' => 'bar',
-            'one' => 'two',
-          ),
-        ),
-      ),
-      'with_query_reversed' => array(
-        '#theme' => 'link',
-        '#text' => t('Link with the same query string in reverse order'),
-        '#path' => current_path(),
         '#options' => array(
           'query' => array(
             'one' => 'two',

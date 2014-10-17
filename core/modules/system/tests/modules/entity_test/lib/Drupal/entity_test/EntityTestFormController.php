@@ -7,6 +7,7 @@
 namespace Drupal\entity_test;
 
 use Drupal\Core\Entity\EntityFormControllerNG;
+use Drupal\Core\Language\Language;
 
 /**
  * Form controller for the test entity edit forms.
@@ -47,10 +48,35 @@ class EntityTestFormController extends EntityFormControllerNG {
       '#title' => t('Language'),
       '#type' => 'language_select',
       '#default_value' => $entity->language()->langcode,
-      '#languages' => LANGUAGE_ALL,
+      '#languages' => Language::STATE_ALL,
     );
 
+    // @todo: Is there a better way to check if an entity type is revisionable?
+    $entity_info = $entity->entityInfo();
+    if (!empty($entity_info['entity_keys']['revision']) && !$entity->isNew()) {
+      $form['revision'] = array(
+        '#type' => 'checkbox',
+        '#title' => t('Create new revision'),
+        '#default_value' => $entity->isNewRevision(),
+      );
+    }
+
     return $form;
+  }
+
+  /**
+   * Overrides \Drupal\Core\Entity\EntityFormController::submit().
+   */
+  public function submit(array $form, array &$form_state) {
+    // Build the entity object from the submitted values.
+    $entity = parent::submit($form, $form_state);
+
+    // Save as a new revision if requested to do so.
+    if (!empty($form_state['values']['revision'])) {
+      $entity->setNewRevision();
+    }
+
+    return $entity;
   }
 
   /**

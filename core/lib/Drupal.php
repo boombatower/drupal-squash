@@ -124,7 +124,7 @@ class Drupal {
   /**
    * Retrieves the currently active request object.
    *
-   * Note: The use of this wrapper in particular is especially discourged. Most
+   * Note: The use of this wrapper in particular is especially discouraged. Most
    * code should not need to access the request directly.  Doing so means it
    * will only function when handling an HTTP request, and will require special
    * modification or wrapping when run from a command line tool, from certain
@@ -359,6 +359,36 @@ class Drupal {
    */
   public static function token() {
     return static::$container->get('token');
+  }
+
+  /**
+   * Returns the url generator service.
+   *
+   * @return \Drupal\Core\Routing\UrlGenerator
+   *   The url generator service.
+   */
+  public static function urlGenerator() {
+    return static::$container->get('url_generator');
+  }
+
+  /**
+   * Returns the string translation service.
+   *
+   * @return \Drupal\Core\Translation\TranslationManager
+   *   The string translation manager.
+   */
+  public static function translation() {
+    return static::$container->get('string_translation');
+  }
+
+  /**
+   * Returns the language manager service.
+   *
+   * @return \Drupal\Core\Language\LanguageManager
+   *   The language manager.
+   */
+  public static function languageManager() {
+    return static::$container->get('language_manager');
   }
 
 }

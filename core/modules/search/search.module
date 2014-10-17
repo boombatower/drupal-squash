@@ -7,6 +7,7 @@
 
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Component\Utility\Unicode;
+use Drupal\search\SearchExpression;
 
 /**
  * Matches all 'N' Unicode character classes (numbers)
@@ -135,7 +136,7 @@ function search_permission() {
 }
 
 /**
- * Implements hook_preprocess_HOOK() for block.tpl.php.
+ * Implements hook_preprocess_HOOK() for block.html.twig.
  */
 function search_preprocess_block(&$variables) {
   if ($variables['plugin_id'] == 'search_form_block') {
@@ -158,11 +159,8 @@ function search_menu() {
   $items['admin/config/search/settings'] = array(
     'title' => 'Search settings',
     'description' => 'Configure relevance settings for search and other indexing options.',
-    'page callback' => 'drupal_get_form',
-    'page arguments' => array('search_admin_settings'),
-    'access arguments' => array('administer search'),
+    'route_name' => 'search_settings',
     'weight' => -10,
-    'file' => 'search.admin.inc',
   );
   $items['admin/config/search/settings/reindex'] = array(
     'title' => 'Clear index',
@@ -631,10 +629,9 @@ function search_index($sid, $module, $text, $langcode) {
             if (preg_match('!(?:node|book)/(?:view/)?([0-9]+)!i', $path, $match)) {
               $linknid = $match[1];
               if ($linknid > 0) {
-                $node = db_query('SELECT title, nid, vid FROM {node} WHERE nid = :nid', array(':nid' => $linknid), array('target' => 'slave'))->fetchObject();
                 $link = TRUE;
-                // Do not use $node->label(), $node comes from the database.
-                $linktitle = $node->title;
+                $node = node_load($linknid);
+                $linktitle = $node->label();
               }
             }
           }
@@ -868,9 +865,8 @@ function search_comment_unpublish($comment) {
  *   if any. Trailing spaces in values will not be included.
  */
 function search_expression_extract($expression, $option) {
-  if (preg_match('/(^| )' . $option . ':([^ ]*)( |$)/i', $expression, $matches)) {
-    return $matches[2];
-  }
+  $expression = new SearchExpression($expression);
+  return $expression->extract($option);
 }
 
 /**
@@ -897,14 +893,8 @@ function search_expression_extract($expression, $option) {
  *   a new $option:$value pair added if $value was provided.
  */
 function search_expression_insert($expression, $option, $value = NULL) {
-  // Remove any previous values stored with $option.
-  $expression = trim(preg_replace('/(^| )' . $option . ':[^ ]*/i', '', $expression));
-
-  // Set new value, if provided.
-  if (isset($value)) {
-    $expression .= ' ' . $option . ':' . trim($value);
-  }
-  return $expression;
+  $expression = new SearchExpression($expression);
+  return $expression->insert($option, $value)->getExpression();
 }
 
 /**
@@ -920,7 +910,7 @@ function search_expression_insert($expression, $option, $value = NULL) {
  * - Specifically for searching nodes, you can implement
  *   hook_node_update_index() and hook_node_search_result(). However, note that
  *   the search system already indexes all visible output of a node; i.e.,
- *   everything displayed normally by hook_view() and hook_node_view(). This is
+ *   everything displayed normally by hook_node_view(). This is
  *   usually sufficient. You should only use this mechanism if you want
  *   additional, non-visible data to be indexed.
  * - Implement hook_search_info(). This will create a search tab for your

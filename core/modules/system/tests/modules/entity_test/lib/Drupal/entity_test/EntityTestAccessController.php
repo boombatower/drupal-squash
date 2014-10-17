@@ -9,7 +9,8 @@ namespace Drupal\entity_test;
 
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Entity\EntityAccessController;
-use Drupal\user\Plugin\Core\Entity\User;
+use Drupal\Core\Language\Language;
+use Drupal\Core\Session\AccountInterface;
 
 /**
  * Defines the access controller for the test entity type.
@@ -19,9 +20,9 @@ class EntityTestAccessController extends EntityAccessController {
   /**
    * {@inheritdoc}
    */
-  protected function checkAccess(EntityInterface $entity, $operation, $langcode, User $account) {
+  protected function checkAccess(EntityInterface $entity, $operation, $langcode, AccountInterface $account) {
     if ($operation === 'view') {
-      if ($langcode != LANGUAGE_DEFAULT) {
+      if ($langcode != Language::LANGCODE_DEFAULT) {
         return user_access('view test entity translations', $account);
       }
       return user_access('view test entity', $account);

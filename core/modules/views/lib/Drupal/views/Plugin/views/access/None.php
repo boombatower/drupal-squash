@@ -9,6 +9,9 @@ namespace Drupal\views\Plugin\views\access;
 
 use Drupal\Core\Annotation\Translation;
 use Drupal\Component\Annotation\Plugin;
+use Drupal\Core\Session\AccountInterface;
+
+use Symfony\Component\Routing\Route;
 
 /**
  * Access plugin that provides no access control at all.
@@ -30,17 +33,16 @@ class None extends AccessPluginBase {
   /**
    * Implements Drupal\views\Plugin\views\access\AccessPluginBase::access().
    */
-  public function access($account) {
+  public function access(AccountInterface $account) {
     // No access control.
     return TRUE;
   }
 
   /**
-   * Implements Drupal\views\Plugin\views\access\AccessPluginBase::get_access_callback().
+   * {@inheritdoc}
    */
-  public function get_access_callback() {
-    // No access control.
-    return TRUE;
+  public function alterRouteDefinition(Route $route) {
+    $route->setRequirement('_access', 'TRUE');
   }
 
 }

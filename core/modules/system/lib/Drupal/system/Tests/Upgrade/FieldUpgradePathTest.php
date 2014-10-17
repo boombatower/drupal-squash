@@ -6,6 +6,7 @@
  */
 
 namespace Drupal\system\Tests\Upgrade;
+use Drupal\Core\Language\Language;
 
 /**
  * Tests upgrade of system variables.
@@ -41,13 +42,6 @@ class FieldUpgradePathTest extends UpgradePathTestBase {
     );
     $this->assertTrue(!empty($displays['default']));
     $this->assertTrue(!empty($displays['teaser']));
-
-    // Check that manifest entries for the 'article' node type were correctly
-    // created.
-    $manifest = config('manifest.entity.display');
-    $data = $manifest->get();
-    $this->assertEqual($data['node.article.default'], array('name' => 'entity.display.node.article.default'));
-    $this->assertEqual($data['node.article.teaser'], array('name' => 'entity.display.node.article.teaser'));
 
     // Check that the 'body' field is configured as expected.
     $expected = array(
@@ -97,12 +91,6 @@ class FieldUpgradePathTest extends UpgradePathTestBase {
     $form_display = config('entity.form_display.node.article.default')->get();
     $this->assertTrue(!empty($form_display));
 
-    // Check that manifest entries for the 'article' node type were correctly
-    // created.
-    $manifest = config('manifest.entity.form_display');
-    $data = $manifest->get();
-    $this->assertEqual($data['node.article.default'], array('name' => 'entity.form_display.node.article.default'));
-
     // Check that the 'body' field is configured as expected.
     $expected = array(
       'type' => 'text_textarea_with_summary',
@@ -132,9 +120,6 @@ class FieldUpgradePathTest extends UpgradePathTestBase {
   function testFieldUpgradeToConfig() {
     $this->assertTrue($this->performUpgrade(), t('The upgrade was completed successfully.'));
 
-    $field_manifest = config('manifest.field.field')->get();
-    $instance_manifest = config('manifest.field.instance')->get();
-
     // Check that the configuration for the 'body' field is correct.
     $config = \Drupal::config('field.field.body')->get();
     // We cannot predict the value of the UUID, we just check it's present.
@@ -163,8 +148,6 @@ class FieldUpgradePathTest extends UpgradePathTestBase {
       'status' => 1,
       'langcode' => 'und',
     ));
-    // Check that an entry is present in the manifest.
-    $this->assertEqual($field_manifest['body']['name'], 'field.field.body');
 
     // Check that the configuration for the instance on article and page nodes
     // is correct.
@@ -192,8 +175,6 @@ class FieldUpgradePathTest extends UpgradePathTestBase {
         'status' => 1,
         'langcode' => 'und',
       ));
-      // Check that an entry is present in the manifest.
-      $this->assertEqual($instance_manifest["node.$node_type.body"]['name'], "field.instance.node.$node_type.body");
     }
 
     // Check that field values in a pre-existing node are read correctly.
@@ -235,7 +216,7 @@ class FieldUpgradePathTest extends UpgradePathTestBase {
     ));
     field_attach_load('node', array(2 => $entity), FIELD_LOAD_CURRENT, array('field_id' => $deleted_field['uuid'], 'deleted' => 1));
     $deleted_value = $entity->get('test_deleted_field');
-    $this->assertEqual($deleted_value[LANGUAGE_NOT_SPECIFIED][0]['value'], 'Some deleted value');
+    $this->assertEqual($deleted_value[Language::LANGCODE_NOT_SPECIFIED][0]['value'], 'Some deleted value');
 
     // Check that creation of a new node works as expected.
     $value = $this->randomName();

@@ -7,6 +7,9 @@
 
 namespace Drupal\field\Tests;
 
+use Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Language\Language;
+
 class FormTest extends FieldTestBase {
 
   /**
@@ -15,6 +18,34 @@ class FormTest extends FieldTestBase {
    * @var array
    */
   public static $modules = array('node', 'field_test', 'options');
+
+  /**
+   * An array of values defining a field single.
+   *
+   * @var array
+   */
+  protected $field_single;
+
+  /**
+   * An array of values defining a field multiple.
+   *
+   * @var array
+   */
+  protected $field_multiple;
+
+  /**
+   * An array of values defining a field with unlimited cardinality.
+   *
+   * @var array
+   */
+  protected $field_unlimited;
+
+  /**
+   * An array of values defining a field instance.
+   *
+   * @var array
+   */
+  protected $instance;
 
   public static function getInfo() {
     return array(
@@ -47,15 +78,15 @@ class FormTest extends FieldTestBase {
   }
 
   function testFieldFormSingle() {
-    $this->field = $this->field_single;
-    $this->field_name = $this->field['field_name'];
-    $this->instance['field_name'] = $this->field_name;
-    field_create_field($this->field);
-    field_create_instance($this->instance);
+    $field = $this->field_single;
+    $field_name = $field['field_name'];
+    $this->instance['field_name'] = $field_name;
+    entity_create('field_entity', $field)->save();
+    entity_create('field_instance', $this->instance)->save();
     entity_get_form_display($this->instance['entity_type'], $this->instance['bundle'], 'default')
-      ->setComponent($this->field_name)
+      ->setComponent($field_name)
       ->save();
-    $langcode = LANGUAGE_NOT_SPECIFIED;
+    $langcode = Language::LANGCODE_NOT_SPECIFIED;
 
     // Display creation form.
     $this->drupalGet('test-entity/add/test_bundle');
@@ -63,95 +94,95 @@ class FormTest extends FieldTestBase {
     // Create token value expected for description.
     $token_description = check_plain(config('system.site')->get('name')) . '_description';
     $this->assertText($token_description, 'Token replacement for description is displayed');
-    $this->assertFieldByName("{$this->field_name}[$langcode][0][value]", '', 'Widget is displayed');
-    $this->assertNoField("{$this->field_name}[$langcode][1][value]", 'No extraneous widget is displayed');
+    $this->assertFieldByName("{$field_name}[$langcode][0][value]", '', 'Widget is displayed');
+    $this->assertNoField("{$field_name}[$langcode][1][value]", 'No extraneous widget is displayed');
 
     // Check that hook_field_widget_form_alter() does not believe this is the
     // default value form.
     $this->assertNoText('From hook_field_widget_form_alter(): Default form is true.', 'Not default value form in hook_field_widget_form_alter().');
 
     // Submit with invalid value (field-level validation).
-    $edit = array("{$this->field_name}[$langcode][0][value]" => -1);
+    $edit = array("{$field_name}[$langcode][0][value]" => -1);
     $this->drupalPost(NULL, $edit, t('Save'));
     $this->assertRaw(t('%name does not accept the value -1.', array('%name' => $this->instance['label'])), 'Field validation fails with invalid input.');
     // TODO : check that the correct field is flagged for error.
 
     // Create an entity
     $value = mt_rand(1, 127);
-    $edit = array("{$this->field_name}[$langcode][0][value]" => $value);
+    $edit = array("{$field_name}[$langcode][0][value]" => $value);
     $this->drupalPost(NULL, $edit, t('Save'));
     preg_match('|test-entity/manage/(\d+)/edit|', $this->url, $match);
     $id = $match[1];
     $this->assertRaw(t('test_entity @id has been created.', array('@id' => $id)), 'Entity was created');
     $entity = field_test_entity_test_load($id);
-    $this->assertEqual($entity->{$this->field_name}[$langcode][0]['value'], $value, 'Field value was saved');
+    $this->assertEqual($entity->{$field_name}[$langcode][0]['value'], $value, 'Field value was saved');
 
     // Display edit form.
     $this->drupalGet('test-entity/manage/' . $id . '/edit');
-    $this->assertFieldByName("{$this->field_name}[$langcode][0][value]", $value, 'Widget is displayed with the correct default value');
-    $this->assertNoField("{$this->field_name}[$langcode][1][value]", 'No extraneous widget is displayed');
+    $this->assertFieldByName("{$field_name}[$langcode][0][value]", $value, 'Widget is displayed with the correct default value');
+    $this->assertNoField("{$field_name}[$langcode][1][value]", 'No extraneous widget is displayed');
 
     // Update the entity.
     $value = mt_rand(1, 127);
-    $edit = array("{$this->field_name}[$langcode][0][value]" => $value);
+    $edit = array("{$field_name}[$langcode][0][value]" => $value);
     $this->drupalPost(NULL, $edit, t('Save'));
     $this->assertRaw(t('test_entity @id has been updated.', array('@id' => $id)), 'Entity was updated');
     $this->container->get('plugin.manager.entity')->getStorageController('test_entity')->resetCache(array($id));
     $entity = field_test_entity_test_load($id);
-    $this->assertEqual($entity->{$this->field_name}[$langcode][0]['value'], $value, 'Field value was updated');
+    $this->assertEqual($entity->{$field_name}[$langcode][0]['value'], $value, 'Field value was updated');
 
     // Empty the field.
     $value = '';
-    $edit = array("{$this->field_name}[$langcode][0][value]" => $value);
+    $edit = array("{$field_name}[$langcode][0][value]" => $value);
     $this->drupalPost('test-entity/manage/' . $id . '/edit', $edit, t('Save'));
     $this->assertRaw(t('test_entity @id has been updated.', array('@id' => $id)), 'Entity was updated');
     $this->container->get('plugin.manager.entity')->getStorageController('test_entity')->resetCache(array($id));
     $entity = field_test_entity_test_load($id);
-    $this->assertIdentical($entity->{$this->field_name}, array(), 'Field was emptied');
+    $this->assertIdentical($entity->{$field_name}, array(), 'Field was emptied');
   }
 
   /**
    * Tests field widget default values on entity forms.
    */
   function testFieldFormDefaultValue() {
-    $this->field = $this->field_single;
-    $this->field_name = $this->field['field_name'];
-    $this->instance['field_name'] = $this->field_name;
+    $field = $this->field_single;
+    $field_name = $field['field_name'];
+    $this->instance['field_name'] = $field_name;
     $default = rand(1, 127);
     $this->instance['default_value'] = array(array('value' => $default));
-    field_create_field($this->field);
-    field_create_instance($this->instance);
+    entity_create('field_entity', $field)->save();
+    entity_create('field_instance', $this->instance)->save();
     entity_get_form_display($this->instance['entity_type'], $this->instance['bundle'], 'default')
-      ->setComponent($this->field_name)
+      ->setComponent($field_name)
       ->save();
-    $langcode = LANGUAGE_NOT_SPECIFIED;
+    $langcode = Language::LANGCODE_NOT_SPECIFIED;
 
     // Display creation form.
     $this->drupalGet('test-entity/add/test_bundle');
     // Test that the default value is displayed correctly.
-    $this->assertFieldByXpath("//input[@name='{$this->field_name}[$langcode][0][value]' and @value='$default']");
+    $this->assertFieldByXpath("//input[@name='{$field_name}[$langcode][0][value]' and @value='$default']");
 
     // Try to submit an empty value.
-    $edit = array("{$this->field_name}[$langcode][0][value]" => '');
+    $edit = array("{$field_name}[$langcode][0][value]" => '');
     $this->drupalPost(NULL, $edit, t('Save'));
     preg_match('|test-entity/manage/(\d+)/edit|', $this->url, $match);
     $id = $match[1];
     $this->assertRaw(t('test_entity @id has been created.', array('@id' => $id)), 'Entity was created.');
     $entity = field_test_entity_test_load($id);
-    $this->assertTrue(empty($entity->{$this->field_name}), 'Field is now empty.');
+    $this->assertTrue(empty($entity->{$field_name}), 'Field is now empty.');
   }
 
   function testFieldFormSingleRequired() {
-    $this->field = $this->field_single;
-    $this->field_name = $this->field['field_name'];
-    $this->instance['field_name'] = $this->field_name;
+    $field = $this->field_single;
+    $field_name = $field['field_name'];
+    $this->instance['field_name'] = $field_name;
     $this->instance['required'] = TRUE;
-    field_create_field($this->field);
-    field_create_instance($this->instance);
+    entity_create('field_entity', $field)->save();
+    entity_create('field_instance', $this->instance)->save();
     entity_get_form_display($this->instance['entity_type'], $this->instance['bundle'], 'default')
-      ->setComponent($this->field_name)
+      ->setComponent($field_name)
       ->save();
-    $langcode = LANGUAGE_NOT_SPECIFIED;
+    $langcode = Language::LANGCODE_NOT_SPECIFIED;
 
     // Submit with missing required value.
     $edit = array();
@@ -160,50 +191,50 @@ class FormTest extends FieldTestBase {
 
     // Create an entity
     $value = mt_rand(1, 127);
-    $edit = array("{$this->field_name}[$langcode][0][value]" => $value);
+    $edit = array("{$field_name}[$langcode][0][value]" => $value);
     $this->drupalPost(NULL, $edit, t('Save'));
     preg_match('|test-entity/manage/(\d+)/edit|', $this->url, $match);
     $id = $match[1];
     $this->assertRaw(t('test_entity @id has been created.', array('@id' => $id)), 'Entity was created');
     $entity = field_test_entity_test_load($id);
-    $this->assertEqual($entity->{$this->field_name}[$langcode][0]['value'], $value, 'Field value was saved');
+    $this->assertEqual($entity->{$field_name}[$langcode][0]['value'], $value, 'Field value was saved');
 
     // Edit with missing required value.
     $value = '';
-    $edit = array("{$this->field_name}[$langcode][0][value]" => $value);
+    $edit = array("{$field_name}[$langcode][0][value]" => $value);
     $this->drupalPost('test-entity/manage/' . $id . '/edit', $edit, t('Save'));
     $this->assertRaw(t('!name field is required.', array('!name' => $this->instance['label'])), 'Required field with no value fails validation');
   }
 
 //  function testFieldFormMultiple() {
 //    $this->field = $this->field_multiple;
-//    $this->field_name = $this->field['field_name'];
-//    $this->instance['field_name'] = $this->field_name;
-//    field_create_field($this->field);
-//    field_create_instance($this->instance);
+//    $field_name = $this->field['field_name'];
+//    $this->instance['field_name'] = $field_name;
+//    entity_create('field_entity', $this->field)->save();
+//    entity_create('field_instance', $this->instance)->save();
 //  }
 
   function testFieldFormUnlimited() {
-    $this->field = $this->field_unlimited;
-    $this->field_name = $this->field['field_name'];
-    $this->instance['field_name'] = $this->field_name;
-    field_create_field($this->field);
-    field_create_instance($this->instance);
+    $field = $this->field_unlimited;
+    $field_name = $field['field_name'];
+    $this->instance['field_name'] = $field_name;
+    entity_create('field_entity', $field)->save();
+    entity_create('field_instance', $this->instance)->save();
     entity_get_form_display($this->instance['entity_type'], $this->instance['bundle'], 'default')
-      ->setComponent($this->field_name)
+      ->setComponent($field_name)
       ->save();
-    $langcode = LANGUAGE_NOT_SPECIFIED;
+    $langcode = Language::LANGCODE_NOT_SPECIFIED;
 
     // Display creation form -> 1 widget.
     $this->drupalGet('test-entity/add/test_bundle');
-    $this->assertFieldByName("{$this->field_name}[$langcode][0][value]", '', 'Widget 1 is displayed');
-    $this->assertNoField("{$this->field_name}[$langcode][1][value]", 'No extraneous widget is displayed');
+    $this->assertFieldByName("{$field_name}[$langcode][0][value]", '', 'Widget 1 is displayed');
+    $this->assertNoField("{$field_name}[$langcode][1][value]", 'No extraneous widget is displayed');
 
     // Press 'add more' button -> 2 widgets.
     $this->drupalPost(NULL, array(), t('Add another item'));
-    $this->assertFieldByName("{$this->field_name}[$langcode][0][value]", '', 'Widget 1 is displayed');
-    $this->assertFieldByName("{$this->field_name}[$langcode][1][value]", '', 'New widget is displayed');
-    $this->assertNoField("{$this->field_name}[$langcode][2][value]", 'No extraneous widget is displayed');
+    $this->assertFieldByName("{$field_name}[$langcode][0][value]", '', 'Widget 1 is displayed');
+    $this->assertFieldByName("{$field_name}[$langcode][1][value]", '', 'New widget is displayed');
+    $this->assertNoField("{$field_name}[$langcode][2][value]", 'No extraneous widget is displayed');
     // TODO : check that non-field inpurs are preserved ('title')...
 
     // Yet another time so that we can play with more values -> 3 widgets.
@@ -221,8 +252,8 @@ class FormTest extends FieldTestBase {
       do {
         $weight = mt_rand(-$delta_range, $delta_range);
       } while (in_array($weight, $weights));
-      $edit["$this->field_name[$langcode][$delta][value]"] = $value;
-      $edit["$this->field_name[$langcode][$delta][_weight]"] = $weight;
+      $edit["{$field_name}[$langcode][$delta][value]"] = $value;
+      $edit["{$field_name}[$langcode][$delta][_weight]"] = $weight;
       // We'll need three slightly different formats to check the values.
       $values[$delta] = $value;
       $weights[$delta] = $weight;
@@ -233,15 +264,15 @@ class FormTest extends FieldTestBase {
     // Press 'add more' button -> 4 widgets
     $this->drupalPost(NULL, $edit, t('Add another item'));
     for ($delta = 0; $delta <= $delta_range; $delta++) {
-      $this->assertFieldByName("$this->field_name[$langcode][$delta][value]", $values[$delta], "Widget $delta is displayed and has the right value");
-      $this->assertFieldByName("$this->field_name[$langcode][$delta][_weight]", $weights[$delta], "Widget $delta has the right weight");
+      $this->assertFieldByName("{$field_name}[$langcode][$delta][value]", $values[$delta], "Widget $delta is displayed and has the right value");
+      $this->assertFieldByName("{$field_name}[$langcode][$delta][_weight]", $weights[$delta], "Widget $delta has the right weight");
     }
     ksort($pattern);
     $pattern = implode('.*', array_values($pattern));
     $this->assertPattern("|$pattern|s", 'Widgets are displayed in the correct order');
-    $this->assertFieldByName("$this->field_name[$langcode][$delta][value]", '', "New widget is displayed");
-    $this->assertFieldByName("$this->field_name[$langcode][$delta][_weight]", $delta, "New widget has the right weight");
-    $this->assertNoField("$this->field_name[$langcode][" . ($delta + 1) . '][value]', 'No extraneous widget is displayed');
+    $this->assertFieldByName("{$field_name}[$langcode][$delta][value]", '', "New widget is displayed");
+    $this->assertFieldByName("{$field_name}[$langcode][$delta][_weight]", $delta, "New widget has the right weight");
+    $this->assertNoField("{$field_name}[$langcode][" . ($delta + 1) . '][value]', 'No extraneous widget is displayed');
 
     // Submit the form and create the entity.
     $this->drupalPost(NULL, $edit, t('Save'));
@@ -251,7 +282,7 @@ class FormTest extends FieldTestBase {
     $entity = field_test_entity_test_load($id);
     ksort($field_values);
     $field_values = array_values($field_values);
-    $this->assertIdentical($entity->{$this->field_name}[$langcode], $field_values, 'Field values were saved in the correct order');
+    $this->assertIdentical($entity->{$field_name}[$langcode], $field_values, 'Field values were saved in the correct order');
 
     // Display edit form: check that the expected number of widgets is
     // displayed, with correct values change values, reorder, leave an empty
@@ -267,31 +298,31 @@ class FormTest extends FieldTestBase {
    */
   function testFieldFormMultivalueWithRequiredRadio() {
     // Create a multivalue test field.
-    $this->field = $this->field_unlimited;
-    $this->field_name = $this->field['field_name'];
-    $this->instance['field_name'] = $this->field_name;
-    field_create_field($this->field);
-    field_create_instance($this->instance);
+    $field = $this->field_unlimited;
+    $field_name = $field['field_name'];
+    $this->instance['field_name'] = $field_name;
+    entity_create('field_entity', $field)->save();
+    entity_create('field_instance', $this->instance)->save();
     entity_get_form_display($this->instance['entity_type'], $this->instance['bundle'], 'default')
-      ->setComponent($this->field_name)
+      ->setComponent($field_name)
       ->save();
-    $langcode = LANGUAGE_NOT_SPECIFIED;
+    $langcode = Language::LANGCODE_NOT_SPECIFIED;
 
     // Add a required radio field.
-    field_create_field(array(
+    entity_create('field_entity', array(
       'field_name' => 'required_radio_test',
       'type' => 'list_text',
       'settings' => array(
         'allowed_values' => array('yes' => 'yes', 'no' => 'no'),
       ),
-    ));
+    ))->save();
     $instance = array(
       'field_name' => 'required_radio_test',
       'entity_type' => 'test_entity',
       'bundle' => 'test_bundle',
       'required' => TRUE,
     );
-    field_create_instance($instance);
+    entity_create('field_instance', $instance)->save();
     entity_get_form_display($instance['entity_type'], $instance['bundle'], 'default')
       ->setComponent($instance['field_name'], array(
         'type' => 'options_buttons',
@@ -308,21 +339,21 @@ class FormTest extends FieldTestBase {
     $this->assertNoFieldByXpath('//div[contains(@class, "error")]', FALSE, 'No error message is displayed.');
 
     // Verify that the widget is added.
-    $this->assertFieldByName("{$this->field_name}[$langcode][0][value]", '', 'Widget 1 is displayed');
-    $this->assertFieldByName("{$this->field_name}[$langcode][1][value]", '', 'New widget is displayed');
-    $this->assertNoField("{$this->field_name}[$langcode][2][value]", 'No extraneous widget is displayed');
+    $this->assertFieldByName("{$field_name}[$langcode][0][value]", '', 'Widget 1 is displayed');
+    $this->assertFieldByName("{$field_name}[$langcode][1][value]", '', 'New widget is displayed');
+    $this->assertNoField("{$field_name}[$langcode][2][value]", 'No extraneous widget is displayed');
   }
 
   function testFieldFormJSAddMore() {
-    $this->field = $this->field_unlimited;
-    $this->field_name = $this->field['field_name'];
-    $this->instance['field_name'] = $this->field_name;
-    field_create_field($this->field);
-    field_create_instance($this->instance);
+    $field = $this->field_unlimited;
+    $field_name = $field['field_name'];
+    $this->instance['field_name'] = $field_name;
+    entity_create('field_entity', $field)->save();
+    entity_create('field_instance', $this->instance)->save();
     entity_get_form_display($this->instance['entity_type'], $this->instance['bundle'], 'default')
-      ->setComponent($this->field_name)
+      ->setComponent($field_name)
       ->save();
-    $langcode = LANGUAGE_NOT_SPECIFIED;
+    $langcode = Language::LANGCODE_NOT_SPECIFIED;
 
     // Display creation form -> 1 widget.
     $this->drupalGet('test-entity/add/test_bundle');
@@ -345,8 +376,8 @@ class FormTest extends FieldTestBase {
       do {
         $weight = mt_rand(-$delta_range, $delta_range);
       } while (in_array($weight, $weights));
-      $edit["$this->field_name[$langcode][$delta][value]"] = $value;
-      $edit["$this->field_name[$langcode][$delta][_weight]"] = $weight;
+      $edit["{$field_name}[$langcode][$delta][value]"] = $value;
+      $edit["{$field_name}[$langcode][$delta][_weight]"] = $weight;
       // We'll need three slightly different formats to check the values.
       $values[$delta] = $value;
       $weights[$delta] = $weight;
@@ -355,19 +386,19 @@ class FormTest extends FieldTestBase {
     }
     // Press 'add more' button through Ajax, and place the expected HTML result
     // as the tested content.
-    $commands = $this->drupalPostAJAX(NULL, $edit, $this->field_name . '_add_more');
+    $commands = $this->drupalPostAJAX(NULL, $edit, $field_name . '_add_more');
     $this->content = $commands[1]['data'];
 
     for ($delta = 0; $delta <= $delta_range; $delta++) {
-      $this->assertFieldByName("$this->field_name[$langcode][$delta][value]", $values[$delta], "Widget $delta is displayed and has the right value");
-      $this->assertFieldByName("$this->field_name[$langcode][$delta][_weight]", $weights[$delta], "Widget $delta has the right weight");
+      $this->assertFieldByName("{$field_name}[$langcode][$delta][value]", $values[$delta], "Widget $delta is displayed and has the right value");
+      $this->assertFieldByName("{$field_name}[$langcode][$delta][_weight]", $weights[$delta], "Widget $delta has the right weight");
     }
     ksort($pattern);
     $pattern = implode('.*', array_values($pattern));
     $this->assertPattern("|$pattern|s", 'Widgets are displayed in the correct order');
-    $this->assertFieldByName("$this->field_name[$langcode][$delta][value]", '', "New widget is displayed");
-    $this->assertFieldByName("$this->field_name[$langcode][$delta][_weight]", $delta, "New widget has the right weight");
-    $this->assertNoField("$this->field_name[$langcode][" . ($delta + 1) . '][value]', 'No extraneous widget is displayed');
+    $this->assertFieldByName("{$field_name}[$langcode][$delta][value]", '', "New widget is displayed");
+    $this->assertFieldByName("{$field_name}[$langcode][$delta][_weight]", $delta, "New widget has the right weight");
+    $this->assertNoField("{$field_name}[$langcode][" . ($delta + 1) . '][value]', 'No extraneous widget is displayed');
   }
 
   /**
@@ -376,42 +407,42 @@ class FormTest extends FieldTestBase {
   function testFieldFormMultipleWidget() {
     // Create a field with fixed cardinality and an instance using a multiple
     // widget.
-    $this->field = $this->field_multiple;
-    $this->field_name = $this->field['field_name'];
-    $this->instance['field_name'] = $this->field_name;
-    field_create_field($this->field);
-    field_create_instance($this->instance);
+    $field = $this->field_multiple;
+    $field_name = $field['field_name'];
+    $this->instance['field_name'] = $field_name;
+    entity_create('field_entity', $field)->save();
+    entity_create('field_instance', $this->instance)->save();
     entity_get_form_display($this->instance['entity_type'], $this->instance['bundle'], 'default')
-      ->setComponent($this->field_name, array(
+      ->setComponent($field_name, array(
         'type' => 'test_field_widget_multiple',
       ))
       ->save();
-    $langcode = LANGUAGE_NOT_SPECIFIED;
+    $langcode = Language::LANGCODE_NOT_SPECIFIED;
 
     // Display creation form.
     $this->drupalGet('test-entity/add/test_bundle');
-    $this->assertFieldByName("{$this->field_name}[$langcode]", '', 'Widget is displayed.');
+    $this->assertFieldByName("{$field_name}[$langcode]", '', 'Widget is displayed.');
 
     // Create entity with three values.
-    $edit = array("{$this->field_name}[$langcode]" => '1, 2, 3');
+    $edit = array("{$field_name}[$langcode]" => '1, 2, 3');
     $this->drupalPost(NULL, $edit, t('Save'));
     preg_match('|test-entity/manage/(\d+)/edit|', $this->url, $match);
     $id = $match[1];
 
     // Check that the values were saved.
     $entity_init = field_test_create_entity($id);
-    $this->assertFieldValues($entity_init, $this->field_name, $langcode, array(1, 2, 3));
+    $this->assertFieldValues($entity_init, $field_name, $langcode, array(1, 2, 3));
 
     // Display the form, check that the values are correctly filled in.
     $this->drupalGet('test-entity/manage/' . $id . '/edit');
-    $this->assertFieldByName("{$this->field_name}[$langcode]", '1, 2, 3', 'Widget is displayed.');
+    $this->assertFieldByName("{$field_name}[$langcode]", '1, 2, 3', 'Widget is displayed.');
 
     // Submit the form with more values than the field accepts.
-    $edit = array("{$this->field_name}[$langcode]" => '1, 2, 3, 4, 5');
+    $edit = array("{$field_name}[$langcode]" => '1, 2, 3, 4, 5');
     $this->drupalPost(NULL, $edit, t('Save'));
     $this->assertRaw('this field cannot hold more than 4 values', 'Form validation failed.');
     // Check that the field values were not submitted.
-    $this->assertFieldValues($entity_init, $this->field_name, $langcode, array(1, 2, 3));
+    $this->assertFieldValues($entity_init, $field_name, $langcode, array(1, 2, 3));
   }
 
   /**
@@ -423,8 +454,8 @@ class FormTest extends FieldTestBase {
     $field_name = $field['field_name'];
     $instance = $this->instance;
     $instance['field_name'] = $field_name;
-    field_create_field($field);
-    field_create_instance($instance);
+    entity_create('field_entity', $field)->save();
+    entity_create('field_instance', $instance)->save();
     entity_get_form_display($this->instance['entity_type'], $this->instance['bundle'], 'default')
       ->setComponent($field_name)
       ->save();
@@ -441,13 +472,13 @@ class FormTest extends FieldTestBase {
       'bundle' => 'test_bundle',
       'default_value' => array(0 => array('value' => 99)),
     );
-    field_create_field($field_no_access);
-    field_create_instance($instance_no_access);
+    entity_create('field_entity', $field_no_access)->save();
+    entity_create('field_instance', $instance_no_access)->save();
     entity_get_form_display($instance_no_access['entity_type'], $instance_no_access['bundle'], 'default')
       ->setComponent($field_name_no_access)
       ->save();
 
-    $langcode = LANGUAGE_NOT_SPECIFIED;
+    $langcode = Language::LANGCODE_NOT_SPECIFIED;
 
     // Test that the form structure includes full information for each delta
     // apart from #access.
@@ -498,17 +529,17 @@ class FormTest extends FieldTestBase {
    */
   function testNestedFieldForm() {
     // Add two instances on the 'test_bundle'
-    field_create_field($this->field_single);
-    field_create_field($this->field_unlimited);
+    entity_create('field_entity', $this->field_single)->save();
+    entity_create('field_entity', $this->field_unlimited)->save();
     $this->instance['field_name'] = 'field_single';
     $this->instance['label'] = 'Single field';
-    field_create_instance($this->instance);
+    entity_create('field_instance', $this->instance)->save();
     entity_get_form_display($this->instance['entity_type'], $this->instance['bundle'], 'default')
       ->setComponent($this->instance['field_name'])
       ->save();
     $this->instance['field_name'] = 'field_unlimited';
     $this->instance['label'] = 'Unlimited field';
-    field_create_instance($this->instance);
+    entity_create('field_instance', $this->instance)->save();
     entity_get_form_display($this->instance['entity_type'], $this->instance['bundle'], 'default')
       ->setComponent($this->instance['field_name'])
       ->save();
@@ -516,14 +547,14 @@ class FormTest extends FieldTestBase {
     // Create two entities.
     $entity_1 = field_test_create_entity(1, 1);
     $entity_1->is_new = TRUE;
-    $entity_1->field_single[LANGUAGE_NOT_SPECIFIED][] = array('value' => 0);
-    $entity_1->field_unlimited[LANGUAGE_NOT_SPECIFIED][] = array('value' => 1);
+    $entity_1->field_single[Language::LANGCODE_NOT_SPECIFIED][] = array('value' => 0);
+    $entity_1->field_unlimited[Language::LANGCODE_NOT_SPECIFIED][] = array('value' => 1);
     field_test_entity_save($entity_1);
 
     $entity_2 = field_test_create_entity(2, 2);
     $entity_2->is_new = TRUE;
-    $entity_2->field_single[LANGUAGE_NOT_SPECIFIED][] = array('value' => 10);
-    $entity_2->field_unlimited[LANGUAGE_NOT_SPECIFIED][] = array('value' => 11);
+    $entity_2->field_single[Language::LANGCODE_NOT_SPECIFIED][] = array('value' => 10);
+    $entity_2->field_unlimited[Language::LANGCODE_NOT_SPECIFIED][] = array('value' => 11);
     field_test_entity_save($entity_2);
 
     // Display the 'combined form'.
@@ -546,10 +577,10 @@ class FormTest extends FieldTestBase {
     field_cache_clear();
     $entity_1 = field_test_create_entity(1);
     $entity_2 = field_test_create_entity(2);
-    $this->assertFieldValues($entity_1, 'field_single', LANGUAGE_NOT_SPECIFIED, array(1));
-    $this->assertFieldValues($entity_1, 'field_unlimited', LANGUAGE_NOT_SPECIFIED, array(2, 3));
-    $this->assertFieldValues($entity_2, 'field_single', LANGUAGE_NOT_SPECIFIED, array(11));
-    $this->assertFieldValues($entity_2, 'field_unlimited', LANGUAGE_NOT_SPECIFIED, array(12, 13));
+    $this->assertFieldValues($entity_1, 'field_single', Language::LANGCODE_NOT_SPECIFIED, array(1));
+    $this->assertFieldValues($entity_1, 'field_unlimited', Language::LANGCODE_NOT_SPECIFIED, array(2, 3));
+    $this->assertFieldValues($entity_2, 'field_single', Language::LANGCODE_NOT_SPECIFIED, array(11));
+    $this->assertFieldValues($entity_2, 'field_unlimited', Language::LANGCODE_NOT_SPECIFIED, array(12, 13));
 
     // Submit invalid values and check that errors are reported on the
     // correct widgets.
@@ -577,8 +608,8 @@ class FormTest extends FieldTestBase {
     );
     $this->drupalPost('test-entity/nested/1/2', $edit, t('Save'));
     field_cache_clear();
-    $this->assertFieldValues($entity_1, 'field_unlimited', LANGUAGE_NOT_SPECIFIED, array(3, 2));
-    $this->assertFieldValues($entity_2, 'field_unlimited', LANGUAGE_NOT_SPECIFIED, array(13, 12));
+    $this->assertFieldValues($entity_1, 'field_unlimited', Language::LANGCODE_NOT_SPECIFIED, array(3, 2));
+    $this->assertFieldValues($entity_2, 'field_unlimited', Language::LANGCODE_NOT_SPECIFIED, array(13, 12));
 
     // Test the 'add more' buttons. Only Ajax submission is tested, because
     // the two 'add more' buttons present in the form have the same #value,
@@ -604,44 +635,45 @@ class FormTest extends FieldTestBase {
     // Save the form and check values are saved correclty.
     $this->drupalPost(NULL, array(), t('Save'));
     field_cache_clear();
-    $this->assertFieldValues($entity_1, 'field_unlimited', LANGUAGE_NOT_SPECIFIED, array(3, 2));
-    $this->assertFieldValues($entity_2, 'field_unlimited', LANGUAGE_NOT_SPECIFIED, array(13, 14, 15));
+    $this->assertFieldValues($entity_1, 'field_unlimited', Language::LANGCODE_NOT_SPECIFIED, array(3, 2));
+    $this->assertFieldValues($entity_2, 'field_unlimited', Language::LANGCODE_NOT_SPECIFIED, array(13, 14, 15));
   }
 
   /**
    * Tests the Hidden widget.
    */
   function testFieldFormHiddenWidget() {
-    $this->field = $this->field_single;
-    $this->field_name = $this->field['field_name'];
-    $this->instance['field_name'] = $this->field_name;
+    $field = $this->field_single;
+    $field_name = $field['field_name'];
+    $this->instance['field_name'] = $field_name;
     $this->instance['default_value'] = array(0 => array('value' => 99));
-    field_create_field($this->field);
-    field_create_instance($this->instance);
+    entity_create('field_entity', $field)->save();
+    $this->instance = entity_create('field_instance', $this->instance);
+    $this->instance->save();
     entity_get_form_display($this->instance['entity_type'], $this->instance['bundle'], 'default')
       ->setComponent($this->instance['field_name'], array(
         'type' => 'hidden',
       ))
       ->save();
-    $langcode = LANGUAGE_NOT_SPECIFIED;
+    $langcode = Language::LANGCODE_NOT_SPECIFIED;
 
     // Display the entity creation form.
     $this->drupalGet('test-entity/add/test_bundle');
 
     // Create an entity and test that the default value is assigned correctly to
     // the field that uses the hidden widget.
-    $this->assertNoField("{$this->field_name}[$langcode][0][value]", 'The hidden widget is not displayed');
+    $this->assertNoField("{$field_name}[$langcode][0][value]", 'The hidden widget is not displayed');
     $this->drupalPost(NULL, array(), t('Save'));
     preg_match('|test-entity/manage/(\d+)/edit|', $this->url, $match);
     $id = $match[1];
     $this->assertRaw(t('test_entity @id has been created.', array('@id' => $id)), 'Entity was created');
     $entity = field_test_entity_test_load($id);
-    $this->assertEqual($entity->{$this->field_name}[$langcode][0]['value'], 99, 'Default value was saved');
+    $this->assertEqual($entity->{$field_name}[$langcode][0]['value'], 99, 'Default value was saved');
 
     // Update the instance to remove the default value and switch to the
     // default widget.
     $this->instance['default_value'] = NULL;
-    field_update_instance($this->instance);
+    $this->instance->save();
     entity_get_form_display($this->instance['entity_type'], $this->instance['bundle'], 'default')
       ->setComponent($this->instance['field_name'], array(
         'type' => 'test_field_widget',
@@ -650,16 +682,16 @@ class FormTest extends FieldTestBase {
 
     // Display edit form.
     $this->drupalGet('test-entity/manage/' . $id . '/edit');
-    $this->assertFieldByName("{$this->field_name}[$langcode][0][value]", 99, 'Widget is displayed with the correct default value');
+    $this->assertFieldByName("{$field_name}[$langcode][0][value]", 99, 'Widget is displayed with the correct default value');
 
     // Update the entity.
     $value = mt_rand(1, 127);
-    $edit = array("{$this->field_name}[$langcode][0][value]" => $value);
+    $edit = array("{$field_name}[$langcode][0][value]" => $value);
     $this->drupalPost(NULL, $edit, t('Save'));
     $this->assertRaw(t('test_entity @id has been updated.', array('@id' => $id)), 'Entity was updated');
     entity_get_controller('test_entity')->resetCache(array($id));
     $entity = field_test_entity_test_load($id);
-    $this->assertEqual($entity->{$this->field_name}[$langcode][0]['value'], $value, 'Field value was updated');
+    $this->assertEqual($entity->{$field_name}[$langcode][0]['value'], $value, 'Field value was updated');
 
     // Update the form display and switch to the Hidden widget again.
     entity_get_form_display($this->instance['entity_type'], $this->instance['bundle'], 'default')
@@ -675,6 +707,24 @@ class FormTest extends FieldTestBase {
     // Check that the expected value has been carried over to the new revision.
     entity_get_controller('test_entity')->resetCache(array($id));
     $entity = field_test_entity_test_load($id);
-    $this->assertEqual($entity->{$this->field_name}[$langcode][0]['value'], $value, 'New revision has the expected value for the field with the Hidden widget');
+    $this->assertEqual($entity->{$field_name}[$langcode][0]['value'], $value, 'New revision has the expected value for the field with the Hidden widget');
   }
+
+  /**
+   * {inheritdoc}
+   */
+  function assertFieldValues(EntityInterface $entity, $field_name, $langcode, $expected_values, $column = 'value') {
+    // Override the base implementation with one that works with the old
+    // entity API.
+    // @todo: Remove this when replacing the remaining of test_entity with
+    //   entity_test.
+    $e = clone $entity;
+    field_attach_load('test_entity', array($e->ftid => $e));
+    $values = isset($e->{$field_name}[$langcode]) ? $e->{$field_name}[$langcode] : array();
+    $this->assertEqual(count($values), count($expected_values), 'Expected number of values were saved.');
+    foreach ($expected_values as $key => $value) {
+      $this->assertEqual($values[$key][$column], $value, format_string('Value @value was saved correctly.', array('@value' => $value)));
+    }
+  }
+
 }

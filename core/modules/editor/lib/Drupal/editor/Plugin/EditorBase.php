@@ -29,10 +29,9 @@ use Drupal\editor\Plugin\EditorPluginInterface;
  * A complete sample plugin definition should be defined as in this example:
  *
  * @code
- * @Plugin(
+ * @Editor(
  *   id = "myeditor",
- *   label = @Translation("My Editor"),
- *   module = "mymodule"
+ *   label = @Translation("My Editor")
  * )
  * @endcode
  */

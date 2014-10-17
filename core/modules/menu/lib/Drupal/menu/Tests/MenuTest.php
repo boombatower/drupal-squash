@@ -306,11 +306,59 @@ class MenuTest extends WebTestBase {
    * Tests the contextual links on a menu block.
    */
   public function testBlockContextualLinks() {
-    $this->drupalLogin($this->drupalCreateUser(array('administer menu', 'access contextual links')));
+    $this->drupalLogin($this->drupalCreateUser(array('administer menu', 'access contextual links', 'administer blocks')));
     $this->addMenuLink();
-    $this->drupalPlaceBlock('system_menu_block:menu-tools', array('label' => 'Tools', 'module' => 'system'));
+    $block = $this->drupalPlaceBlock('system_menu_block:menu-tools', array('label' => 'Tools', 'module' => 'system'));
     $this->drupalGet('test-page');
-    $this->assertLinkByHref("admin/structure/menu/manage/tools/edit");
+
+    $id = 'block:admin/structure/block/manage:' . $block->id() . ':|menu:admin/structure/menu/manage:tools:';
+    // @see \Drupal\contextual\Tests\ContextualDynamicContextTest:assertContextualLinkPlaceHolder()
+    $this->assertRaw('<div data-contextual-id="'. $id . '"></div>', format_string('Contextual link placeholder with id @id exists.', array('@id' => $id)));
+
+    // Get server-rendered contextual links.
+    // @see \Drupal\contextual\Tests\ContextualDynamicContextTest:renderContextualLinks()
+    $post = urlencode('ids[0]') . '=' . urlencode($id);
+    $response = $this->curlExec(array(
+      CURLOPT_URL => url('contextual/render', array('absolute' => TRUE, 'query' => array('destination' => 'test-page'))),
+      CURLOPT_POST => TRUE,
+      CURLOPT_POSTFIELDS => $post,
+      CURLOPT_HTTPHEADER => array(
+        'Accept: application/json',
+        'Content-Type: application/x-www-form-urlencoded',
+      ),
+    ));
+    $this->assertResponse(200);
+    $json = drupal_json_decode($response);
+    $this->assertIdentical($json[$id], '<ul class="contextual-links"><li class="block-configure odd first"><a href="' . base_path() . 'admin/structure/block/manage/' . $block->id() . '?destination=test-page">Configure block</a></li><li class="menu-edit even last"><a href="' . base_path() . 'admin/structure/menu/manage/tools?destination=test-page">Edit menu</a></li></ul>');
+  }
+
+  /**
+   * Tests menu link bundles.
+   */
+  public function testMenuBundles() {
+    $this->drupalLogin($this->big_user);
+    $menu = $this->addCustomMenu();
+    $bundles = entity_get_bundles('menu_link');
+    $this->assertTrue($bundles[$menu->id()]);
+    $menus = menu_list_system_menus();
+    $menus[$menu->id()] = $menu->label();
+    ksort($menus);
+    $this->assertIdentical(array_keys($bundles), array_keys($menus));
+
+    // Test if moving a menu link between menus changes the bundle.
+    $node = $this->drupalCreateNode(array('type' => 'article'));
+    $item = $this->addMenuLink(0, 'node/' . $node->nid, 'tools');
+    $this->moveMenuLink($item, 0, $menu->id());
+    $this->assertEqual($item->bundle(), 'tools', 'Menu link bundle matches the menu');
+
+    $moved_item = entity_load('menu_link', $item->id(), TRUE);
+    $this->assertNotEqual($moved_item->bundle(), $item->bundle(), 'Menu link bundle was changed');
+    $this->assertEqual($moved_item->bundle(), $menu->id(), 'Menu link bundle matches the menu');
+
+    $unsaved_item = entity_create('menu_link', array('menu_name' => $menu->id(), 'link_title' => $this->randomName(16), 'link_path' => '<front>'));
+    $this->assertEqual($unsaved_item->bundle(), $menu->id(), 'Unsaved menu link bundle matches the menu');
+    $this->assertEqual($unsaved_item->menu_name, $menu->id(), 'Unsaved menu link menu name matches the menu');
+
   }
 
   /**

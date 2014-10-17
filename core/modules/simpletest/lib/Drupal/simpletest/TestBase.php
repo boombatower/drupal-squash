@@ -10,10 +10,12 @@ namespace Drupal\simpletest;
 use Drupal\Core\Database\Database;
 use Drupal\Component\Utility\Settings;
 use Drupal\Core\Config\ConfigImporter;
-use Drupal\Core\Config\StorageComparerManifest;
+use Drupal\Core\Config\StorageComparer;
 use Drupal\Core\DependencyInjection\ContainerBuilder;
 use Drupal\Core\Database\ConnectionNotDefinedException;
+use Drupal\Core\Config\StorageInterface;
 use Drupal\Core\DrupalKernel;
+use Drupal\Core\Language\Language;
 use ReflectionMethod;
 use ReflectionObject;
 
@@ -846,7 +848,7 @@ abstract class TestBase {
    */
   protected function prepareEnvironment() {
     global $user, $conf;
-    $language_interface = language(LANGUAGE_TYPE_INTERFACE);
+    $language_interface = language(Language::TYPE_INTERFACE);
 
     // When running the test runner within a test, back up the original database
     // prefix and re-set the new/nested prefix in drupal_valid_test_ua().
@@ -912,6 +914,9 @@ abstract class TestBase {
 
     // Reset and create a new service container.
     $this->container = new ContainerBuilder();
+     // @todo Remove this once this class has no calls to t() and format_plural()
+    $this->container->register('string_translation', 'Drupal\Core\StringTranslation\TranslationManager');
+
     \Drupal::setContainer($this->container);
 
     // Unset globals.
@@ -1022,7 +1027,7 @@ abstract class TestBase {
     // log to pick up any fatal errors.
     simpletest_log_read($this->testId, $this->databasePrefix, get_class($this), TRUE);
     if (($container = drupal_container()) && $container->has('keyvalue')) {
-      $captured_emails = state()->get('system.test_email_collector') ?: array();
+      $captured_emails = \Drupal::state()->get('system.test_email_collector') ?: array();
       $emailCount = count($captured_emails);
       if ($emailCount) {
         $message = format_plural($emailCount, '1 e-mail was sent during this test.', '@count e-mails were sent during this test.');
@@ -1291,9 +1296,10 @@ abstract class TestBase {
   public function configImporter() {
     if (!$this->configImporter) {
       // Set up the ConfigImporter object for testing.
-      $config_comparer = new StorageComparerManifest(
+      $config_comparer = new StorageComparer(
         $this->container->get('config.storage.staging'),
-        $this->container->get('config.storage'));
+        $this->container->get('config.storage')
+      );
       $this->configImporter = new ConfigImporter(
         $config_comparer,
         $this->container->get('event_dispatcher'),
@@ -1304,5 +1310,20 @@ abstract class TestBase {
     }
     // Always recalculate the changelist when called.
     return $this->configImporter->reset();
+  }
+
+  /**
+   * Copies configuration objects from source storage to target storage.
+   *
+   * @param \Drupal\Core\Config\StorageInterface $source_storage
+   *   The source config storage service.
+   * @param \Drupal\Core\Config\StorageInterface $target_storage
+   *   The target config storage service.
+   */
+  public function copyConfig(StorageInterface $source_storage, StorageInterface $target_storage) {
+    $target_storage->deleteAll();
+    foreach ($source_storage->listAll() as $name) {
+      $target_storage->write($name, $source_storage->read($name));
+    }
   }
 }

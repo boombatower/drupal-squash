@@ -262,29 +262,6 @@ function _forum_node_check_node_type(EntityInterface $node) {
 }
 
 /**
- * Implements hook_node_view().
- */
-function forum_node_view(EntityInterface $node, EntityDisplay $display, $view_mode) {
-  $vid = config('forum.settings')->get('vocabulary');
-  $vocabulary = taxonomy_vocabulary_load($vid);
-  if (_forum_node_check_node_type($node)) {
-    if ($view_mode == 'full' && node_is_page($node)) {
-      // Breadcrumb navigation
-      $breadcrumb[] = l(t('Home'), NULL);
-      $breadcrumb[] = l($vocabulary->name, 'forum');
-      if ($parents = taxonomy_term_load_parents_all($node->forum_tid)) {
-        $parents = array_reverse($parents);
-        foreach ($parents as $parent) {
-          $breadcrumb[] = l($parent->label(), 'forum/' . $parent->id());
-        }
-      }
-      drupal_set_breadcrumb($breadcrumb);
-
-    }
-  }
-}
-
-/**
  * Implements hook_node_validate().
  *
  * Checks in particular that the node is assigned only a "leaf" term in the
@@ -300,11 +277,11 @@ function forum_node_validate(EntityInterface $node, $form) {
       foreach ($node->taxonomy_forums[$langcode] as $delta => $item) {
         // If no term was selected (e.g. when no terms exist yet), remove the
         // item.
-        if (empty($item['tid'])) {
+        if (empty($item['target_id'])) {
           unset($node->taxonomy_forums[$langcode][$delta]);
           continue;
         }
-        $term = taxonomy_term_load($item['tid']);
+        $term = taxonomy_term_load($item['target_id']);
         if (!$term) {
           form_set_error('taxonomy_forums', t('Select a forum.'));
           continue;
@@ -333,11 +310,14 @@ function forum_node_presave(EntityInterface $node) {
     reset($node->taxonomy_forums);
     $langcode = key($node->taxonomy_forums);
     if (!empty($node->taxonomy_forums[$langcode])) {
-      $node->forum_tid = $node->taxonomy_forums[$langcode][0]['tid'];
-      $old_tid = db_query_range("SELECT f.tid FROM {forum} f INNER JOIN {node} n ON f.vid = n.vid WHERE n.nid = :nid ORDER BY f.vid DESC", 0, 1, array(':nid' => $node->nid))->fetchField();
-      if ($old_tid && isset($node->forum_tid) && ($node->forum_tid != $old_tid) && !empty($node->shadow)) {
-        // A shadow copy needs to be created. Retain new term and add old term.
-        $node->taxonomy_forums[$langcode][] = array('tid' => $old_tid);
+      $node->forum_tid = $node->taxonomy_forums[$langcode][0]['target_id'];
+      // Only do a shadow copy check if this is not a new node.
+      if (!$node->isNew()) {
+        $old_tid = db_query_range("SELECT f.tid FROM {forum} f INNER JOIN {node} n ON f.vid = n.vid WHERE n.nid = :nid ORDER BY f.vid DESC", 0, 1, array(':nid' => $node->nid))->fetchField();
+        if ($old_tid && isset($node->forum_tid) && ($node->forum_tid != $old_tid) && !empty($node->shadow)) {
+          // A shadow copy needs to be created. Retain new term and add old term.
+          $node->taxonomy_forums[$langcode][] = array('target_id' => $old_tid);
+        }
       }
     }
   }
@@ -490,7 +470,7 @@ function forum_taxonomy_term_delete(Term $term) {
  * Implements hook_comment_publish().
  *
  * This actually handles the insertion and update of published nodes since
- * comment_save() calls hook_comment_publish() for all published comments.
+ * $comment->save() calls hook_comment_publish() for all published comments.
  */
 function forum_comment_publish($comment) {
   _forum_update_forum_index($comment->nid->target_id);
@@ -503,7 +483,7 @@ function forum_comment_publish($comment) {
  * individual comments, so we need to check for those here.
  */
 function forum_comment_update($comment) {
-  // comment_save() calls hook_comment_publish() for all published comments,
+  // $comment->save() calls hook_comment_publish() for all published comments,
   // so we need to handle all other values here.
   if (!$comment->status->value) {
     _forum_update_forum_index($comment->nid->target_id);
@@ -535,7 +515,7 @@ function forum_field_storage_pre_insert(EntityInterface $entity, &$skip_fields) 
       $query->values(array(
         'nid' => $entity->id(),
         'title' => $translation->title->value,
-        'tid' => $translation->taxonomy_forums->tid,
+        'tid' => $translation->taxonomy_forums->target_id,
         'sticky' => $entity->sticky,
         'created' => $entity->created,
         'comment_count' => 0,
@@ -570,7 +550,7 @@ function forum_field_storage_pre_update(EntityInterface $entity, &$skip_fields) 
           $query->values(array(
             'nid' => $entity->nid,
             'title' => $entity->title,
-            'tid' => $item['tid'],
+            'tid' => $item['target_id'],
             'sticky' => $entity->sticky,
             'created' => $entity->created,
             'comment_count' => 0,
@@ -629,6 +609,20 @@ function forum_form_taxonomy_term_form_alter(&$form, &$form_state, $form_id) {
  * Implements hook_form_BASE_FORM_ID_alter() for node_form().
  */
 function forum_form_node_form_alter(&$form, &$form_state, $form_id) {
+  $node = $form_state['controller']->getEntity();
+  if (isset($node->taxonomy_forums) && !$node->isNew()) {
+    $forum_terms = $node->taxonomy_forums;
+    // If editing, give option to leave shadows.
+    $shadow = (count($forum_terms) > 1);
+    $form['shadow'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Leave shadow copy'),
+      '#default_value' => $shadow,
+      '#description' => t('If you move this topic, you can leave a link in the old forum to the new forum.'),
+    );
+    $form['forum_tid'] = array('#type' => 'value', '#value' => $node->forum_tid);
+  }
+
   if (isset($form['taxonomy_forums'])) {
     $langcode = $form['taxonomy_forums']['#language'];
     // Make the vocabulary required for 'real' forum-nodes.
@@ -649,8 +643,8 @@ function forum_form_node_form_alter(&$form, &$form_state, $form_id) {
  *
  * This function can be used as a #pre_render callback.
  *
- * @see \Drupal\forum\Plugin\block\block\NewTopicsBlock::blockBuild()
- * @see \Drupal\forum\Plugin\block\block\ActiveTopicsBlock::blockBuild()
+ * @see \Drupal\forum\Plugin\block\block\NewTopicsBlock::build()
+ * @see \Drupal\forum\Plugin\block\block\ActiveTopicsBlock::build()
  */
 function forum_block_view_pre_render($elements) {
   $result = $elements['#query']->execute();
@@ -659,29 +653,6 @@ function forum_block_view_pre_render($elements) {
     $elements['forum_more'] = array('#theme' => 'more_link', '#url' => 'forum', '#title' => t('Read the latest forum topics.'));
   }
   return $elements;
-}
-
-/**
- * Implements hook_form().
- */
-function forum_form(EntityInterface $node, &$form_state) {
-  $type = node_type_load($node->type);
-  $form['title'] = array(
-    '#type' => 'textfield',
-    '#title' => check_plain($type->title_label),
-    '#default_value' => !empty($node->title) ? $node->title : '',
-    '#required' => TRUE, '#weight' => -5
-  );
-
-  if (!empty($node->nid)) {
-    $forum_terms = $node->taxonomy_forums;
-    // If editing, give option to leave shadows.
-    $shadow = (count($forum_terms) > 1);
-    $form['shadow'] = array('#type' => 'checkbox', '#title' => t('Leave shadow copy'), '#default_value' => $shadow, '#description' => t('If you move this topic, you can leave a link in the old forum to the new forum.'));
-    $form['forum_tid'] = array('#type' => 'value', '#value' => $node->forum_tid);
-  }
-
-  return $form;
 }
 
 /**
@@ -740,7 +711,7 @@ function forum_forum_load($tid = NULL) {
   $_forums = taxonomy_get_tree($vid, $tid, NULL, TRUE);
 
   if (count($_forums)) {
-    $query = db_select('node', 'n');
+    $query = db_select('node_field_data', 'n');
     $query->join('node_comment_statistics', 'ncs', 'n.nid = ncs.nid');
     $query->join('forum', 'f', 'n.vid = f.vid');
     $query->addExpression('COUNT(n.nid)', 'topic_count');
@@ -748,6 +719,9 @@ function forum_forum_load($tid = NULL) {
     $counts = $query
       ->fields('f', array('tid'))
       ->condition('n.status', 1)
+      // @todo This should be actually filtering on the desired node status
+      //   field language and just fall back to the default language.
+      ->condition('n.default_langcode', 1)
       ->groupBy('tid')
       ->addTag('node_access')
       ->execute()
@@ -771,7 +745,7 @@ function forum_forum_load($tid = NULL) {
     }
 
     // Query "Last Post" information for this forum.
-    $query = db_select('node', 'n');
+    $query = db_select('node_field_data', 'n');
     $query->join('forum', 'f', 'n.vid = f.vid AND f.tid = :tid', array(':tid' => $forum->id()));
     $query->join('node_comment_statistics', 'ncs', 'n.nid = ncs.nid');
     $query->join('users', 'u', 'ncs.last_comment_uid = u.uid');
@@ -780,6 +754,9 @@ function forum_forum_load($tid = NULL) {
     $topic = $query
       ->fields('ncs', array('last_comment_timestamp', 'last_comment_uid'))
       ->condition('n.status', 1)
+      // @todo This should be actually filtering on the desired node status
+      //   field language and just fall back to the default language.
+      ->condition('n.default_langcode', 1)
       ->orderBy('last_comment_timestamp', 'DESC')
       ->range(0, 1)
       ->addTag('node_access')
@@ -818,12 +795,15 @@ function forum_forum_load($tid = NULL) {
  *   The number of new posts in the forum that have not been read by the user.
  */
 function _forum_topics_unread($term, $uid) {
-  $query = db_select('node', 'n');
+  $query = db_select('node_field_data', 'n');
   $query->join('forum', 'f', 'n.vid = f.vid AND f.tid = :tid', array(':tid' => $term));
   $query->leftJoin('history', 'h', 'n.nid = h.nid AND h.uid = :uid', array(':uid' => $uid));
   $query->addExpression('COUNT(n.nid)', 'count');
   return $query
     ->condition('status', 1)
+    // @todo This should be actually filtering on the desired node status field
+    //   language and just fall back to the default language.
+    ->condition('n.default_langcode', 1)
     ->condition('n.created', HISTORY_READ_LIMIT, '>')
     ->isNull('h.nid')
     ->addTag('node_access')
@@ -891,7 +871,7 @@ function forum_get_topics($tid, $sortby, $forum_per_page) {
   if ($nids) {
     $nodes = node_load_multiple($nids);
 
-    $query = db_select('node', 'n')
+    $query = db_select('node_field_data', 'n')
       ->extend('Drupal\Core\Database\Query\TableSortExtender');
     $query->fields('n', array('nid'));
 
@@ -911,7 +891,10 @@ function forum_get_topics($tid, $sortby, $forum_per_page) {
     $query
       ->orderBy('f.sticky', 'DESC')
       ->orderByHeader($forum_topic_list_header)
-      ->condition('n.nid', $nids);
+      ->condition('n.nid', $nids)
+      // @todo This should be actually filtering on the desired node language
+      //   and just fall back to the default language.
+      ->condition('n.default_langcode', 1);
 
     $result = array();
     foreach ($query->execute() as $row) {
@@ -970,7 +953,7 @@ function forum_get_topics($tid, $sortby, $forum_per_page) {
 }
 
 /**
- * Implements hook_preprocess_HOOK() for block.tpl.php.
+ * Implements hook_preprocess_HOOK() for block.html.twig.
  */
 function forum_preprocess_block(&$variables) {
   if ($variables['configuration']['module'] == 'forum') {
@@ -979,9 +962,11 @@ function forum_preprocess_block(&$variables) {
 }
 
 /**
- * Preprocesses variables for forums.tpl.php.
+ * Prepares variables for forums templates.
  *
- * @param $variables
+ * Default template: forums.html.twig.
+ *
+ * @param array $variables
  *   An array containing the following elements:
  *   - forums: An array of all forum objects to display for the given taxonomy
  *     term ID. If tid = 0 then all the top-level forums are displayed.
@@ -995,23 +980,32 @@ function forum_preprocess_block(&$variables) {
  *     - 3: Posts with the most comments first.
  *     - 4: Posts with the least comments first.
  *   - forum_per_page: The maximum number of topics to display per page.
- *
- * @see forums.tpl.php
  */
 function template_preprocess_forums(&$variables) {
   if ($variables['forums_defined'] = count($variables['forums']) || count($variables['parents'])) {
     if (!empty($variables['forums'])) {
-      $variables['forums'] = theme('forum_list', $variables);
+      $variables['forums'] = array(
+        '#theme' => 'forum_list',
+        '#forums' => $variables['forums'],
+        '#parents' => $variables['parents'],
+        '#tid' => $variables['tid'],
+      );
     }
     else {
-      $variables['forums'] = '';
+      $variables['forums'] = array();
     }
 
     if ($variables['tid'] && array_search($variables['tid'], config('forum.settings')->get('containers')) === FALSE) {
-      $variables['topics'] = theme('forum_topic_list', $variables);
+      $variables['topics'] = array(
+        '#theme' => 'forum_topic_list',
+        '#tid' => $variables['tid'],
+        '#topics' => $variables['topics'],
+        '#sortby' => $variables['sortby'],
+        '#forum_per_page' => $variables['forum_per_page'],
+      );
     }
     else {
-      $variables['topics'] = '';
+      $variables['topics'] = array();
     }
 
     // Provide separate template suggestions based on what's being output. Topic id is also accounted for.
@@ -1032,24 +1026,23 @@ function template_preprocess_forums(&$variables) {
 
   }
   else {
-    $variables['forums'] = '';
-    $variables['topics'] = '';
+    $variables['forums'] = array();
+    $variables['topics'] = array();
   }
 }
 
 /**
- * Preprocesses variables for forum-list.tpl.php.
+ * Prepares variables for forum list templates.
  *
- * @param $variables
+ * Default template: forum-list.html.twig.
+ *
+ * @param array $variables
  *   An array containing the following elements:
  *   - forums: An array of all forum objects to display for the given taxonomy
  *     term ID. If tid = 0 then all the top-level forums are displayed.
  *   - parents: An array of taxonomy term objects that are ancestors of the
  *     current term ID.
  *   - tid: Taxonomy term ID of the current forum.
- *
- * @see forum-list.tpl.php
- * @see theme_forum_list()
  */
 function template_preprocess_forum_list(&$variables) {
   global $user;
@@ -1072,7 +1065,7 @@ function template_preprocess_forum_list(&$variables) {
     if ($user->uid) {
       $variables['forums'][$id]->new_topics = _forum_topics_unread($forum->id(), $user->uid);
       if ($variables['forums'][$id]->new_topics) {
-        $variables['forums'][$id]->new_text = format_plural($variables['forums'][$id]->new_topics, '1 new post<span class="element-invisible"> in forum %title</span>', '@count new posts<span class="element-invisible"> in forum %title</span>', array('%title' => $variables['forums'][$id]->label()));
+        $variables['forums'][$id]->new_text = format_plural($variables['forums'][$id]->new_topics, '1 new post<span class="visually-hidden"> in forum %title</span>', '@count new posts<span class="visually-hidden"> in forum %title</span>', array('%title' => $variables['forums'][$id]->label()));
         $variables['forums'][$id]->new_url = url('forum/' . $forum->id(), array('fragment' => 'new'));
         $variables['forums'][$id]->icon_class = 'new';
         $variables['forums'][$id]->icon_title = t('New posts');
@@ -1081,22 +1074,26 @@ function template_preprocess_forum_list(&$variables) {
     }
     $variables['forums'][$id]->last_reply = theme('forum_submitted', array('topic' => $forum->last_post));
   }
-  // Give meaning to $tid for themers. $tid actually stands for term id.
+
+  $variables['pager'] = array(
+   '#theme' => 'pager',
+  );
+
+  // Give meaning to $tid for themers. $tid actually stands for term ID.
   $variables['forum_id'] = $variables['tid'];
   unset($variables['tid']);
 }
 
 /**
- * Preprocesses variables for forum-topic-list.tpl.php.
+ * Prepares variables for forum topic list templates.
  *
- * @param $variables
+ * Default template: forum-topic-list.html.twig.
+ *
+ * @param array $variables
  *   An array containing the following elements:
  *   - tid: Taxonomy term ID of the current forum.
  *   - topics: An array of all the topics in the current forum.
  *   - forum_per_page: The maximum number of topics to display per page.
- *
- * @see forum-topic-list.tpl.php
- * @see theme_forum_topic_list()
  */
 function template_preprocess_forum_topic_list(&$variables) {
   global $forum_topic_list_header;
@@ -1113,7 +1110,14 @@ function template_preprocess_forum_topic_list(&$variables) {
   if (!empty($variables['topics'])) {
     $row = 0;
     foreach ($variables['topics'] as $id => $topic) {
-      $variables['topics'][$id]->icon = theme('forum_icon', array('new_posts' => $topic->new, 'num_posts' => $topic->comment_count, 'comment_mode' => $topic->comment_mode, 'sticky' => $topic->sticky, 'first_new' => $topic->first_new));
+      $variables['topics'][$id]->icon = array(
+        '#theme' => 'forum_icon',
+        '#new_posts' => $topic->new,
+        '#num_posts' => $topic->comment_count,
+        '#comment_mode' => $topic->comment_mode,
+        '#sticky' => $topic->sticky,
+        '#first_new' => $topic->first_new,
+      );
       $variables['topics'][$id]->zebra = $row % 2 == 0 ? 'odd' : 'even';
       $row++;
 
@@ -1136,7 +1140,7 @@ function template_preprocess_forum_topic_list(&$variables) {
       $variables['topics'][$id]->new_text = '';
       $variables['topics'][$id]->new_url = '';
       if ($topic->new_replies) {
-        $variables['topics'][$id]->new_text = format_plural($topic->new_replies, '1 new post<span class="element-invisible"> in topic %title</span>', '@count new posts<span class="element-invisible"> in topic %title</span>', array('%title' => $variables['topics'][$id]->title));
+        $variables['topics'][$id]->new_text = format_plural($topic->new_replies, '1 new post<span class="visually-hidden"> in topic %title</span>', '@count new posts<span class="visually-hidden"> in topic %title</span>', array('%title' => $variables['topics'][$id]->title));
         $variables['topics'][$id]->new_url = url("node/$topic->nid", array('query' => comment_new_page_count($topic->comment_count, $topic->new_replies, $topic), 'fragment' => 'new'));
       }
 
@@ -1150,13 +1154,17 @@ function template_preprocess_forum_topic_list(&$variables) {
   $variables['topic_id'] = $variables['tid'];
   unset($variables['tid']);
 
-  $variables['pager'] = theme('pager');
+  $variables['pager'] = array(
+    '#theme' => 'pager',
+  );
 }
 
 /**
- * Preprocesses variables for forum-icon.tpl.php.
+ * Prepares variables for forum icon templates.
  *
- * @param $variables
+ * Default template: forum-icon.html.twig.
+ *
+ * @param array $variables
  *   An array containing the following elements:
  *   - new_posts: Indicates whether or not the topic contains new posts.
  *   - num_posts: The total number of posts in all topics.
@@ -1164,44 +1172,45 @@ function template_preprocess_forum_topic_list(&$variables) {
  *     or hidden.
  *   - sticky: Indicates whether the topic is sticky.
  *   - first_new: Indicates whether this is the first topic with new posts.
- *
- * @see forum-icon.tpl.php
- * @see theme_forum_icon()
  */
 function template_preprocess_forum_icon(&$variables) {
   $variables['hot_threshold'] = config('forum.settings')->get('topics.hot_threshold');
+
   if ($variables['num_posts'] > $variables['hot_threshold']) {
-    $variables['icon_class'] = $variables['new_posts'] ? 'hot-new' : 'hot';
+    $icon_status_class = $variables['new_posts'] ? 'hot-new' : 'hot';
     $variables['icon_title'] = $variables['new_posts'] ? t('Hot topic, new comments') : t('Hot topic');
   }
   else {
-    $variables['icon_class'] = $variables['new_posts'] ? 'new' : 'default';
+    $icon_status_class = $variables['new_posts'] ? 'new' : 'default';
     $variables['icon_title'] = $variables['new_posts'] ? t('New comments') : t('Normal topic');
   }
 
   if ($variables['comment_mode'] == COMMENT_NODE_CLOSED || $variables['comment_mode'] == COMMENT_NODE_HIDDEN) {
-    $variables['icon_class'] = 'closed';
+    $icon_status_class = 'closed';
     $variables['icon_title'] = t('Closed topic');
   }
 
   if ($variables['sticky'] == 1) {
-    $variables['icon_class'] = 'sticky';
+    $icon_status_class = 'sticky';
     $variables['icon_title'] = t('Sticky topic');
   }
+
+  $variables['attributes']['class'][] = 'icon';
+  $variables['attributes']['class'][] = 'topic-status-' . $icon_status_class;
+  $variables['attributes']['title'] = $variables['icon_title'];
 }
 
 /**
- * Preprocesses variables for forum-submitted.tpl.php.
+ * Prepares variables for forum submission information templates.
  *
  * The submission information will be displayed in the forum list and topic
  * list.
  *
- * @param $variables
+ * Default template: forum-submitted.html.twig.
+ *
+ * @param array $variables
  *   An array containing the following elements:
  *   - topic: The topic object.
- *
- * @see forum-submitted.tpl.php
- * @see theme_forum_submitted()
  */
 function template_preprocess_forum_submitted(&$variables) {
   $variables['author'] = isset($variables['topic']->uid) ? theme('username', array('account' => $variables['topic'])) : '';
@@ -1291,7 +1300,9 @@ function _forum_update_forum_index($nid) {
   }
   else {
     // Comments do not exist.
-    $node = db_query('SELECT uid, created FROM {node} WHERE nid = :nid', array(':nid' => $nid))->fetchObject();
+    // @todo This should be actually filtering on the desired node language and
+    //   just fall back to the default language.
+    $node = db_query('SELECT uid, created FROM {node_field_data} WHERE nid = :nid AND default_langcode = 1', array(':nid' => $nid))->fetchObject();
     db_update('forum_index')
       ->fields( array(
         'comment_count' => 0,

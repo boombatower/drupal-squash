@@ -19,7 +19,7 @@ class CategoryListController extends ConfigEntityListController {
    */
   public function getOperations(EntityInterface $entity) {
     $operations = parent::getOperations($entity);
-    if (module_exists('field_ui')) {
+    if ($this->moduleHandler->moduleExists('field_ui')) {
       $uri = $entity->uri();
       $operations['manage-fields'] = array(
         'title' => t('Manage fields'),
@@ -33,6 +33,13 @@ class CategoryListController extends ConfigEntityListController {
         'options' => $uri['options'],
         'weight' => 12,
       );
+    }
+
+    if (!$entity->access('delete')) {
+      unset($operations['delete']);
+    }
+    if (!$entity->access('update')) {
+      unset($operations['edit']);
     }
     return $operations;
   }
@@ -53,9 +60,16 @@ class CategoryListController extends ConfigEntityListController {
    */
   public function buildRow(EntityInterface $entity) {
     $row['category'] = check_plain($entity->label());
-    $row['recipients'] = check_plain(implode(', ', $entity->recipients));
-    $default_category = config('contact.settings')->get('default_category');
-    $row['selected'] = ($default_category == $entity->id() ? t('Yes') : t('No'));
+    // Special case the personal category.
+    if ($entity->id() == 'personal') {
+      $row['recipients'] = t('Selected user');
+      $row['selected'] = t('No');
+    }
+    else {
+      $row['recipients'] = check_plain(implode(', ', $entity->recipients));
+      $default_category = config('contact.settings')->get('default_category');
+      $row['selected'] = ($default_category == $entity->id() ? t('Yes') : t('No'));
+    }
     $row['operations']['data'] = $this->buildOperations($entity);
     return $row;
   }

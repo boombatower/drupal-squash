@@ -7,6 +7,7 @@
 
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\field\FieldException;
+use Drupal\field\FieldInterface;
 
 /**
  * Implements hook_field_info().
@@ -63,7 +64,7 @@ function field_test_field_widget_info_alter(&$info) {
 /**
  * Implements hook_field_update_forbid().
  */
-function field_test_field_update_forbid($field, $prior_field, $has_data) {
+function field_test_field_update_forbid($field, $prior_field) {
   if ($field['type'] == 'test_field' && $field['settings']['unchangeable'] != $prior_field['settings']['unchangeable']) {
     throw new FieldException("field_test 'unchangeable' setting cannot be changed'");
   }
@@ -137,14 +138,14 @@ function field_test_field_validate(EntityInterface $entity = NULL, $field, $inst
 /**
  * Implements hook_field_is_empty().
  */
-function field_test_field_is_empty($item, $field) {
+function field_test_field_is_empty($item, $field_type) {
   return empty($item['value']);
 }
 
 /**
  * Implements hook_field_settings_form().
  */
-function field_test_field_settings_form($field, $instance, $has_data) {
+function field_test_field_settings_form($field, $instance) {
   $settings = $field['settings'];
 
   $form['test_field_setting'] = array(
@@ -197,7 +198,7 @@ function field_test_default_value(EntityInterface $entity, $field, $instance) {
 /**
  * Implements hook_field_access().
  */
-function field_test_field_access($op, $field, $entity_type, $entity, $account) {
+function field_test_field_access($op, FieldInterface $field, $entity_type, $entity, $account) {
   if ($field['field_name'] == "field_no_{$op}_access") {
     return FALSE;
   }

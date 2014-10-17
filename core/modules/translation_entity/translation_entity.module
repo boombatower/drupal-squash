@@ -6,6 +6,7 @@
  */
 
 use Drupal\Core\Language\Language;
+use Drupal\Core\Session\AccountInterface;
 use Drupal\Core\Entity\EntityFormControllerInterface;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Entity\EntityNG;
@@ -25,7 +26,7 @@ function translation_entity_help($path, $arg) {
       $output .= '<dd><p>' . t('Before you can translate content, there must be at least two languages added on the <a href="!url">languages administration</a> page.', array('!url' => url('admin/config/regional/language'))) . '</p>';
       $output .= '<p>' . t('After adding languages, <a href="!url">configure translation</a>.', array('!url' => url('admin/config/regional/content-language'))) . '</p>';
       $output .= '<dt>' . t('Translating content') . '</dt>';
-      $output .= '<dd>' . t('After enabling translation you can create a new piece of content, or edit existing content and assign it a language. Then, you will see a <em>Translations</em> tab or link that will gives an overview of the translation status for the current content. From there, you can add translations and edit or delete existing translations. This process is similar for every translatable element on your site, such as taxonomy terms, comments or user accounts.') . '</dd>';
+      $output .= '<dd>' . t('After enabling translation you can create a new piece of content, or edit existing content and assign it a language. Then, you will see a <em>Translate</em> tab or link that will gives an overview of the translation status for the current content. From there, you can add translations and edit or delete existing translations. This process is similar for every translatable element on your site, such as taxonomy terms, comments or user accounts.') . '</dd>';
       $output .= '<dt>' . t('Changing source language') . '</dt>';
       $output .= '<dd>' . t('When there are two or more possible source languages, selecting a <em>Source language</em> will repopulate the form using the specified source\'s values. For example, French is much closer to Spanish than to Chinese, so changing the French translation\'s source language to Spanish can assist translators.') . '</dd>';
       $output .= '<dt>' . t('Maintaining translations') . '</dt>';
@@ -65,7 +66,7 @@ function translation_entity_module_implements_alter(&$implementations, $hook) {
 function translation_entity_language_types_info_alter(array &$language_types) {
   // Make content language negotiation configurable by removing its predefined
   // configuration.
-  unset($language_types[LANGUAGE_TYPE_CONTENT]['fixed']);
+  unset($language_types[Language::TYPE_CONTENT]['fixed']);
 }
 
 /**
@@ -146,7 +147,7 @@ function translation_entity_menu() {
       }
 
       $items["$path/translations"] = array(
-        'title' => 'Translations',
+        'title' => 'Translate',
         'page callback' => 'translation_entity_overview',
         'page arguments' => array($entity_position),
         'type' => MENU_LOCAL_TASK,
@@ -289,11 +290,11 @@ function translation_entity_translate_access(EntityInterface $entity) {
  *   The entity whose translation overview should be displayed.
  * @param $langcode
  *   The language code of the translation to be displayed.
- * @param \Drupal\user\Plugin\Core\Entity\User $account
+ * @param \Drupal\Core\Session\AccountInterface $account
  *   (optional) The account for which view access should be checked. Defaults to
  *   the current user.
  */
-function translation_entity_view_access(EntityInterface $entity, $langcode, $account = NULL) {
+function translation_entity_view_access(EntityInterface $entity, $langcode, AccountInterface $account = NULL) {
   $entity_type = $entity->entityType();
   return !empty($entity->translation[$langcode]['status']) || user_access('translate any entity', $account) || user_access("translate $entity_type entities", $account);
 }
@@ -312,7 +313,7 @@ function translation_entity_view_access(EntityInterface $entity, $langcode, $acc
  */
 function translation_entity_add_access(EntityInterface $entity, Language $source = NULL, Language $target = NULL) {
   $source = !empty($source) ? $source : $entity->language();
-  $target = !empty($target) ? $target : language(LANGUAGE_TYPE_CONTENT);
+  $target = !empty($target) ? $target : language(Language::TYPE_CONTENT);
   $translations = $entity->getTranslationLanguages();
   $languages = language_list();
   return $source->langcode != $target->langcode && isset($languages[$source->langcode]) && isset($languages[$target->langcode]) && !isset($translations[$target->langcode]) && translation_entity_access($entity, 'create');
@@ -328,7 +329,7 @@ function translation_entity_add_access(EntityInterface $entity, Language $source
  *   content language.
  */
 function translation_entity_edit_access(EntityInterface $entity, Language $language = NULL) {
-  $language = !empty($language) ? $language : language(LANGUAGE_TYPE_CONTENT);
+  $language = !empty($language) ? $language : language(Language::TYPE_CONTENT);
   $translations = $entity->getTranslationLanguages();
   $languages = language_list();
   return isset($languages[$language->langcode]) && $language->langcode != $entity->language()->langcode && isset($translations[$language->langcode]) && translation_entity_access($entity, 'update');
@@ -344,7 +345,7 @@ function translation_entity_edit_access(EntityInterface $entity, Language $langu
  *   content language.
  */
 function translation_entity_delete_access(EntityInterface $entity, Language $language = NULL) {
-  $language = !empty($language) ? $language : language(LANGUAGE_TYPE_CONTENT);
+  $language = !empty($language) ? $language : language(Language::TYPE_CONTENT);
   $translations = $entity->getTranslationLanguages();
   $languages = language_list();
   return isset($languages[$language->langcode]) && $language->langcode != $entity->language()->langcode && isset($translations[$language->langcode]) && translation_entity_access($entity, 'delete');
@@ -362,7 +363,7 @@ function translation_entity_library_info() {
       $path . '/translation_entity.admin.js' => array(),
     ),
     'css' => array(
-      $path . '/translation_entity.admin.css' => array(),
+      $path . '/css/translation_entity.admin.css' => array(),
     ),
     'dependencies' => array(
       array('system', 'jquery'),
@@ -649,14 +650,14 @@ function translation_entity_field_language_alter(&$display_language, $context) {
     foreach ($entity->translation as $langcode => $translation) {
       if ($langcode == $context['langcode'] || !translation_entity_view_access($entity, $langcode)) {
         // Unset unaccessible field translations: if the field is untranslatable
-        // unsetting a language different from LANGUAGE_NOT_SPECIFIED has no
+        // unsetting a language different from Language::LANGCODE_NOT_SPECIFIED has no
         // effect.
         foreach ($instances as $instance) {
           // @todo BC entities have the same value accessibile both with the
-          //   entity language and with LANGUAGE_DEFAULT. We need need to unset
+          //   entity language and with Language::LANGCODE_DEFAULT. We need need to unset
           //   both until we remove the BC layer.
           if ($langcode == $entity_langcode) {
-            unset($entity->{$instance['field_name']}[LANGUAGE_DEFAULT]);
+            unset($entity->{$instance['field_name']}[Language::LANGCODE_DEFAULT]);
           }
           unset($entity->{$instance['field_name']}[$langcode]);
         }
@@ -809,7 +810,7 @@ function translation_entity_form_field_ui_field_edit_form_alter(array &$form, ar
   $translatable = $field['translatable'];
   $label = t('Field translation');
 
-  if (field_has_data($field)) {
+  if ($field->hasData()) {
     $form['field']['translatable'] = array(
       '#type' => 'item',
       '#title' => $label,
@@ -947,7 +948,7 @@ function translation_entity_language_configuration_element_validate($element, ar
   $key = $form_state['translation_entity']['key'];
   $values = $form_state['values'][$key];
   if (language_is_locked($values['langcode']) && !$values['language_show'] && $values['translation_entity']) {
-    foreach (language_list(LANGUAGE_LOCKED) as $language) {
+    foreach (language_list(Language::STATE_LOCKED) as $language) {
       $locked_languages[] = $language->name;
     }
     // @todo Set the correct form element name as soon as the element parents
@@ -1027,7 +1028,7 @@ function translation_entity_save_settings($settings) {
             else {
               unset($instance['settings']['translation_sync']);
             }
-            field_update_instance($instance);
+            $instance->save();
           }
         }
       }

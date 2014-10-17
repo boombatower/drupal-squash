@@ -31,7 +31,7 @@ class Node extends WizardPluginBase {
   /**
    * Set the created column.
    */
-  protected $createdColumn = 'created';
+  protected $createdColumn = 'node_field_data-created';
 
   /**
    * Set default values for the path field options.
@@ -54,7 +54,7 @@ class Node extends WizardPluginBase {
   protected $filters = array(
     'status' => array(
       'value' => TRUE,
-      'table' => 'node',
+      'table' => 'node_field_data',
       'field' => 'status'
     )
   );
@@ -67,14 +67,14 @@ class Node extends WizardPluginBase {
   public function getAvailableSorts() {
     // You can't execute functions in properties, so override the method
     return array(
-      'title:DESC' => t('Title')
+      'node_field_data-title:DESC' => t('Title')
     );
   }
 
   /**
-   * Overrides Drupal\views\Plugin\views\wizard\WizardPluginBase::row_style_options().
+   * Overrides Drupal\views\Plugin\views\wizard\WizardPluginBase::rowStyleOptions().
    */
-  protected function row_style_options() {
+  protected function rowStyleOptions() {
     $options = array();
     $options['teasers'] = t('teasers');
     $options['full_posts'] = t('full posts');
@@ -94,8 +94,8 @@ class Node extends WizardPluginBase {
    * @param string $type
    *   The display ID (e.g. 'page' or 'block').
    */
-  protected function build_form_style(array &$form, array &$form_state, $type) {
-    parent::build_form_style($form, $form_state, $type);
+  protected function buildFormStyle(array &$form, array &$form_state, $type) {
+    parent::buildFormStyle($form, $form_state, $type);
     $style_form =& $form['displays'][$type]['options']['style'];
     // Some style plugins don't support row plugins so stop here if that's the
     // case.
@@ -131,10 +131,10 @@ class Node extends WizardPluginBase {
   }
 
   /**
-   * Overrides Drupal\views\Plugin\views\wizard\WizardPluginBase::default_display_options().
+   * Overrides Drupal\views\Plugin\views\wizard\WizardPluginBase::defaultDisplayOptions().
    */
-  protected function default_display_options() {
-    $display_options = parent::default_display_options();
+  protected function defaultDisplayOptions() {
+    $display_options = parent::defaultDisplayOptions();
 
     // Add permission-based access control.
     $display_options['access']['type'] = 'perm';
@@ -146,7 +146,7 @@ class Node extends WizardPluginBase {
     // to a row style that uses fields.
     /* Field: Content: Title */
     $display_options['fields']['title']['id'] = 'title';
-    $display_options['fields']['title']['table'] = 'node';
+    $display_options['fields']['title']['table'] = 'node_field_data';
     $display_options['fields']['title']['field'] = 'title';
     $display_options['fields']['title']['label'] = '';
     $display_options['fields']['title']['alter']['alter_text'] = 0;
@@ -165,10 +165,10 @@ class Node extends WizardPluginBase {
   }
 
   /**
-   * Overrides Drupal\views\Plugin\views\wizard\WizardPluginBase::default_display_filters_user().
+   * Overrides Drupal\views\Plugin\views\wizard\WizardPluginBase::defaultDisplayFiltersUser().
    */
-  protected function default_display_filters_user(array $form, array &$form_state) {
-    $filters = parent::default_display_filters_user($form, $form_state);
+  protected function defaultDisplayFiltersUser(array $form, array &$form_state) {
+    $filters = parent::defaultDisplayFiltersUser($form, $form_state);
 
     if (!empty($form_state['values']['show']['tagged_with']['tids'])) {
       $filters['tid'] = array(
@@ -192,10 +192,10 @@ class Node extends WizardPluginBase {
   }
 
   /**
-   * Overrides Drupal\views\Plugin\views\wizard\WizardPluginBase::page_display_options().
+   * {@inheritdoc}
    */
-  protected function page_display_options(array $form, array &$form_state) {
-    $display_options = parent::page_display_options($form, $form_state);
+  protected function pageDisplayOptions(array $form, array &$form_state) {
+    $display_options = parent::pageDisplayOptions($form, $form_state);
     $row_plugin = isset($form_state['values']['page']['style']['row_plugin']) ? $form_state['values']['page']['style']['row_plugin'] : NULL;
     $row_options = isset($form_state['values']['page']['style']['row_options']) ? $form_state['values']['page']['style']['row_options'] : array();
     $this->display_options_row($display_options, $row_plugin, $row_options);
@@ -203,10 +203,10 @@ class Node extends WizardPluginBase {
   }
 
   /**
-   * Overrides Drupal\views\Plugin\views\wizard\WizardPluginBase::page_display_options().
+   * {@inheritdoc}
    */
-  protected function block_display_options(array $form, array &$form_state) {
-    $display_options = parent::block_display_options($form, $form_state);
+  protected function blockDisplayOptions(array $form, array &$form_state) {
+    $display_options = parent::blockDisplayOptions($form, $form_state);
     $row_plugin = isset($form_state['values']['block']['style']['row_plugin']) ? $form_state['values']['block']['style']['row_plugin'] : NULL;
     $row_options = isset($form_state['values']['block']['style']['row_options']) ? $form_state['values']['block']['style']['row_options'] : array();
     $this->display_options_row($display_options, $row_plugin, $row_options);
@@ -219,13 +219,13 @@ class Node extends WizardPluginBase {
   protected  function display_options_row(&$display_options, $row_plugin, $row_options) {
     switch ($row_plugin) {
       case 'full_posts':
-        $display_options['row']['type'] = 'node';
+        $display_options['row']['type'] = 'entity:node';
         $display_options['row']['options']['build_mode'] = 'full';
         $display_options['row']['options']['links'] = !empty($row_options['links']);
         $display_options['row']['options']['comments'] = !empty($row_options['comments']);
         break;
       case 'teasers':
-        $display_options['row']['type'] = 'node';
+        $display_options['row']['type'] = 'entity:node';
         $display_options['row']['options']['build_mode'] = 'teaser';
         $display_options['row']['options']['links'] = !empty($row_options['links']);
         $display_options['row']['options']['comments'] = !empty($row_options['comments']);
@@ -242,12 +242,12 @@ class Node extends WizardPluginBase {
   }
 
   /**
-   * Overrides Drupal\views\Plugin\views\wizard\WizardPluginBase::build_filters().
+   * Overrides Drupal\views\Plugin\views\wizard\WizardPluginBase::buildFilters().
    *
    * Add some options for filter by taxonomy terms.
    */
-  protected function build_filters(&$form, &$form_state) {
-    parent::build_filters($form, $form_state);
+  protected function buildFilters(&$form, &$form_state) {
+    parent::buildFilters($form, $form_state);
 
     $selected_bundle = static::getSelected($form_state, array('show', 'type'), 'all', $form['displays']['show']['type']);
 

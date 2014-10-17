@@ -7,6 +7,7 @@
 
 namespace Drupal\block\Tests;
 
+use Drupal\Core\Language\Language;
 use Drupal\simpletest\DrupalUnitTestBase;
 use Drupal\block_test\Plugin\Block\TestHtmlIdBlock;
 use Drupal\Component\Plugin\Exception\PluginException;
@@ -26,7 +27,7 @@ class BlockStorageUnitTest extends DrupalUnitTestBase {
    *
    * @var array
    */
-  public static $modules = array('block', 'block_test');
+  public static $modules = array('block', 'block_test', 'system');
 
   /**
    * The block storage controller.
@@ -135,11 +136,13 @@ class BlockStorageUnitTest extends DrupalUnitTestBase {
     $entity = entity_load('block', 'stark.test_block');
     $output = entity_view($entity, 'block');
     $expected = array();
-    $expected[] = '  <div id="block-test-block"  class="block block-block-test">';
-    $expected[] = '';
+    $expected[] = '<div class="block block-block-test" id="block-test-block">';
+    $expected[] = '  ';
     $expected[] = '    ';
+    $expected[] = '';
     $expected[] = '  <div class="content">';
-    $expected[] = '      </div>';
+    $expected[] = '    ';
+    $expected[] = '  </div>';
     $expected[] = '</div>';
     $expected[] = '';
     $expected_output = implode("\n", $expected);
@@ -159,12 +162,14 @@ class BlockStorageUnitTest extends DrupalUnitTestBase {
     $entity->save();
     $output = entity_view($entity, 'block');
     $expected = array();
-    $expected[] = '  <div id="block-test-block2"  class="block block-block-test">';
-    $expected[] = '';
-    $expected[] = '    <h2>Powered by Bananas</h2>';
+    $expected[] = '<div class="block block-block-test" id="block-test-block2">';
     $expected[] = '  ';
+    $expected[] = '      <h2>Powered by Bananas</h2>';
+    $expected[] = '    ';
+    $expected[] = '';
     $expected[] = '  <div class="content">';
-    $expected[] = '      </div>';
+    $expected[] = '    ';
+    $expected[] = '  </div>';
     $expected[] = '</div>';
     $expected[] = '';
     $expected_output = implode("\n", $expected);

@@ -7,9 +7,10 @@
 
 namespace Drupal\editor\Tests;
 
+use Drupal\Core\Language\Language;
 use Drupal\edit\EditorSelector;
 use Drupal\edit\MetadataGenerator;
-use Drupal\edit\Plugin\EditorManager;
+use Drupal\edit\Plugin\InPlaceEditorManager;
 use Drupal\edit\Tests\EditTestBase;
 use Drupal\edit_test\MockEditEntityFieldAccessCheck;
 use Drupal\editor\EditorController;
@@ -122,7 +123,7 @@ class EditIntegrationTest extends EditTestBase {
    * format compatibility.
    */
   function testEditorSelection() {
-    $this->editorManager = new EditorManager($this->container->get('container.namespaces'));
+    $this->editorManager = new InPlaceEditorManager($this->container->get('container.namespaces'));
     $this->editorSelector = new EditorSelector($this->editorManager);
 
     // Pretend there is an entity with these items for the field.
@@ -136,8 +137,8 @@ class EditIntegrationTest extends EditTestBase {
     $this->assertEqual('editor', $this->getSelectedEditor($items, $this->field_name), "With cardinality 1, and the full_html text format, the 'editor' editor is selected.");
 
     // Editor selection with text processing, cardinality >1
-    $this->field_textarea_field['cardinality'] = 2;
-    field_update_field($this->field_textarea_field);
+    $this->field_textarea_field->cardinality = 2;
+    $this->field_textarea_field->save();
     $items[] = array('value' => 'Hallo, wereld!', 'format' => 'full_html');
     $this->assertEqual('form', $this->getSelectedEditor($items, $this->field_name), "With cardinality >1, and both items using the full_html text format, the 'form' editor is selected.");
   }
@@ -146,7 +147,7 @@ class EditIntegrationTest extends EditTestBase {
    * Tests (custom) metadata when the formatted text editor is used.
    */
   function testMetadata() {
-    $this->editorManager = new EditorManager($this->container->get('container.namespaces'));
+    $this->editorManager = new InPlaceEditorManager($this->container->get('container.namespaces'));
     $this->accessChecker = new MockEditEntityFieldAccessCheck();
     $this->editorSelector = new EditorSelector($this->editorManager);
     $this->metadataGenerator = new MetadataGenerator($this->accessChecker, $this->editorSelector, $this->editorManager);
@@ -160,7 +161,7 @@ class EditIntegrationTest extends EditTestBase {
 
     // Verify metadata.
     $instance = field_info_instance($entity->entityType(), $this->field_name, $entity->bundle());
-    $metadata = $this->metadataGenerator->generate($entity, $instance, LANGUAGE_NOT_SPECIFIED, 'default');
+    $metadata = $this->metadataGenerator->generate($entity, $instance, Language::LANGCODE_NOT_SPECIFIED, 'default');
     $expected = array(
       'access' => TRUE,
       'label' => 'Long text field',
@@ -188,7 +189,7 @@ class EditIntegrationTest extends EditTestBase {
     // Verify AJAX response.
     $controller = new EditorController();
     $request = new Request();
-    $response = $controller->getUntransformedText($entity, $this->field_name, LANGUAGE_NOT_SPECIFIED, 'default');
+    $response = $controller->getUntransformedText($entity, $this->field_name, Language::LANGCODE_NOT_SPECIFIED, 'default');
     $expected = array(
       array(
         'command' => 'editorGetUntransformedText',

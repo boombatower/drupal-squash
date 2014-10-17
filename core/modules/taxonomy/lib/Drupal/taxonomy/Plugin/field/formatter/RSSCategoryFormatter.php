@@ -7,7 +7,7 @@
 
 namespace Drupal\taxonomy\Plugin\field\formatter;
 
-use Drupal\Component\Annotation\Plugin;
+use Drupal\field\Annotation\FieldFormatter;
 use Drupal\Core\Annotation\Translation;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\field\Plugin\Type\Formatter\FormatterBase;
@@ -16,7 +16,7 @@ use Drupal\taxonomy\Plugin\field\formatter\TaxonomyFormatterBase;
 /**
  * Plugin implementation of the 'taxonomy_term_reference_rss_category' formatter.
  *
- * @Plugin(
+ * @FieldFormatter(
  *   id = "taxonomy_term_reference_rss_category",
  *   module = "taxonomy",
  *   label = @Translation("RSS category"),
@@ -31,10 +31,10 @@ class RSSCategoryFormatter extends TaxonomyFormatterBase {
    * {@inheritdoc}
    */
   public function viewElements(EntityInterface $entity, $langcode, array $items) {
-    // Terms whose tid is 'autocreate' do not exist yet and $item['entity'] is
-    // not set. Theme such terms as just their name.
+    // Terms whose target_id is 'autocreate' do not exist yet and
+    // $item['entity'] is not set. Theme such terms as just their name.
     foreach ($items as $item) {
-      if ($item['tid']) {
+      if ($item['target_id']) {
         $value = $item['entity']->label();
 
         $uri = $item['entity']->uri();

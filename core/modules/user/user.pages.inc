@@ -5,81 +5,11 @@
  * User page callback file for the user module.
  */
 
-use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\HttpKernelInterface;
 use Drupal\Component\Utility\Crypt;
-
-/**
- * Form builder; Request a password reset.
- *
- * @ingroup forms
- * @see user_pass_validate()
- * @see user_pass_submit()
- */
-function user_pass() {
-  global $user;
-
-  $form['name'] = array(
-    '#type' => 'textfield',
-    '#title' => t('Username or e-mail address'),
-    '#size' => 60,
-    '#maxlength' => max(USERNAME_MAX_LENGTH, EMAIL_MAX_LENGTH),
-    '#required' => TRUE,
-  );
-  // Allow logged in users to request this also.
-  if ($user->uid > 0) {
-    $form['name']['#type'] = 'value';
-    $form['name']['#value'] = $user->mail;
-    $form['mail'] = array(
-      '#prefix' => '<p>',
-      '#markup' =>  t('Password reset instructions will be mailed to %email. You must log out to use the password reset link in the e-mail.', array('%email' => $user->mail)),
-      '#suffix' => '</p>',
-    );
-  }
-  else {
-    $form['name']['#default_value'] = Drupal::Request()->query->get('name');
-  }
-  $form['actions'] = array('#type' => 'actions');
-  $form['actions']['submit'] = array('#type' => 'submit', '#value' => t('E-mail new password'));
-
-  return $form;
-}
-
-function user_pass_validate($form, &$form_state) {
-  $name = trim($form_state['values']['name']);
-  // Try to load by email.
-  $users = entity_load_multiple_by_properties('user', array('mail' => $name, 'status' => '1'));
-  $account = reset($users);
-  if (!$account) {
-    // No success, try to load by name.
-    $users = entity_load_multiple_by_properties('user', array('name' => $name, 'status' => '1'));
-    $account = reset($users);
-  }
-  if (isset($account->uid)) {
-    form_set_value(array('#parents' => array('account')), $account, $form_state);
-  }
-  else {
-    form_set_error('name', t('Sorry, %name is not recognized as a username or an e-mail address.', array('%name' => $name)));
-  }
-}
-
-function user_pass_submit($form, &$form_state) {
-  $language_interface = language(LANGUAGE_TYPE_INTERFACE);
-
-  $account = $form_state['values']['account'];
-  // Mail one time login URL and instructions using current language.
-  $mail = _user_mail_notify('password_reset', $account, $language_interface->langcode);
-  if (!empty($mail)) {
-    watchdog('user', 'Password reset instructions mailed to %name at %email.', array('%name' => $account->name, '%email' => $account->mail));
-    drupal_set_message(t('Further instructions have been sent to your e-mail address.'));
-  }
-
-  $form_state['redirect'] = 'user';
-  return;
-}
 
 /**
  * Menu callback; process one time login link and redirects to the user page on success.
@@ -105,7 +35,7 @@ function user_pass_reset($form, &$form_state, $uid, $timestamp, $hashed_pass, $a
         drupal_set_message(t('The one-time login link you clicked is invalid.'));
       }
     }
-    drupal_goto();
+    return new RedirectResponse(url('<front>', array('absolute' => TRUE)));
   }
   else {
     // Time out, in seconds, until login URL expires.
@@ -117,7 +47,7 @@ function user_pass_reset($form, &$form_state, $uid, $timestamp, $hashed_pass, $a
       // No time out for first time login.
       if ($account->login && $current - $timestamp > $timeout) {
         drupal_set_message(t('You have tried to use a one-time login link that has expired. Please request a new one using the form below.'));
-        drupal_goto('user/password');
+        return new RedirectResponse(url('user/password', array('absolute' => TRUE)));
       }
       elseif ($account->uid && $timestamp >= $account->login && $timestamp <= $current && $hashed_pass == user_pass_rehash($account->pass, $timestamp, $account->login)) {
         // First stage is a confirmation form, then login
@@ -132,7 +62,10 @@ function user_pass_reset($form, &$form_state, $uid, $timestamp, $hashed_pass, $a
           // Let the user's password be changed without the current password check.
           $token = Crypt::randomStringHashed(55);
           $_SESSION['pass_reset_' . $user->uid] = $token;
-          drupal_goto('user/' . $user->uid . '/edit', array('query' => array('pass-reset-token' => $token)));
+          return new RedirectResponse(url('user/' . $user->uid . '/edit', array(
+            'query' => array('pass-reset-token' => $token),
+            'absolute' => TRUE,
+          )));
         }
         else {
           if (!$account->login) {
@@ -151,7 +84,7 @@ function user_pass_reset($form, &$form_state, $uid, $timestamp, $hashed_pass, $a
       }
       else {
         drupal_set_message(t('You have tried to use a one-time login link that has either been used or is no longer valid. Please request a new one using the form below.'));
-        drupal_goto('user/password');
+        return new RedirectResponse(url('user/password', array('absolute' => TRUE)));
       }
     }
     else {
@@ -163,28 +96,13 @@ function user_pass_reset($form, &$form_state, $uid, $timestamp, $hashed_pass, $a
 }
 
 /**
- * Menu callback; logs the current user out, and redirects to the home page.
- */
-function user_logout() {
-  global $user;
-
-  watchdog('user', 'Session closed for %name.', array('%name' => $user->name));
-
-  module_invoke_all('user_logout', $user);
-
-  // Destroy the current session, and reset $user to the anonymous user.
-  session_destroy();
-
-  drupal_goto();
-}
-
-/**
- * Process variables for user.tpl.php.
+ * Prepares variables for user templates.
  *
- * The $variables array contains the following arguments:
- * - $account
+ * Default template: user.html.twig.
  *
- * @see user.tpl.php
+ * @param array $variables
+ *   An associative array containing:
+ *   - account: The user account.
  */
 function template_preprocess_user(&$variables) {
   $account = $variables['elements']['#user'];
@@ -196,6 +114,9 @@ function template_preprocess_user(&$variables) {
 
   // Preprocess fields.
   field_attach_preprocess($account, $variables['elements'], $variables);
+
+  // Set up attributes.
+  $variables['attributes']['class'][] = 'profile';
 }
 
 /**
@@ -394,11 +315,11 @@ function user_cancel_confirm($account, $timestamp = 0, $hashed_pass = '') {
       // Since user_cancel() is not invoked via Form API, batch processing needs
       // to be invoked manually and should redirect to the front page after
       // completion.
-      batch_process('');
+      return batch_process('');
     }
     else {
       drupal_set_message(t('You have tried to use an account cancellation link that has expired. Please request a new one using the form below.'));
-      drupal_goto("user/$account->uid/cancel");
+      return new RedirectResponse(url("user/$account->uid/cancel", array('absolute' => TRUE)));
     }
   }
   throw new AccessDeniedHttpException();

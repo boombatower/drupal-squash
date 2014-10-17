@@ -6,6 +6,7 @@
  */
 
 use Drupal\Component\Uuid\Uuid;
+use Drupal\Core\Language\Language;
 
 /**
  * Implements hook_install().
@@ -55,12 +56,9 @@ function contact_update_8000() {
 function contact_update_8001() {
   $uuid = new Uuid();
   $result = db_query('SELECT * FROM {contact}');
-  $ids = array();
   foreach ($result as $category) {
     // Take over the category's serial ID as new machine name.
     $category->id = $category->cid;
-    // Save the id to add to the manifest file.
-    $ids[] = $category->id;
     // Save default category setting.
     if ($category->selected) {
       config('contact.settings')
@@ -75,11 +73,9 @@ function contact_update_8001() {
       ->set('recipients', explode(',', $category->recipients))
       ->set('reply', $category->reply)
       ->set('weight', $category->weight)
-      ->set('langcode', LANGUAGE_NOT_SPECIFIED)
+      ->set('langcode', Language::LANGCODE_NOT_SPECIFIED)
       ->save();
   }
-
-  update_config_manifest_add('contact.category', $ids);
 }
 
 /**

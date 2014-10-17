@@ -93,7 +93,7 @@ for ($i = 0; $i < 24; $i++) {
       ),
     ),
   );
-  field_create_field($field);
+  entity_create('field_entity', $field)->save();
   $node_types = $i > 11 ? array('page') : array_keys(node_type_get_types());
   foreach ($node_types as $bundle) {
     $instance = array(
@@ -132,7 +132,7 @@ for ($i = 0; $i < 24; $i++) {
         'settings' => array(),
       );
     }
-    field_create_instance($instance);
+    entity_create('field_instance', $instance)->save();
   }
   $parents = array();
   // Vocabularies without hierarchy get one term, single parent vocabularies get
@@ -204,7 +204,7 @@ for ($i = 0; $i < 36; $i++) {
     $node->{$field_name}[LANGUAGE_NONE][] = array('tid' => $tid);
   }
   $node->path = array('alias' => "content/$node->created");
-  node_save($node);
+  $node->save();
   if ($node->revision) {
     $user = user_load($uid + 3);
     ++$revision_id;
@@ -220,7 +220,7 @@ for ($i = 0; $i < 36; $i++) {
       $field_name = $term_vocabs[$tid];
       $node->{$field_name}[LANGUAGE_NONE][] = array('tid' => $tid);
     }
-    node_save($node);
+    $node->save();
   }
 }
 
@@ -247,7 +247,7 @@ for ($i = 0; $i < 12; $i++) {
   for ($c = 0; $c < $nbchoices; $c++) {
     $node->choice[] = array('chtext' => "Choice $c for poll $i", 'chvotes' => 0, 'weight' => 0);
   }
-  node_save($node);
+  $node->save();
   $path = array(
     'alias' => "content/poll/$i/results",
     'source' => "node/$node->nid/results",
@@ -289,7 +289,7 @@ $node->promote = 0;
 $node->created = 1263769200;
 $node->log = "added a broken node";
 $node->path = array('alias' => "content/1263769200");
-node_save($node);
+$node->save();
 db_update('node')
   ->fields(array(
     'type' => $node_type,

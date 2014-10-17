@@ -7,7 +7,7 @@
 
 namespace Drupal\entity_reference\Plugin\field\formatter;
 
-use Drupal\Component\Annotation\Plugin;
+use Drupal\field\Annotation\FieldFormatter;
 use Drupal\Core\Annotation\Translation;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\entity_reference\Plugin\field\formatter\EntityReferenceFormatterBase;
@@ -15,7 +15,7 @@ use Drupal\entity_reference\Plugin\field\formatter\EntityReferenceFormatterBase;
 /**
  * Plugin implementation of the 'entity reference label' formatter.
  *
- * @Plugin(
+ * @FieldFormatter(
  *   id = "entity_reference_label",
  *   module = "entity_reference",
  *   label = @Translation("Label"),
@@ -77,10 +77,6 @@ class EntityReferenceLabelFormatter extends EntityReferenceFormatterBase {
         else {
           $elements[$delta] = array('#markup' => check_plain($label));
         }
-      }
-      else {
-        // This is an "auto_create" item.
-        $elements[$delta] = array('#markup' => $item['label']);
       }
     }
 

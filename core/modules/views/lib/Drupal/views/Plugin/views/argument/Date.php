@@ -47,8 +47,8 @@ class Date extends Formula {
   /**
    * Add an option to set the default value to the current date.
    */
-  function default_argument_form(&$form, &$form_state) {
-    parent::default_argument_form($form, $form_state);
+  public function defaultArgumentForm(&$form, &$form_state) {
+    parent::defaultArgumentForm($form, $form_state);
     $form['default_argument_type']['#options'] += array('date' => t('Current date'));
     $form['default_argument_type']['#options'] += array('node_created' => t("Current node's creation time"));
     $form['default_argument_type']['#options'] += array('node_changed' => t("Current node's update time"));  }
@@ -57,7 +57,7 @@ class Date extends Formula {
    * Set the empty argument value to the current date,
    * formatted appropriately for this argument.
    */
-  function get_default_argument($raw = FALSE) {
+  public function getDefaultArgument($raw = FALSE) {
     if (!$raw && $this->options['default_argument_type'] == 'date') {
       return date($this->argFormat, REQUEST_TIME);
     }
@@ -74,7 +74,7 @@ class Date extends Formula {
       }
 
       if (empty($node)) {
-        return parent::get_default_argument();
+        return parent::getDefaultArgument();
       }
       elseif ($this->options['default_argument_type'] == 'node_created') {
         return date($this->argFormat, $node->created);
@@ -84,19 +84,22 @@ class Date extends Formula {
       }
     }
 
-    return parent::get_default_argument($raw);
+    return parent::getDefaultArgument($raw);
   }
 
-  function get_sort_name() {
+  /**
+   * {@inheritdoc}
+   */
+  public function getSortName() {
     return t('Date', array(), array('context' => 'Sort order'));
   }
 
   /**
-   * Overrides \Drupal\views\Plugin\views\argument\Formula::get_formula().
+   * Overrides \Drupal\views\Plugin\views\argument\Formula::getFormula().
    */
-  function get_formula() {
+  public function getFormula() {
     $this->formula = $this->getDateFormat($this->argFormat);
-    return parent::get_formula();
+    return parent::getFormula();
   }
 
 }

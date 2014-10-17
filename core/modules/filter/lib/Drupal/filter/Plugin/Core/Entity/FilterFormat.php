@@ -10,7 +10,9 @@ namespace Drupal\filter\Plugin\Core\Entity;
 use Drupal\Core\Config\Entity\ConfigEntityBase;
 use Drupal\Core\Entity\Annotation\EntityType;
 use Drupal\Core\Annotation\Translation;
+use Drupal\Core\Entity\EntityStorageControllerInterface;
 use Drupal\filter\FilterFormatInterface;
+use Drupal\filter\FilterBag;
 
 /**
  * Represents a text format.
@@ -20,7 +22,10 @@ use Drupal\filter\FilterFormatInterface;
  *   label = @Translation("Text format"),
  *   module = "filter",
  *   controllers = {
- *     "storage" = "Drupal\filter\FilterFormatStorageController"
+ *     "form" = {
+ *       "disable" = "Drupal\filter\Form\FilterDisableForm"
+ *     },
+ *     "storage" = "Drupal\Core\Config\Entity\ConfigStorageController"
  *   },
  *   config_prefix = "filter.format",
  *   entity_keys = {
@@ -98,24 +103,30 @@ class FilterFormat extends ConfigEntityBase implements FilterFormatInterface {
    * Configured filters for this text format.
    *
    * An associative array of filters assigned to the text format, keyed by the
-   * ID of each filter (prefixed with module name) and using the properties:
+   * instance ID of each filter and using the properties:
+   * - plugin_id: The plugin ID of the filter plugin instance.
    * - module: The name of the module providing the filter.
    * - status: (optional) A Boolean indicating whether the filter is
-   *   enabled in the text format. Defaults to disabled.
-   * - weight: (optional) The weight of the filter in the text format. If
-   *   omitted, the default value is determined in the following order:
-   *   - if any, the currently stored weight is retained.
-   *   - if any, the default weight from hook_filter_info() is taken over.
-   *   - otherwise, a default weight of 10, which usually sorts it last.
+   *   enabled in the text format. Defaults to FALSE.
+   * - weight: (optional) The weight of the filter in the text format. Defaults
+   *   to 0.
    * - settings: (optional) An array of configured settings for the filter.
-   *   See hook_filter_info() for details.
+   *
+   * Use FilterFormat::filters() to access the actual filters.
    *
    * @var array
    */
-  public $filters = array();
+  protected $filters = array();
 
   /**
-   * Overrides \Drupal\Core\Entity\Entity::id().
+   * Holds the collection of filters that are attached to this format.
+   *
+   * @var \Drupal\filter\FilterBag
+   */
+  protected $filterBag;
+
+  /**
+   * {@inheritdoc}
    */
   public function id() {
     return $this->format;
@@ -124,21 +135,40 @@ class FilterFormat extends ConfigEntityBase implements FilterFormatInterface {
   /**
    * {@inheritdoc}
    */
-  public static function sortFilters($a, $b) {
-    if ($a['status'] != $b['status']) {
-      return !empty($a['status']) ? -1 : 1;
+  public function filters($instance_id = NULL) {
+    if (!isset($this->filterBag)) {
+      $this->filterBag = new FilterBag(\Drupal::service('plugin.manager.filter'), $this->filters);
     }
-    if ($a['weight'] != $b['weight']) {
-      return ($a['weight'] < $b['weight']) ? -1 : 1;
+    if (isset($instance_id)) {
+      return $this->filterBag->get($instance_id);
     }
-    if ($a['module'] != $b['module']) {
-      return strnatcasecmp($a['module'], $b['module']);
-    }
-    return strnatcasecmp($a['name'], $b['name']);
+    return $this->filterBag;
   }
 
   /**
-   * Overrides \Drupal\Core\Config\Entity\ConfigEntityBase::disable().
+   * {@inheritdoc}
+   */
+  public function setFilterConfig($instance_id, array $configuration) {
+    $this->filters[$instance_id] = $configuration;
+    if (isset($this->filterBag)) {
+      $this->filterBag->setConfig($instance_id, $configuration);
+    }
+    return $this;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getExportProperties() {
+    $properties = parent::getExportProperties();
+    // Sort and export the configuration of all filters.
+    $properties['filters'] = $this->filters()->sort()->export();
+
+    return $properties;
+  }
+
+  /**
+   * {@inheritdoc}
    */
   public function disable() {
     parent::disable();
@@ -153,4 +183,50 @@ class FilterFormat extends ConfigEntityBase implements FilterFormatInterface {
     return $this;
   }
 
+  /**
+   * {@inheritdoc}
+   */
+  public function preSave(EntityStorageControllerInterface $storage_controller) {
+    $this->name = trim($this->label());
+
+    // @todo Do not save disabled filters whose properties are identical to
+    //   all default properties.
+
+    // Determine whether the format can be cached.
+    // @todo This is a derived/computed definition, not configuration.
+    $this->cache = TRUE;
+    foreach ($this->filters() as $filter) {
+      if ($filter->status && !$filter->cache) {
+        $this->cache = FALSE;
+      }
+    }
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function postSave(EntityStorageControllerInterface $storage_controller, $update = TRUE) {
+    // Clear the static caches of filter_formats() and others.
+    filter_formats_reset();
+
+    if ($update) {
+      // Clear the filter cache whenever a text format is updated.
+      cache('filter')->deleteTags(array('filter_format' => $this->id()));
+    }
+    else {
+      // Default configuration of modules and installation profiles is allowed
+      // to specify a list of user roles to grant access to for the new format;
+      // apply the defined user role permissions when a new format is inserted
+      // and has a non-empty $roles property.
+      // Note: user_role_change_permissions() triggers a call chain back into
+      // filter_permission() and lastly filter_formats(), so its cache must be
+      // reset upfront.
+      if (($roles = $this->get('roles')) && $permission = filter_permission_name($this)) {
+        foreach (user_roles() as $rid => $name) {
+          $enabled = in_array($rid, $roles, TRUE);
+          user_role_change_permissions($rid, array($permission => $enabled));
+        }
+      }
+    }
+  }
 }

@@ -26,7 +26,7 @@ class MachineName extends FieldPluginBase {
    */
   var $value_options;
 
-  function get_value_options() {
+  public function getValueOptions() {
     if (isset($this->value_options)) {
       return;
     }
@@ -62,8 +62,8 @@ class MachineName extends FieldPluginBase {
     );
   }
 
-  function pre_render(&$values) {
-    $this->get_value_options();
+  public function preRender(&$values) {
+    $this->getValueOptions();
   }
 
   function render($values) {

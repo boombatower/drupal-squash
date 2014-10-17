@@ -7,6 +7,8 @@
 
 namespace Drupal\taxonomy\Tests;
 
+use Drupal\Core\Language\Language;
+
 /**
  * Tests a taxonomy term reference field that allows multiple vocabularies.
  */
@@ -17,9 +19,8 @@ class TermFieldMultipleVocabularyTest extends TaxonomyTestBase {
    *
    * @var array
    */
-  public static $modules = array('field_test');
+  public static $modules = array('entity_test');
 
-  protected $instance;
   protected $vocabulary1;
   protected $vocabulary2;
 
@@ -34,14 +35,14 @@ class TermFieldMultipleVocabularyTest extends TaxonomyTestBase {
   function setUp() {
     parent::setUp();
 
-    $web_user = $this->drupalCreateUser(array('access field_test content', 'administer field_test content', 'administer taxonomy'));
+    $web_user = $this->drupalCreateUser(array('view test entity', 'administer entity_test content', 'administer taxonomy'));
     $this->drupalLogin($web_user);
     $this->vocabulary1 = $this->createVocabulary();
     $this->vocabulary2 = $this->createVocabulary();
 
     // Set up a field and instance.
     $this->field_name = drupal_strtolower($this->randomName());
-    $this->field = array(
+    entity_create('field_entity', array(
       'field_name' => $this->field_name,
       'type' => 'taxonomy_term_reference',
       'cardinality' => FIELD_CARDINALITY_UNLIMITED,
@@ -57,20 +58,18 @@ class TermFieldMultipleVocabularyTest extends TaxonomyTestBase {
           ),
         ),
       )
-    );
-    field_create_field($this->field);
-    $this->instance = array(
+    ))->save();
+    entity_create('field_instance', array(
       'field_name' => $this->field_name,
-      'entity_type' => 'test_entity',
-      'bundle' => 'test_bundle',
-    );
-    field_create_instance($this->instance);
-    entity_get_form_display('test_entity', 'test_bundle', 'default')
+      'entity_type' => 'entity_test',
+      'bundle' => 'entity_test',
+    ))->save();
+    entity_get_form_display('entity_test', 'entity_test', 'default')
       ->setComponent($this->field_name, array(
         'type' => 'options_select',
       ))
       ->save();
-    entity_get_display('test_entity', 'test_bundle', 'full')
+    entity_get_display('entity_test', 'entity_test', 'full')
       ->setComponent($this->field_name, array(
         'type' => 'taxonomy_term_reference_link',
       ))
@@ -86,22 +85,24 @@ class TermFieldMultipleVocabularyTest extends TaxonomyTestBase {
     $term2 = $this->createTerm($this->vocabulary2);
 
     // Submit an entity with both terms.
-    $langcode = LANGUAGE_NOT_SPECIFIED;
-    $this->drupalGet('test-entity/add/test_bundle');
+    $langcode = Language::LANGCODE_NOT_SPECIFIED;
+    $this->drupalGet('entity_test/add');
     $this->assertFieldByName("{$this->field_name}[$langcode][]", '', 'Widget is displayed');
     $edit = array(
+      'user_id' => mt_rand(0, 10),
+      'name' => $this->randomName(),
       "{$this->field_name}[$langcode][]" => array($term1->id(), $term2->id()),
     );
     $this->drupalPost(NULL, $edit, t('Save'));
-    preg_match('|test-entity/manage/(\d+)/edit|', $this->url, $match);
+    preg_match('|entity_test/manage/(\d+)/edit|', $this->url, $match);
     $id = $match[1];
-    $this->assertRaw(t('test_entity @id has been created.', array('@id' => $id)), 'Entity was created.');
+    $this->assertText(t('entity_test @id has been created.', array('@id' => $id)), 'Entity was created.');
 
     // Render the entity.
-    $entity = field_test_entity_test_load($id);
+    $entity = entity_load('entity_test', $id);
     $entities = array($id => $entity);
     $display = entity_get_display($entity->entityType(), $entity->bundle(), 'full');
-    field_attach_prepare_view('test_entity', $entities, array($entity->bundle() => $display));
+    field_attach_prepare_view('entity_test', $entities, array($entity->bundle() => $display));
     $entity->content = field_attach_view($entity, $display);
     $this->content = drupal_render($entity->content);
     $this->assertText($term1->label(), 'Term 1 name is displayed.');
@@ -111,10 +112,10 @@ class TermFieldMultipleVocabularyTest extends TaxonomyTestBase {
     $this->vocabulary2->delete();
 
     // Re-render the content.
-    $entity = field_test_entity_test_load($id);
+    $entity = entity_load('entity_test', $id);
     $entities = array($id => $entity);
     $display = entity_get_display($entity->entityType(), $entity->bundle(), 'full');
-    field_attach_prepare_view('test_entity', $entities, array($entity->bundle() => $display));
+    field_attach_prepare_view('entity_test', $entities, array($entity->bundle() => $display));
     $entity->content = field_attach_view($entity, $display);
     $this->plainTextContent = FALSE;
     $this->content = drupal_render($entity->content);
@@ -128,11 +129,13 @@ class TermFieldMultipleVocabularyTest extends TaxonomyTestBase {
     $this->assertEqual(count($field_info['settings']['allowed_values']), 1, 'Only one vocabulary is allowed for the field.');
 
     // The widget should still be displayed.
-    $this->drupalGet('test-entity/add/test_bundle');
+    $this->drupalGet('entity_test/add');
     $this->assertFieldByName("{$this->field_name}[$langcode][]", '', 'Widget is still displayed');
 
     // Term 1 should still pass validation.
     $edit = array(
+      'user_id' => mt_rand(0, 10),
+      'name' => $this->randomName(),
       "{$this->field_name}[$langcode][]" => array($term1->id()),
     );
     $this->drupalPost(NULL, $edit, t('Save'));

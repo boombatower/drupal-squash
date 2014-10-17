@@ -7,7 +7,7 @@
 
 namespace Drupal\entity_reference\Plugin\field\formatter;
 
-use Drupal\Component\Annotation\Plugin;
+use Drupal\field\Annotation\FieldFormatter;
 use Drupal\Core\Annotation\Translation;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\entity_reference\RecursiveRenderingException;
@@ -16,7 +16,7 @@ use Drupal\entity_reference\Plugin\field\formatter\EntityReferenceFormatterBase;
 /**
  * Plugin implementation of the 'entity reference rendered entity' formatter.
  *
- * @Plugin(
+ * @FieldFormatter(
  *   id = "entity_reference_entity_view",
  *   module = "entity_reference",
  *   label = @Translation("Rendered entity"),
@@ -36,7 +36,7 @@ class EntityReferenceEntityFormatter extends EntityReferenceFormatterBase {
    * {@inheritdoc}
    */
   public function settingsForm(array $form, array &$form_state) {
-    $view_modes = entity_get_view_modes($this->field['settings']['target_type']);
+    $view_modes = entity_get_view_modes($this->getFieldSetting('target_type'));
     $options = array();
     foreach ($view_modes as $view_mode => $view_mode_settings) {
       $options[$view_mode] = $view_mode_settings['label'];
@@ -65,7 +65,7 @@ class EntityReferenceEntityFormatter extends EntityReferenceFormatterBase {
   public function settingsSummary() {
     $summary = array();
 
-    $view_modes = entity_get_view_modes($this->field['settings']['target_type']);
+    $view_modes = entity_get_view_modes($this->getFieldSetting('target_type'));
     $view_mode = $this->getSetting('view_mode');
     $summary[] = t('Rendered as @mode', array('@mode' => isset($view_modes[$view_mode]['label']) ? $view_modes[$view_mode]['label'] : $view_mode));
     $summary[] = $this->getSetting('links') ? t('Display links') : t('Do not display links');
@@ -83,7 +83,7 @@ class EntityReferenceEntityFormatter extends EntityReferenceFormatterBase {
     $view_mode = $this->getSetting('view_mode');
     $links = $this->getSetting('links');
 
-    $target_type = $this->field['settings']['target_type'];
+    $target_type = $this->getFieldSetting('target_type');
 
     $elements = array();
 
@@ -95,7 +95,7 @@ class EntityReferenceEntityFormatter extends EntityReferenceFormatterBase {
         throw new RecursiveRenderingException(format_string('Recursive rendering detected when rendering entity @entity_type(@entity_id). Aborting rendering.', array('@entity_type' => $entity_type, '@entity_id' => $item['target_id'])));
       }
 
-      if (!empty($item['entity'])) {
+      if (!empty($item['target_id'])) {
         $entity = clone $item['entity'];
         unset($entity->content);
         $elements[$delta] = entity_view($entity, $view_mode, $langcode);
@@ -107,7 +107,7 @@ class EntityReferenceEntityFormatter extends EntityReferenceFormatterBase {
       }
       else {
         // This is an "auto_create" item.
-        $elements[$delta] = array('#markup' => $item['label']);
+        $elements[$delta] = array('#markup' => $entity->label());
       }
       $depth = 0;
     }

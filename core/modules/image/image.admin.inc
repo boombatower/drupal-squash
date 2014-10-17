@@ -5,6 +5,8 @@
  * Administration pages for image settings.
  */
 
+use Symfony\Component\HttpFoundation\RedirectResponse;
+
 /**
  * Menu callback; Listing of all current image styles.
  */
@@ -15,7 +17,7 @@ function image_style_list() {
   $page['image_style_list'] = array(
     '#markup' => theme('image_style_list', array('styles' => $styles)),
     '#attached' => array(
-      'css' => array(drupal_get_path('module', 'image') . '/image.admin.css' => array()),
+      'css' => array(drupal_get_path('module', 'image') . '/css/image.admin.css' => array()),
     ),
   );
 
@@ -39,7 +41,7 @@ function image_style_form($form, &$form_state, $style) {
 
   $form_state['image_style'] = $style;
   $form['#tree'] = TRUE;
-  $form['#attached']['css'][drupal_get_path('module', 'image') . '/image.admin.css'] = array();
+  $form['#attached']['css'][drupal_get_path('module', 'image') . '/css/image.admin.css'] = array();
 
   // Show the thumbnail preview.
   $form['preview'] = array(
@@ -284,7 +286,7 @@ function image_effect_form($form, &$form_state, $style, $effect) {
   // If there's no configuration for this image effect, return to
   // the image style page.
   if (!isset($effect['form callback'])) {
-    drupal_goto('admin/config/media/image-styles/manage/' . $style->id());
+    return new RedirectResponse(url('admin/config/media/image-styles/manage/' . $style->id(), array('absolute' => TRUE)));
   }
   $form_state['image_style'] = $style;
   $form_state['image_effect'] = $effect;
@@ -297,7 +299,7 @@ function image_effect_form($form, &$form_state, $style, $effect) {
   }
   drupal_set_title($title, PASS_THROUGH);
 
-  $form['#attached']['css'][drupal_get_path('module', 'image') . '/image.admin.css'] = array();
+  $form['#attached']['css'][drupal_get_path('module', 'image') . '/css/image.admin.css'] = array();
 
   $form['ieid'] = array(
     '#type' => 'value',
@@ -312,9 +314,10 @@ function image_effect_form($form, &$form_state, $style, $effect) {
   $form['data']['#tree'] = TRUE;
 
   // Check the URL for a weight, then the image effect, otherwise use default.
+  $weight = Drupal::request()->query->get('weight');
   $form['weight'] = array(
     '#type' => 'hidden',
-    '#value' => isset($_GET['weight']) ? intval($_GET['weight']) : (isset($effect['weight']) ? $effect['weight'] : count($style->effects)),
+    '#value' => isset($weight) ? intval($weight) : (isset($effect['weight']) ? $effect['weight'] : count($style->effects)),
   );
 
   $form['actions'] = array('#type' => 'actions');

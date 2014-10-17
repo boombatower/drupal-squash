@@ -5,10 +5,10 @@
  * API functions for installing modules and themes.
  */
 
+use Symfony\Component\HttpFoundation\RedirectResponse;
 use Drupal\Component\Utility\Crypt;
 use Drupal\Core\Database\Database;
 use Drupal\Core\DrupalKernel;
-use Drupal\locale\Gettext;
 
 /**
  * Requirement severity -- Informational message only.
@@ -309,11 +309,11 @@ function drupal_rewrite_settings($settings = array(), $settings_file = NULL) {
 
     // Write the new settings file.
     if (file_put_contents(DRUPAL_ROOT . '/' . $settings_file, $buffer) === FALSE) {
-      throw new Exception(st('Failed to modify %settings. Verify the file permissions.', array('%settings' => $settings_file)));
+      throw new Exception(t('Failed to modify %settings. Verify the file permissions.', array('%settings' => $settings_file)));
     }
   }
   else {
-    throw new Exception(st('Failed to open %settings. Verify the file permissions.', array('%settings' => $settings_file)));
+    throw new Exception(t('Failed to open %settings. Verify the file permissions.', array('%settings' => $settings_file)));
   }
 }
 
@@ -474,7 +474,7 @@ function drupal_install_config_directories() {
     // itself. But if it somehow fails anyway, the installation cannot proceed.
     // Bail out using a similar error message as in system_requirements().
     if (!install_ensure_config_directory($config_type)) {
-      throw new Exception(st('The directory %directory could not be created or could not be made writable. To proceed with the installation, either create the directory and modify its permissions manually or ensure that the installer has the permissions to create it automatically. For more information, see the <a href="@handbook_url">online handbook</a>.', array(
+      throw new Exception(t('The directory %directory could not be created or could not be made writable. To proceed with the installation, either create the directory and modify its permissions manually or ensure that the installer has the permissions to create it automatically. For more information, see the <a href="@handbook_url">online handbook</a>.', array(
         '%directory' => config_get_config_directory($config_type),
         '@handbook_url' => 'http://drupal.org/server-permissions',
       )));
@@ -598,10 +598,10 @@ function drupal_verify_profile($install_state) {
       $modules[] = '<span class="admin-missing">' . drupal_ucfirst($module) . '</span>';
     }
     $requirements['required_modules'] = array(
-      'title'       => st('Required modules'),
-      'value'       => st('Required modules not found.'),
+      'title'       => t('Required modules'),
+      'value'       => t('Required modules not found.'),
       'severity'    => REQUIREMENT_ERROR,
-      'description' => st('The following modules are required but were not found. Move them into the appropriate modules subdirectory, such as <em>/modules</em>. Missing modules: !modules', array('!modules' => implode(', ', $modules))),
+      'description' => t('The following modules are required but were not found. Move them into the appropriate modules subdirectory, such as <em>/modules</em>. Missing modules: !modules', array('!modules' => implode(', ', $modules))),
     );
   }
   return $requirements;
@@ -617,10 +617,7 @@ function drupal_install_system() {
   // Create tables.
   drupal_install_schema('system');
 
-  if (drupal_container()->has('kernel')) {
-    $kernel = drupal_container()->get('kernel');
-  }
-  else {
+  if (!drupal_container()->has('kernel')) {
     // Immediately boot a kernel to have real services ready.
     $kernel = new DrupalKernel('install', FALSE, drupal_classloader(), FALSE);
     $kernel->boot();
@@ -641,7 +638,7 @@ function drupal_install_system() {
     ->save();
 
   // Update the module list to include it.
-  drupal_container()->get('module_handler')->setModuleList(array('system' => $system_path . '/system.module'));
+  Drupal::moduleHandler()->setModuleList(array('system' => $system_path . '/system.module'));
 
   config_install_default_config('module', 'system');
 
@@ -861,10 +858,12 @@ function drupal_install_fix_file($file, $mask, $message = TRUE) {
  */
 function install_goto($path) {
   global $base_url;
-  include_once __DIR__ . '/common.inc';
-  header('Location: ' . $base_url . '/' . $path);
-  header('Cache-Control: no-cache'); // Not a permanent redirect.
-  drupal_exit();
+  $headers = array(
+    // Not a permanent redirect.
+    'Cache-Control' => 'no-cache',
+  );
+  $response = new RedirectResponse($base_url . '/' . $path, 302, $headers);
+  $response->send();
 }
 
 /**
@@ -927,65 +926,6 @@ function drupal_requirements_url($severity) {
     $query['continue'] = 1;
   }
   return drupal_current_script_url($query);
-}
-
-/**
- * Translates a string when some systems are not available.
- *
- * Used during the install process, when database, theme, and localization
- * system is possibly not yet available.
- *
- * Use t() if your code will never run during the Drupal installation phase.
- * Use st() if your code will only run during installation and never any other
- * time. Use get_t() if your code could run in either circumstance.
- *
- * @see t()
- * @see get_t()
- * @ingroup sanitization
- */
-function st($string, array $args = array(), array $options = array()) {
-  static $strings = NULL;
-  global $install_state;
-
-  if (empty($options['context'])) {
-    $options['context'] = '';
-  }
-
-  if (!isset($strings)) {
-    $strings = array();
-    if (isset($install_state['parameters']['langcode'])) {
-      // If the given langcode was selected, there should be at least one .po
-      // file with its name in the pattern drupal-$version.$langcode.po.
-      // This might or might not be the entire filename. It is also possible
-      // that multiple files end with the same suffix, even if unlikely.
-      $files = install_find_translation_files($install_state['parameters']['langcode']);
-      if (!empty($files)) {
-        // Register locale classes with the classloader. Locale module is not
-        // yet enabled at this stage, so this is not happening automatically.
-        drupal_classloader_register('locale', drupal_get_path('module', 'locale'));
-        $strings = Gettext::filesToArray($install_state['parameters']['langcode'], $files);
-      }
-    }
-  }
-
-  require_once __DIR__ . '/theme.inc';
-  // Transform arguments before inserting them
-  foreach ($args as $key => $value) {
-    switch ($key[0]) {
-      // Escaped only
-      case '@':
-        $args[$key] = check_plain($value);
-        break;
-      // Escaped and placeholder
-      case '%':
-      default:
-        $args[$key] = '<em>' . check_plain($value) . '</em>';
-        break;
-      // Pass-through
-      case '!':
-    }
-  }
-  return strtr((!empty($strings[$options['context']][$string]) ? $strings[$options['context']][$string] : $string), $args);
 }
 
 /**

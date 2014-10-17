@@ -14,7 +14,7 @@ Drupal.behaviors.tour = {
   attach: function (context) {
     $('body').once('tour', function (index, element) {
       var model = new Drupal.tour.models.StateModel();
-      var view = new Drupal.tour.views.ToggleTourView({
+      new Drupal.tour.views.ToggleTourView({
         el: $(context).find('#toolbar-tab-tour'),
         model: model
       });
@@ -97,7 +97,7 @@ Drupal.tour.views.ToggleTourView = Backbone.View.extend({
    */
   render: function () {
     // Render the visibility.
-    this.$el.toggleClass('element-hidden', this._getTour().length === 0);
+    this.$el.toggleClass('hidden', this._getTour().length === 0);
     // Render the state.
     var isActive = this.model.get('isActive');
     this.$el.find('button')
@@ -177,10 +177,13 @@ Drupal.tour.views.ToggleTourView = Backbone.View.extend({
         var $this = $(this);
         var itemId = $this.attr('data-id');
         var itemClass = $this.attr('data-class');
-        if ((itemId || itemClass) && $document.find('#' + itemId + ', .' + itemClass).length === 0) {
-          removals = true;
-          $this.remove();
+        if ((!itemId && !itemClass) ||
+           (itemId && $document.find('#' + itemId).length) ||
+           (itemClass && $document.find('.' + itemClass).length)){
+          return;
         }
+        removals = true;
+        $this.remove();
       });
 
     // If there were removals, we'll have to do some clean-up.

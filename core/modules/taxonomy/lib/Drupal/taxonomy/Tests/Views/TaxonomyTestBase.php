@@ -7,6 +7,7 @@
 
 namespace Drupal\taxonomy\Tests\Views;
 
+use Drupal\Core\Language\Language;
 use Drupal\views\Tests\ViewTestBase;
 use Drupal\views\Tests\ViewTestData;
 
@@ -54,8 +55,8 @@ abstract class TaxonomyTestBase extends ViewTestBase {
 
     $node = array();
     $node['type'] = 'article';
-    $node['field_views_testing_tags'][]['tid'] = $this->term1->id();
-    $node['field_views_testing_tags'][]['tid'] = $this->term2->id();
+    $node['field_views_testing_tags'][]['target_id'] = $this->term1->id();
+    $node['field_views_testing_tags'][]['target_id'] = $this->term2->id();
     $this->nodes[] = $this->drupalCreateNode($node);
     $this->nodes[] = $this->drupalCreateNode($node);
   }
@@ -80,8 +81,9 @@ abstract class TaxonomyTestBase extends ViewTestBase {
       'vid' => 'views_testing_tags',
     ));
     $this->vocabulary->save();
-    $field = array(
-      'field_name' => 'field_' . $this->vocabulary->id(),
+    $this->field_name = 'field_' . $this->vocabulary->id();
+    entity_create('field_entity', array(
+      'field_name' => $this->field_name,
       'type' => 'taxonomy_term_reference',
       // Set cardinality to unlimited for tagging.
       'cardinality' => FIELD_CARDINALITY_UNLIMITED,
@@ -93,31 +95,29 @@ abstract class TaxonomyTestBase extends ViewTestBase {
           ),
         ),
       ),
-    );
-    field_create_field($field);
-    $instance = array(
-      'field_name' => 'field_' . $this->vocabulary->id(),
+    ))->save();
+    $instance = entity_create('field_instance', array(
+      'field_name' => $this->field_name,
       'entity_type' => 'node',
       'label' => 'Tags',
       'bundle' => 'article',
-    );
-    field_create_instance($instance);
+    ))->save();
 
     entity_get_form_display('node', 'article', 'default')
-      ->setComponent($instance['field_name'], array(
+      ->setComponent($this->field_name, array(
         'type' => 'taxonomy_autocomplete',
         'weight' => -4,
       ))
       ->save();
 
     entity_get_display('node', 'article', 'default')
-      ->setComponent($instance['field_name'], array(
+      ->setComponent($this->field_name, array(
         'type' => 'taxonomy_term_reference_link',
         'weight' => 10,
       ))
       ->save();
     entity_get_display('node', 'article', 'teaser')
-      ->setComponent($instance['field_name'], array(
+      ->setComponent($this->field_name, array(
         'type' => 'taxonomy_term_reference_link',
         'weight' => 10,
       ))
@@ -139,7 +139,7 @@ abstract class TaxonomyTestBase extends ViewTestBase {
       // Use the first available text format.
       'format' => $format->format,
       'vid' => $this->vocabulary->id(),
-      'langcode' => LANGUAGE_NOT_SPECIFIED,
+      'langcode' => Language::LANGCODE_NOT_SPECIFIED,
     ));
     $term->save();
     return $term;

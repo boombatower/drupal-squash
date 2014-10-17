@@ -33,7 +33,7 @@ class None extends PagerPluginBase {
     parent::init($view, $display, $options);
 
     // If the pager is set to none, then it should show all items.
-    $this->set_items_per_page(0);
+    $this->setItemsPerPage(0);
   }
 
   public function summaryTitle() {
@@ -63,19 +63,19 @@ class None extends PagerPluginBase {
     );
   }
 
-  function use_pager() {
+  public function usePager() {
     return FALSE;
   }
 
-  function use_count_query() {
+  public function useCountQuery() {
     return FALSE;
   }
 
-  function get_items_per_page() {
+  public function getItemsPerPage() {
     return 0;
   }
 
-  function execute_count_query(&$count_query) {
+  public function executeCountQuery(&$count_query) {
     // If we are displaying all items, never count. But we can update the count in post_execute.
   }
 
@@ -86,7 +86,7 @@ class None extends PagerPluginBase {
   public function query() {
     // The only query modifications we might do are offsets.
     if (!empty($this->options['offset'])) {
-      $this->view->query->set_offset($this->options['offset']);
+      $this->view->query->setOffset($this->options['offset']);
     }
   }
 

@@ -58,7 +58,7 @@ function locale_translation_get_projects($project_names = array()) {
 
     // http://drupal.org/node/1777106 is a follow-up issue to make the check for
     // possible out-of-date project information more robust.
-    if ($result->rowCount() == 0 && module_exists('update')) {
+    if ($result->rowCount() == 0 && Drupal::moduleHandler()->moduleExists('update')) {
       module_load_include('compare.inc', 'locale');
       // At least the core project should be in the database, so we build the
       // data if none are found.
@@ -104,7 +104,7 @@ function locale_translation_load_sources($projects = NULL, $langcodes = NULL) {
   $langcodes = $langcodes ? $langcodes : array_keys(locale_translatable_language_list());
 
   // Load source data from locale_translation_status cache.
-  $status = state()->get('locale.translation_status');
+  $status = Drupal::state()->get('locale.translation_status');
 
   // Use only the selected projects and languages for update.
   foreach($projects as $project) {

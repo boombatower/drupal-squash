@@ -24,7 +24,7 @@ abstract class ExecutablePluginBase extends ContextAwarePluginBase implements Ex
   protected $executableManager;
 
   /**
-   * Implements \Drupal\Core\Executable\ExecutableInterace::setExecutableManager().
+   * {@inheritdoc}
    */
   public function setExecutableManager(ExecutableManagerInterface $executableManager) {
     $this->executableManager = $executableManager;
@@ -41,7 +41,7 @@ abstract class ExecutablePluginBase extends ContextAwarePluginBase implements Ex
    *   options, keyed by option name.
    */
   public function getConfigDefinitions() {
-    $definition = $this->getDefinition();
+    $definition = $this->getPluginDefinition();
     if (!empty($definition['configuration'])) {
       return $definition['configuration'];
     }
@@ -58,7 +58,7 @@ abstract class ExecutablePluginBase extends ContextAwarePluginBase implements Ex
    *   if the option does not exist.
    */
   public function getConfigDefinition($key) {
-    $definition = $this->getDefinition();
+    $definition = $this->getPluginDefinition();
     if (!empty($definition['configuration'][$key])) {
       return $definition['configuration'][$key];
     }
@@ -95,7 +95,7 @@ abstract class ExecutablePluginBase extends ContextAwarePluginBase implements Ex
    */
   public function setConfig($key, $value) {
     if ($definition = $this->getConfigDefinition($key)) {
-      $typed_data = typed_data()->create($definition, $value);
+      $typed_data = \Drupal::typedData()->create($definition, $value);
 
       if ($typed_data->validate()->count() > 0) {
         throw new PluginException("The provided configuration value does not pass validation.");

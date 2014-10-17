@@ -44,18 +44,16 @@ class FileItemTest extends FieldUnitTestBase {
     $this->installSchema('file', 'file_managed');
     $this->installSchema('file', 'file_usage');
 
-    $field = array(
+    entity_create('field_entity', array(
       'field_name' => 'file_test',
       'type' => 'file',
       'cardinality' => FIELD_CARDINALITY_UNLIMITED,
-    );
-    field_create_field($field);
-    $instance = array(
+    ))->save();
+    entity_create('field_instance', array(
       'entity_type' => 'entity_test',
       'field_name' => 'file_test',
       'bundle' => 'entity_test',
-    );
-    field_create_instance($instance);
+    ))->save();
     file_put_contents('public://example.txt', $this->randomName());
     $this->file = entity_create('file', array(
       'uri' => 'public://example.txt',
@@ -81,7 +79,7 @@ class FileItemTest extends FieldUnitTestBase {
     $this->assertEqual($entity->file_test->fid, $this->file->id());
     $this->assertEqual($entity->file_test->display, 1);
     $this->assertEqual($entity->file_test->description, $description);
-    $this->assertEqual($entity->file_test->entity->uri, $this->file->uri);
+    $this->assertEqual($entity->file_test->entity->getFileUri(), $this->file->getFileUri());
     $this->assertEqual($entity->file_test->entity->id(), $this->file->id());
     $this->assertEqual($entity->file_test->entity->uuid(), $this->file->uuid());
 
@@ -94,7 +92,7 @@ class FileItemTest extends FieldUnitTestBase {
 
     $entity->file_test->fid = $file2->id();
     $this->assertEqual($entity->file_test->entity->id(), $file2->id());
-    $this->assertEqual($entity->file_test->entity->uri, $file2->uri);
+    $this->assertEqual($entity->file_test->entity->getFileUri(), $file2->getFileUri());
   }
 
 }

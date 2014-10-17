@@ -7,10 +7,12 @@
 
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Database\Database;
+use Drupal\Core\Language\Language;
 use Drupal\form_test\Callbacks;
 use Drupal\form_test\FormTestObject;
 use Drupal\form_test\SystemConfigFormTestForm;
 use Drupal\Core\Datetime\DrupalDateTime;
+use Symfony\Component\HttpFoundation\JsonResponse;
 
 /**
  * Implements hook_menu().
@@ -382,10 +384,10 @@ function form_test_permission() {
  * Form submit handler to return form values as JSON.
  */
 function _form_test_submit_values_json($form, &$form_state) {
-  // This won't have a proper JSON header, but Drupal doesn't check for that
-  // anyway so this is fine until it's replaced with a JsonResponse.
-  print drupal_json_encode($form_state['values']);
-  drupal_exit();
+  $response = new JsonResponse($form_state['values']);
+  // @todo remove once converted to new routing system.
+  $response->send();
+  exit;
 }
 
 /**
@@ -1334,26 +1336,26 @@ function form_test_language_select() {
 
   $form['languages_all'] = array(
     '#type' => 'language_select',
-    '#languages' => LANGUAGE_ALL,
+    '#languages' => Language::STATE_ALL,
     '#default_value' => 'xx',
   );
   $form['languages_configurable'] = array(
     '#type' => 'language_select',
-    '#languages' => LANGUAGE_CONFIGURABLE,
+    '#languages' => Language::STATE_CONFIGURABLE,
     '#default_value' => 'en',
   );
   $form['languages_locked'] = array(
     '#type' => 'language_select',
-    '#languages' => LANGUAGE_LOCKED,
+    '#languages' => Language::STATE_LOCKED,
   );
   $form['languages_config_and_locked'] = array(
     '#type' => 'language_select',
-    '#languages' => LANGUAGE_CONFIGURABLE | LANGUAGE_LOCKED,
+    '#languages' => Language::STATE_CONFIGURABLE | Language::STATE_LOCKED,
     '#default_value' => 'dummy_value',
   );
   $form['language_custom_options'] = array(
     '#type' => 'language_select',
-    '#languages' => LANGUAGE_CONFIGURABLE | LANGUAGE_LOCKED,
+    '#languages' => Language::STATE_CONFIGURABLE | Language::STATE_LOCKED,
     '#options' => array('opt1' => 'First option', 'opt2' => 'Second option', 'opt3' => 'Third option'),
     '#default_value' => 'opt2',
   );
@@ -1780,7 +1782,6 @@ function _form_test_disabled_elements($form, &$form_state) {
   $form['color'] = array(
     '#type' => 'color',
     '#title' => 'color',
-    '#disabled' => TRUE,
     '#default_value' => '#0000ff',
     '#test_hijack_value' => '#ff0000',
     '#disabled' => TRUE,
@@ -2264,11 +2265,11 @@ function form_test_two_instances() {
     'uid' => $user->uid,
     'name' => (isset($user->name) ? $user->name : ''),
     'type' => 'page',
-    'langcode' => LANGUAGE_NOT_SPECIFIED,
+    'langcode' => Language::LANGCODE_NOT_SPECIFIED,
   ));
   $node2 = clone($node1);
-  $return['node_form_1'] = entity_get_form($node1);
-  $return['node_form_2'] = entity_get_form($node2);
+  $return['node_form_1'] = Drupal::entityManager()->getForm($node1);
+  $return['node_form_2'] = Drupal::entityManager()->getForm($node2);
   return $return;
 }
 

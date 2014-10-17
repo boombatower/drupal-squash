@@ -2,7 +2,7 @@
 
 /**
  * @file
- * Definition of Drupal\taxonomy\Plugin\field\widget\TaxonomyAutocompleteWidget.
+ * Contains \Drupal\taxonomy\Plugin\field\widget\TaxonomyAutocompleteWidget.
  */
 
 namespace Drupal\taxonomy\Plugin\field\widget;
@@ -32,7 +32,7 @@ use Drupal\field\Plugin\Type\Widget\WidgetBase;
 class TaxonomyAutocompleteWidget extends WidgetBase {
 
   /**
-   * Implements Drupal\field\Plugin\Type\Widget\WidgetInterface::settingsForm().
+   * {@inheritdoc}
    */
   public function settingsForm(array $form, array &$form_state) {
     $element['placeholder'] = array(
@@ -45,19 +45,17 @@ class TaxonomyAutocompleteWidget extends WidgetBase {
   }
 
   /**
-   * Implements Drupal\field\Plugin\Type\Widget\WidgetInterface::formElement().
+   * {@inheritdoc}
    */
   public function formElement(array $items, $delta, array $element, $langcode, array &$form, array &$form_state) {
-    $field = $this->field;
-
     $tags = array();
     foreach ($items as $item) {
-      $tags[$item['tid']] = isset($item['taxonomy_term']) ? $item['taxonomy_term'] : taxonomy_term_load($item['tid']);
+      $tags[$item['target_id']] = isset($item['taxonomy_term']) ? $item['taxonomy_term'] : taxonomy_term_load($item['target_id']);
     }
     $element += array(
       '#type' => 'textfield',
       '#default_value' => taxonomy_implode_tags($tags),
-      '#autocomplete_path' => $this->getSetting('autocomplete_path') . '/' . $field['field_name'],
+      '#autocomplete_path' => $this->getSetting('autocomplete_path') . '/' . $this->fieldDefinition->getFieldName(),
       '#size' => $this->getSetting('size'),
       '#placeholder' => $this->getSetting('placeholder'),
       '#maxlength' => 1024,
@@ -68,16 +66,15 @@ class TaxonomyAutocompleteWidget extends WidgetBase {
   }
 
   /**
-   * Implements Drupal\field\Plugin\Type\Widget\WidgetInterface::massageFormValues()
+   * {@inheritdoc}
    */
   public function massageFormValues(array $values, array $form, array &$form_state) {
     // Autocomplete widgets do not send their tids in the form, so we must detect
     // them here and process them independently.
     $items = array();
-    $field = $this->field;
 
     // Collect candidate vocabularies.
-    foreach ($field['settings']['allowed_values'] as $tree) {
+    foreach ($this->getFieldSetting('allowed_values') as $tree) {
       if ($vocabulary = entity_load('taxonomy_vocabulary', $tree['vocabulary'])) {
         $vocabularies[$vocabulary->id()] = $vocabulary;
       }
@@ -89,7 +86,7 @@ class TaxonomyAutocompleteWidget extends WidgetBase {
       // otherwise, create a new term.
       if ($possibilities = entity_load_multiple_by_properties('taxonomy_term', array('name' => trim($value), 'vid' => array_keys($vocabularies)))) {
         $term = array_pop($possibilities);
-        $item = array('tid' => $term->id());
+        $item = array('target_id' => $term->id());
       }
       else {
         $vocabulary = reset($vocabularies);
@@ -97,7 +94,7 @@ class TaxonomyAutocompleteWidget extends WidgetBase {
           'vid' => $vocabulary->id(),
           'name' => $value,
         ));
-        $item = array('tid' => FALSE, 'entity' => $term);
+        $item = array('target_id' => 0, 'entity' => $term);
       }
       $items[] = $item;
     }

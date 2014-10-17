@@ -94,7 +94,9 @@ class Table extends StylePluginBase {
     $options['override'] = array('default' => TRUE, 'bool' => TRUE);
     $options['sticky'] = array('default' => FALSE, 'bool' => TRUE);
     $options['order'] = array('default' => 'asc');
+    $options['caption'] = array('default' => '', 'translatable' => TRUE);
     $options['summary'] = array('default' => '', 'translatable' => TRUE);
+    $options['description'] = array('default' => '', 'translatable' => TRUE);
     $options['empty_table'] = array('default' => FALSE, 'bool' => TRUE);
 
     return $options;
@@ -103,7 +105,7 @@ class Table extends StylePluginBase {
   /**
    * {@inheritdoc}
    */
-  function build_sort() {
+  public function buildSort() {
     $order = $this->request->query->get('order');
     if (!isset($order) && ($this->options['default'] == -1 || empty($this->view->field[$this->options['default']]))) {
       return TRUE;
@@ -121,7 +123,7 @@ class Table extends StylePluginBase {
   /**
    * Add our actual sort criteria
    */
-  function build_sort_post() {
+  public function buildSortPost() {
     $query = $this->request->query;
     $order = $query->get('order');
     if (!isset($order)) {
@@ -158,7 +160,7 @@ class Table extends StylePluginBase {
     $this->active = $sort;
 
     // Tell the field to click sort.
-    $this->view->field[$sort]->click_sort($this->order);
+    $this->view->field[$sort]->clickSort($this->order);
   }
 
   /**
@@ -185,7 +187,7 @@ class Table extends StylePluginBase {
    * @return array
    *    An array of all the sanitized columns.
    */
-  function sanitize_columns($columns, $fields = NULL) {
+  public function sanitizeColumns($columns, $fields = NULL) {
     $sanitized = array();
     if ($fields === NULL) {
       $fields = $this->displayHandler->getOption('fields');
@@ -242,19 +244,45 @@ class Table extends StylePluginBase {
       '#description' => t('(Sticky header effects will not be active for preview below, only on live output.)'),
     );
 
-    $form['summary'] = array(
+    $form['caption'] = array(
       '#type' => 'textfield',
-      '#title' => t('Table summary'),
-      '#description' => t('This value will be displayed as table-summary attribute in the html. Set this for better accessiblity of your site.'),
-      '#default_value' => $this->options['summary'],
+      '#title' => t('Caption for the table'),
+      '#description' => t('A title which is semantically associated to your table for increased accessibility.'),
+      '#default_value' => $this->options['caption'],
       '#maxlength' => 255,
+    );
+
+    $form['accessibility_details'] = array(
+      '#type' => 'details',
+      '#title' => t('Table details'),
+      '#collapsed' => TRUE,
+    );
+
+    $form['summary'] = array(
+      '#title' => t('Summary title'),
+      '#type' => 'textfield',
+      '#default_value' => $this->options['summary'],
+      '#fieldset' => 'accessibility_details',
+    );
+
+    $form['description'] = array(
+      '#title' => t('Table description'),
+      '#type' => 'textarea',
+      '#description' => t('Provide additional details about the table to increase accessibility.'),
+      '#default_value' => $this->options['description'],
+      '#states' => array(
+        'visible' => array(
+          'input[name="style_options[summary]"]' => array('filled' => TRUE),
+        ),
+      ),
+      '#fieldset' => 'accessibility_details',
     );
 
     // Note: views UI registers this theme handler on our behalf. Your module
     // will have to register your theme handlers if you do stuff like this.
     $form['#theme'] = 'views_ui_style_plugin_table';
 
-    $columns = $this->sanitize_columns($this->options['columns']);
+    $columns = $this->sanitizeColumns($this->options['columns']);
 
     // Create an array of allowed columns from the data we know:
     $field_names = $this->displayHandler->getFieldLabels();
@@ -277,7 +305,7 @@ class Table extends StylePluginBase {
         '#options' => $field_names,
         '#default_value' => $column,
       );
-      if ($handlers[$field]->click_sortable()) {
+      if ($handlers[$field]->clickSortable()) {
         $form['info'][$field]['sortable'] = array(
           '#type' => 'checkbox',
           '#default_value' => !empty($this->options['info'][$field]['sortable']),
@@ -387,11 +415,11 @@ class Table extends StylePluginBase {
     );
   }
 
-  function even_empty() {
-    return parent::even_empty() || !empty($this->options['empty_table']);
+  public function evenEmpty() {
+    return parent::evenEmpty() || !empty($this->options['empty_table']);
   }
 
-  function wizard_submit(&$form, &$form_state, WizardInterface $wizard, &$display_options, $display_type) {
+  public function wizardSubmit(&$form, &$form_state, WizardInterface $wizard, &$display_options, $display_type) {
     // If any of the displays use the table style, take sure that the fields
     // always have a labels by unsetting the override.
     foreach ($display_options['default']['fields'] as &$field) {

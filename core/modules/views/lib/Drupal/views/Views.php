@@ -17,11 +17,21 @@ class Views {
   /**
    * Returns the views data service.
    *
-   * @return \Drupal\views\ViewsDataCache
+   * @return \Drupal\views\ViewsData
    *   Returns a views data cache object.
    */
   public static function viewsData() {
     return Drupal::service('views.views_data');
+  }
+
+  /**
+   * Returns the views data helper service.
+   *
+   * @return \Drupal\views\ViewsData
+   *   Returns a views data helper object.
+   */
+  public static function viewsDataHelper() {
+    return Drupal::service('views.views_data_helper');
   }
 
   /**
@@ -53,6 +63,15 @@ class Views {
    * @return \Drupal\views\Plugin\ViewsPluginManager
    */
   public static function pluginManager($type) {
+    return Drupal::service('plugin.manager.views.' . $type);
+  }
+
+  /**
+   * Returns the plugin manager for a certain views handler type.
+   *
+   * @return \Drupal\views\Plugin\ViewsHandlerManager
+   */
+  public static function handlerManager($type) {
     return Drupal::service('plugin.manager.views.' . $type);
   }
 

@@ -79,14 +79,14 @@ abstract class QueryPluginBase extends PluginBase implements QueryInterface {
    * @param view $view
    *   The view which is executed.
    */
-  function add_signature(ViewExecutable $view) { }
+  public function addSignature(ViewExecutable $view) { }
 
   /**
    * Get aggregation info for group by queries.
    *
    * If NULL, aggregation is not allowed.
    */
-  function get_aggregation_info() { }
+  public function getAggregationInfo() { }
 
   public function validateOptionsForm(&$form, &$form_state) { }
 
@@ -99,14 +99,14 @@ abstract class QueryPluginBase extends PluginBase implements QueryInterface {
   /**
    * Set a LIMIT on the query, specifying a maximum number of results.
    */
-  function set_limit($limit) {
+  public function setLimit($limit) {
     $this->limit = $limit;
   }
 
   /**
    * Set an OFFSET on the query, specifying a number of results to skip
    */
-  function set_offset($offset) {
+  public function setOffset($offset) {
     $this->offset = $offset;
   }
 
@@ -131,7 +131,7 @@ abstract class QueryPluginBase extends PluginBase implements QueryInterface {
    * @return $group
    *   The group ID generated.
    */
-  function set_where_group($type = 'AND', $group = NULL, $where = 'where') {
+  public function setWhereGroup($type = 'AND', $group = NULL, $where = 'where') {
     // Set an alias.
     $groups = &$this->$where;
 
@@ -154,7 +154,7 @@ abstract class QueryPluginBase extends PluginBase implements QueryInterface {
    * @param $type
    *   Either 'AND' or 'OR'
    */
-  function set_group_operator($type = 'AND') {
+  public function setGroupOperator($type = 'AND') {
     $this->group_operator = strtoupper($type);
   }
 
@@ -167,7 +167,7 @@ abstract class QueryPluginBase extends PluginBase implements QueryInterface {
    *
    * Query plugins that don't support entities can leave the method empty.
    */
-  function load_entities(&$results) {}
+  function loadEntities(&$results) {}
 
   /**
    * Returns a Unix timestamp to database native timestamp expression.

@@ -14,7 +14,7 @@ use Drupal\views\ViewExecutable;
 /**
  * Abstract argument handler for simple formulae.
  *
- * Child classes of this object should implement summary_argument, at least.
+ * Child classes of this object should implement summaryArgument, at least.
  *
  * Definition terms:
  * - formula: The formula to use for this handler.
@@ -38,23 +38,23 @@ class Formula extends ArgumentPluginBase {
     }
   }
 
-  function get_formula() {
+  public function getFormula() {
     return str_replace('***table***', $this->tableAlias, $this->formula);
   }
 
   /**
    * Build the summary query based on a formula
    */
-  function summary_query() {
+  protected function summaryQuery() {
     $this->ensureMyTable();
     // Now that our table is secure, get our formula.
-    $formula = $this->get_formula();
+    $formula = $this->getFormula();
 
     // Add the field.
-    $this->base_alias = $this->name_alias = $this->query->add_field(NULL, $formula, $this->field);
-    $this->query->set_count_field(NULL, $formula, $this->field);
+    $this->base_alias = $this->name_alias = $this->query->addField(NULL, $formula, $this->field);
+    $this->query->setCountField(NULL, $formula, $this->field);
 
-    return $this->summary_basics(FALSE);
+    return $this->summaryBasics(FALSE);
   }
 
   /**
@@ -64,11 +64,11 @@ class Formula extends ArgumentPluginBase {
     $this->ensureMyTable();
     // Now that our table is secure, get our formula.
     $placeholder = $this->placeholder();
-    $formula = $this->get_formula() .' = ' . $placeholder;
+    $formula = $this->getFormula() .' = ' . $placeholder;
     $placeholders = array(
       $placeholder => $this->argument,
     );
-    $this->query->add_where(0, $formula, $placeholders, 'formula');
+    $this->query->addWhere(0, $formula, $placeholders, 'formula');
   }
 
 }

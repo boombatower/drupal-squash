@@ -7,14 +7,47 @@
 
 namespace Drupal\views_ui;
 
+use Drupal\Core\Entity\EntityControllerInterface;
 use Drupal\views\Plugin\views\wizard\WizardPluginBase;
 use Drupal\views\Plugin\views\wizard\WizardException;
-use Drupal\views\Views;
+use Drupal\views\Plugin\ViewsPluginManager;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
  * Form controller for the Views edit form.
  */
-class ViewAddFormController extends ViewFormControllerBase {
+class ViewAddFormController extends ViewFormControllerBase implements EntityControllerInterface {
+
+  /**
+   * The wizard plugin manager.
+   *
+   * @var \Drupal\views\Plugin\ViewsPluginManager
+   */
+  protected $wizardManager;
+
+  /**
+   * Constructs a new ViewEditFormController object.
+   *
+   * @param string $operation
+   *   The name of the current operation.
+   * @param \Drupal\views\Plugin\ViewsPluginManager $wizard_manager
+   *   The wizard plugin manager.
+   */
+  public function __construct($operation, ViewsPluginManager $wizard_manager) {
+    parent::__construct($operation);
+
+    $this->wizardManager = $wizard_manager;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public static function createInstance(ContainerInterface $container, $entity_type, array $entity_info, $operation = NULL) {
+    return new static(
+      $operation,
+      $container->get('plugin.manager.views.wizard')
+    );
+  }
 
   /**
    * {@inheritdoc}
@@ -97,7 +130,7 @@ class ViewAddFormController extends ViewFormControllerBase {
 
     // Create the "Show" dropdown, which allows the base table of the view to be
     // selected.
-    $wizard_plugins = Views::pluginManager('wizard')->getDefinitions();
+    $wizard_plugins = $this->wizardManager->getDefinitions();
     $options = array();
     foreach ($wizard_plugins as $key => $wizard) {
       $options[$key] = $wizard['title'];
@@ -116,8 +149,8 @@ class ViewAddFormController extends ViewFormControllerBase {
 
     // Build the rest of the form based on the currently selected wizard plugin.
     $wizard_key = $show_form['wizard_key']['#default_value'];
-    $wizard_instance = Views::pluginManager('wizard')->createInstance($wizard_key);
-    $form = $wizard_instance->build_form($form, $form_state);
+    $wizard_instance = $this->wizardManager->createInstance($wizard_key);
+    $form = $wizard_instance->buildForm($form, $form_state);
 
     return $form;
   }
@@ -144,8 +177,8 @@ class ViewAddFormController extends ViewFormControllerBase {
    */
   public function validate(array $form, array &$form_state) {
     $wizard_type = $form_state['values']['show']['wizard_key'];
-    $wizard_instance = Views::pluginManager('wizard')->createInstance($wizard_type);
-    $form_state['wizard'] = $wizard_instance->getDefinition();
+    $wizard_instance = $this->wizardManager->createInstance($wizard_type);
+    $form_state['wizard'] = $wizard_instance->getPluginDefinition();
     $form_state['wizard_instance'] = $wizard_instance;
     $errors = $form_state['wizard_instance']->validateView($form, $form_state);
 
@@ -161,7 +194,7 @@ class ViewAddFormController extends ViewFormControllerBase {
    */
   public function submit(array $form, array &$form_state) {
     try {
-      $view = $form_state['wizard_instance']->create_view($form, $form_state);
+      $view = $form_state['wizard_instance']->createView($form, $form_state);
     }
     // @todo Figure out whether it really makes sense to throw and catch exceptions on the wizard.
     catch (WizardException $e) {

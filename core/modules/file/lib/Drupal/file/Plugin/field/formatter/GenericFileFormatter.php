@@ -7,7 +7,7 @@
 
 namespace Drupal\file\Plugin\field\formatter;
 
-use Drupal\Component\Annotation\Plugin;
+use Drupal\field\Annotation\FieldFormatter;
 use Drupal\Core\Annotation\Translation;
 use Drupal\field\Plugin\Type\Formatter\FormatterBase;
 use Drupal\Core\Entity\EntityInterface;
@@ -15,7 +15,7 @@ use Drupal\Core\Entity\EntityInterface;
 /**
  * Plugin implementation of the 'file_default' formatter.
  *
- * @Plugin(
+ * @FieldFormatter(
  *   id = "file_default",
  *   module = "file",
  *   label = @Translation("Generic file"),
@@ -33,11 +33,13 @@ class GenericFileFormatter extends FormatterBase {
     $elements = array();
 
     foreach ($items as $delta => $item) {
-      $elements[$delta] = array(
-        '#theme' => 'file_link',
-        '#file' => file_load($item['fid']),
-        '#description' => $item['description'],
-      );
+      if ($item['display'] && $item['entity']) {
+        $elements[$delta] = array(
+          '#theme' => 'file_link',
+          '#file' => $item['entity'],
+          '#description' => $item['description'],
+        );
+      }
     }
 
     return $elements;

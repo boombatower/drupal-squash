@@ -24,7 +24,7 @@ class UserTranslationUITest extends EntityTranslationUITest {
    *
    * @var array
    */
-  public static $modules = array('language', 'translation_entity', 'user');
+  public static $modules = array('language', 'translation_entity', 'user', 'views');
 
   public static function getInfo() {
     return array(
@@ -39,6 +39,8 @@ class UserTranslationUITest extends EntityTranslationUITest {
     $this->testLanguageSelector = FALSE;
     $this->name = $this->randomName();
     parent::setUp();
+
+    entity_get_controller('user')->resetCache();
   }
 
   /**

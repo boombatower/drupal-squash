@@ -38,6 +38,14 @@ class PreviewTest extends UITestBase {
 
     $elements = $this->xpath('//div[@id="views-live-preview"]//ul[contains(@class, :ul-class)]/li[contains(@class, :li-class)]', array(':ul-class' => 'contextual-links', ':li-class' => 'filter-add'));
     $this->assertEqual(count($elements), 1, 'The contextual link to add a new field is shown.');
+
+    $this->drupalPost(NULL, $edit = array('view_args' => '100'), t('Update preview'));
+
+    // Test that area text and exposed filters are present and rendered.
+    $this->assertFieldByName('id', NULL, 'ID exposed filter field found.');
+    $this->assertText('Test header text', 'Rendered header text found');
+    $this->assertText('Test footer text', 'Rendered footer text found.');
+    $this->assertText('Test empty text', 'Rendered empty text found.');
   }
 
   /**
@@ -63,6 +71,26 @@ class PreviewTest extends UITestBase {
 
     $elements = $this->xpath('//div[@class = "view-content"]/div[contains(@class, views-row)]');
     $this->assertEqual(count($elements), 0);
+
+    // Test that area text and exposed filters are present and rendered.
+    $this->assertFieldByName('id', NULL, 'ID exposed filter field found.');
+    $this->assertText('Test header text', 'Rendered header text found');
+    $this->assertText('Test footer text', 'Rendered footer text found.');
+    $this->assertText('Test empty text', 'Rendered empty text found.');
+  }
+
+  /**
+   * Tests the actual preview response.
+   */
+  public function testPreviewController() {
+    $result = $this->drupalGetAJAX('admin/structure/views/view/test_preview/preview/default');
+
+    $result_commands = array();
+    // Build a list of the result commands keyed by the js command.
+    foreach ($result as $command) {
+      $result_commands[$command['command']] = $command;
+    }
+    $this->assertTrue(isset($result_commands['insert']));
   }
 
 }

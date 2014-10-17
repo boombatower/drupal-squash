@@ -5,8 +5,10 @@
  * Interface translation summary, editing and deletion user interfaces.
  */
 
+use Drupal\Core\Language\Language;
 use Drupal\locale\SourceString;
 use Drupal\locale\TranslationString;
+use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 /**
@@ -57,7 +59,7 @@ function locale_translate_filter_load_strings() {
     }
   }
 
-  return locale_storage()->getTranslations($conditions, $options);
+  return Drupal::service('locale.storage')->getTranslations($conditions, $options);
 }
 
 /**
@@ -107,7 +109,7 @@ function locale_translate_filters() {
   }
 
   // Pick the current interface language code for the filter.
-  $default_langcode = language(LANGUAGE_TYPE_INTERFACE)->langcode;
+  $default_langcode = language(Language::TYPE_INTERFACE)->langcode;
   if (!isset($language_options[$default_langcode])) {
     $available_langcodes = array_keys($language_options);
     $default_langcode = array_shift($available_langcodes);
@@ -163,7 +165,7 @@ function locale_translate_filter_form($form, &$form_state) {
   $filter_values = locale_translate_filter_values();
 
   $form['#attached']['css'] = array(
-    drupal_get_path('module', 'locale') . '/locale.admin.css',
+    drupal_get_path('module', 'locale') . '/css/locale.admin.css',
   );
 
   $form['filters'] = array(
@@ -260,7 +262,7 @@ function locale_translate_edit_form($form, &$form_state) {
 
   $path = drupal_get_path('module', 'locale');
   $form['#attached']['css'] = array(
-    $path . '/locale.admin.css',
+    $path . '/css/locale.admin.css',
   );
   $form['#attached']['library'][] = array('locale', 'drupal.locale.admin');
 
@@ -279,7 +281,7 @@ function locale_translate_edit_form($form, &$form_state) {
   if (isset($langcode)) {
     $strings = locale_translate_filter_load_strings();
 
-    $plural_formulas = state()->get('locale.translation.plurals') ?: array();
+    $plural_formulas = Drupal::state()->get('locale.translation.plurals') ?: array();
 
     foreach ($strings as $string) {
       // Cast into source string, will do for our purposes.
@@ -295,9 +297,9 @@ function locale_translate_edit_form($form, &$form_state) {
         );
         $form['strings'][$string->lid]['original'] = array(
           '#type' => 'item',
-          '#title' => t('Source string'),
+          '#title' => t('Source string (@language)', array('@language' => t('Built-in English'))),
           '#title_display' => 'invisible',
-          '#markup' => check_plain($source_array[0]),
+          '#markup' => '<span lang="en">' . check_plain($source_array[0]) . '</span>',
         );
       }
       else {
@@ -309,18 +311,19 @@ function locale_translate_edit_form($form, &$form_state) {
         $form['strings'][$string->lid]['original_singular'] = array(
           '#type' => 'item',
           '#title' => t('Singular form'),
-          '#markup' => check_plain($source_array[0]),
+          '#markup' => '<span lang="en">' . check_plain($source_array[0]) . '</span>',
+          '#prefix' => '<span class="visually-hidden">' . t('Source string (@language)', array('@language' => t('Built-in English'))) . '</span>',
         );
         $form['strings'][$string->lid]['original_plural'] = array(
           '#type' => 'item',
           '#title' => t('Plural form'),
-          '#markup' => check_plain($source_array[1]),
+          '#markup' => '<span lang="en">' . check_plain($source_array[1]) . '</span>',
         );
       }
       if (!empty($string->context)) {
         $form['strings'][$string->lid]['context'] = array(
           '#type' => 'value',
-          '#value' => check_plain($string->context),
+          '#value' => '<span lang="en">' . check_plain($string->context) . '</span>',
         );
       }
       // Approximate the number of rows to use in the default textarea.
@@ -328,10 +331,11 @@ function locale_translate_edit_form($form, &$form_state) {
       if (empty($form['strings'][$string->lid]['plural']['#value'])) {
         $form['strings'][$string->lid]['translations'][0] = array(
           '#type' => 'textarea',
-          '#title' => t('Translated string'),
+          '#title' => t('Translated string (@language)', array('@language' => $langname)),
           '#title_display' => 'invisible',
           '#rows' => $rows,
           '#default_value' => $translation_array[0],
+          '#attributes' => array('lang' => $langcode),
         );
       }
       else {
@@ -344,6 +348,8 @@ function locale_translate_edit_form($form, &$form_state) {
               '#title' => ($i == 0 ? t('Singular form') : format_plural($i, 'First plural form', '@count. plural form')),
               '#rows' => $rows,
               '#default_value' => isset($translation_array[$i]) ? $translation_array[$i] : '',
+              '#attributes' => array('lang' => $langcode),
+              '#prefix' => $i == 0 ? ('<span class="visually-hidden">' . t('Translated string (@language)',  array('@language' => $langname)) . '</span>') : '',
             );
           }
         }
@@ -354,12 +360,15 @@ function locale_translate_edit_form($form, &$form_state) {
             '#title' => t('Singular form'),
             '#rows' => $rows,
             '#default_value' => $translation_array[0],
+            '#attributes' => array('lang' => $langcode),
+            '#prefix' => '<span class="visually-hidden">' . t('Translated string (@language)',  array('@language' => $langname)) . '</span>',
           );
           $form['strings'][$string->lid]['translations'][1] = array(
             '#type' => 'textarea',
             '#title' => t('Plural form'),
             '#rows' => $rows,
             '#default_value' => isset($translation_array[1]) ? $translation_array[1] : '',
+            '#attributes' => array('lang' => $langcode),
           );
         }
       }
@@ -402,7 +411,7 @@ function locale_translate_edit_form_submit($form, &$form_state) {
   // Preload all translations for strings in the form.
   $lids = array_keys($form_state['values']['strings']);
   $existing_translation_objects = array();
-  foreach (locale_storage()->getTranslations(array('lid' => $lids, 'language' => $langcode, 'translated' => TRUE)) as $existing_translation_object) {
+  foreach (Drupal::service('locale.storage')->getTranslations(array('lid' => $lids, 'language' => $langcode, 'translated' => TRUE)) as $existing_translation_object) {
     $existing_translation_objects[$existing_translation_object->lid] = $existing_translation_object;
   }
 
@@ -431,7 +440,7 @@ function locale_translate_edit_form_submit($form, &$form_state) {
 
     if ($is_changed) {
       // Only update or insert if we have a value to use.
-      $target = isset($existing_translation_objects[$lid]) ? $existing_translation_objects[$lid] : locale_storage()->createTranslation(array('lid' => $lid, 'language' => $langcode));
+      $target = isset($existing_translation_objects[$lid]) ? $existing_translation_objects[$lid] : Drupal::service('locale.storage')->createTranslation(array('lid' => $lid, 'language' => $langcode));
       $target->setPlurals($new_translation['translations'])
         ->setCustomized()
         ->save();
@@ -478,9 +487,9 @@ function locale_translation_manual_status() {
   // Execute a batch if required. A batch is only used when remote files
   // are checked.
   if (batch_get()) {
-    batch_process('admin/reports/translations');
+    return batch_process('admin/reports/translations');
   }
-  drupal_goto('admin/reports/translations');
+  return new RedirectResponse(url('admin/reports/translations', array('absolute' => TRUE)));
 }
 
 /**
@@ -500,7 +509,7 @@ function locale_translation_status_form($form, &$form_state) {
   $project_data = locale_translation_build_projects();
   $languages = locale_translatable_language_list();
   $projects = locale_translation_get_projects();
-  $status = state()->get('locale.translation_status');
+  $status = Drupal::state()->get('locale.translation_status');
 
   // Prepare information about projects which have available translation
   // updates.
@@ -543,9 +552,10 @@ function locale_translation_status_form($form, &$form_state) {
     uasort($options, 'drupal_sort_title');
   }
 
-  $last_checked = state()->get('locale.translation_last_checked');
+  $last_checked = Drupal::state()->get('locale.translation_last_checked');
   $form['last_checked'] = array(
-    '#markup' => '<p>' . theme('locale_translation_last_check', array('last' => $last_checked)) . '</p>',
+    '#theme' => 'locale_translation_last_check',
+    '#last' => $last_checked,
   );
 
   $header = array(
@@ -583,7 +593,7 @@ function locale_translation_status_form($form, &$form_state) {
   );
 
   $form['#attached']['library'][] = array('locale', 'drupal.locale.admin');
-  $form['#attached']['css'] = array(drupal_get_path('module', 'locale') . '/locale.admin.css');
+  $form['#attached']['css'] = array(drupal_get_path('module', 'locale') . '/css/locale.admin.css');
 
   $form['actions'] = array('#type' => 'actions');
   if ($languages_update) {
@@ -620,7 +630,7 @@ function locale_translation_status_form_submit($form, &$form_state) {
   // If the status was updated recently we can immediately start fetching the
   // translation updates. If the status is expired we clear it an run a batch to
   // update the status and then fetch the translation updates.
-  $last_checked = state()->get('locale.translation_last_checked');
+  $last_checked = Drupal::state()->get('locale.translation_last_checked');
   if ($last_checked < REQUEST_TIME - LOCALE_TRANSLATION_STATUS_TTL) {
     locale_translation_clear_status();
     $batch = locale_translation_batch_update_build(array(), $langcodes, $options);
@@ -735,7 +745,11 @@ function theme_locale_translate_edit_form_strings($variables) {
 }
 
 /**
- * Returns HTML for translation status information per language.
+ * Prepares variables for translation status information templates.
+ *
+ * Translation status information is displayed per language.
+ *
+ * Default template: locale-translate-edit-form-strings.html.twig.
  *
  * @param array $variables
  *   An associative array containing:
@@ -743,10 +757,9 @@ function theme_locale_translate_edit_form_strings($variables) {
  *   - not_found: The projects which updates are not found.
  *
  * @see locale_translation_status_form()
- * @ingroup themeable
  */
-function theme_locale_translation_update_info($variables) {
-  $description = $details = '';
+function template_preprocess_locale_translation_update_info(&$variables) {
+  $details = array();
 
   // Build output for available updates.
   if (isset($variables['updates'])) {
@@ -756,16 +769,17 @@ function theme_locale_translation_update_info($variables) {
         $modules[] = $update['name'];
         $releases[] = t('@module (@date)', array('@module' => $update['name'], '@date' => format_date($update['timestamp'], 'html_date')));
       }
+      $variables['modules'] = $modules;
     }
-    $description = '<span class="text">' . t('Updates for: @modules', array('@modules' => implode(', ', $modules))) . '</span>';
-    $details = theme('item_list', array('items' => $releases));
+    $details['available_updates_list'] = array(
+      '#theme' => 'item_list',
+      '#items' => $releases,
+    );
   }
 
   // Build output for updates not found.
   if (isset($variables['not_found'])) {
-    if (empty($description)) {
-      $description = '<span class="text">' . format_plural(count($variables['not_found']), 'Missing translations for one project', 'Missing translations for @count projects') . '</span>';
-    }
+    $variables['missing_updates_status'] = format_plural(count($variables['not_found']), 'Missing translations for one project', 'Missing translations for @count projects');
     if ($variables['not_found']) {
       $releases = array();
       foreach ($variables['not_found'] as $update) {
@@ -773,38 +787,38 @@ function theme_locale_translation_update_info($variables) {
         $releases[] = t('@module (@version).', array('@module' => $update['name'], '@version' => $version)) . ' ' . $update['info'];
       }
     }
-    if ($details) {
-      $details .= t('Missing translations for:');
+    $details['missing_updates_list'] = array(
+      '#theme' => 'item_list',
+      '#items' => $releases,
+    );
+    // Prefix the missing updates list if there is an available updates lists
+    // before it.
+    if (!empty($details['available_updates_list']['#items'])) {
+      $details['missing_updates_list']['#prefix'] = t('Missing translations for:');
     }
-    $details .= theme('item_list', array('items' => $releases));
   }
-
-  $output = '<div class="inner" tabindex="0" role="button">';
-  $output .= '<span class="update-description-prefix element-invisible">Show description</span>' . $description;
-  $output .= $details ? '<div class="details">' . $details . '</div>' : '';
-  $output .= '</div>';
-  return $output;
+  $variables['details'] = $details;
 }
 
 /**
- * Returns HTML for the last time we checked for update data.
+ * Prepares variables for most recent translation update templates.
  *
- * In addition to properly formatting the given timestamp, this function also
- * provides a "Check manually" link that refreshes the available update and
- * redirects back to the same page.
+ * Displays the last time we checked for locale update data. In addition to
+ * properly formatting the given timestamp, this function also provides a "Check
+ * manually" link that refreshes the available update and redirects back to the
+ * same page.
+ *
+ * Default template: locale-translation-last-check.html.twig.
  *
  * @param $variables
  *   An associative array containing:
  *   - last: The timestamp when the site last checked for available updates.
  *
  * @see locale_translation_status_form()
- * @ingroup themeable
  */
-function theme_locale_translation_last_check($variables) {
+function template_preprocess_locale_translation_last_check(&$variables) {
   $last = $variables['last'];
-  $output = '<div class="locale checked">';
-  $output .= $last ? t('Last checked: @time ago', array('@time' => format_interval(REQUEST_TIME - $last))) : t('Last checked: never');
-  $output .= ' <span class="check-manually">(' . l(t('Check manually'), 'admin/reports/translations/check', array('query' => drupal_get_destination())) . ')</span>';
-  $output .= "</div>\n";
-  return $output;
+  $variables['last_checked'] = ($last != NULL);
+  $variables['time'] = format_interval(REQUEST_TIME - $last);
+  $variables['link'] = l(t('Check manually'), 'admin/reports/translations/check', array('query' => drupal_get_destination()));
 }

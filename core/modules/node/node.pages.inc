@@ -10,22 +10,7 @@
  */
 
 use Drupal\Core\Entity\EntityInterface;
-
-/**
- * Page callback: Presents the node editing form.
- *
- * @param object $node
- *   A node object.
- *
- * @return array
- *   A form array as expected by drupal_render().
- *
- * @see node_menu()
- */
-function node_page_edit($node) {
-  drupal_set_title(t('<em>Edit @type</em> @title', array('@type' => node_get_type_label($node), '@title' => $node->label())), PASS_THROUGH);
-  return entity_get_form($node);
-}
+use Symfony\Component\HttpFoundation\RedirectResponse;
 
 /**
  * Page callback: Displays add content links for available content types.
@@ -43,14 +28,14 @@ function node_add_page() {
   $content = array();
   // Only use node types the user has access to.
   foreach (node_type_get_types() as $type) {
-    if (node_hook($type->type, 'form') && node_access('create', $type->type)) {
+    if (node_access('create', $type->type)) {
       $content[$type->type] = $type;
     }
   }
   // Bypass the node/add listing if only one content type is available.
   if (count($content) == 1) {
     $type = array_shift($content);
-    drupal_goto('node/add/' . $type->type);
+    return new RedirectResponse(url('node/add/' . $type->type, array('absolute' => TRUE)));
   }
   return array('#theme' => 'node_add_list', '#content' => $content);
 }
@@ -108,9 +93,7 @@ function node_add($node_type) {
     'langcode' => $langcode ? $langcode : language_default()->langcode,
   ))->getBCEntity();
   drupal_set_title(t('Create @name', array('@name' => $node_type->name)), PASS_THROUGH);
-  $output = entity_get_form($node);
-
-  return $output;
+  return Drupal::entityManager()->getForm($node);
 }
 
 /**
@@ -148,7 +131,11 @@ function node_preview(EntityInterface $node) {
     // Display a preview of the node.
     if (!form_get_errors()) {
       $node->in_preview = TRUE;
-      $output = theme('node_preview', array('node' => $node));
+      $node_preview = array(
+        '#theme' => 'node_preview',
+        '#node' => $node,
+      );
+      $output = drupal_render($node_preview);
       unset($node->in_preview);
     }
 
@@ -224,7 +211,7 @@ function node_delete_confirm($form, &$form_state, $node) {
 function node_delete_confirm_submit($form, &$form_state) {
   if ($form_state['values']['confirm']) {
     $node = node_load($form_state['values']['nid']);
-    node_delete($form_state['values']['nid']);
+    $node->delete();
     watchdog('content', '@type: deleted %title.', array('@type' => $node->type, '%title' => $node->label()));
     drupal_set_message(t('@type %title has been deleted.', array('@type' => node_get_type_label($node), '%title' => $node->label())));
   }
@@ -265,13 +252,21 @@ function node_revision_overview($node) {
     $row = array();
     $type = $node->type;
     if ($revision->current_vid > 0) {
-      $row[] = array('data' => t('!date by !username', array('!date' => l(format_date($revision->timestamp, 'short'), "node/$node->nid"), '!username' => theme('username', array('account' => $revision))))
+      $username = array(
+        '#theme' => 'username',
+        '#account' => $revision,
+      );
+      $row[] = array('data' => t('!date by !username', array('!date' => l(format_date($revision->revision_timestamp, 'short'), "node/$node->nid"), '!username' => drupal_render($username)))
                                . (($revision->log != '') ? '<p class="revision-log">' . filter_xss($revision->log) . '</p>' : ''),
                      'class' => array('revision-current'));
       $row[] = array('data' => drupal_placeholder(t('current revision')), 'class' => array('revision-current'));
     }
     else {
-      $row[] = t('!date by !username', array('!date' => l(format_date($revision->timestamp, 'short'), "node/$node->nid/revisions/$revision->vid/view"), '!username' => theme('username', array('account' => $revision))))
+      $username = array(
+        '#theme' => 'username',
+        '#account' => $revision,
+      );
+      $row[] = t('!date by !username', array('!date' => l(format_date($revision->revision_timestamp, 'short'), "node/$node->nid/revisions/$revision->vid/view"), '!username' => drupal_render($username)))
                . (($revision->log != '') ? '<p class="revision-log">' . filter_xss($revision->log) . '</p>' : '');
       if ($revert_permission) {
         $links['revert'] = array(
@@ -300,7 +295,7 @@ function node_revision_overview($node) {
     '#rows' => $rows,
     '#header' => $header,
     '#attached' => array (
-      'css' => array(drupal_get_path('module', 'node') . '/node.admin.css'),
+      'css' => array(drupal_get_path('module', 'node') . '/css/node.admin.css'),
     ),
   );
 
@@ -379,7 +374,7 @@ function node_revision_delete_confirm_submit($form, &$form_state) {
   watchdog('content', '@type: deleted %title revision %revision.', array('@type' => $node_revision->type, '%title' => $node_revision->label(), '%revision' => $node_revision->vid));
   drupal_set_message(t('Revision from %revision-date of @type %title has been deleted.', array('%revision-date' => format_date($node_revision->revision_timestamp), '@type' => node_get_type_label($node_revision), '%title' => $node_revision->label())));
   $form_state['redirect'] = 'node/' . $node_revision->nid;
-  if (db_query('SELECT COUNT(vid) FROM {node_revision} WHERE nid = :nid', array(':nid' => $node_revision->nid))->fetchField() > 1) {
+  if (db_query('SELECT COUNT(DISTINCT vid) FROM {node_field_revision} WHERE nid = :nid', array(':nid' => $node_revision->nid))->fetchField() > 1) {
     $form_state['redirect'] .= '/revisions';
   }
 }

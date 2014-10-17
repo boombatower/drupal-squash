@@ -9,7 +9,6 @@ namespace Drupal\Core\Entity;
 
 use Drupal\Core\Language\Language;
 use Drupal\Core\TypedData\TypedDataInterface;
-use Drupal\Component\Uuid\Uuid;
 use ArrayIterator;
 use InvalidArgumentException;
 
@@ -37,18 +36,15 @@ class EntityNG extends Entity {
    * The plain data values of the contained fields.
    *
    * This always holds the original, unchanged values of the entity. The values
-   * are keyed by language code, whereas LANGUAGE_DEFAULT is used for values in
-   * default language.
+   * are keyed by language code, whereas Language::LANGCODE_DEFAULT is used for
+   * values in default language.
    *
    * @todo: Add methods for getting original fields and for determining
    * changes.
-   * @todo: Provide a better way for defining default values.
    *
    * @var array
    */
-  protected $values = array(
-    'langcode' => array(LANGUAGE_DEFAULT => array(0 => array('value' => LANGUAGE_NOT_SPECIFIED))),
-  );
+  protected $values = array();
 
   /**
    * The array of fields, each being an instance of FieldInterface.
@@ -74,6 +70,13 @@ class EntityNG extends Entity {
   protected $fieldDefinitions;
 
   /**
+   * Local cache for URI placeholder substitution values.
+   *
+   * @var array
+   */
+  protected $uriPlaceholderReplacements;
+
+  /**
    * Overrides Entity::__construct().
    */
   public function __construct(array $values, $entity_type, $bundle = FALSE) {
@@ -82,8 +85,8 @@ class EntityNG extends Entity {
     foreach ($values as $key => $value) {
       // If the key matches an existing property set the value to the property
       // to ensure non converted properties have the correct value.
-      if (property_exists($this, $key) && isset($value[LANGUAGE_DEFAULT])) {
-        $this->$key = $value[LANGUAGE_DEFAULT];
+      if (property_exists($this, $key) && isset($value[Language::LANGCODE_DEFAULT])) {
+        $this->$key = $value[Language::LANGCODE_DEFAULT];
       }
       $this->values[$key] = $value;
     }
@@ -136,15 +139,70 @@ class EntityNG extends Entity {
   }
 
   /**
+   * {@inheritdoc}
+   */
+  public function uri($rel = 'canonical') {
+    $entity_info = $this->entityInfo();
+
+    $link_templates = isset($entity_info['links']) ? $entity_info['links'] : array();
+
+    if (isset($link_templates[$rel])) {
+      $template = $link_templates[$rel];
+      $replacements = $this->uriPlaceholderReplacements();
+      $uri['path'] = str_replace(array_keys($replacements), array_values($replacements), $template);
+
+      // @todo Remove this once http://drupal.org/node/1888424 is in and we can
+      //   move the BC handling of / vs. no-/ to the generator.
+      $uri['path'] = trim($uri['path'], '/');
+
+      // Pass the entity data to url() so that alter functions do not need to
+      // look up this entity again.
+      $uri['options']['entity_type'] = $this->entityType;
+      $uri['options']['entity'] = $this;
+      return $uri;
+    }
+
+    // For a canonical link (that is, a link to self), look up the stack for
+    // default logic. Other relationship types are not supported by parent
+    // classes.
+    if ($rel == 'canonical') {
+      return parent::uri();
+    }
+  }
+
+  /**
+   * Returns an array of placeholders for this entity.
+   *
+   * Individual entity classes may override this method to add additional
+   * placeholders if desired. If so, they should be sure to replicate the
+   * property caching logic.
+   *
+   * @return array
+   *   An array of URI placeholders.
+   */
+  protected function uriPlaceholderReplacements() {
+    if (empty($this->uriPlaceholderReplacements)) {
+      $this->uriPlaceholderReplacements = array(
+        '{entityType}' => $this->entityType(),
+        '{bundle}' => $this->bundle(),
+        '{id}' => $this->id(),
+        '{uuid}' => $this->uuid(),
+        '{' . $this->entityType() . '}' => $this->id(),
+      );
+    }
+    return $this->uriPlaceholderReplacements;
+  }
+
+  /**
    * Implements \Drupal\Core\TypedData\ComplexDataInterface::get().
    */
   public function get($property_name) {
-    // Values in default language are always stored using the LANGUAGE_DEFAULT
-    // constant.
-    if (!isset($this->fields[$property_name][LANGUAGE_DEFAULT])) {
-      return $this->getTranslatedField($property_name, LANGUAGE_DEFAULT);
+    // Values in default language are always stored using the
+    // Language::LANGCODE_DEFAULT constant.
+    if (!isset($this->fields[$property_name][Language::LANGCODE_DEFAULT])) {
+      return $this->getTranslatedField($property_name, Language::LANGCODE_DEFAULT);
     }
-    return $this->fields[$property_name][LANGUAGE_DEFAULT];
+    return $this->fields[$property_name][Language::LANGCODE_DEFAULT];
   }
 
   /**
@@ -160,17 +218,17 @@ class EntityNG extends Entity {
       if (!$definition) {
         throw new InvalidArgumentException('Field ' . check_plain($property_name) . ' is unknown.');
       }
-      // Non-translatable fields are always stored with LANGUAGE_DEFAULT as key.
-      if ($langcode != LANGUAGE_DEFAULT && empty($definition['translatable'])) {
-        $this->fields[$property_name][$langcode] = $this->getTranslatedField($property_name, LANGUAGE_DEFAULT);
+      // Non-translatable fields are always stored with
+      // Language::LANGCODE_DEFAULT as key.
+      if ($langcode != Language::LANGCODE_DEFAULT && empty($definition['translatable'])) {
+        $this->fields[$property_name][$langcode] = $this->getTranslatedField($property_name, Language::LANGCODE_DEFAULT);
       }
       else {
         $value = NULL;
         if (isset($this->values[$property_name][$langcode])) {
           $value = $this->values[$property_name][$langcode];
         }
-        // @todo: Make entities implement the TypedDataInterface.
-        $this->fields[$property_name][$langcode] = typed_data()->getPropertyInstance($this, $property_name, $value);
+        $this->fields[$property_name][$langcode] = \Drupal::typedData()->getPropertyInstance($this, $property_name, $value);
       }
     }
     return $this->fields[$property_name][$langcode];
@@ -223,10 +281,8 @@ class EntityNG extends Entity {
    */
   public function getPropertyDefinitions() {
     if (!isset($this->fieldDefinitions)) {
-      $this->fieldDefinitions = \Drupal::entityManager()->getStorageController($this->entityType)->getFieldDefinitions(array(
-        'EntityType' => $this->entityType,
-        'Bundle' => $this->bundle,
-      ));
+      $bundle = $this->bundle != $this->entityType ? $this->bundle : NULL;
+      $this->fieldDefinitions = \Drupal::entityManager()->getFieldDefinitions($this->entityType, $bundle);
     }
     return $this->fieldDefinitions;
   }
@@ -276,7 +332,7 @@ class EntityNG extends Entity {
     }
     if (empty($language)) {
       // Make sure we return a proper language object.
-      $language = new Language(array('langcode' => LANGUAGE_NOT_SPECIFIED));
+      $language = new Language(array('langcode' => Language::LANGCODE_NOT_SPECIFIED));
     }
     return $language;
   }
@@ -287,15 +343,15 @@ class EntityNG extends Entity {
    * @return \Drupal\Core\Entity\Field\Type\EntityTranslation
    */
   public function getTranslation($langcode, $strict = TRUE) {
-    // If the default language is LANGUAGE_NOT_SPECIFIED, the entity is not
-    // translatable, so we use LANGUAGE_DEFAULT.
-    if ($langcode == LANGUAGE_DEFAULT || in_array($this->language()->langcode, array(LANGUAGE_NOT_SPECIFIED, $langcode))) {
+    // If the default language is Language::LANGCODE_NOT_SPECIFIED, the entity is not
+    // translatable, so we use Language::LANGCODE_DEFAULT.
+    if ($langcode == Language::LANGCODE_DEFAULT || in_array($this->language()->langcode, array(Language::LANGCODE_NOT_SPECIFIED, $langcode))) {
       // No translation needed, return the entity.
       return $this;
     }
     // Check whether the language code is valid, thus is of an available
     // language.
-    $languages = language_list(LANGUAGE_ALL);
+    $languages = language_list(Language::STATE_ALL);
     if (!isset($languages[$langcode])) {
       throw new InvalidArgumentException("Unable to get translation for the invalid language '$langcode'.");
     }
@@ -316,7 +372,7 @@ class EntityNG extends Entity {
         'bundle' => $this->bundle(),
       ),
     );
-    $translation = typed_data()->create($translation_definition, $fields);
+    $translation = \Drupal::typedData()->create($translation_definition, $fields);
     $translation->setStrictMode($strict);
     $translation->setContext('@' . $langcode, $this);
     return $translation;
@@ -327,6 +383,7 @@ class EntityNG extends Entity {
    */
   public function getTranslationLanguages($include_default = TRUE) {
     $translations = array();
+    $definitions = $this->getPropertyDefinitions();
     // Build an array with the translation langcodes set as keys. Empty
     // translations should not be included and must be skipped.
     foreach ($this->getProperties() as $name => $property) {
@@ -338,22 +395,22 @@ class EntityNG extends Entity {
           foreach ($this->values[$name] as $langcode => $values) {
             // If a value is there but the field object is empty, it has been
             // unset, so we need to skip the field also.
-            if ($values && !(isset($this->fields[$name][$langcode]) && $this->fields[$name][$langcode]->isEmpty())) {
+            if ($values && !empty($definitions[$name]['translatable']) && !(isset($this->fields[$name][$langcode]) && $this->fields[$name][$langcode]->isEmpty())) {
               $translations[$langcode] = TRUE;
             }
           }
         }
       }
     }
-    // We include the default language code instead of the LANGUAGE_DEFAULT
-    // constant.
-    unset($translations[LANGUAGE_DEFAULT]);
+    // We include the default language code instead of the
+    // Language::LANGCODE_DEFAULT constant.
+    unset($translations[Language::LANGCODE_DEFAULT]);
 
     if ($include_default) {
       $translations[$this->language()->langcode] = TRUE;
     }
     // Now load language objects based upon translation langcodes.
-    return array_intersect_key(language_list(LANGUAGE_ALL), $translations);
+    return array_intersect_key(language_list(Language::STATE_ALL), $translations);
   }
 
   /**
@@ -387,6 +444,7 @@ class EntityNG extends Entity {
     foreach ($this->getPropertyDefinitions() as $name => $definition) {
       if (empty($definition['computed']) && !empty($this->fields[$name])) {
         foreach ($this->fields[$name] as $langcode => $field) {
+          $field->filterEmptyValues();
           $this->values[$name][$langcode] = $field->getValue();
         }
       }
@@ -402,15 +460,15 @@ class EntityNG extends Entity {
   public function &__get($name) {
     // If this is an entity field, handle it accordingly. We first check whether
     // a field object has been already created. If not, we create one.
-    if (isset($this->fields[$name][LANGUAGE_DEFAULT])) {
-      return $this->fields[$name][LANGUAGE_DEFAULT];
+    if (isset($this->fields[$name][Language::LANGCODE_DEFAULT])) {
+      return $this->fields[$name][Language::LANGCODE_DEFAULT];
     }
     // Inline getPropertyDefinition() to speed up things.
     if (!isset($this->fieldDefinitions)) {
       $this->getPropertyDefinitions();
     }
     if (isset($this->fieldDefinitions[$name])) {
-      $return = $this->getTranslatedField($name, LANGUAGE_DEFAULT);
+      $return = $this->getTranslatedField($name, Language::LANGCODE_DEFAULT);
       return $return;
     }
     // Allow the EntityBCDecorator to directly access the values and fields.
@@ -438,11 +496,11 @@ class EntityNG extends Entity {
     }
     // If this is an entity field, handle it accordingly. We first check whether
     // a field object has been already created. If not, we create one.
-    if (isset($this->fields[$name][LANGUAGE_DEFAULT])) {
-      $this->fields[$name][LANGUAGE_DEFAULT]->setValue($value);
+    if (isset($this->fields[$name][Language::LANGCODE_DEFAULT])) {
+      $this->fields[$name][Language::LANGCODE_DEFAULT]->setValue($value);
     }
     elseif ($this->getPropertyDefinition($name)) {
-      $this->getTranslatedField($name, LANGUAGE_DEFAULT)->setValue($value);
+      $this->getTranslatedField($name, Language::LANGCODE_DEFAULT)->setValue($value);
     }
     // Else directly read/write plain values. That way, fields not yet converted
     // to the entity field API can always be directly accessed.
@@ -485,8 +543,7 @@ class EntityNG extends Entity {
 
     // Check if the entity type supports UUIDs and generate a new one if so.
     if (!empty($entity_info['entity_keys']['uuid'])) {
-      $uuid = new Uuid();
-      $duplicate->{$entity_info['entity_keys']['uuid']}->value = $uuid->generate();
+      $duplicate->{$entity_info['entity_keys']['uuid']}->applyDefaultValue();
     }
 
     // Check whether the entity type supports revisions and initialize it if so.
@@ -524,5 +581,13 @@ class EntityNG extends Entity {
       $label = $this->{$entity_info['entity_keys']['label']}->value;
     }
     return $label;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function validate() {
+    // @todo: Add the typed data manager as proper dependency.
+    return \Drupal::typedData()->getValidator()->validate($this);
   }
 }

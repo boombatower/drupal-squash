@@ -5,7 +5,9 @@
  */
 
 use Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Language\Language;
 use Drupal\Core\Template\Attribute;
+use Drupal\field\FieldInterface;
 
 /*
  * Load all public Field API functions. Drupal currently has no
@@ -73,8 +75,7 @@ require_once __DIR__ . '/field.form.inc';
  *   field_sql_storage.module, stores field data in the local SQL database.
  *
  * - @link field_purge Field API bulk data deletion @endlink: Cleans up after
- *   bulk deletion operations such as field_delete_field() and
- *   field_delete_instance().
+ *   bulk deletion operations such as deletion of field or field_instance.
  *
  * - @link field_language Field language API @endlink: Provides native
  *   multilingual support for the Field API.
@@ -268,11 +269,14 @@ function field_entity_create(EntityInterface $entity) {
  *   Defaults to the entity language.
  */
 function field_populate_default_values(EntityInterface $entity, $langcode = NULL) {
+  // Ensure we are working with a BC mode entity.
+  $entity = $entity->getBCEntity();
+
   $entity_type = $entity->entityType();
   $langcode = $langcode ?: $entity->language()->langcode;
   foreach (field_info_instances($entity_type, $entity->bundle()) as $field_name => $instance) {
     $field = field_info_field($field_name);
-    $field_langcode = field_is_translatable($entity_type, $field) ? $langcode : LANGUAGE_NOT_SPECIFIED;
+    $field_langcode = field_is_translatable($entity_type, $field) ? $langcode : Language::LANGCODE_NOT_SPECIFIED;
     // We need to preserve existing values.
     if (empty($entity->{$field_name}) || !array_key_exists($field_langcode, $entity->{$field_name})) {
       $items = field_get_default_value($entity, $field, $instance, $field_langcode);
@@ -497,8 +501,8 @@ function field_get_default_value(EntityInterface $entity, $field, $instance, $la
 /**
  * Filters out empty field values.
  *
- * @param $field
- *   The field definition.
+ * @param $field_type
+ *   The field type.
  * @param $items
  *   The field values to filter.
  *
@@ -506,11 +510,12 @@ function field_get_default_value(EntityInterface $entity, $field, $instance, $la
  *   The array of items without empty field values. The function also renumbers
  *   the array keys to ensure sequential deltas.
  */
-function _field_filter_items($field, $items) {
-  $function = $field['module'] . '_field_is_empty';
+function _field_filter_items($field_type, $items) {
+  $field_type_info = field_info_field_types($field_type);
+  $function = $field_type_info['module'] . '_field_is_empty';
   foreach ((array) $items as $delta => $item) {
     // Explicitly break if the function is undefined.
-    if ($function($item, $field)) {
+    if ($function($item, $field_type)) {
       unset($items[$delta]);
     }
   }
@@ -669,7 +674,7 @@ function field_cache_clear() {
  *   UTF-8.
  */
 function field_filter_xss($string) {
-  return filter_xss($string, _field_filter_xss_allowed_tags());
+  return _filter_htmlcorrector(filter_xss($string, _field_filter_xss_allowed_tags()));
 }
 
 /**
@@ -804,7 +809,7 @@ function field_view_field(EntityInterface $entity, $field_name, $display_options
     $formatter_manager = drupal_container()->get('plugin.manager.field.formatter');
     $display_options = $formatter_manager->prepareConfiguration($field['type'], $display_options);
     $formatter = $formatter_manager->getInstance(array(
-      'instance' => $instance,
+      'field_definition' => $instance,
       'view_mode' => $view_mode,
       'prepare' => FALSE,
       'configuration' => $display_options,
@@ -880,52 +885,14 @@ function field_get_items(EntityInterface $entity, $field_name, $langcode = NULL)
 }
 
 /**
- * Determines whether a field has any data.
- *
- * @param $field
- *   A field structure.
- *
- * @return
- *   TRUE if the field has data for any entity; FALSE otherwise.
- */
-function field_has_data($field) {
-  $columns = array_keys($field['columns']);
-  $factory = Drupal::service('entity.query');
-  foreach ($field['bundles'] as $entity_type => $bundle) {
-    // Entity Query throws an exception if there is no base table.
-    $entity_info = entity_get_info($entity_type);
-    if (!isset($entity_info['base_table'])) {
-      continue;
-    }
-    $query = $factory->get($entity_type);
-    $group = $query->orConditionGroup();
-    foreach ($columns as $column) {
-      $group->exists($field['field_name'] . '.' . $column);
-    }
-    $result = $query
-      ->condition($group)
-      ->count()
-      ->accessCheck(FALSE)
-      ->range(0, 1)
-      ->execute();
-    if ($result) {
-      return TRUE;
-    }
-  }
-
-  return FALSE;
-}
-
-/**
  * Determines whether the user has access to a given field.
  *
  * @param string $op
  *   The operation to be performed. Possible values:
  *   - edit
  *   - view
- * @param array $field
- *   The full field structure array for the field on which the operation is to
- *   be performed. See field_info_field().
+ * @param \Drupal\field\FieldInterface $field
+ *   The field on which the operation is to be performed.
  * @param $entity_type
  *   The type of $entity; for example, 'node' or 'user'.
  * @param $entity
@@ -936,7 +903,7 @@ function field_has_data($field) {
  * @return
  *   TRUE if the operation is allowed; FALSE if the operation is denied.
  */
-function field_access($op, $field, $entity_type, $entity = NULL, $account = NULL) {
+function field_access($op, FieldInterface $field, $entity_type, $entity = NULL, $account = NULL) {
   global $user;
 
   if (!isset($account)) {
@@ -981,14 +948,21 @@ function field_extract_bundle($entity_type, $bundle) {
  */
 function field_page_build(&$page) {
   $path = drupal_get_path('module', 'field');
-  $page['#attached']['css'][$path . '/theme/field.css'] = array('every_page' => TRUE);
+  $page['#attached']['css'][$path . '/css/field.module.css'] = array('every_page' => TRUE);
 }
 
 /**
- * Theme preprocess function for theme_field() and field.tpl.php.
+ * Prepares variables for field templates.
  *
- * @see theme_field()
- * @see field.tpl.php
+ * Default template: field.html.twig.
+ *
+ * @param array $variables
+ *   An associative array containing:
+ *   - element: A render element representing the field.
+ *   - attributes: A string containing the attributes for the wrapping div.
+ *   - title_attributes: A string containing the attributes for the title.
+ *   - content_attributes: A string containing the attributes for the content's
+ *     div.
  */
 function template_preprocess_field(&$variables, $hook) {
   $element = $variables['element'];
@@ -1026,7 +1000,7 @@ function template_preprocess_field(&$variables, $hook) {
     'field-label-' . $element['#label_display'],
   );
   // Add a "clearfix" class to the wrapper since we float the label and the
-  // field items in field.css if the label is inline.
+  // field items in field.module.css if the label is inline.
   if ($element['#label_display'] == 'inline') {
     $variables['attributes']['class'][] = 'clearfix';
   }
@@ -1041,10 +1015,10 @@ function template_preprocess_field(&$variables, $hook) {
 }
 
 /**
- * Theme process function for theme_field() and field.tpl.php.
+ * Theme process function for theme_field() and field.html.twig.
  *
  * @see theme_field()
- * @see field.tpl.php
+ * @see field.html.twig
  */
 function template_process_field(&$variables, $hook) {
   static $default_attributes;
@@ -1084,23 +1058,23 @@ function template_process_field(&$variables, $hook) {
  * - THEMENAME_field()
  *
  * Theme developers who prefer to customize templates instead of overriding
- * functions may copy the "field.tpl.php" from the "modules/field/theme" folder
- * of the Drupal installation to somewhere within the theme's folder and
+ * functions may copy the "field.html.twig" from the "modules/field/theme"
+ * folder of the Drupal installation to somewhere within the theme's folder and
  * customize it, just like customizing other Drupal templates such as
- * page.tpl.php or node.tpl.php. However, it takes longer for the server to
+ * page.html.twig or node.html.twig. However, it takes longer for the server to
  * process templates than to call a function, so for websites with many fields
  * displayed on a page, this can result in a noticeable slowdown of the website.
- * For these websites, developers are discouraged from placing a field.tpl.php
+ * For these websites, developers are discouraged from placing a field.html.twig
  * file into the theme's folder, but may customize templates for specific
  * fields. For example, for a field named 'body' displayed on the 'article'
  * content type, any of the following templates will override this default
  * implementation. The first of these templates that exists is used:
- * - field--body--article.tpl.php
- * - field--article.tpl.php
- * - field--body.tpl.php
- * - field.tpl.php
+ * - field--body--article.html.twig
+ * - field--article.html.twig
+ * - field--body.html.twig
+ * - field.html.twig
  * So, if the body field on the article content type needs customization, a
- * field--body--article.tpl.php file can be added within the theme's folder.
+ * field--body--article.html.twig file can be added within the theme's folder.
  * Because it's a template, it will result in slightly more time needed to
  * display that field, but it will not impact other fields, and therefore, is
  * unlikely to cause a noticeable change in website performance. A very rough
@@ -1125,7 +1099,7 @@ function template_process_field(&$variables, $hook) {
  *
  * @see template_preprocess_field()
  * @see template_process_field()
- * @see field.tpl.php
+ * @see field.html.twig
  *
  * @ingroup themeable
  */
@@ -1174,15 +1148,6 @@ function _field_create_entity_from_ids($ids) {
     $id_properties[$info['entity_keys']['bundle']] = $ids->bundle;
   }
   return entity_create($ids->entity_type, $id_properties);
-}
-
-/**
- * A list of columns that can not be used as field type columns.
- *
- * @return array
- */
-function field_reserved_columns() {
-  return array('deleted');
 }
 
 /**

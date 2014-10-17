@@ -10,7 +10,7 @@ use Drupal\Core\Config\Entity\ConfigEntityListController;
 use Drupal\Core\Entity\EntityInterface;
 
 /**
- * Provides a listing of contact categories.
+ * Provides a listing of menus.
  */
 class MenuListController extends ConfigEntityListController {
 
@@ -48,7 +48,6 @@ class MenuListController extends ConfigEntityListController {
     $uri = $entity->uri();
 
     $operations['edit']['title'] = t('Edit menu');
-    $operatuins['edit']['href'] = $uri['path'];
     $operations['add'] = array(
       'title' => t('Add link'),
       'href' => $uri['path'] . '/add',
@@ -71,7 +70,7 @@ class MenuListController extends ConfigEntityListController {
    */
   public function render() {
     $build = parent::render();
-    $build['#attached']['css'][] = drupal_get_path('module', 'menu') . '/menu.admin.css';
+    $build['#attached']['css'][] = drupal_get_path('module', 'menu') . '/css/menu.admin.css';
     return $build;
   }
 

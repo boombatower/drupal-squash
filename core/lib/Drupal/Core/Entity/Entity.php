@@ -10,7 +10,9 @@ namespace Drupal\Core\Entity;
 use Drupal\Component\Uuid\Uuid;
 use Drupal\Core\Language\Language;
 use Drupal\Core\TypedData\TypedDataInterface;
+use Drupal\user\UserInterface;
 use IteratorAggregate;
+use Drupal\Core\Session\AccountInterface;
 
 /**
  * Defines a base entity class.
@@ -27,7 +29,7 @@ class Entity implements IteratorAggregate, EntityInterface {
    *
    * @var string
    */
-  public $langcode = LANGUAGE_NOT_SPECIFIED;
+  public $langcode = Language::LANGCODE_NOT_SPECIFIED;
 
   /**
    * The entity type.
@@ -180,6 +182,19 @@ class Entity implements IteratorAggregate, EntityInterface {
   }
 
   /**
+   * {@inheritdoc}
+   *
+   * Returns a list of URI relationships supported by this entity.
+   *
+   * @return array
+   *   An array of link relationships supported by this entity.
+   */
+  public function uriRelationships() {
+    $entity_info = $this->entityInfo();
+    return isset($entity_info['links']) ? array_keys($entity_info['links']) : array();
+  }
+
+  /**
    * Implements \Drupal\Core\Entity\EntityInterface::get().
    */
   public function get($property_name, $langcode = NULL) {
@@ -257,10 +272,10 @@ class Entity implements IteratorAggregate, EntityInterface {
   /**
    * Implements \Drupal\Core\TypedData\AccessibleInterface::access().
    */
-  public function access($operation = 'view', \Drupal\user\Plugin\Core\Entity\User $account = NULL) {
+  public function access($operation = 'view', AccountInterface $account = NULL) {
     return \Drupal::entityManager()
       ->getAccessController($this->entityType)
-      ->access($this, $operation, LANGUAGE_DEFAULT, $account);
+      ->access($this, $operation, Language::LANGCODE_DEFAULT, $account);
   }
 
   /**
@@ -272,7 +287,7 @@ class Entity implements IteratorAggregate, EntityInterface {
     $language = language_load($this->langcode);
     if (!$language) {
       // Make sure we return a proper language object.
-      $language = new Language(array('langcode' => LANGUAGE_NOT_SPECIFIED));
+      $language = new Language(array('langcode' => Language::LANGCODE_NOT_SPECIFIED));
     }
     return $language;
   }
@@ -317,7 +332,7 @@ class Entity implements IteratorAggregate, EntityInterface {
           }
         }
       }
-      $languages = array_intersect_key(language_list(LANGUAGE_ALL), $languages);
+      $languages = array_intersect_key(language_list(Language::STATE_ALL), $languages);
     }
 
     if (empty($include_default)) {
@@ -363,7 +378,7 @@ class Entity implements IteratorAggregate, EntityInterface {
    * Implements \Drupal\Core\Entity\EntityInterface::entityInfo().
    */
   public function entityInfo() {
-    return entity_get_info($this->entityType);
+    return \Drupal::entityManager()->getDefinition($this->entityType());
   }
 
   /**
@@ -465,6 +480,15 @@ class Entity implements IteratorAggregate, EntityInterface {
   }
 
   /**
+   * {@inheritdoc}
+   */
+  public function applyDefaultValue($notify = TRUE) {
+    foreach ($this->getProperties() as $property) {
+      $property->applyDefaultValue(FALSE);
+    }
+  }
+
+  /**
    * Implements \Drupal\Core\TypedData\ComplexDataInterface::onChange().
    */
   public function onChange($property_name) {
@@ -514,6 +538,54 @@ class Entity implements IteratorAggregate, EntityInterface {
     // @todo Inject the entity manager and retrieve bundle info from it.
     $bundles = entity_get_bundles($this->entityType);
     return !empty($bundles[$this->bundle()]['translatable']);
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function preSave(EntityStorageControllerInterface $storage_controller) {
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function postSave(EntityStorageControllerInterface $storage_controller, $update = TRUE) {
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public static function preCreate(EntityStorageControllerInterface $storage_controller, array &$values) {
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function postCreate(EntityStorageControllerInterface $storage_controller) {
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public static function preDelete(EntityStorageControllerInterface $storage_controller, array $entities) {
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public static function postDelete(EntityStorageControllerInterface $storage_controller, array $entities) {
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public static function postLoad(EntityStorageControllerInterface $storage_controller, array $entities) {
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function preSaveRevision(EntityStorageControllerInterface $storage_controller, \stdClass $record) {
   }
 
 }

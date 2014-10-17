@@ -7,6 +7,8 @@
 
 namespace Drupal\comment\Tests;
 
+use Drupal\Core\Language\Language;
+
 /**
  * Tests the 'new' marker on comments.
  */
@@ -43,7 +45,7 @@ class CommentNewIndicatorTest extends CommentTestBase {
     $this->assertLink(t('Read more'));
 
     // Create a new comment. This helper function may be run with different
-    // comment settings so use comment_save() to avoid complex setup.
+    // comment settings so use $comment->save() to avoid complex setup.
     $comment = entity_create('comment', array(
       'cid' => NULL,
       'nid' => $this->node->nid,
@@ -53,10 +55,10 @@ class CommentNewIndicatorTest extends CommentTestBase {
       'status' => COMMENT_PUBLISHED,
       'subject' => $this->randomName(),
       'hostname' => '127.0.0.1',
-      'langcode' => LANGUAGE_NOT_SPECIFIED,
-      'comment_body' => array(LANGUAGE_NOT_SPECIFIED => array($this->randomName())),
+      'langcode' => Language::LANGCODE_NOT_SPECIFIED,
+      'comment_body' => array(Language::LANGCODE_NOT_SPECIFIED => array($this->randomName())),
     ));
-    comment_save($comment);
+    $comment->save();
     $this->drupalLogout();
 
     // Log in with 'web user' and check comment links.

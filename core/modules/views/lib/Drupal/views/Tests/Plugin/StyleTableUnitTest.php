@@ -44,7 +44,7 @@ class StyleTableUnitTest extends PluginUnitTestBase {
     $view->initQuery();
     $style_plugin = $view->style_plugin;
 
-    // Test the build_sort() method.
+    // Test the buildSort() method.
     $request = new Request();
     $this->container->enterScope('request');
     $this->container->set('request', $request);
@@ -52,22 +52,22 @@ class StyleTableUnitTest extends PluginUnitTestBase {
     $style_plugin->options['override'] = FALSE;
 
     $style_plugin->options['default'] = '';
-    $this->assertTrue($style_plugin->build_sort(), 'If no order and no default order is specified, the normal sort should be used.');
+    $this->assertTrue($style_plugin->buildSort(), 'If no order and no default order is specified, the normal sort should be used.');
 
     $style_plugin->options['default'] = 'id';
-    $this->assertTrue($style_plugin->build_sort(), 'If no order but a default order is specified, the normal sort should be used.');
+    $this->assertTrue($style_plugin->buildSort(), 'If no order but a default order is specified, the normal sort should be used.');
 
     $request->attributes->set('order', $this->randomName());
-    $this->assertTrue($style_plugin->build_sort(), 'If no valid field is chosen for order, the normal sort should be used.');
+    $this->assertTrue($style_plugin->buildSort(), 'If no valid field is chosen for order, the normal sort should be used.');
 
     $request->attributes->set('order', 'id');
-    $this->assertTrue($style_plugin->build_sort(), 'If a valid order is specified but the table is configured to not override, the normal sort should be used.');
+    $this->assertTrue($style_plugin->buildSort(), 'If a valid order is specified but the table is configured to not override, the normal sort should be used.');
 
     $style_plugin->options['override'] = TRUE;
 
-    $this->assertFalse($style_plugin->build_sort(), 'If a valid order is specified and the table is configured to override, the normal sort should not be used.');
+    $this->assertFalse($style_plugin->buildSort(), 'If a valid order is specified and the table is configured to override, the normal sort should not be used.');
 
-    // Test the build_sort_post() method.
+    // Test the buildSortPost() method.
     $request = new Request();
     $this->container->enterScope('request');
     $this->container->set('request', $request);
@@ -76,7 +76,7 @@ class StyleTableUnitTest extends PluginUnitTestBase {
     $this->prepareView($view);
     $style_plugin = $view->style_plugin;
     $style_plugin->options['default'] = '';
-    $style_plugin->build_sort_post();
+    $style_plugin->buildSortPost();
     $this->assertIdentical($style_plugin->order, NULL, 'No sort order was set, when no order was specified and no default column was selected.');
     $this->assertIdentical($style_plugin->active, NULL, 'No sort field was set, when no order was specified and no default column was selected.');
     $view->destroy();
@@ -86,7 +86,7 @@ class StyleTableUnitTest extends PluginUnitTestBase {
     $style_plugin = $view->style_plugin;
     $style_plugin->options['default'] = 'id';
     $style_plugin->options['info']['id']['default_sort_order'] = 'desc';
-    $style_plugin->build_sort_post();
+    $style_plugin->buildSortPost();
     $this->assertIdentical($style_plugin->order, 'desc', 'Fallback to the right default sort order.');
     $this->assertIdentical($style_plugin->active, 'id', 'Fallback to the right default sort field.');
     $view->destroy();
@@ -97,7 +97,7 @@ class StyleTableUnitTest extends PluginUnitTestBase {
     $style_plugin->options['default'] = 'id';
     $style_plugin->options['info']['id']['default_sort_order'] = NULL;
     $style_plugin->options['order'] = 'asc';
-    $style_plugin->build_sort_post();
+    $style_plugin->buildSortPost();
     $this->assertIdentical($style_plugin->order, 'asc', 'Fallback to the right default sort order.');
     $this->assertIdentical($style_plugin->active, 'id', 'Fallback to the right default sort field.');
     $view->destroy();
@@ -108,7 +108,7 @@ class StyleTableUnitTest extends PluginUnitTestBase {
     $request->query->set('sort', 'asc');
     $random_name = $this->randomName();
     $request->query->set('order', $random_name);
-    $style_plugin->build_sort_post();
+    $style_plugin->buildSortPost();
     $this->assertIdentical($style_plugin->order, 'asc', 'No sort order was set, when invalid sort order was specified.');
     $this->assertIdentical($style_plugin->active, NULL, 'No sort field was set, when invalid sort order was specified.');
     $view->destroy();
@@ -119,7 +119,7 @@ class StyleTableUnitTest extends PluginUnitTestBase {
       $style_plugin = $view->style_plugin;
       $request->query->set('sort', $order);
       $request->query->set('order', 'id');
-      $style_plugin->build_sort_post();
+      $style_plugin->buildSortPost();
       $this->assertIdentical($style_plugin->order, $order, 'Ensure the right sort order was set.');
       $this->assertIdentical($style_plugin->active, 'id', 'Ensure the right order was set.');
       $view->destroy();

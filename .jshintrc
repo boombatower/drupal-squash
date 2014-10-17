@@ -2,13 +2,14 @@
   "browser"   : true,
   "curly"     : true,
   "eqeqeq"    : true,
-  "expr"      : true,
   "forin"     : true,
   "latedef"   : true,
   "newcap"    : true,
   "noarg"     : true,
+  "strict"    : true,
   "trailing"  : true,
   "undef"     : true,
+  "unused"    : "vars",
   "predef"    : [
     "Drupal",
     "drupalSettings",
@@ -18,7 +19,6 @@
     "matchMedia",
     "Backbone",
     "Modernizr",
-    "VIE",
     "CKEDITOR"
   ]
 }

@@ -10,9 +10,14 @@ use Drupal\Component\Utility\NestedArray;
 use Drupal\Core\Form\FormInterface;
 use Drupal\Core\Form\BaseFormIdInterface;
 use Drupal\Core\Database\Database;
+use Drupal\Core\Language\Language;
 use Drupal\Core\Template\Attribute;
 use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\Core\Utility\Color;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\RedirectResponse;
+use Symfony\Component\HttpKernel\KernelEvents;
+use Symfony\Component\HttpKernel\Event\FilterResponseEvent;
 
 /**
  * @defgroup forms Form builder functions
@@ -25,12 +30,11 @@ use Drupal\Core\Utility\Color;
  * reference the form builder function using \@see. For examples, of this see
  * system_modules_uninstall() or user_pass(), the latter of which has the
  * following in its doxygen documentation:
+ * - \@ingroup forms
+ * - \@see user_pass_validate()
+ * - \@see user_pass_submit()
  *
- * \@ingroup forms
- * \@see user_pass_validate().
- * \@see user_pass_submit().
- *
- * @} End of "defgroup forms".
+ * @}
  */
 
 /**
@@ -227,9 +231,8 @@ function drupal_get_form($form_arg) {
  *     errors.
  *   - redirect: Used to redirect the form on submission. It may either be a
  *     string containing the destination URL, or an array of arguments
- *     compatible with drupal_goto(). See drupal_redirect_form() for complete
- *     information.
- *   - no_redirect: If set to TRUE the form will NOT perform a drupal_goto(),
+ *     compatible with url(). See url() for complete information.
+ *   - no_redirect: If set to TRUE the form will NOT perform a redirect,
  *     even if 'redirect' is set.
  *   - method: The HTTP form method to use for finding the input for this form.
  *     May be 'post' or 'get'. Defaults to 'post'. Note that 'get' method
@@ -413,7 +416,12 @@ function drupal_build_form($form_id, &$form_state) {
   //   appropriate information persists to the next page request.
   // All of the handlers in the pipeline receive $form_state by reference and
   // can use it to know or update information about the state of the form.
-  drupal_process_form($form_id, $form, $form_state);
+  $response = drupal_process_form($form_id, $form, $form_state);
+
+  // If the form returns some kind of response, deliver it.
+  if ($response instanceof Response) {
+    _drupal_form_send_response($response);
+  }
 
   // If this was a successful submission of a single-step form or the last step
   // of a multi-step form, then drupal_process_form() issued a redirect to
@@ -858,6 +866,10 @@ function drupal_retrieve_form($form_id, &$form_state) {
   // If $callback was returned by a hook_forms() implementation, call it.
   // Otherwise, call the function named after the form id.
   $form = call_user_func_array($callback, $args);
+  // If the form returns some kind of response, deliver it.
+  if ($form instanceof Response) {
+    _drupal_form_send_response($form);
+  }
   $form['#form_id'] = $form_id;
 
   return $form;
@@ -941,7 +953,10 @@ function drupal_process_form($form_id, &$form, &$form_state) {
         }
 
         $batch['progressive'] = !$form_state['programmed'];
-        batch_process();
+        $response = batch_process();
+        if ($batch['progressive']) {
+          return $response;
+        }
 
         // Execution continues only for programmatic forms.
         // For 'regular' forms, we get redirected to the batch processing
@@ -953,7 +968,10 @@ function drupal_process_form($form_id, &$form, &$form_state) {
       $form_state['executed'] = TRUE;
 
       // Redirect the form based on values in $form_state.
-      drupal_redirect_form($form_state);
+      $redirect = drupal_redirect_form($form_state);
+      if (is_object($redirect)) {
+        return $redirect;
+      }
     }
 
     // Don't rebuild or cache form submissions invoked via drupal_form_submit().
@@ -1245,10 +1263,10 @@ function drupal_validate_form($form_id, &$form, &$form_state) {
  *
  * Usually (for exceptions, see below) $form_state['redirect'] determines where
  * to redirect the user. This can be set either to a string (the path to
- * redirect to), or an array of arguments for drupal_goto(). If
- * $form_state['redirect'] is missing, the user is usually (again, see below for
- * exceptions) redirected back to the page they came from, where they should see
- * a fresh, unpopulated copy of the form.
+ * redirect to), or an array of arguments for url(). If $form_state['redirect']
+ * is missing, the user is usually (again, see below for exceptions) redirected
+ * back to the page they came from, where they should see a fresh, unpopulated
+ * copy of the form.
  *
  * Here is an example of how to set up a form to redirect to the path 'node':
  * @code
@@ -1279,12 +1297,11 @@ function drupal_validate_form($form_id, &$form, &$form_state) {
  *   form builder functions or form validation/submit handlers.
  * - If $form_state['redirect'] is set to FALSE, redirection is disabled.
  * - If none of the above conditions has prevented redirection, then the
- *   redirect is accomplished by calling drupal_goto(), passing in the value of
- *   $form_state['redirect'] if it is set, or the current path if it is
- *   not. drupal_goto() preferentially uses the value of $_GET['destination']
+ *   redirect is accomplished by returning a RedirectResponse, passing in the
+ *   value of $form_state['redirect'] if it is set, or the current path if it is
+ *   not. RedirectResponse preferentially uses the value of $_GET['destination']
  *   (the 'destination' URL query string) if it is present, so this will
- *   override any values set by $form_state['redirect']. Note that during
- *   installation, install_goto() is called in place of drupal_goto().
+ *   override any values set by $form_state['redirect'].
  *
  * @param $form_state
  *   An associative array containing the current state of the form.
@@ -1305,21 +1322,33 @@ function drupal_redirect_form($form_state) {
   if (!empty($form_state['no_redirect'])) {
     return;
   }
-  // Only invoke drupal_goto() if redirect value was not set to FALSE.
+  // Only invoke a redirection if redirect value was not set to FALSE.
   if (!isset($form_state['redirect']) || $form_state['redirect'] !== FALSE) {
     if (isset($form_state['redirect'])) {
       if (is_array($form_state['redirect'])) {
-        call_user_func_array('drupal_goto', $form_state['redirect']);
+        $options = isset($form_state['redirect'][1]) ? $form_state['redirect'][1] : array();
+        // Redirections should always use absolute URLs.
+        $options['absolute'] = TRUE;
+        $status_code =  isset($form_state['redirect'][2]) ? $form_state['redirect'][2] : 302;
+        return new RedirectResponse(url($form_state['redirect'][0], $options), $status_code);
       }
       else {
         // This function can be called from the installer, which guarantees
         // that $redirect will always be a string, so catch that case here
         // and use the appropriate redirect function.
-        $function = drupal_installation_attempted() ? 'install_goto' : 'drupal_goto';
-        $function($form_state['redirect']);
+        if (drupal_installation_attempted()) {
+          install_goto($form_state['redirect']);
+        }
+        else {
+          return new RedirectResponse(url($form_state['redirect'], array('absolute' => TRUE)));
+        }
       }
     }
-    drupal_goto(current_path(), array('query' => drupal_container()->get('request')->query->all()));
+    $url = url(Drupal::request()->attributes->get('system_path'), array(
+      'query' => Drupal::request()->query->all(),
+      'absolute' => TRUE,
+    ));
+    return new RedirectResponse($url);
   }
 }
 
@@ -1347,9 +1376,6 @@ function drupal_redirect_form($form_state) {
  *   theming, and hook_form_alter functions.
  */
 function _form_validate(&$elements, &$form_state, $form_id = NULL) {
-  // Also used in the installer, pre-database setup.
-  $t = get_t();
-
   // Recurse through all children.
   foreach (element_children($elements) as $key) {
     if (isset($elements[$key]) && $elements[$key]) {
@@ -1363,7 +1389,7 @@ function _form_validate(&$elements, &$form_state, $form_id = NULL) {
     if (isset($elements['#needs_validation'])) {
       // Verify that the value is not longer than #maxlength.
       if (isset($elements['#maxlength']) && drupal_strlen($elements['#value']) > $elements['#maxlength']) {
-        form_error($elements, $t('!name cannot be longer than %max characters but is currently %length characters long.', array('!name' => empty($elements['#title']) ? $elements['#parents'][0] : $elements['#title'], '%max' => $elements['#maxlength'], '%length' => drupal_strlen($elements['#value']))));
+        form_error($elements, t('!name cannot be longer than %max characters but is currently %length characters long.', array('!name' => empty($elements['#title']) ? $elements['#parents'][0] : $elements['#title'], '%max' => $elements['#maxlength'], '%length' => drupal_strlen($elements['#value']))));
       }
 
       if (isset($elements['#options']) && isset($elements['#value'])) {
@@ -1377,7 +1403,7 @@ function _form_validate(&$elements, &$form_state, $form_id = NULL) {
           $value = in_array($elements['#type'], array('checkboxes', 'tableselect')) ? array_keys($elements['#value']) : $elements['#value'];
           foreach ($value as $v) {
             if (!isset($options[$v])) {
-              form_error($elements, $t('An illegal choice has been detected. Please contact the site administrator.'));
+              form_error($elements, t('An illegal choice has been detected. Please contact the site administrator.'));
               watchdog('form', 'Illegal choice %choice in !name element.', array('%choice' => $v, '!name' => empty($elements['#title']) ? $elements['#parents'][0] : $elements['#title']), WATCHDOG_ERROR);
             }
           }
@@ -1396,7 +1422,7 @@ function _form_validate(&$elements, &$form_state, $form_id = NULL) {
           form_set_value($elements, NULL, $form_state);
         }
         elseif (!isset($options[$elements['#value']])) {
-          form_error($elements, $t('An illegal choice has been detected. Please contact the site administrator.'));
+          form_error($elements, t('An illegal choice has been detected. Please contact the site administrator.'));
           watchdog('form', 'Illegal choice %choice in %name element.', array('%choice' => $elements['#value'], '%name' => empty($elements['#title']) ? $elements['#parents'][0] : $elements['#title']), WATCHDOG_ERROR);
         }
       }
@@ -1479,7 +1505,7 @@ function _form_validate(&$elements, &$form_state, $form_id = NULL) {
       // constructors are encouraged to set #title anyway, and then set
       // #title_display to 'invisible'. This improves accessibility.
       elseif (isset($elements['#title'])) {
-        form_error($elements, $t('!name field is required.', array('!name' => $elements['#title'])));
+        form_error($elements, t('!name field is required.', array('!name' => $elements['#title'])));
       }
       else {
         form_error($elements);
@@ -1750,7 +1776,7 @@ function form_error(&$element, $message = '') {
  *   adds the attributes and JavaScript needed to make the details work in older
  *   browsers. The #process functions are called in preorder traversal, meaning
  *   they are called for the parent element first, then for the child elements.
- * - $element['#after_build']: An array of functions called after form_builder()
+ * - $element['#after_build']: An array of callables called after form_builder()
  *   is done with its processing of the element. These are called in postorder
  *   traversal, meaning they are called for the child elements first, then for
  *   the parent element.
@@ -1939,8 +1965,8 @@ function form_builder($form_id, &$element, &$form_state) {
   // The #after_build flag allows any piece of a form to be altered
   // after normal input parsing has been completed.
   if (isset($element['#after_build']) && !isset($element['#after_build_done'])) {
-    foreach ($element['#after_build'] as $function) {
-      $element = $function($element, $form_state);
+    foreach ($element['#after_build'] as $callable) {
+      $element = call_user_func_array($callable, array($element, &$form_state));
     }
     $element['#after_build_done'] = TRUE;
   }
@@ -2875,7 +2901,7 @@ function theme_fieldset($variables) {
 
   $legend_attributes = array();
   if (isset($element['#title_display']) && $element['#title_display'] == 'invisible') {
-    $legend_attributes['class'][] = 'element-invisible';
+    $legend_attributes['class'][] = 'visually-hidden';
   }
 
   $output = '<fieldset' . new Attribute($element['#attributes']) . '>';
@@ -3176,13 +3202,12 @@ function theme_checkboxes($variables) {
  * This is used as a pre render function for checkboxes and radios.
  */
 function form_pre_render_conditional_form_element($element) {
-  $t = get_t();
   // Set the element's title attribute to show #title as a tooltip, if needed.
   if (isset($element['#title']) && $element['#title_display'] == 'attribute') {
     $element['#attributes']['title'] = $element['#title'];
     if (!empty($element['#required'])) {
       // Append an indication that this field is required.
-      $element['#attributes']['title'] .= ' (' . $t('Required') . ')';
+      $element['#attributes']['title'] .= ' (' . t('Required') . ')';
     }
   }
 
@@ -3761,7 +3786,7 @@ function form_validate_table($element, &$form_state) {
  */
 function form_process_machine_name($element, &$form_state) {
   // We need to pass the langcode to the client.
-  $language = language(LANGUAGE_TYPE_INTERFACE);
+  $language = language(Language::TYPE_INTERFACE);
 
   // Apply default form element properties.
   $element += array(
@@ -4758,11 +4783,9 @@ function theme_form_element($variables) {
  * @ingroup themeable
  */
 function theme_form_required_marker($variables) {
-  // This is also used in the installer, pre-database setup.
-  $t = get_t();
   $attributes = array(
     'class' => 'form-required',
-    'title' => $t('This field is required.'),
+    'title' => t('This field is required.'),
   );
   return '<abbr' . new Attribute($attributes) . '>*</abbr>';
 }
@@ -4792,8 +4815,6 @@ function theme_form_required_marker($variables) {
  */
 function theme_form_element_label($variables) {
   $element = $variables['element'];
-  // This is also used in the installer, pre-database setup.
-  $t = get_t();
 
   // If title and required marker are both empty, output no label.
   if ((!isset($element['#title']) || $element['#title'] === '') && empty($element['#required'])) {
@@ -4812,14 +4833,14 @@ function theme_form_element_label($variables) {
   }
   // Show label only to screen readers to avoid disruption in visual flows.
   elseif ($element['#title_display'] == 'invisible') {
-    $attributes['class'] = 'element-invisible';
+    $attributes['class'] = 'visually-hidden';
   }
 
   if (!empty($element['#id'])) {
     $attributes['for'] = $element['#id'];
   }
 
-  return '<label' . new Attribute($attributes) . '>' . $t('!title!required', array('!title' => $title, '!required' => $required)) . '</label>';
+  return '<label' . new Attribute($attributes) . '>' . t('!title!required', array('!title' => $title, '!required' => $required)) . '</label>';
 }
 
 /**
@@ -4850,6 +4871,28 @@ function _form_set_attributes(&$element, $class = array()) {
   if (isset($element['#parents']) && form_get_error($element) !== NULL && !empty($element['#validated'])) {
     $element['#attributes']['class'][] = 'error';
   }
+}
+
+/**
+ * Triggers kernel.response and sends a form response.
+ *
+ * @deprecated This function is to be used internally by Form API only.
+ *
+ * @param \Symfony\Component\HttpFoundation\Response $response
+ *   A response object.
+ */
+function _drupal_form_send_response(Response $response) {
+  $request = Drupal::request();
+  $kernel = Drupal::service('http_kernel');
+  $event = new FilterResponseEvent($kernel, $request, $kernel::MASTER_REQUEST, $response);
+
+  Drupal::service('event_dispatcher')->dispatch(KernelEvents::RESPONSE, $event);
+  // Prepare and send the response.
+  $event->getResponse()
+    ->prepare($request)
+    ->send();
+  $kernel->terminate($request, $response);
+  exit;
 }
 
 /**
@@ -4920,26 +4963,26 @@ function _form_set_attributes(&$element, $class = array()) {
  *   $context['message'] = check_plain($node->label());
  * }
  *
- * // More advanced example: multi-step operation - load all nodes, five by five
+ * // A more advanced example is a multi-step operation that loads all rows,
+ * // five by five.
  * function my_function_2(&$context) {
  *   if (empty($context['sandbox'])) {
  *     $context['sandbox']['progress'] = 0;
- *     $context['sandbox']['current_node'] = 0;
- *     $context['sandbox']['max'] = db_query('SELECT COUNT(DISTINCT nid) FROM {node}')->fetchField();
+ *     $context['sandbox']['current_id'] = 0;
+ *     $context['sandbox']['max'] = db_query('SELECT COUNT(DISTINCT id) FROM {example}')->fetchField();
  *   }
  *   $limit = 5;
- *   $result = db_select('node')
- *     ->fields('node', array('nid'))
- *     ->condition('nid', $context['sandbox']['current_node'], '>')
- *     ->orderBy('nid')
+ *   $result = db_select('example')
+ *     ->fields('example', array('id'))
+ *     ->condition('id', $context['sandbox']['current_id'], '>')
+ *     ->orderBy('id')
  *     ->range(0, $limit)
  *     ->execute();
  *   foreach ($result as $row) {
- *     $node = node_load($row->nid, TRUE);
- *     $context['results'][] = $node->nid . ' : ' . check_plain($node->label());
+ *     $context['results'][] = $row->id . ' : ' . check_plain($row->title);
  *     $context['sandbox']['progress']++;
- *     $context['sandbox']['current_node'] = $node->nid;
- *     $context['message'] = check_plain($node->label());
+ *     $context['sandbox']['current_id'] = $row->id;
+ *     $context['message'] = check_plain($row->title);
  *   }
  *   if ($context['sandbox']['progress'] != $context['sandbox']['max']) {
  *     $context['finished'] = $context['sandbox']['progress'] / $context['sandbox']['max'];
@@ -5028,8 +5071,6 @@ function batch_set($batch_definition) {
     }
 
     // Base and default properties for the batch set.
-    // Use get_t() to allow batches during installation.
-    $t = get_t();
     $init = array(
       'sandbox' => array(),
       'results' => array(),
@@ -5038,10 +5079,10 @@ function batch_set($batch_definition) {
       'elapsed' => 0,
     );
     $defaults = array(
-      'title' => $t('Processing'),
-      'init_message' => $t('Initializing.'),
-      'progress_message' => $t('Completed @current of @total.'),
-      'error_message' => $t('An error has occurred.'),
+      'title' => t('Processing'),
+      'init_message' => t('Initializing.'),
+      'progress_message' => t('Completed @current of @total.'),
+      'error_message' => t('An error has occurred.'),
       'css' => array(),
     );
     $batch_set = $init + $batch_definition + $defaults;
@@ -5076,9 +5117,6 @@ function batch_set($batch_definition) {
 /**
  * Processes the batch.
  *
- * Unless the batch has been marked with 'progressive' = FALSE, the function
- * issues a drupal_goto and thus ends page execution.
- *
  * This function is generally not needed in form submit handlers;
  * Form API takes care of batches that were set during form submission.
  *
@@ -5089,11 +5127,12 @@ function batch_set($batch_definition) {
  *   URL of the batch processing page.
  * @param $redirect_callback
  *   (optional) Specify a function to be called to redirect to the progressive
- *   processing page. By default drupal_goto() will be used to redirect to a
- *   page which will do the progressive page. Specifying another function will
- *   allow the progressive processing to be processed differently.
+ *   processing page.
+ *
+ * @return \Symfony\Component\HttpFoundation\RedirectResponse|null
+ *   A redirect response if the batch is progressive. No return value otherwise.
  */
-function batch_process($redirect = NULL, $url = 'batch', $redirect_callback = 'drupal_goto') {
+function batch_process($redirect = NULL, $url = 'batch', $redirect_callback = NULL) {
   $batch =& batch_get();
 
   drupal_theme_initialize();
@@ -5131,32 +5170,31 @@ function batch_process($redirect = NULL, $url = 'batch', $redirect_callback = 'd
     if ($batch['progressive']) {
       // Now that we have a batch id, we can generate the redirection link in
       // the generic error message.
-      $t = get_t();
-      $batch['error_message'] = $t('Please continue to <a href="@error_url">the error page</a>', array('@error_url' => url($url, array('query' => array('id' => $batch['id'], 'op' => 'finished')))));
+      $batch['error_message'] = t('Please continue to <a href="@error_url">the error page</a>', array('@error_url' => url($url, array('query' => array('id' => $batch['id'], 'op' => 'finished')))));
 
-      // Clear the way for the drupal_goto() redirection to the batch processing
-      // page, by saving and unsetting the 'destination', if there is any.
-      if (isset($_GET['destination'])) {
-        $batch['destination'] = $_GET['destination'];
-        unset($_GET['destination']);
+      // Clear the way for the redirection to the batch processing page, by
+      // saving and unsetting the 'destination', if there is any.
+      $request = Drupal::request();
+      if ($request->query->has('destination')) {
+        $batch['destination'] = $request->query->get('destination');
+        $request->query->remove('destination');
       }
 
       // Store the batch.
-      db_insert('batch')
-        ->fields(array(
-          'bid' => $batch['id'],
-          'timestamp' => REQUEST_TIME,
-          'token' => drupal_get_token($batch['id']),
-          'batch' => serialize($batch),
-        ))
-        ->execute();
+      Drupal::service('batch.storage')->create($batch);
 
       // Set the batch number in the session to guarantee that it will stay alive.
       $_SESSION['batches'][$batch['id']] = TRUE;
 
       // Redirect for processing.
-      $function = $batch['redirect_callback'];
-      $function($batch['url'], array('query' => array('op' => 'start', 'id' => $batch['id'])));
+      $options = array('query' => array('op' => 'start', 'id' => $batch['id']));
+      if (($function = $batch['redirect_callback']) && function_exists($function)) {
+        $function($batch['url'], $options);
+      }
+      else {
+        $options['absolute'] = TRUE;
+        return new RedirectResponse(url($batch['url'], $options));
+      }
     }
     else {
       // Non-progressive execution: bypass the whole progressbar workflow

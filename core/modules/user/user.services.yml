@@ -11,9 +11,17 @@ services:
     class: Drupal\user\Access\RoleAccessCheck
     tags:
       - { name: access_check }
+  access_check.user.login_status:
+    class: Drupal\user\Access\LoginStatusCheck
+    tags:
+      - { name: access_check }
   user.data:
     class: Drupal\user\UserData
     arguments: ['@database']
   user.autocomplete:
     class: Drupal\user\UserAutocomplete
     arguments: ['@database', '@config.factory']
+  user_maintenance_mode_subscriber:
+    class: Drupal\user\EventSubscriber\MaintenanceModeSubscriber
+    tags:
+      - { name: event_subscriber }

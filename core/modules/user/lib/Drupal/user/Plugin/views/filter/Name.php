@@ -21,13 +21,13 @@ class Name extends InOperator {
 
   var $always_multiple = TRUE;
 
-  function value_form(&$form, &$form_state) {
+  protected function valueForm(&$form, &$form_state) {
     $values = array();
     if ($this->value) {
       $result = entity_load_multiple_by_properties('user', array('uid' => $this->value));
       foreach ($result as $account) {
-        if ($account->uid) {
-          $values[] = $account->name;
+        if ($account->id()) {
+          $values[] = $account->name->value;
         }
         else {
           $values[] = 'Anonymous'; // Intentionally NOT translated.
@@ -50,7 +50,7 @@ class Name extends InOperator {
     }
   }
 
-  function value_validate($form, &$form_state) {
+  protected function valueValidate($form, &$form_state) {
     $values = drupal_explode_tags($form_state['values']['options']['value']);
     $uids = $this->validate_user_strings($form['value'], $values);
 
@@ -130,8 +130,8 @@ class Name extends InOperator {
 
     $result = entity_load_multiple_by_properties('user', array('name' => $args));
     foreach ($result as $account) {
-      unset($missing[strtolower($account->name)]);
-      $uids[] = $account->uid;
+      unset($missing[strtolower($account->name->value)]);
+      $uids[] = $account->id();
     }
 
     if ($missing) {
@@ -141,12 +141,12 @@ class Name extends InOperator {
     return $uids;
   }
 
-  function value_submit($form, &$form_state) {
+  protected function valueSubmit($form, &$form_state) {
     // prevent array filter from removing our anonymous user.
   }
 
   // Override to do nothing.
-  function get_value_options() { }
+  public function getValueOptions() { }
 
   public function adminSummary() {
     // set up $this->value_options for the parent summary
@@ -156,10 +156,10 @@ class Name extends InOperator {
       $result = entity_load_multiple_by_properties('user', array('uid' => $this->value));
       foreach ($result as $account) {
         if ($account->uid) {
-          $this->value_options[$account->uid] = $account->name;
+          $this->value_options[$account->id()] = $account->label();
         }
         else {
-          $this->value_options[$account->uid] = 'Anonymous'; // Intentionally NOT translated.
+          $this->value_options[$account->id()] = 'Anonymous'; // Intentionally NOT translated.
         }
       }
     }

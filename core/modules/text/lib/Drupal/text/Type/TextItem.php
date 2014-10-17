@@ -50,4 +50,22 @@ class TextItem extends FieldItemBase {
     }
     return static::$propertyDefinitions;
   }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function applyDefaultValue($notify = TRUE) {
+    // Default to a simple check_plain().
+    // @todo: Add in the filter default format here.
+    $this->setValue(array('format' => NULL), $notify);
+    return $this;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function isEmpty() {
+    $value = $this->get('value')->getValue();
+    return $value === NULL || $value === '';
+  }
 }

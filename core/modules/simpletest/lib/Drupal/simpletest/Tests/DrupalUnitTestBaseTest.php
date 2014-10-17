@@ -39,7 +39,7 @@ class DrupalUnitTestBaseTest extends DrupalUnitTestBase {
     // Verify that specified $modules have been loaded.
     $this->assertTrue(function_exists('entity_test_permission'), "$module.module was loaded.");
     // Verify that there is a fixed module list.
-    $this->assertIdentical(array_keys(drupal_container()->get('module_handler')->getModuleList()), array($module));
+    $this->assertIdentical(array_keys(\Drupal::moduleHandler()->getModuleList()), array($module));
     $this->assertIdentical(module_implements('permission'), array($module));
 
     // Verify that no modules have been installed.
@@ -54,7 +54,7 @@ class DrupalUnitTestBaseTest extends DrupalUnitTestBase {
 
     // Verify that the module does not exist yet.
     $this->assertFalse(module_exists($module), "$module module not found.");
-    $list = array_keys(drupal_container()->get('module_handler')->getModuleList());
+    $list = array_keys(\Drupal::moduleHandler()->getModuleList());
     $this->assertFalse(in_array($module, $list), "$module module not found in the extension handler's module list.");
     $list = module_implements('permission');
     $this->assertFalse(in_array($module, $list), "{$module}_permission() in module_implements() not found.");
@@ -64,7 +64,7 @@ class DrupalUnitTestBaseTest extends DrupalUnitTestBase {
 
     // Verify that the module exists.
     $this->assertTrue(module_exists($module), "$module module found.");
-    $list = array_keys(drupal_container()->get('module_handler')->getModuleList());
+    $list = array_keys(\Drupal::moduleHandler()->getModuleList());
     $this->assertTrue(in_array($module, $list), "$module module found in the extension handler's module list.");
     $list = module_implements('permission');
     $this->assertTrue(in_array($module, $list), "{$module}_permission() in module_implements() found.");
@@ -79,7 +79,7 @@ class DrupalUnitTestBaseTest extends DrupalUnitTestBase {
 
     // Verify that the module does not exist yet.
     $this->assertFalse(module_exists($module), "$module module not found.");
-    $list = array_keys(drupal_container()->get('module_handler')->getModuleList());
+    $list = array_keys(\Drupal::moduleHandler()->getModuleList());
     $this->assertFalse(in_array($module, $list), "$module module not found in the extension handler's module list.");
     $list = module_implements('permission');
     $this->assertFalse(in_array($module, $list), "{$module}_permission() in module_implements() not found.");
@@ -93,7 +93,7 @@ class DrupalUnitTestBaseTest extends DrupalUnitTestBase {
 
     // Verify that the enabled module exists.
     $this->assertTrue(module_exists($module), "$module module found.");
-    $list = array_keys(drupal_container()->get('module_handler')->getModuleList());
+    $list = array_keys(\Drupal::moduleHandler()->getModuleList());
     $this->assertTrue(in_array($module, $list), "$module module found in the extension handler's module list.");
     $list = module_implements('permission');
     $this->assertTrue(in_array($module, $list), "{$module}_permission() in module_implements() found.");
@@ -110,7 +110,7 @@ class DrupalUnitTestBaseTest extends DrupalUnitTestBase {
     // Install Node module.
     $this->enableModules(array('field_sql_storage', 'field', 'node'));
 
-    $this->installSchema('node', array('node_type', 'node'));
+    $this->installSchema('node', array('node_type', 'node', 'node_field_data'));
     // Perform an entity query against node.
     $query = \Drupal::entityQuery('node');
     // Disable node access checks, since User module is not enabled.
@@ -231,17 +231,16 @@ class DrupalUnitTestBaseTest extends DrupalUnitTestBase {
       'bundle' => 'entity_test',
       'mode' => 'default',
     ));
-    $field = array(
+    $field = entity_create('field_entity', array(
       'field_name' => 'test_field',
       'type' => 'test_field'
-    );
-    field_create_field($field);
-    $instance = array(
-      'field_name' => $field['field_name'],
+    ));
+    $field->save();
+    entity_create('field_instance', array(
+      'field_name' => $field->id(),
       'entity_type' => 'entity_test',
       'bundle' => 'entity_test',
-    );
-    field_create_instance($instance);
+    ))->save();
   }
 
   /**

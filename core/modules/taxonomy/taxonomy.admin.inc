@@ -9,88 +9,6 @@ use Drupal\taxonomy\Plugin\Core\Entity\Term;
 use Drupal\taxonomy\Plugin\Core\Entity\Vocabulary;
 
 /**
- * Form builder to list and manage vocabularies.
- *
- * @ingroup forms
- * @see taxonomy_overview_vocabularies_submit()
- * @see theme_taxonomy_overview_vocabularies()
- */
-function taxonomy_overview_vocabularies($form) {
-  $vocabularies = taxonomy_vocabulary_load_multiple();
-  taxonomy_vocabulary_sort($vocabularies);
-  $form['vocabularies'] = array(
-    '#type' => 'table',
-    '#empty' => t('No vocabularies available. <a href="@link">Add vocabulary</a>.', array('@link' => url('admin/structure/taxonomy/add'))),
-    '#attributes' => array(
-      'id' => 'taxonomy',
-    ),
-  );
-  foreach ($vocabularies as $vocabulary) {
-    $form['vocabularies'][$vocabulary->id()]['#vocabulary'] = $vocabulary;
-    $form['vocabularies'][$vocabulary->id()]['#attributes']['class'][] = 'draggable';
-    $form['vocabularies'][$vocabulary->id()]['name'] = array('#markup' => check_plain($vocabulary->name));
-    $form['vocabularies'][$vocabulary->id()]['weight'] = array(
-      '#type' => 'weight',
-      '#title' => t('Weight for @title', array('@title' => $vocabulary->name)),
-      '#title_display' => 'invisible',
-      '#delta' => 10,
-      '#default_value' => $vocabulary->weight,
-      '#attributes' => array(
-        'class' => array('vocabulary-weight'),
-      ),
-    );
-    $links = array();
-    $links['edit'] = array(
-      'title' => t('edit vocabulary'),
-      'href' => "admin/structure/taxonomy/manage/{$vocabulary->id()}/edit",
-    );
-    $links['list'] = array(
-      'title' => t('list terms'),
-      'href' => "admin/structure/taxonomy/manage/{$vocabulary->id()}",
-    );
-    $links['add'] = array(
-      'title' => t('add terms'),
-      'href' => "admin/structure/taxonomy/manage/{$vocabulary->id()}/add",
-    );
-    $form['vocabularies'][$vocabulary->id()]['operations'] = array(
-      '#type' => 'operations',
-      '#links' => $links,
-    );
-  }
-
-  $form['vocabularies']['#header'] = array(t('Vocabulary name'));
-
-  // Only make this form include a submit button and weight if more than one
-  // vocabulary exists.
-  if (count($vocabularies) > 1) {
-    $form['vocabularies']['#tabledrag'][] = array('order', 'sibling', 'vocabulary-weight');
-    $form['vocabularies']['#header'][] = t('Weight');
-    $form['actions'] = array('#type' => 'actions');
-    $form['actions']['submit'] = array('#type' => 'submit', '#value' => t('Save'), '#button_type' => 'primary');
-  }
-  elseif (isset($vocabulary)) {
-    unset($form['vocabularies'][$vocabulary->id()]['weight']);
-  }
-  $form['vocabularies']['#header'][] = t('Operations');
-  return $form;
-}
-
-/**
- * Submit handler for vocabularies overview. Updates changed vocabulary weights.
- *
- * @see taxonomy_overview_vocabularies()
- */
-function taxonomy_overview_vocabularies_submit($form, &$form_state) {
-  foreach ($form_state['values']['vocabularies'] as $vid => $vocabulary) {
-    if (isset($form['vocabularies'][$vid]['#vocabulary']) && $form['vocabularies'][$vid]['#vocabulary']->weight != $form_state['values']['vocabularies'][$vid]['weight']) {
-      $form['vocabularies'][$vid]['#vocabulary']->weight = $form_state['values']['vocabularies'][$vid]['weight'];
-      $form['vocabularies'][$vid]['#vocabulary']->save();
-    }
-  }
-  drupal_set_message(t('The configuration options have been saved.'));
-}
-
-/**
  * Page callback: provides the vocabulary creation form.
  */
 function taxonomy_vocabulary_add() {
@@ -99,7 +17,7 @@ function taxonomy_vocabulary_add() {
     // most likely default value until we have better flexible settings.
     'langcode' => language_default()->langcode,
   ));
-  return entity_get_form($vocabulary);
+  return Drupal::entityManager()->getForm($vocabulary);
 }
 
 /**
@@ -245,7 +163,7 @@ function taxonomy_overview_terms($form, &$form_state, Vocabulary $vocabulary) {
       '#prefix' => isset($term->depth->value) && $term->depth->value > 0 ? theme('indentation', array('size' => $term->depth->value)) : '',
       '#type' => 'link',
       '#title' => $term->label(),
-      '#href' => "taxonomy/term/$term->id()",
+      '#href' => "taxonomy/term/" . $term->id(),
     );
     if ($vocabulary->hierarchy != TAXONOMY_HIERARCHY_MULTIPLE && count($tree) > 1) {
       $parent_fields = TRUE;
@@ -480,7 +398,7 @@ function taxonomy_term_add($vocabulary) {
   if (module_exists('language')) {
     $term->langcode = language_get_default_langcode('taxonomy_term', $vocabulary->id());
   }
-  return entity_get_form($term);
+  return Drupal::entityManager()->getForm($term);
 }
 
 /**

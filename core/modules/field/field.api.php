@@ -13,7 +13,7 @@ use Drupal\field\FieldUpdateForbiddenException;
  *
  * Field UI's "Manage fields" and "Manage display" pages let users re-order
  * fields, but also non-field components. For nodes, these include the title
- * and other elements exposed by modules through hook_form() or hook_form_alter().
+ * and other elements exposed by modules through hook_form_alter().
  *
  * Fieldable entities or modules that want to have their components supported
  * should expose them using this hook. The user-defined settings (weight,
@@ -541,11 +541,9 @@ function hook_field_update(\Drupal\Core\Entity\EntityInterface $entity, $field, 
  *   The updated field structure to be saved.
  * @param $prior_field
  *   The previously-saved field structure.
- * @param $has_data
- *   TRUE if the field has data in storage currently.
  */
-function hook_field_storage_update_field($field, $prior_field, $has_data) {
-  if (!$has_data) {
+function hook_field_storage_update_field($field, $prior_field) {
+  if (!$field->hasData()) {
     // There is no data. Re-create the tables completely.
     $prior_schema = _field_sql_storage_schema($prior_field);
     foreach ($prior_schema as $name => $table) {
@@ -652,16 +650,16 @@ function hook_field_prepare_translation(\Drupal\Core\Entity\EntityInterface $ent
 /**
  * Define what constitutes an empty item for a field type.
  *
- * @param $item
+ * @param array $item
  *   An item that may or may not be empty.
- * @param $field
- *   The field to which $item belongs.
+ * @param string $field_type
+ *   The field type to which $item belongs.
  *
- * @return
- *   TRUE if $field's type considers $item not to contain any data; FALSE
+ * @return bool
+ *   TRUE if the field type considers $item not to contain any data; FALSE
  *   otherwise.
  */
-function hook_field_is_empty($item, $field) {
+function hook_field_is_empty($item, $field_type) {
   if (empty($item['value']) && (string) $item['value'] !== '0') {
     return TRUE;
   }
@@ -724,19 +722,19 @@ function hook_field_widget_info_alter(array &$info) {
  * @param $form_state
  *   An associative array containing the current state of the form.
  * @param $context
- *   An associative array containing the following key-value pairs, matching the
- *   arguments received by hook_field_widget_form():
+ *   An associative array containing the following key-value pairs:
  *   - form: The form structure to which widgets are being attached. This may be
  *     a full form structure, or a sub-element of a larger form.
- *   - field: The field structure.
- *   - instance: The field instance structure.
+ *   - widget: The widget plugin instance.
+ *   - field_definition: The field definition.
+ *   - entity: The entity.
  *   - langcode: The language associated with $items.
  *   - items: Array of default values for this field.
  *   - delta: The order of this item in the array of subelements (0, 1, 2, etc).
  *   - default: A boolean indicating whether the form is being shown as a dummy
  *     form to set default values.
  *
- * @see hook_field_widget_form()
+ * @see \Drupal\field\Plugin\Type\Widget\WidgetBase::formSingleElement()
  * @see hook_field_widget_WIDGET_TYPE_form_alter()
  */
 function hook_field_widget_form_alter(&$element, &$form_state, $context) {
@@ -759,20 +757,10 @@ function hook_field_widget_form_alter(&$element, &$form_state, $context) {
  * @param $form_state
  *   An associative array containing the current state of the form.
  * @param $context
- *   An associative array containing the following key-value pairs, matching the
- *   arguments received by hook_field_widget_form():
- *   - "form": The form structure where widgets are being attached to. This
- *     might be a full form structure, or a sub-element of a larger form.
- *   - "field": The field structure.
- *   - "instance": The field instance structure.
- *   - "langcode": The language associated with $items.
- *   - "items": Array of default values for this field.
- *   - "delta": The order of this item in the array of subelements (0, 1, 2,
- *     etc).
- *   - default: A boolean indicating whether the form is being shown as a dummy
- *     form to set default values.
+ *   An associative array. See hook_field_widget_form_alter() for the structure
+ *   and content of the array.
  *
- * @see hook_field_widget_form()
+ * @see \Drupal\field\Plugin\Type\Widget\WidgetBase::formSingleElement()
  * @see hook_field_widget_form_alter()
  */
 function hook_field_widget_WIDGET_TYPE_form_alter(&$element, &$form_state, $context) {
@@ -970,7 +958,7 @@ function hook_field_attach_update(\Drupal\Core\Entity\EntityInterface $entity) {
 /**
  * Alter field_attach_preprocess() variables.
  *
- * This hook is invoked while preprocessing the field.tpl.php template file in
+ * This hook is invoked while preprocessing field templates in
  * field_attach_preprocess().
  *
  * @param $variables
@@ -1863,15 +1851,13 @@ function hook_field_create_instance($instance) {
  *   The field as it will be post-update.
  * @param $prior_field
  *   The field as it is pre-update.
- * @param $has_data
- *   Whether any data already exists for this field.
  */
-function hook_field_update_forbid($field, $prior_field, $has_data) {
+function hook_field_update_forbid($field, $prior_field) {
   // A 'list' field stores integer keys mapped to display values. If
   // the new field will have fewer values, and any data exists for the
   // abandoned keys, the field will have no way to display them. So,
   // forbid such an update.
-  if ($has_data && count($field['settings']['allowed_values']) < count($prior_field['settings']['allowed_values'])) {
+  if ($field->hasData() && count($field['settings']['allowed_values']) < count($prior_field['settings']['allowed_values'])) {
     // Identify the keys that will be lost.
     $lost_keys = array_diff(array_keys($field['settings']['allowed_values']), array_keys($prior_field['settings']['allowed_values']));
     // If any data exist for those keys, forbid the update.
@@ -1897,10 +1883,8 @@ function hook_field_update_forbid($field, $prior_field, $has_data) {
  *   The field as it is post-update.
  * @param $prior_field
  *   The field as it was pre-update.
- * @param $has_data
- *   Whether any data already exists for this field.
  */
-function hook_field_update_field($field, $prior_field, $has_data) {
+function hook_field_update_field($field, $prior_field) {
   // Reset the static value that keeps track of allowed values for list fields.
   drupal_static_reset('list_allowed_values');
 }
@@ -2076,7 +2060,7 @@ function hook_field_storage_purge(\Drupal\Core\Entity\EntityInterface $entity, $
  *
  * @param $op
  *   The operation to be performed. Possible values: 'edit', 'view'.
- * @param $field
+ * @param \Drupal\field\FieldInterface $field
  *   The field on which the operation is to be performed.
  * @param $entity_type
  *   The type of $entity; for example, 'node' or 'user'.
@@ -2088,7 +2072,7 @@ function hook_field_storage_purge(\Drupal\Core\Entity\EntityInterface $entity, $
  * @return
  *   TRUE if the operation is allowed, and FALSE if the operation is denied.
  */
-function hook_field_access($op, $field, $entity_type, $entity, $account) {
+function hook_field_access($op, \Drupal\field\FieldInterface $field, $entity_type, $entity, $account) {
   if ($field['field_name'] == 'field_of_interest' && $op == 'edit') {
     return user_access('edit field of interest', $account);
   }

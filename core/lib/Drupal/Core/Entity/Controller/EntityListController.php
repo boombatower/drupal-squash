@@ -7,7 +7,7 @@
 
 namespace Drupal\Core\Entity\Controller;
 
-use Drupal\Core\ControllerInterface;
+use Drupal\Core\Controller\ControllerInterface;
 use Drupal\Core\Entity\EntityManager;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
@@ -45,6 +45,9 @@ class EntityListController implements ControllerInterface {
   /**
    * Provides the listing page for any entity type.
    *
+   * @param string $entity_type
+   *   The entity type to render.
+   *
    * @return array
    *   A render array as expected by drupal_render().
    */
@@ -53,3 +56,4 @@ class EntityListController implements ControllerInterface {
   }
 
 }
+

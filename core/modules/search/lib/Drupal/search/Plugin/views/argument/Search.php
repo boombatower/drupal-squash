@@ -50,7 +50,7 @@ class Search extends ArgumentPluginBase {
     }
     if ($required) {
       if ($this->operator == 'required') {
-        $this->query->add_where(0, 'FALSE');
+        $this->query->addWhere(0, 'FALSE');
       }
     }
     else {
@@ -66,9 +66,9 @@ class Search extends ArgumentPluginBase {
         'left_field' => 'word',
       );
       $join = drupal_container()->get('plugin.manager.views.join')->createInstance('standard', $definition);
-      $search_total = $this->query->add_relationship('search_total', $join, $search_index);
+      $search_total = $this->query->addRelationship('search_total', $join, $search_index);
 
-      $this->search_score = $this->query->add_field('', "SUM($search_index.score * $search_total.count)", 'score', array('aggregate' => TRUE));
+      $this->search_score = $this->query->addField('', "SUM($search_index.score * $search_total.count)", 'score', array('aggregate' => TRUE));
 
       if (empty($this->query->relationships[$this->relationship])) {
         $base_table = $this->view->storage->get('base_table');
@@ -79,7 +79,7 @@ class Search extends ArgumentPluginBase {
       $search_condition->condition("$search_index.type", $base_table);
 
       if (!$this->search_query->simple()) {
-        $search_dataset = $this->query->add_table('search_dataset');
+        $search_dataset = $this->query->addTable('search_dataset');
         $conditions = $this->search_query->conditions();
         $condition_conditions =& $conditions->conditions();
         foreach ($condition_conditions  as $key => &$condition) {
@@ -102,11 +102,11 @@ class Search extends ArgumentPluginBase {
         $search_condition->condition($or);
       }
 
-      $this->query->add_where(0, $search_condition);
-      $this->query->add_groupby("$search_index.sid");
+      $this->query->addWhere(0, $search_condition);
+      $this->query->addGroupBy("$search_index.sid");
       $matches = $this->search_query->matches();
       $placeholder = $this->placeholder();
-      $this->query->add_having_expression(0, "COUNT(*) >= $placeholder", array($placeholder => $matches));
+      $this->query->addHavingExpression(0, "COUNT(*) >= $placeholder", array($placeholder => $matches));
     }
   }
 

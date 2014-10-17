@@ -7,12 +7,15 @@
 
 namespace Drupal\field\Plugin\views\field;
 
+use Drupal\Core\Language\Language;
 use Drupal\Core\Entity\EntityInterface;
+use Drupal\field\Plugin\Type\Formatter\FormatterPluginManager;
 use Drupal\views\ViewExecutable;
 use Drupal\views\Plugin\views\display\DisplayPluginBase;
 use Drupal\views\Plugin\views\field\FieldPluginBase;
 use Drupal\Component\Annotation\PluginID;
 use Drupal\views\Views;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
  * A field that displays fieldapi fields.
@@ -24,19 +27,18 @@ use Drupal\views\Views;
 class Field extends FieldPluginBase {
 
   /**
-   * An array to store field renderable arrays for use by render_items.
+   * An array to store field renderable arrays for use by renderItems().
    *
    * @var array
    */
   public $items = array();
 
   /**
-   * Store the field information.
+   * The field information as returned by field_info_field().
    *
-   * @var array
+   * @var \Drupal\field\FieldInterface
    */
-  public $field_info = array();
-
+  public $field_info;
 
   /**
    * Does the field supports multiple field values.
@@ -60,11 +62,48 @@ class Field extends FieldPluginBase {
   public $base_table;
 
   /**
-   * Store the field instance.
+   * An array of formatter options.
    *
    * @var array
    */
-  public $instance;
+  protected $formatterOptions;
+
+  /**
+   * The field formatter plugin manager.
+   *
+   * @var \Drupal\field\Plugin\Type\Formatter\FormatterPluginManager
+   */
+  protected $formatterPluginManager;
+
+  /**
+   * Constructs a \Drupal\field\Plugin\views\field\Field object.
+   *
+   * @param array $configuration
+   *   A configuration array containing information about the plugin instance.
+   * @param string $plugin_id
+   *   The plugin_id for the plugin instance.
+   * @param array $plugin_definition
+   *   The plugin implementation definition.
+   * @param \Drupal\field\Plugin\Type\Formatter\FormatterPluginManager $formatter_plugin_manager
+   *   The field formatter plugin manager.
+   */
+  public function __construct(array $configuration, $plugin_id, array $plugin_definition, FormatterPluginManager $formatter_plugin_manager) {
+    parent::__construct($configuration, $plugin_id, $plugin_definition);
+
+    $this->formatterPluginManager = $formatter_plugin_manager;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public static function create(ContainerInterface $container, array $configuration, $plugin_id, array $plugin_definition) {
+    return new static(
+      $configuration,
+      $plugin_id,
+      $plugin_definition,
+      $container->get('plugin.manager.field.formatter')
+    );
+  }
 
   /**
    * Overrides \Drupal\views\Plugin\views\field\FieldPluginBase::init().
@@ -179,17 +218,17 @@ class Field extends FieldPluginBase {
     // Add additional fields (and the table join itself) if needed.
     if ($this->add_field_table($use_groupby)) {
       $this->ensureMyTable();
-      $this->add_additional_fields($fields);
+      $this->addAdditionalFields($fields);
 
       // Filter by langcode, if field translation is enabled.
       $field = $this->field_info;
       if (field_is_translatable($entity_type, $field) && !empty($this->view->display_handler->options['field_langcode_add_to_query'])) {
         $column = $this->tableAlias . '.langcode';
-        // By the same reason as field_language the field might be LANGUAGE_NOT_SPECIFIED in reality so allow it as well.
+        // By the same reason as field_language the field might be Language::LANGCODE_NOT_SPECIFIED in reality so allow it as well.
         // @see this::field_langcode()
         $default_langcode = language_default()->langcode;
         $langcode = str_replace(array('***CURRENT_LANGUAGE***', '***DEFAULT_LANGUAGE***'),
-                                array(drupal_container()->get(LANGUAGE_TYPE_CONTENT)->langcode, $default_langcode),
+                                array(drupal_container()->get(Language::TYPE_CONTENT)->langcode, $default_langcode),
                                 $this->view->display_handler->options['field_langcode']);
         $placeholder = $this->placeholder();
         $langcode_fallback_candidates = array($langcode);
@@ -198,9 +237,9 @@ class Field extends FieldPluginBase {
           $langcode_fallback_candidates = array_merge($langcode_fallback_candidates, language_fallback_get_candidates());
         }
         else {
-          $langcode_fallback_candidates[] = LANGUAGE_NOT_SPECIFIED;
+          $langcode_fallback_candidates[] = Language::LANGCODE_NOT_SPECIFIED;
         }
-        $this->query->add_where_expression(0, "$column IN($placeholder) OR $column IS NULL", array($placeholder => $langcode_fallback_candidates));
+        $this->query->addWhereExpression(0, "$column IN($placeholder) OR $column IS NULL", array($placeholder => $langcode_fallback_candidates));
       }
     }
   }
@@ -223,7 +262,7 @@ class Field extends FieldPluginBase {
   /**
    * Determine if this field is click sortable.
    */
-  function click_sortable() {
+  public function clickSortable() {
     // Not click sortable in any case.
     if (empty($this->definition['click sortable'])) {
       return FALSE;
@@ -240,7 +279,7 @@ class Field extends FieldPluginBase {
   /**
    * Called to determine what to tell the clicksorter.
    */
-  function click_sort($order) {
+  public function clickSort($order) {
     // No column selected, can't continue.
     if (empty($this->options['click_sort_column'])) {
       return;
@@ -252,7 +291,7 @@ class Field extends FieldPluginBase {
       // Column is not in query; add a sort on it (without adding the column).
       $this->aliases[$column] = $this->tableAlias . '.' . $column;
     }
-    $this->query->add_orderby(NULL, NULL, $order, $this->aliases[$column]);
+    $this->query->addOrderBy(NULL, NULL, $order, $this->aliases[$column]);
   }
 
   protected function defineOptions() {
@@ -325,11 +364,14 @@ class Field extends FieldPluginBase {
     return $options;
   }
 
+  /**
+   * {@inheritdoc}
+   */
   public function buildOptionsForm(&$form, &$form_state) {
     parent::buildOptionsForm($form, $form_state);
 
     $field = $this->field_info;
-    $formatters = _field_view_formatter_options($field['type']);
+    $formatters = $this->formatterPluginManager->getOptions($field['type']);
     $column_names = array_keys($field['columns']);
 
     // If this is a multiple value field, add its options.
@@ -371,7 +413,7 @@ class Field extends FieldPluginBase {
       '#title' => t('Use field template'),
       '#type' => 'checkbox',
       '#default_value' => $this->options['field_api_classes'],
-      '#description' => t('If checked, field api classes will be added using field.tpl.php (or equivalent). This is not recommended unless your CSS depends upon these classes. If not checked, template will not be used.'),
+      '#description' => t('If checked, field api classes will be added by field templates. This is not recommended unless your CSS depends upon these classes. If not checked, template will not be used.'),
       '#fieldset' => 'style_settings',
       '#weight' => 20,
     );
@@ -385,11 +427,8 @@ class Field extends FieldPluginBase {
 
     $settings = $this->options['settings'] + field_info_formatter_settings($format);
 
-    // Provide an instance array for hook_field_formatter_settings_form().
-    $this->instance = $this->fakeFieldInstance($format, $settings);
-
     $options = array(
-      'instance' => $this->instance,
+      'field_definition' => $field,
       'configuration' => array(
         'type' => $format,
         'settings' => $settings,
@@ -405,42 +444,6 @@ class Field extends FieldPluginBase {
       $settings_form = $formatter->settingsForm($form, $form_state);
     }
     $form['settings'] = $settings_form;
-  }
-
-  /**
-   * Provides a fake field instance.
-   *
-   * @param string $formatter
-   *   The machine name of the formatter to use.
-   * @param array $formatter_settings
-   *   An associative array of settings for the formatter.
-   *
-   * @return array
-   *   An associative array of instance date for the fake field.
-   *
-   * @see field_info_instance()
-   */
-  function fakeFieldInstance($formatter, $formatter_settings) {
-    $field_name = $this->definition['field_name'];
-    $field = field_read_field($field_name);
-
-    $field_type = field_info_field_types($field['type']);
-
-    return array(
-      // Build a fake entity type and bundle.
-      'field_name' => $field_name,
-      'entity_type' => 'views_fake',
-      'bundle' => 'views_fake',
-
-      // Use the default field settings.
-      'settings' => field_info_instance_settings($field['type']),
-
-      // Set the other fields to their default values.
-      'required' => FALSE,
-      'label' => $field_name,
-      'description' => '',
-      'deleted' => FALSE,
-    );
   }
 
   /**
@@ -612,7 +615,7 @@ class Field extends FieldPluginBase {
    * When using advanced render, each possible item in the list is rendered
    * individually. Then the items are all pasted together.
    */
-  function render_items($items) {
+  protected function renderItems($items) {
     if (!empty($items)) {
       if (!$this->options['group_rows']) {
         return implode('', $items);
@@ -626,7 +629,7 @@ class Field extends FieldPluginBase {
           array(
             'items' => $items,
             'title' => NULL,
-            'type' => $this->options['multi_type']
+            'list_type' => $this->options['multi_type'],
           ));
       }
     }
@@ -635,8 +638,8 @@ class Field extends FieldPluginBase {
   /**
    * Return an array of items for the field.
    */
-  function get_items($values) {
-    $original_entity = $this->get_entity($values);
+  public function getItems($values) {
+    $original_entity = $this->getEntity($values);
     if (!$original_entity) {
       return array();
     }
@@ -793,14 +796,14 @@ class Field extends FieldPluginBase {
     return render($item['rendered']);
   }
 
-  function document_self_tokens(&$tokens) {
+  protected function documentSelfTokens(&$tokens) {
     $field = $this->field_info;
     foreach ($field['columns'] as $id => $column) {
       $tokens['[' . $this->options['id'] . '-' . $id . ']'] = t('Raw @column', array('@column' => $id));
     }
   }
 
-  function add_self_tokens(&$tokens, $item) {
+  protected function addSelfTokens(&$tokens, $item) {
     $field = $this->field_info;
     foreach ($field['columns'] as $id => $column) {
       // Use filter_xss_admin because it's user data and we can't be sure it is safe.
@@ -830,11 +833,11 @@ class Field extends FieldPluginBase {
     if (field_is_translatable($entity->entityType(), $this->field_info)) {
       $default_langcode = language_default()->langcode;
       $langcode = str_replace(array('***CURRENT_LANGUAGE***', '***DEFAULT_LANGUAGE***'),
-                              array(drupal_container()->get(LANGUAGE_TYPE_CONTENT)->langcode, $default_langcode),
+                              array(drupal_container()->get(Language::TYPE_CONTENT)->langcode, $default_langcode),
                               $this->view->display_handler->options['field_language']);
 
       // Give the Field Language API a chance to fallback to a different language
-      // (or LANGUAGE_NOT_SPECIFIED), in case the field has no data for the selected language.
+      // (or Language::LANGCODE_NOT_SPECIFIED), in case the field has no data for the selected language.
       // field_view_field() does this as well, but since the returned language code
       // is used before calling it, the fallback needs to happen explicitly.
       $langcode = field_language($entity, $this->field_info['field_name'], $langcode);
@@ -842,7 +845,7 @@ class Field extends FieldPluginBase {
       return $langcode;
     }
     else {
-      return LANGUAGE_NOT_SPECIFIED;
+      return Language::LANGCODE_NOT_SPECIFIED;
     }
   }
 

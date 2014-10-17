@@ -88,7 +88,7 @@ class GroupwiseMax extends RelationshipPluginBase {
     parent::buildOptionsForm($form, $form_state);
 
     // Get the sorts that apply to our base.
-    $sorts = views_fetch_fields($this->definition['base'], 'sort');
+    $sorts = Views::viewsDataHelper()->fetchFields($this->definition['base'], 'sort');
     foreach ($sorts as $sort_id => $sort) {
       $sort_options[$sort_id] = "$sort[group]: $sort[title]";
     }
@@ -160,7 +160,7 @@ class GroupwiseMax extends RelationshipPluginBase {
    *
    * We use this to obtain our subquery SQL.
    */
-  function get_temporary_view() {
+  protected function getTemporaryView() {
     $view = entity_create('view', array('base_table' => $this->definition['base']));
     $view->addDisplay('default');
     return $view->get('executable');
@@ -187,7 +187,7 @@ class GroupwiseMax extends RelationshipPluginBase {
    * @return
    *    The subquery SQL string, ready for use in the main query.
    */
-  function left_query($options) {
+  protected function leftQuery($options) {
     // Either load another view, or create one on the fly.
     if ($options['subquery_view']) {
       $temp_view = views_get_view($options['subquery_view']);
@@ -197,7 +197,7 @@ class GroupwiseMax extends RelationshipPluginBase {
     else {
       // Create a new view object on the fly, which we use to generate a query
       // object and then get the SQL we need for the subquery.
-      $temp_view = $this->get_temporary_view();
+      $temp_view = $this->getTemporaryView();
 
       // Add the sort from the options to the default display.
       // This is broken, in that the sort order field also gets added as a
@@ -260,7 +260,7 @@ class GroupwiseMax extends RelationshipPluginBase {
       $tables[$table_name]['alias'] .= $this->subquery_namespace;
       // Namespace the join on every table.
       if (isset($tables[$table_name]['condition'])) {
-        $tables[$table_name]['condition'] = $this->condition_namespace($tables[$table_name]['condition']);
+        $tables[$table_name]['condition'] = $this->conditionNamespace($tables[$table_name]['condition']);
       }
     }
     // Namespace fields.
@@ -270,7 +270,7 @@ class GroupwiseMax extends RelationshipPluginBase {
     }
     // Namespace conditions.
     $where =& $subquery->conditions();
-    $this->alter_subquery_condition($subquery, $where);
+    $this->alterSubqueryCondition($subquery, $where);
     // Not sure why, but our sort order clause doesn't have a table.
     // TODO: the call to add_item() above to add the sort handler is probably
     // wrong -- needs attention from someone who understands it.
@@ -309,16 +309,16 @@ class GroupwiseMax extends RelationshipPluginBase {
    *
    * (Though why is the condition we get in a simple query 3 levels deep???)
    */
-  function alter_subquery_condition(AlterableInterface $query, &$conditions) {
+  protected function alterSubqueryCondition(AlterableInterface $query, &$conditions) {
     foreach ($conditions as $condition_id => &$condition) {
       // Skip the #conjunction element.
       if (is_numeric($condition_id)) {
         if (is_string($condition['field'])) {
-          $condition['field'] = $this->condition_namespace($condition['field']);
+          $condition['field'] = $this->conditionNamespace($condition['field']);
         }
         elseif (is_object($condition['field'])) {
           $sub_conditions =& $condition['field']->conditions();
-          $this->alter_subquery_condition($query, $sub_conditions);
+          $this->alterSubqueryCondition($query, $sub_conditions);
         }
       }
     }
@@ -329,7 +329,7 @@ class GroupwiseMax extends RelationshipPluginBase {
    *
    * Turns 'foo.bar' into 'foo_NAMESPACE.bar'.
    */
-  function condition_namespace($string) {
+  protected function conditionNamespace($string) {
     return str_replace('.', $this->subquery_namespace . '.', $string);
   }
 
@@ -357,7 +357,7 @@ class GroupwiseMax extends RelationshipPluginBase {
 
     if ($this->options['subquery_regenerate']) {
       // For testing only, regenerate the subquery each time.
-      $def['left_query'] = $this->left_query($this->options);
+      $def['left_query'] = $this->leftQuery($this->options);
     }
     else {
       // Get the stored subquery SQL string.
@@ -367,7 +367,7 @@ class GroupwiseMax extends RelationshipPluginBase {
         $def['left_query'] = $cache->data;
       }
       else {
-        $def['left_query'] = $this->left_query($this->options);
+        $def['left_query'] = $this->leftQuery($this->options);
         cache('views_results')->set($cid, $def['left_query']);
       }
     }
@@ -383,7 +383,7 @@ class GroupwiseMax extends RelationshipPluginBase {
     // use a short alias for this:
     $alias = $def['table'] . '_' . $this->table;
 
-    $this->alias = $this->query->add_relationship($alias, $join, $this->definition['base'], $this->relationship);
+    $this->alias = $this->query->addRelationship($alias, $join, $this->definition['base'], $this->relationship);
   }
 
 }

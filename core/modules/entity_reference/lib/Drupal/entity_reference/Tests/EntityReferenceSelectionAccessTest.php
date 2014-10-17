@@ -7,6 +7,8 @@
 
 namespace Drupal\entity_reference\Tests;
 
+use Drupal\Core\Entity\Field\FieldDefinitionInterface;
+use Drupal\Core\Language\Language;
 use Drupal\simpletest\WebTestBase;
 
 /**
@@ -31,8 +33,8 @@ class EntityReferenceSelectionAccessTest extends WebTestBase {
     $this->drupalCreateContentType(array('type' => 'article', 'name' => 'Article'));
   }
 
-  protected function assertReferencable($field, $instance, $tests, $handler_name) {
-    $handler = entity_reference_get_selection_handler($field, $instance);
+  protected function assertReferencable(FieldDefinitionInterface $field_definition, $tests, $handler_name) {
+    $handler = entity_reference_get_selection_handler($field_definition);
 
     foreach ($tests as $test) {
       foreach ($test['arguments'] as $arguments) {
@@ -57,8 +59,8 @@ class EntityReferenceSelectionAccessTest extends WebTestBase {
    * Test the node-specific overrides of the entity handler.
    */
   public function testNodeHandler() {
-    // Build a fake field instance.
-    $field = array(
+    // Create a field and instance.
+    $field = entity_create('field_entity', array(
       'translatable' => FALSE,
       'entity_types' => array(),
       'settings' => array(
@@ -67,15 +69,20 @@ class EntityReferenceSelectionAccessTest extends WebTestBase {
       'field_name' => 'test_field',
       'type' => 'entity_reference',
       'cardinality' => '1',
-    );
-    $instance = array(
+    ));
+    $field->save();
+    $instance = entity_create('field_instance', array(
+      'field_name' => 'test_field',
+      'entity_type' => 'test_entity',
+      'bundle' => 'test_bundle',
       'settings' => array(
         'handler' => 'default',
         'handler_settings' => array(
           'target_bundles' => array(),
         ),
       ),
-    );
+    ));
+    $instance->save();
 
     // Build a set of test data.
     // Titles contain HTML-special characters to test escaping.
@@ -159,7 +166,7 @@ class EntityReferenceSelectionAccessTest extends WebTestBase {
         'result' => array(),
       ),
     );
-    $this->assertReferencable($field, $instance, $referencable_tests, 'Node handler');
+    $this->assertReferencable($instance, $referencable_tests, 'Node handler');
 
     // Test as an admin.
     $admin_user = $this->drupalCreateUser(array('access content', 'bypass node access'));
@@ -188,15 +195,15 @@ class EntityReferenceSelectionAccessTest extends WebTestBase {
         ),
       ),
     );
-    $this->assertReferencable($field, $instance, $referencable_tests, 'Node handler (admin)');
+    $this->assertReferencable($instance, $referencable_tests, 'Node handler (admin)');
   }
 
   /**
    * Test the user-specific overrides of the entity handler.
    */
   public function testUserHandler() {
-    // Build a fake field instance.
-    $field = array(
+    // Create a field and instance.
+    $field = entity_create('field_entity', array(
       'translatable' => FALSE,
       'entity_types' => array(),
       'settings' => array(
@@ -205,15 +212,20 @@ class EntityReferenceSelectionAccessTest extends WebTestBase {
       'field_name' => 'test_field',
       'type' => 'entity_reference',
       'cardinality' => '1',
-    );
-    $instance = array(
+    ));
+    $field->save();
+    $instance = entity_create('field_instance', array(
+      'field_name' => 'test_field',
+      'entity_type' => 'test_entity',
+      'bundle' => 'test_bundle',
       'settings' => array(
         'handler' => 'default',
         'handler_settings' => array(
           'target_bundles' => array(),
         ),
       ),
-    );
+    ));
+    $instance->save();
 
     // Build a set of test data.
     $user_values = array(
@@ -289,7 +301,7 @@ class EntityReferenceSelectionAccessTest extends WebTestBase {
         'result' => array(),
       ),
     );
-    $this->assertReferencable($field, $instance, $referencable_tests, 'User handler');
+    $this->assertReferencable($instance, $referencable_tests, 'User handler');
 
     $GLOBALS['user'] = $users['admin'];
     $referencable_tests = array(
@@ -328,15 +340,15 @@ class EntityReferenceSelectionAccessTest extends WebTestBase {
         ),
       ),
     );
-    $this->assertReferencable($field, $instance, $referencable_tests, 'User handler (admin)');
+    $this->assertReferencable($instance, $referencable_tests, 'User handler (admin)');
   }
 
   /**
    * Test the comment-specific overrides of the entity handler.
    */
   public function testCommentHandler() {
-    // Build a fake field instance.
-    $field = array(
+    // Create a field and instance.
+    $field = entity_create('field_entity', array(
       'translatable' => FALSE,
       'entity_types' => array(),
       'settings' => array(
@@ -345,15 +357,20 @@ class EntityReferenceSelectionAccessTest extends WebTestBase {
       'field_name' => 'test_field',
       'type' => 'entity_reference',
       'cardinality' => '1',
-    );
-    $instance = array(
+    ));
+    $field->save();
+    $instance = entity_create('field_instance', array(
+      'field_name' => 'test_field',
+      'entity_type' => 'test_entity',
+      'bundle' => 'test_bundle',
       'settings' => array(
         'handler' => 'default',
         'handler_settings' => array(
           'target_bundles' => array(),
         ),
       ),
-    );
+    ));
+    $instance->save();
 
     // Build a set of test data.
     $node_values = array(
@@ -385,7 +402,7 @@ class EntityReferenceSelectionAccessTest extends WebTestBase {
         'pid' => 0,
         'status' => COMMENT_PUBLISHED,
         'subject' => 'Comment Published <&>',
-        'language' => LANGUAGE_NOT_SPECIFIED,
+        'language' => Language::LANGCODE_NOT_SPECIFIED,
       ),
       'published_unpublished' => array(
         'nid' => $nodes['published']->nid,
@@ -394,7 +411,7 @@ class EntityReferenceSelectionAccessTest extends WebTestBase {
         'pid' => 0,
         'status' => COMMENT_NOT_PUBLISHED,
         'subject' => 'Comment Unpublished <&>',
-        'language' => LANGUAGE_NOT_SPECIFIED,
+        'language' => Language::LANGCODE_NOT_SPECIFIED,
       ),
       'unpublished_published' => array(
         'nid' => $nodes['unpublished']->nid,
@@ -403,7 +420,7 @@ class EntityReferenceSelectionAccessTest extends WebTestBase {
         'pid' => 0,
         'status' => COMMENT_NOT_PUBLISHED,
         'subject' => 'Comment Published on Unpublished node <&>',
-        'language' => LANGUAGE_NOT_SPECIFIED,
+        'language' => Language::LANGCODE_NOT_SPECIFIED,
       ),
     );
 
@@ -453,7 +470,7 @@ class EntityReferenceSelectionAccessTest extends WebTestBase {
         'result' => array(),
       ),
     );
-    $this->assertReferencable($field, $instance, $referencable_tests, 'Comment handler');
+    $this->assertReferencable($instance, $referencable_tests, 'Comment handler');
 
     // Test as a comment admin.
     $admin_user = $this->drupalCreateUser(array('access content', 'access comments', 'administer comments'));
@@ -471,7 +488,7 @@ class EntityReferenceSelectionAccessTest extends WebTestBase {
         ),
       ),
     );
-    $this->assertReferencable($field, $instance, $referencable_tests, 'Comment handler (comment admin)');
+    $this->assertReferencable($instance, $referencable_tests, 'Comment handler (comment admin)');
 
     // Test as a node and comment admin.
     $admin_user = $this->drupalCreateUser(array('access content', 'access comments', 'administer comments', 'bypass node access'));
@@ -490,6 +507,6 @@ class EntityReferenceSelectionAccessTest extends WebTestBase {
         ),
       ),
     );
-    $this->assertReferencable($field, $instance, $referencable_tests, 'Comment handler (comment + node admin)');
+    $this->assertReferencable($instance, $referencable_tests, 'Comment handler (comment + node admin)');
   }
 }

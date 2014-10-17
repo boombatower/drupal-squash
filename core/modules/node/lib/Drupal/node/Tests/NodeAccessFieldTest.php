@@ -7,6 +7,8 @@
 
 namespace Drupal\node\Tests;
 
+use Drupal\Core\Language\Language;
+
 /**
  * Tests the interaction of the node access system with fields.
  */
@@ -18,6 +20,27 @@ class NodeAccessFieldTest extends NodeTestBase {
    * @var array
    */
   public static $modules = array('node_access_test', 'field_ui');
+
+  /**
+   * A user with permission to bypass access content.
+   *
+   * @var \Drupal\user\UserInterface
+   */
+  protected $admin_user;
+
+  /**
+   * A user with permission to manage content types and fields.
+   *
+   * @var \Drupal\user\UserInterface
+   */
+  protected $content_admin_user;
+
+  /**
+   * The name of the created field.
+   *
+   * @var string
+   */
+  protected $field_name;
 
   public static function getInfo() {
     return array(
@@ -38,13 +61,15 @@ class NodeAccessFieldTest extends NodeTestBase {
 
     // Add a custom field to the page content type.
     $this->field_name = drupal_strtolower($this->randomName() . '_field_name');
-    $this->field = field_create_field(array('field_name' => $this->field_name, 'type' => 'text'));
-    $instance = array(
+    entity_create('field_entity', array(
+      'field_name' => $this->field_name,
+      'type' => 'text'
+    ))->save();
+    entity_create('field_instance', array(
       'field_name' => $this->field_name,
       'entity_type' => 'node',
       'bundle' => 'page',
-    );
-    $this->instance = field_create_instance($instance);
+    ))->save();
     entity_get_display('node', 'page', 'default')
       ->setComponent($this->field_name)
       ->save();
@@ -58,7 +83,7 @@ class NodeAccessFieldTest extends NodeTestBase {
    */
   function testNodeAccessAdministerField() {
     // Create a page node.
-    $langcode = LANGUAGE_NOT_SPECIFIED;
+    $langcode = Language::LANGCODE_NOT_SPECIFIED;
     $field_data = array();
     $value = $field_data[0]['value'] = $this->randomName();
     $node = $this->drupalCreateNode(array($this->field_name => $field_data));

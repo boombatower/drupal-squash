@@ -6,6 +6,7 @@
  */
 
 use Drupal\Component\Plugin\Exception\PluginException;
+use Drupal\Component\Utility\NestedArray;
 
 /**
  * Denotes that a block is not enabled in any region and should not be shown.
@@ -92,11 +93,6 @@ function block_theme() {
       'render element' => 'elements',
       'template' => 'block',
     ),
-    'block_admin_display_form' => array(
-      'template' => 'block-admin-display-form',
-      'file' => 'block.admin.inc',
-      'render element' => 'form',
-    ),
   );
 }
 
@@ -121,10 +117,7 @@ function block_menu() {
   $items['admin/structure/block'] = array(
     'title' => 'Blocks',
     'description' => 'Configure what block content appears in your site\'s sidebars and other regions.',
-    'page callback' => 'block_admin_display',
-    'page arguments' => array($default_theme),
-    'access arguments' => array('administer blocks'),
-    'file' => 'block.admin.inc',
+    'route_name' => 'block_admin_display',
   );
   $items['admin/structure/block/add/%/%'] = array(
     'title' => 'Configure block',
@@ -164,11 +157,8 @@ function block_menu() {
       $theme = $themes[$key];
       $items['admin/structure/block/list/' . $plugin_id] = array(
         'title' => check_plain($theme->info['name']),
-        'page arguments' => array($key),
         'type' => $key == $default_theme ? MENU_DEFAULT_LOCAL_TASK : MENU_LOCAL_TASK,
-        'access callback' => '_block_themes_access',
-        'access arguments' => array($key),
-        'file' => 'block.admin.inc',
+        'route_name' => 'block_admin_display.' . $plugin_id
       );
       $items['admin/structure/block/demo/' . $key] = array(
         'title' => check_plain($theme->info['name']),
@@ -315,7 +305,7 @@ function _block_get_renderable_region($list = array()) {
   // to other users. We therefore exclude user 1 from block caching.
   $not_cacheable = $GLOBALS['user']->uid == 1 ||
     count(module_implements('node_grants')) ||
-    !in_array($_SERVER['REQUEST_METHOD'], array('GET', 'HEAD'));
+    !\Drupal::request()->isMethodSafe();
 
   foreach ($list as $key => $block) {
     $settings = $block->get('settings');
@@ -515,21 +505,23 @@ function block_rebuild() {
 }
 
 /**
- * Processes variables for block.tpl.php.
+ * Prepares variables for block templates.
+ *
+ * Default template: block.html.twig.
  *
  * Prepares the values passed to the theme_block function to be passed
  * into a pluggable template engine. Uses block properties to generate a
  * series of template file suggestions. If none are found, the default
- * block.tpl.php is used.
+ * block.html.twig is used.
  *
- * Most themes utilize their own copy of block.tpl.php. The default is located
- * inside "modules/block/block.tpl.php". Look in there for the full list of
- * variables.
+ * Most themes use their own copy of block.html.twig. The default is located
+ * inside "core/modules/block/templates/block.html.twig". Look in there for the
+ * full list of available variables.
  *
- * The $variables array contains the following arguments:
- * - $block
- *
- * @see block.tpl.php
+ * @param array $variables
+ *   An associative array containing:
+ *   - elements: An associative array containing the properties of the element.
+ *     Properties used: #block, #configuration, #children, #plugin_id.
  */
 function template_preprocess_block(&$variables) {
   $block_counter = &drupal_static(__FUNCTION__, array());
@@ -541,6 +533,16 @@ function template_preprocess_block(&$variables) {
 
   $variables['attributes']['class'][] = 'block';
   $variables['attributes']['class'][] = drupal_html_class('block-' . $variables['configuration']['module']);
+
+  // The block template provides a wrapping element for the content. Render the
+  // #attributes of the content on this wrapping element rather than passing
+  // them through to the content's #theme function/template. This allows the
+  // content to not require a function/template at all, or if it does use one,
+  // to not require it to output an extra wrapping element.
+  if (isset($variables['content']['#attributes'])) {
+    $variables['content_attributes'] = NestedArray::mergeDeep($variables['content_attributes'], $variables['content']['#attributes']);
+    unset($variables['content']['#attributes']);
+  }
 
   // Add default class for block content.
   $variables['content_attributes']['class'][] = 'content';
@@ -566,7 +568,7 @@ function template_preprocess_block(&$variables) {
   if ($id = $variables['elements']['#block']->id()) {
     $config_id = explode('.', $id);
     $machine_name = array_pop($config_id);
-    $variables['block_html_id'] = drupal_html_id('block-' . $machine_name);
+    $variables['attributes']['id'] = drupal_html_id('block-' . $machine_name);
     $variables['theme_hook_suggestions'][] = 'block__' . $machine_name;
   }
 }

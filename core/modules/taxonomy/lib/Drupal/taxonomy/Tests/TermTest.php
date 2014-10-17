@@ -7,6 +7,8 @@
 
 namespace Drupal\taxonomy\Tests;
 
+use Drupal\Core\Language\Language;
+
 /**
  * Tests for taxonomy term functions.
  */
@@ -39,14 +41,14 @@ class TermTest extends TaxonomyTestBase {
         ),
       ),
     );
-    field_create_field($field);
+    entity_create('field_entity', $field)->save();
 
-    $this->instance = array(
+    $this->instance = entity_create('field_instance', array(
       'field_name' => 'taxonomy_' . $this->vocabulary->id(),
       'bundle' => 'article',
       'entity_type' => 'node',
-    );
-    field_create_instance($this->instance);
+    ));
+    $this->instance->save();
     entity_get_form_display('node', 'article', 'default')
       ->setComponent('taxonomy_' . $this->vocabulary->id(), array(
         'type' => 'options_select',
@@ -108,7 +110,7 @@ class TermTest extends TaxonomyTestBase {
 
     // Post an article.
     $edit = array();
-    $langcode = LANGUAGE_NOT_SPECIFIED;
+    $langcode = Language::LANGCODE_NOT_SPECIFIED;
     $edit["title"] = $this->randomName();
     $edit["body[$langcode][0][value]"] = $this->randomName();
     $edit[$this->instance['field_name'] . '[' . $langcode . '][]'] = $term1->id();
@@ -160,7 +162,7 @@ class TermTest extends TaxonomyTestBase {
     );
 
     $edit = array();
-    $langcode = LANGUAGE_NOT_SPECIFIED;
+    $langcode = Language::LANGCODE_NOT_SPECIFIED;
     $edit["title"] = $this->randomName();
     $edit["body[$langcode][0][value]"] = $this->randomName();
     // Insert the terms in a comma separated list. Vocabulary 1 is a
@@ -325,6 +327,10 @@ class TermTest extends TaxonomyTestBase {
     $this->drupalGet('admin/structure/taxonomy/manage/' . $this->vocabulary->id());
     $this->assertText($edit['name'], 'The randomly generated term name is present.');
     $this->assertLink(t('edit'));
+
+    // Check the term link can be clicked through to the term page.
+    $this->clickLink($edit['name']);
+    $this->assertResponse(200, 'Term page can be accessed via the listing link.');
 
     // View the term and check that it is correct.
     $this->drupalGet('taxonomy/term/' . $term->id());
@@ -517,7 +523,7 @@ class TermTest extends TaxonomyTestBase {
 
     // Create a term and a node using it.
     $term = $this->createTerm($this->vocabulary);
-    $langcode = LANGUAGE_NOT_SPECIFIED;
+    $langcode = Language::LANGCODE_NOT_SPECIFIED;
     $edit = array();
     $edit["title"] = $this->randomName(8);
     $edit["body[$langcode][0][value]"] = $this->randomName(16);

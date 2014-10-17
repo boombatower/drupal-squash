@@ -7,13 +7,15 @@
 
 namespace Drupal\Core\TypedData;
 
+use Drupal\Component\Plugin\PluginInspectionInterface;
+
 /**
  * The abstract base class for typed data.
  *
  * Classes deriving from this base class have to declare $value
  * or override getValue() or setValue().
  */
-abstract class TypedData implements TypedDataInterface {
+abstract class TypedData implements TypedDataInterface, PluginInspectionInterface {
 
   /**
    * The data definition.
@@ -64,6 +66,20 @@ abstract class TypedData implements TypedDataInterface {
   }
 
   /**
+   * {@inheritdoc}
+   */
+  public function getPluginId() {
+    return $this->definition['type'];
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getPluginDefinition() {
+    return \Drupal::typedData()->getDefinition($this->definition['type']);
+  }
+
+  /**
    * Implements \Drupal\Core\TypedData\TypedDataInterface::getDefinition().
    */
   public function getDefinition() {
@@ -100,7 +116,7 @@ abstract class TypedData implements TypedDataInterface {
    */
   public function getConstraints() {
     // @todo: Add the typed data manager as proper dependency.
-    return typed_data()->getConstraints($this->definition);
+    return \Drupal::typedData()->getConstraints($this->definition);
   }
 
   /**
@@ -108,7 +124,16 @@ abstract class TypedData implements TypedDataInterface {
    */
   public function validate() {
     // @todo: Add the typed data manager as proper dependency.
-    return typed_data()->getValidator()->validate($this);
+    return \Drupal::typedData()->getValidator()->validate($this);
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function applyDefaultValue($notify = TRUE) {
+    // Default to no default value.
+    $this->setValue(NULL, $notify);
+    return $this;
   }
 
   /**

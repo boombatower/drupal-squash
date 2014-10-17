@@ -165,12 +165,12 @@ function translation_entity_overview(EntityInterface $entity) {
  *   A renderable array of language switch links.
  */
 function _translation_entity_get_switch_links($path) {
-  $links = language_negotiation_get_switch_links(LANGUAGE_TYPE_CONTENT, $path);
+  $links = language_negotiation_get_switch_links(Language::TYPE_CONTENT, $path);
   if (empty($links)) {
     // If content language is set up to fall back to the interface language,
-    // then there will be no switch links for LANGUAGE_TYPE_CONTENT, ergo we
+    // then there will be no switch links for Language::TYPE_CONTENT, ergo we
     // also need to use interface switch links.
-    $links = language_negotiation_get_switch_links(LANGUAGE_TYPE_INTERFACE, $path);
+    $links = language_negotiation_get_switch_links(Language::TYPE_INTERFACE, $path);
   }
   return $links;
 }
@@ -192,7 +192,7 @@ function _translation_entity_get_switch_links($path) {
  */
 function translation_entity_add_page(EntityInterface $entity, Language $source = NULL, Language $target = NULL) {
   $source = !empty($source) ? $source : $entity->language();
-  $target = !empty($target) ? $target : language(LANGUAGE_TYPE_CONTENT);
+  $target = !empty($target) ? $target : language(Language::TYPE_CONTENT);
   // @todo Exploit the upcoming hook_entity_prepare() when available.
   translation_entity_prepare_translation($entity, $source, $target);
   $info = $entity->entityInfo();
@@ -202,7 +202,7 @@ function translation_entity_add_page(EntityInterface $entity, Language $source =
   $form_state['translation_entity']['target'] = $target;
   $controller = translation_entity_controller($entity->entityType());
   $form_state['translation_entity']['translation_form'] = !$controller->getAccess($entity, 'update');
-  return entity_get_form($entity, $operation, $form_state);
+  return Drupal::entityManager()->getForm($entity, $operation, $form_state);
 }
 
 /**
@@ -218,12 +218,12 @@ function translation_entity_add_page(EntityInterface $entity, Language $source =
  *   A processed form array ready to be rendered.
  */
 function translation_entity_edit_page(EntityInterface $entity, Language $language = NULL) {
-  $language = !empty($language) ? $language : language(LANGUAGE_TYPE_CONTENT);
+  $language = !empty($language) ? $language : language(Language::TYPE_CONTENT);
   $info = $entity->entityInfo();
   $operation = isset($info['default_operation']) ? $info['default_operation'] : 'default';
   $form_state['langcode'] = $language->langcode;
   $form_state['translation_entity']['translation_form'] = TRUE;
-  return entity_get_form($entity, $operation, $form_state);
+  return Drupal::entityManager()->getForm($entity, $operation, $form_state);
 }
 
 /**

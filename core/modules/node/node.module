@@ -8,6 +8,7 @@
  * API pattern.
  */
 
+use Drupal\Core\Language\Language;
 use Symfony\Component\HttpFoundation\Response;
 
 use Drupal\Core\Cache\CacheBackendInterface;
@@ -19,7 +20,7 @@ use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Template\Attribute;
 use Drupal\entity\Plugin\Core\Entity\EntityDisplay;
 use Drupal\file\Plugin\Core\Entity\File;
-use Drupal\user\Plugin\Core\Entity\User;
+use Drupal\user\UserInterface;
 
 /**
  * Denotes that the node is not published.
@@ -174,7 +175,6 @@ function node_theme() {
     ),
     'node_edit_form' => array(
       'render element' => 'form',
-      'path' => drupal_get_path('module', 'node') . '/templates',
       'template' => 'node-edit-form',
     ),
   );
@@ -329,8 +329,6 @@ function node_type_get_types() {
  *
  * @return string|false
  *   The node type base or FALSE if the node type is not found.
- *
- * @see node_invoke()
  */
 function node_type_get_base($type) {
   $types = _node_types_build()->types;
@@ -532,39 +530,39 @@ function node_add_body_field($type, $label = 'Body') {
   $field = field_info_field('body');
   $instance = field_info_instance('node', 'body', $type->type);
   if (empty($field)) {
-    $field = array(
+    $field = entity_create('field_entity', array(
       'field_name' => 'body',
       'type' => 'text_with_summary',
       'entity_types' => array('node'),
-    );
-    $field = field_create_field($field);
+    ));
+    $field->save();
   }
   if (empty($instance)) {
-    $instance = array(
+    $instance = entity_create('field_instance', array(
       'field_name' => 'body',
       'entity_type' => 'node',
       'bundle' => $type->type,
       'label' => $label,
       'settings' => array('display_summary' => TRUE),
-    );
-    $instance = field_create_instance($instance);
+    ));
+    $instance->save();
 
     // Assign widget settings for the 'default' form mode.
     entity_get_form_display('node', $type->type, 'default')
-      ->setComponent($field['field_name'], array(
+      ->setComponent($field->id(), array(
         'type' => 'text_textarea_with_summary',
       ))
       ->save();
 
     // Assign display settings for the 'default' and 'teaser' view modes.
     entity_get_display('node', $type->type, 'default')
-      ->setComponent($field['field_name'], array(
+      ->setComponent($field->id(), array(
         'label' => 'hidden',
         'type' => 'text_default',
       ))
       ->save();
     entity_get_display('node', $type->type, 'teaser')
-      ->setComponent($field['field_name'], array(
+      ->setComponent($field->id(), array(
         'label' => 'hidden',
         'type' => 'text_summary_or_trimmed',
       ))
@@ -678,7 +676,7 @@ function node_type_update_nodes($old_type, $type) {
  *   type object by $type->disabled being set to TRUE.
  */
 function _node_types_build($rebuild = FALSE) {
-  $cid = 'node_types:' . language(LANGUAGE_TYPE_INTERFACE)->langcode;
+  $cid = 'node_types:' . language(Language::TYPE_INTERFACE)->langcode;
 
   if (!$rebuild) {
     $_node_types = &drupal_static(__FUNCTION__);
@@ -856,42 +854,6 @@ function node_rdf_mapping() {
 }
 
 /**
- * Determines whether a node hook exists.
- *
- * @param string $type
- *   A string containing the node type.
- * @param $hook
- *   A string containing the name of the hook.
- *
- * @return string|false
- *   A string containing the function name or FALSE if it isn't found.
- */
-function node_hook($type, $hook) {
-  $base = node_type_get_base($type);
-  return module_hook($base, $hook) ? $base . '_' . $hook : FALSE;
-}
-
-/**
- * Invokes a node hook.
- *
- * @param \Drupal\Core\Entity\EntityInterface $node
- *   A Node entity.
- * @param $hook
- *   A string containing the name of the hook.
- * @param $a2, $a3, $a4
- *   (optional) Arguments to pass on to the hook, after the $node argument. All
- *   default to NULL.
- *
- * @return
- *   The returned value of the invoked hook.
- */
-function node_invoke(EntityInterface $node, $hook, $a2 = NULL, $a3 = NULL, $a4 = NULL) {
-  if ($function = node_hook($node->type, $hook)) {
-    return $function($node, $a2, $a3, $a4);
-  }
-}
-
-/**
  * Loads node entities from the database.
  *
  * This function should be used whenever you need to load more than one node
@@ -975,46 +937,13 @@ function node_submit(EntityInterface $node) {
   // If a new revision is created, save the current user as revision author.
   if ($node->isNewRevision()) {
     $node->revision_uid = $user->uid;
+    $node->revision_timestamp = REQUEST_TIME;
   }
 
   $node->created = !empty($node->date) && $node->date instanceOf DrupalDateTime ? $node->date->getTimestamp() : REQUEST_TIME;
   $node->validated = TRUE;
 
   return $node;
-}
-
-/**
- * Saves changes to a node or adds a new node.
- *
- * @param \Drupal\Core\Entity\EntityInterface $node
- *   The $node entity to be saved. If $node->nid is
- *   omitted (or $node->is_new is TRUE), a new node will be added.
- */
-function node_save(EntityInterface $node) {
-  $node->save();
-}
-
-/**
- * Deletes a node.
- *
- * @param $nid
- *   A node ID.
- */
-function node_delete($nid) {
-  node_delete_multiple(array($nid));
-}
-
-/**
- * Deletes multiple nodes.
- *
- * @param $nids
- *   An array of node IDs.
- *
- * @see hook_node_predelete()
- * @see hook_node_delete()
- */
-function node_delete_multiple($nids) {
-  entity_delete_multiple('node', $nids);
 }
 
 /**
@@ -1075,7 +1004,7 @@ function node_is_page(EntityInterface $node) {
 }
 
 /**
- * Implements hook_preprocess_HOOK() for block.tpl.php.
+ * Implements hook_preprocess_HOOK() for block.html.twig.
  */
 function node_preprocess_block(&$variables) {
   if ($variables['configuration']['module'] == 'node') {
@@ -1091,19 +1020,19 @@ function node_preprocess_block(&$variables) {
 }
 
 /**
- * Processes variables for node.tpl.php.
+ * Prepares variables for node templates.
  *
- * Most themes utilize their own copy of node.tpl.php. The default is located
- * inside "modules/node/node.tpl.php". Look in there for the full list of
- * variables.
+ * Default template: node.html.twig.
  *
- * @param $variables
+ * Most themes utilize their own copy of node.html.twig. The default is located
+ * inside "/core/modules/node/templates/node.html.twig". Look in there for the full
+ * list of variables.
+ *
+ * @param array $variables
  *   An associative array containing:
  *   - elements: An array of elements to display in view mode.
  *   - node: The node object.
  *   - view_mode: View mode; e.g., 'full', 'teaser'...
- *
- * @see node.tpl.php
  */
 function template_preprocess_node(&$variables) {
   $variables['view_mode'] = $variables['elements']['#view_mode'];
@@ -1112,25 +1041,20 @@ function template_preprocess_node(&$variables) {
   $variables['node'] = $variables['elements']['#node'];
   $node = $variables['node'];
 
-  $variables['date']      = format_date($node->created);
-  $variables['name']      = theme('username', array(
-    'account' => $node,
-    'link_attributes' => array('rel' => 'author'),
-  ));
+  $variables['date'] = format_date($node->created);
+  // @todo Change 'name' to 'author' and also convert to a render array pending
+  //   http://drupal.org/node/1941286.
+  $username = array(
+    '#theme' => 'username',
+    '#account' => $node,
+    '#link_options' => array('attributes' => array('rel' => 'author')),
+  );
+  $variables['name'] = drupal_render($username);
 
   $uri = $node->uri();
   $variables['node_url']  = url($uri['path'], $uri['options']);
-  $variables['label']     = check_plain($node->label());
-  $variables['page']      = $variables['view_mode'] == 'full' && node_is_page($node);
-
-  // Make useful flags and node data available.
-  // @todo: The comment properties only exist if comment.module is enabled, but
-  //   are documented in node.tpl.php, so we make sure that they are set.
-  //   Consider removing them.
-  $properties = array('type', 'comment_count', 'uid', 'created', 'promote', 'sticky', 'status', 'comment');
-  foreach ($properties as $property) {
-    $variables[$property] = isset($node->$property) ? $node->$property : NULL;
-  }
+  $variables['label'] = check_plain($node->label());
+  $variables['page'] = $variables['view_mode'] == 'full' && node_is_page($node);
 
   // Helpful $content variable for templates.
   $variables += array('content' => array());
@@ -1186,6 +1110,8 @@ function template_preprocess_node(&$variables) {
   // Clean up name so there are no underscores.
   $variables['theme_hook_suggestions'][] = 'node__' . $node->type;
   $variables['theme_hook_suggestions'][] = 'node__' . $node->nid;
+
+  $variables['content_attributes']['class'][] = 'content';
 }
 
 /**
@@ -1332,7 +1258,7 @@ function node_search_execute($keys = NULL, $conditions = NULL) {
   $query = db_select('search_index', 'i', array('target' => 'slave'))
     ->extend('Drupal\search\SearchQuery')
     ->extend('Drupal\Core\Database\Query\PagerSelectExtender');
-  $query->join('node', 'n', 'n.nid = i.sid');
+  $query->join('node_field_data', 'n', 'n.nid = i.sid');
   $query
     ->condition('n.status', 1)
     ->addTag('node_access')
@@ -1374,11 +1300,15 @@ function node_search_execute($keys = NULL, $conditions = NULL) {
 
     $language = language_load($item->langcode);
     $uri = $node->uri();
+    $username = array(
+      '#theme' => 'username',
+      '#account' => $node,
+    );
     $results[] = array(
       'link' => url($uri['path'], array_merge($uri['options'], array('absolute' => TRUE, 'language' => $language))),
       'type' => check_plain(node_get_type_label($node)),
       'title' => $node->label($item->langcode),
-      'user' => theme('username', array('account' => $node)),
+      'user' => drupal_render($username),
       'date' => $node->changed,
       'node' => $node,
       'extra' => $extra,
@@ -1414,7 +1344,7 @@ function node_ranking() {
   );
 
   // Add relevance based on creation or changed date.
-  if ($node_cron_last = state()->get('node.cron_last')) {
+  if ($node_cron_last = Drupal::state()->get('node.cron_last')) {
     $ranking['recent'] = array(
       'title' => t('Recently posted'),
       // Exponential decay with half-life of 6 months, starting at last indexed node
@@ -1433,25 +1363,27 @@ function node_user_cancel($edit, $account, $method) {
     case 'user_cancel_block_unpublish':
       // Unpublish nodes (current revisions).
       module_load_include('inc', 'node', 'node.admin');
-      $nodes = db_select('node', 'n')
+      $nodes = db_select('node_field_data', 'n')
+        ->distinct()
         ->fields('n', array('nid'))
         ->condition('uid', $account->uid)
         ->execute()
         ->fetchCol();
-      node_mass_update($nodes, array('status' => 0));
+      node_mass_update($nodes, array('status' => 0), NULL, TRUE);
       break;
 
     case 'user_cancel_reassign':
       // Anonymize nodes (current revisions).
       module_load_include('inc', 'node', 'node.admin');
-      $nodes = db_select('node', 'n')
+      $nodes = db_select('node_field_data', 'n')
+        ->distinct()
         ->fields('n', array('nid'))
         ->condition('uid', $account->uid)
         ->execute()
         ->fetchCol();
-      node_mass_update($nodes, array('uid' => 0));
+      node_mass_update($nodes, array('uid' => 0), NULL, TRUE);
       // Anonymize old revisions.
-      db_update('node_revision')
+      db_update('node_field_revision')
         ->fields(array('uid' => 0))
         ->condition('uid', $account->uid)
         ->execute();
@@ -1465,14 +1397,15 @@ function node_user_cancel($edit, $account, $method) {
 function node_user_predelete($account) {
   // Delete nodes (current revisions).
   // @todo Introduce node_mass_delete() or make node_mass_update() more flexible.
-  $nodes = db_select('node', 'n')
+  $nodes = db_select('node_field_data', 'n')
+    ->distinct()
     ->fields('n', array('nid'))
     ->condition('uid', $account->uid)
     ->execute()
     ->fetchCol();
-  node_delete_multiple($nodes);
+  entity_delete_multiple('node', $nodes);
   // Delete old revisions.
-  $revisions = db_query('SELECT vid FROM {node_revision} WHERE uid = :uid', array(':uid' => $account->uid))->fetchCol();
+  $revisions = db_query('SELECT DISTINCT vid FROM {node_field_revision} WHERE uid = :uid', array(':uid' => $account->uid))->fetchCol();
   foreach ($revisions as $revision) {
     node_revision_delete($revision);
   }
@@ -1501,7 +1434,12 @@ function theme_node_search_admin($variables) {
     $row[] = drupal_render($form['factors'][$key]);
     $rows[] = $row;
   }
-  $output .= theme('table', array('header' => $header, 'rows' => $rows));
+  $table = array(
+    '#theme' => 'table',
+    '#header' => $header,
+    '#rows' => $rows,
+  );
+  $output .= drupal_render($table);
 
   $output .= drupal_render_children($form);
   return $output;
@@ -1572,7 +1510,7 @@ function _node_revision_access(EntityInterface $node, $op = 'view', $account = N
     // different revisions so there is no need for a separate database check.
     // Also, if you try to revert to or delete the default revision, that's
     // not good.
-    if ($node->isDefaultRevision() && (db_query('SELECT COUNT(vid) FROM {node_revision} WHERE nid = :nid', array(':nid' => $node->nid))->fetchField() == 1 || $op == 'update' || $op == 'delete')) {
+    if ($node->isDefaultRevision() && (db_query('SELECT COUNT(*) FROM {node_field_revision} WHERE nid = :nid AND default_langcode = 1', array(':nid' => $node->nid))->fetchField() == 1 || $op == 'update' || $op == 'delete')) {
       $access[$cid] = FALSE;
     }
     elseif (user_access('administer nodes', $account)) {
@@ -1599,7 +1537,7 @@ function _node_revision_access(EntityInterface $node, $op = 'view', $account = N
 function _node_add_access() {
   $types = node_type_get_types();
   foreach ($types as $type) {
-    if (node_hook($type->type, 'form') && node_access('create', $type->type)) {
+    if (node_access('create', $type->type)) {
       return TRUE;
     }
   }
@@ -1619,8 +1557,7 @@ function node_menu() {
   $items['admin/content'] = array(
     'title' => 'Content',
     'description' => 'Find and manage content.',
-    'page callback' => 'drupal_get_form',
-    'page arguments' => array('node_admin_content'),
+    'page callback' => 'node_admin_nodes',
     'access arguments' => array('access content overview'),
     'weight' => -10,
     'file' => 'node.admin.inc',
@@ -1712,13 +1649,9 @@ function node_menu() {
   );
   $items['node/%node/edit'] = array(
     'title' => 'Edit',
-    'page callback' => 'node_page_edit',
-    'page arguments' => array(1),
-    'access callback' => 'node_access',
-    'access arguments' => array('update', 1),
+    'route_name' => 'node_page_edit',
     'type' => MENU_LOCAL_TASK,
     'context' => MENU_CONTEXT_PAGE | MENU_CONTEXT_INLINE,
-    'file' => 'node.pages.inc',
   );
   $items['node/%node/delete'] = array(
     'title' => 'Delete',
@@ -1818,12 +1751,17 @@ function node_page_title(EntityInterface $node) {
  *
  * @param $nid
  *   The ID of a node.
+ * @param string $langcode
+ *   (optional) The language the node has been last modified in. Defaults to the
+ *   node language.
  *
- * @return
+ * @return string
  *   A unix timestamp indicating the last time the node was changed.
  */
-function node_last_changed($nid) {
-  return db_query('SELECT changed FROM {node} WHERE nid = :nid', array(':nid' => $nid))->fetch()->changed;
+function node_last_changed($nid, $langcode = NULL) {
+  $language_clause = isset($langcode) ? 'langcode = :langcode' : 'default_langcode = 1';
+  $result = db_query('SELECT changed FROM {node_field_data} WHERE nid = :nid AND ' . $language_clause, array(':nid' => $nid, ':langcode' => $langcode))->fetch();
+  return is_object($result) ? $result->changed : FALSE;
 }
 
 /**
@@ -1837,7 +1775,7 @@ function node_last_changed($nid) {
  */
 function node_revision_list(EntityInterface $node) {
   $revisions = array();
-  $result = db_query('SELECT r.vid, r.title, r.log, r.uid, n.vid AS current_vid, r.timestamp, u.name FROM {node_revision} r LEFT JOIN {node} n ON n.vid = r.vid INNER JOIN {users} u ON u.uid = r.uid WHERE r.nid = :nid ORDER BY r.vid DESC', array(':nid' => $node->nid));
+  $result = db_query('SELECT nfr.vid, nfr.title, nfr.log, nfr.revision_uid AS uid, n.vid AS current_vid, nfr.revision_timestamp, u.name FROM {node_field_revision} nfr LEFT JOIN {node} n ON n.vid = nfr.vid INNER JOIN {users} u ON u.uid = nfr.revision_uid WHERE nfr.nid = :nid AND nfr.default_langcode = 1 ORDER BY nfr.vid DESC', array(':nid' => $node->nid));
   foreach ($result as $revision) {
     $revisions[$revision->vid] = $revision;
   }
@@ -1856,13 +1794,13 @@ function node_revision_list(EntityInterface $node) {
  *   visible to the current user.
  */
 function node_get_recent($number = 10) {
-  $query = db_select('node', 'n');
+  $query = db_select('node_field_data', 'n');
 
   if (!user_access('bypass node access')) {
     // If the user is able to view their own unpublished nodes, allow them
     // to see these in addition to published nodes. Check that they actually
     // have some unpublished nodes to view before adding the condition.
-    if (user_access('view own unpublished content') && $own_unpublished = db_query('SELECT nid FROM {node} WHERE uid = :uid AND status = :status', array(':uid' => $GLOBALS['user']->uid, ':status' => NODE_NOT_PUBLISHED))->fetchCol()) {
+    if (user_access('view own unpublished content') && $own_unpublished = db_query('SELECT DISTINCT nid FROM {node_field_data} WHERE uid = :uid AND status = :status', array(':uid' => $GLOBALS['user']->uid, ':status' => NODE_NOT_PUBLISHED))->fetchCol()) {
       $query->condition(db_or()
         ->condition('n.status', NODE_PUBLISHED)
         ->condition('n.nid', $own_unpublished, 'IN')
@@ -1874,6 +1812,7 @@ function node_get_recent($number = 10) {
     }
   }
   $nids = $query
+    ->distinct()
     ->fields('n', array('nid'))
     ->orderBy('n.changed', 'DESC')
     ->range(0, $number)
@@ -1902,8 +1841,12 @@ function theme_node_recent_block($variables) {
   $l_options = array('query' => drupal_get_destination());
   foreach ($variables['nodes'] as $node) {
     $row = array();
+    $node_recent_content = array(
+      '#theme' => 'node_recent_content',
+      '#node' => $node,
+    );
     $row[] = array(
-      'data' => theme('node_recent_content', array('node' => $node)),
+      'data' => drupal_render($node_recent_content),
       'class' => 'title-author',
     );
     if (node_access('update', $node)) {
@@ -1922,9 +1865,18 @@ function theme_node_recent_block($variables) {
   }
 
   if ($rows) {
-    $output = theme('table', array('rows' => $rows));
+    $table = array(
+      '#theme' => 'table',
+      '#rows' => $rows,
+    );
+    $output = drupal_render($table);
     if (user_access('access content overview')) {
-      $output .= theme('more_link', array('url' => 'admin/content', 'title' => t('Show more content')));
+      $more_link = array(
+        '#theme' => 'more_link',
+        '#url' => 'admin/content',
+        '#title' => t('Show more content'),
+      );
+      $output .= drupal_render($more_link);
     }
   }
 
@@ -1945,9 +1897,17 @@ function theme_node_recent_content($variables) {
 
   $output = '<div class="node-title">';
   $output .= l($node->label(), 'node/' . $node->nid);
-  $output .= theme('mark', array('type' => node_mark($node->nid, $node->changed)));
+  $mark = array(
+    '#theme' => 'mark',
+    '#mark_type' => node_mark($node->nid, $node->changed),
+  );
+  $output .= drupal_render($mark);
   $output .= '</div><div class="node-author">';
-  $output .= theme('username', array('account' => user_load($node->uid)));
+  $username = array(
+    '#theme' => 'username',
+    '#account' => user_load($node->uid),
+  );
+  $output .= drupal_render($username);
   $output .= '</div>';
 
   return $output;
@@ -2045,12 +2005,13 @@ function node_block_access($block) {
  */
 function node_feed($nids = FALSE, $channel = array()) {
   global $base_url;
-  $language_content = language(LANGUAGE_TYPE_CONTENT);
+  $language_content = language(Language::TYPE_CONTENT);
   $rss_config = config('system.rss');
 
   if ($nids === FALSE) {
-    $nids = db_select('node', 'n')
-      ->fields('n', array('nid', 'created'))
+    $nids = db_select('node_field_data', 'n')
+      ->distinct()
+      ->fields('n', array('nid'))
       ->condition('n.promote', 1)
       ->condition('n.status', 1)
       ->orderBy('n.created', 'DESC')
@@ -2165,11 +2126,18 @@ function node_page_view(EntityInterface $node) {
   // of the active trail, and the link name becomes the page title.
   // Thus, we must explicitly set the page title to be the node title.
   drupal_set_title($node->label());
-  $uri = $node->uri();
-  // Set the node path as the canonical URL to prevent duplicate content.
-  drupal_add_html_head_link(array('rel' => 'canonical', 'href' => url($uri['path'], $uri['options'])), TRUE);
-  // Set the non-aliased path as a default shortlink.
-  drupal_add_html_head_link(array('rel' => 'shortlink', 'href' => url($uri['path'], array_merge($uri['options'], array('alias' => TRUE)))), TRUE);
+
+  foreach ($node->uriRelationships() as $rel) {
+    $uri = $node->uri($rel);
+    // Set the node path as the canonical URL to prevent duplicate content.
+    drupal_add_html_head_link(array('rel' => $rel, 'href' => url($uri['path'], $uri['options'])), TRUE);
+
+    if ($rel == 'canonical') {
+      // Set the non-aliased canonical path as a default shortlink.
+      drupal_add_html_head_link(array('rel' => 'shortlink', 'href' => url($uri['path'], array_merge($uri['options'], array('alias' => TRUE)))), TRUE);
+    }
+  }
+
   return node_show($node);
 }
 
@@ -2208,7 +2176,7 @@ function _node_index_node(EntityInterface $node) {
 
   // Save the changed time of the most recent indexed node, for the search
   // results half-life calculation.
-  state()->set('node.cron_last', $node->changed);
+  Drupal::state()->set('node.cron_last', $node->changed);
 
   $languages = $node->getTranslationLanguages();
 
@@ -2298,7 +2266,7 @@ function node_form_search_form_alter(&$form, $form_state) {
 
     // Languages:
     $language_options = array();
-    foreach (language_list(LANGUAGE_ALL) as $langcode => $language) {
+    foreach (language_list(Language::STATE_ALL) as $langcode => $language) {
       // Make locked languages appear special in the list.
       $language_options[$langcode] = $language->locked ? t('- @name -', array('@name' => $language->name)) : $language->name;
     }
@@ -2508,7 +2476,7 @@ function node_access($op, $node, $account = NULL, $langcode = NULL) {
       // Load languages the node exists in.
       $node_translations = $node->getTranslationLanguages();
       // Load the language from content negotiation.
-      $content_negotiation_langcode = language(LANGUAGE_TYPE_CONTENT)->langcode;
+      $content_negotiation_langcode = language(Language::TYPE_CONTENT)->langcode;
       // If there is a translation available, use it.
       if (isset($node_translations[$content_negotiation_langcode])) {
         $langcode = $content_negotiation_langcode;
@@ -2518,7 +2486,7 @@ function node_access($op, $node, $account = NULL, $langcode = NULL) {
 
   // Make sure that if an account is passed, that it is a fully loaded user
   // object.
-  if ($account && !($account instanceof User)) {
+  if ($account && !($account instanceof UserInterface)) {
     $account = user_load($account->uid);
   }
 
@@ -2771,7 +2739,7 @@ function node_query_node_access_alter(AlterableInterface $query) {
       if (!($table_info instanceof SelectInterface)) {
         $table = $table_info['table'];
         // If the node table is in the query, it wins immediately.
-        if ($table == 'node') {
+        if ($table == 'node' || $table == 'node_field_data') {
           $base_table = $table;
           break;
         }
@@ -2787,9 +2755,11 @@ function node_query_node_access_alter(AlterableInterface $query) {
   // more than once in the query, and could be aliased. Join each one to
   // the node_access table.
   $grants = node_access_grants($op, $account);
+  $base_table_found = FALSE;
   foreach ($tables as $nalias => $tableinfo) {
     $table = $tableinfo['table'];
     if (!($table instanceof SelectInterface) && $table == $base_table) {
+      $base_table_found = TRUE;
       // Set the subquery.
       $subquery = db_select('node_access', 'na')
        ->fields('na', array('nid'));
@@ -2831,6 +2801,12 @@ function node_query_node_access_alter(AlterableInterface $query) {
 
       $query->exists($subquery);
     }
+  }
+
+  // If we reached this point and did not find the defined base table, throw
+  // an exception.
+  if (!$base_table_found) {
+    throw new Exception(t('Query tagged for node access but the defined base_table @base_table was not found', array('@base_table' => $base_table)));
   }
 }
 
@@ -2952,13 +2928,13 @@ function _node_access_write_grants(EntityInterface $node, $grants, $realm = NULL
  */
 function node_access_needs_rebuild($rebuild = NULL) {
   if (!isset($rebuild)) {
-    return state()->get('node.node_access_needs_rebuild') ?: FALSE;
+    return Drupal::state()->get('node.node_access_needs_rebuild') ?: FALSE;
   }
   elseif ($rebuild) {
-    state()->set('node.node_access_needs_rebuild', TRUE);
+    Drupal::state()->set('node.node_access_needs_rebuild', TRUE);
   }
   else {
-    state()->delete('node.node_access_needs_rebuild');
+    Drupal::state()->delete('node.node_access_needs_rebuild');
   }
 }
 
@@ -3097,365 +3073,6 @@ function _node_access_rebuild_batch_finished($success, $results, $operations) {
 /**
  * @} End of "defgroup node_access".
  */
-
-/**
- * @defgroup node_content Hook implementations for user-created content types
- * @{
- * Functions that implement hooks for user-created content types.
- */
-
-/**
- * Implements hook_form().
- */
-function node_content_form(EntityInterface $node, $form_state) {
-  // @todo It is impossible to define a content type without implementing
-  //   hook_form(). Remove this requirement.
-  $form = array();
-  $type = node_type_load($node->type);
-
-  if ($type->has_title) {
-    $form['title'] = array(
-      '#type' => 'textfield',
-      '#title' => check_plain($type->title_label),
-      '#required' => TRUE,
-      '#default_value' => $node->title,
-      '#maxlength' => 255,
-      '#weight' => -5,
-    );
-  }
-
-  return $form;
-}
-
-/**
- * @} End of "defgroup node_content".
- */
-
-/**
- * Implements hook_action_info().
- */
-function node_action_info() {
-  return array(
-    'node_publish_action' => array(
-      'type' => 'node',
-      'label' => t('Publish content'),
-      'configurable' => FALSE,
-      'behavior' => array('changes_property'),
-      'triggers' => array('node_presave', 'comment_insert', 'comment_update', 'comment_delete'),
-    ),
-    'node_unpublish_action' => array(
-      'type' => 'node',
-      'label' => t('Unpublish content'),
-      'configurable' => FALSE,
-      'behavior' => array('changes_property'),
-      'triggers' => array('node_presave', 'comment_insert', 'comment_update', 'comment_delete'),
-    ),
-    'node_make_sticky_action' => array(
-      'type' => 'node',
-      'label' => t('Make content sticky'),
-      'configurable' => FALSE,
-      'behavior' => array('changes_property'),
-      'triggers' => array('node_presave', 'comment_insert', 'comment_update', 'comment_delete'),
-    ),
-    'node_make_unsticky_action' => array(
-      'type' => 'node',
-      'label' => t('Make content unsticky'),
-      'configurable' => FALSE,
-      'behavior' => array('changes_property'),
-      'triggers' => array('node_presave', 'comment_insert', 'comment_update', 'comment_delete'),
-    ),
-    'node_promote_action' => array(
-      'type' => 'node',
-      'label' => t('Promote content to front page'),
-      'configurable' => FALSE,
-      'behavior' => array('changes_property'),
-      'triggers' => array('node_presave', 'comment_insert', 'comment_update', 'comment_delete'),
-    ),
-    'node_unpromote_action' => array(
-      'type' => 'node',
-      'label' => t('Remove content from front page'),
-      'configurable' => FALSE,
-      'behavior' => array('changes_property'),
-      'triggers' => array('node_presave', 'comment_insert', 'comment_update', 'comment_delete'),
-    ),
-    'node_assign_owner_action' => array(
-      'type' => 'node',
-      'label' => t('Change the author of content'),
-      'configurable' => TRUE,
-      'behavior' => array('changes_property'),
-      'triggers' => array('node_presave', 'comment_insert', 'comment_update', 'comment_delete'),
-    ),
-    'node_save_action' => array(
-      'type' => 'node',
-      'label' => t('Save content'),
-      'configurable' => FALSE,
-      'triggers' => array('comment_insert', 'comment_update', 'comment_delete'),
-    ),
-    'node_unpublish_by_keyword_action' => array(
-      'type' => 'node',
-      'label' => t('Unpublish content containing keyword(s)'),
-      'configurable' => TRUE,
-      'triggers' => array('node_presave', 'node_insert', 'node_update'),
-    ),
-  );
-}
-
-/**
- * Sets the status of a node to 1 (published).
- *
- * @param \Drupal\Core\Entity\EntityInterface $node
- *   A node entity.
- * @param $context
- *   (optional) Array of additional information about what triggered the action.
- *   Not used for this action.
- *
- * @ingroup actions
- */
-function node_publish_action(EntityInterface $node, $context = array()) {
-  $node->status = NODE_PUBLISHED;
-  watchdog('action', 'Set @type %title to published.', array('@type' => node_get_type_label($node), '%title' => $node->label()));
-}
-
-/**
- * Sets the status of a node to 0 (unpublished).
- *
- * @param \Drupal\Core\Entity\EntityInterface $node
- *   A node entity.
- * @param $context
- *   (optional) Array of additional information about what triggered the action.
- *   Not used for this action.
- *
- * @ingroup actions
- */
-function node_unpublish_action(EntityInterface $node, $context = array()) {
-  $node->status = NODE_NOT_PUBLISHED;
-  watchdog('action', 'Set @type %title to unpublished.', array('@type' => node_get_type_label($node), '%title' => $node->label()));
-}
-
-/**
- * Sets the sticky-at-top-of-list property of a node to 1.
- *
- * @param \Drupal\Core\Entity\EntityInterface $node
- *   A node entity.
- * @param $context
- *   (optional) Array of additional information about what triggered the action.
- *   Not used for this action.
- *
- * @ingroup actions
- */
-function node_make_sticky_action(EntityInterface $node, $context = array()) {
-  $node->sticky = NODE_STICKY;
-  watchdog('action', 'Set @type %title to sticky.', array('@type' => node_get_type_label($node), '%title' => $node->label()));
-}
-
-/**
- * Sets the sticky-at-top-of-list property of a node to 0.
- *
- * @param \Drupal\Core\Entity\EntityInterface $node
- *   A node entity.
- * @param $context
- *   (optional) Array of additional information about what triggered the action.
- *   Not used for this action.
- *
- * @ingroup actions
- */
-function node_make_unsticky_action(EntityInterface $node, $context = array()) {
-  $node->sticky = NODE_NOT_STICKY;
-  watchdog('action', 'Set @type %title to unsticky.', array('@type' => node_get_type_label($node), '%title' => $node->label()));
-}
-
-/**
- * Sets the promote property of a node to 1.
- *
- * @param \Drupal\Core\Entity\EntityInterface $node
- *   A node entity.
- * @param $context
- *   (optional) Array of additional information about what triggered the action.
- *   Not used for this action.
- *
- * @ingroup actions
- */
-function node_promote_action(EntityInterface $node, $context = array()) {
-  $node->promote = NODE_PROMOTED;
-  watchdog('action', 'Promoted @type %title to front page.', array('@type' => node_get_type_label($node), '%title' => $node->label()));
-}
-
-/**
- * Sets the promote property of a node to 0.
- *
- * @param \Drupal\Core\Entity\EntityInterface $node
- *   A node entity.
- * @param $context
- *   (optional) Array of additional information about what triggered the action.
- *   Not used for this action.
- *
- * @ingroup actions
- */
-function node_unpromote_action(EntityInterface $node, $context = array()) {
-  $node->promote = NODE_NOT_PROMOTED;
-  watchdog('action', 'Removed @type %title from front page.', array('@type' => node_get_type_label($node), '%title' => $node->label()));
-}
-
-/**
- * Saves a node.
- *
- * @param \Drupal\Core\Entity\EntityInterface $node
- *   The node to be saved.
- *
- * @ingroup actions
- */
-function node_save_action(EntityInterface $node) {
-  $node->save();
-  watchdog('action', 'Saved @type %title', array('@type' => node_get_type_label($node), '%title' => $node->label()));
-}
-
-/**
- * Assigns ownership of a node to a user.
- *
- * @param \Drupal\Core\Entity\EntityInterface $node
- *   A node entity to modify.
- * @param $context
- *   Array of additional information about what triggered the action. Includes
- *   the following elements:
- *   - owner_uid: User ID to assign to the node.
- *
- * @see node_assign_owner_action_form()
- * @see node_assign_owner_action_validate()
- * @see node_assign_owner_action_submit()
- * @ingroup actions
- */
-function node_assign_owner_action(EntityInterface $node, $context) {
-  $node->uid = $context['owner_uid'];
-  $owner_name = db_query("SELECT name FROM {users} WHERE uid = :uid", array(':uid' => $context['owner_uid']))->fetchField();
-  watchdog('action', 'Changed owner of @type %title to uid %name.', array('@type' =>  node_get_type_label($node), '%title' => $node->label(), '%name' => $owner_name));
-}
-
-/**
- * Form constructor for the settings form for node_assign_owner_action().
- *
- * @param $context
- *   Array of additional information about what triggered the action. Includes
- *   the following elements:
- *   - owner_uid: User ID to assign to the node.
- *
- * @see node_assign_owner_action_submit()
- * @see node_assign_owner_action_validate()
- * @ingroup forms
- */
-function node_assign_owner_action_form($context) {
-  $description = t('The username of the user to which you would like to assign ownership.');
-  $count = db_query("SELECT COUNT(*) FROM {users}")->fetchField();
-  $owner_name = '';
-  if (isset($context['owner_uid'])) {
-    $owner_name = db_query("SELECT name FROM {users} WHERE uid = :uid", array(':uid' => $context['owner_uid']))->fetchField();
-  }
-
-  // Use dropdown for fewer than 200 users; textbox for more than that.
-  if (intval($count) < 200) {
-    $options = array();
-    $result = db_query("SELECT uid, name FROM {users} WHERE uid > 0 ORDER BY name");
-    foreach ($result as $data) {
-      $options[$data->name] = $data->name;
-    }
-    $form['owner_name'] = array(
-      '#type' => 'select',
-      '#title' => t('Username'),
-      '#default_value' => $owner_name,
-      '#options' => $options,
-      '#description' => $description,
-    );
-  }
-  else {
-    $form['owner_name'] = array(
-      '#type' => 'textfield',
-      '#title' => t('Username'),
-      '#default_value' => $owner_name,
-      '#autocomplete_path' => 'user/autocomplete',
-      '#size' => '6',
-      '#maxlength' => '60',
-      '#description' => $description,
-    );
-  }
-  return $form;
-}
-
-/**
- * Form validation handler for node_assign_owner_action_form().
- *
- * @see node_assign_owner_action_submit()
- */
-function node_assign_owner_action_validate($form, $form_state) {
-  $exists = (bool) db_query_range('SELECT 1 FROM {users} WHERE name = :name', 0, 1, array(':name' => $form_state['values']['owner_name']))->fetchField();
-  if (!$exists) {
-    form_set_error('owner_name', t('Enter a valid username.'));
-  }
-}
-
-/**
- * Form submission handler for node_assign_owner_action_form().
- *
- * @see node_assign_owner_action_validate()
- */
-function node_assign_owner_action_submit($form, $form_state) {
-  // Username can change, so we need to store the ID, not the username.
-  $uid = db_query('SELECT uid from {users} WHERE name = :name', array(':name' => $form_state['values']['owner_name']))->fetchField();
-  return array('owner_uid' => $uid);
-}
-
-/**
- * Generates settings form for node_unpublish_by_keyword_action().
- *
- * @param array $context
- *   Array of additional information about what triggered this action.
- *
- * @return array
- *   A form array.
- *
- * @see node_unpublish_by_keyword_action_submit()
- */
-function node_unpublish_by_keyword_action_form($context) {
-  $form['keywords'] = array(
-    '#title' => t('Keywords'),
-    '#type' => 'textarea',
-    '#description' => t('The content will be unpublished if it contains any of the phrases above. Use a case-sensitive, comma-separated list of phrases. Example: funny, bungee jumping, "Company, Inc."'),
-    '#default_value' => isset($context['keywords']) ? drupal_implode_tags($context['keywords']) : '',
-  );
-  return $form;
-}
-
-/**
- * Form submission handler for node_unpublish_by_keyword_action().
- */
-function node_unpublish_by_keyword_action_submit($form, $form_state) {
-  return array('keywords' => drupal_explode_tags($form_state['values']['keywords']));
-}
-
-/**
- * Unpublishes a node containing certain keywords.
- *
- * @param \Drupal\Core\Entity\EntityInterface $node
- *   A node entity to modify.
- * @param $context
- *   Array of additional information about what triggered the action. Includes
- *   the following elements:
- *   - keywords: Array of keywords. If any keyword is present in the rendered
- *     node, the node's status flag is set to unpublished.
- *
- * @see node_unpublish_by_keyword_action_form()
- * @see node_unpublish_by_keyword_action_submit()
- *
- * @ingroup actions
- */
-function node_unpublish_by_keyword_action(EntityInterface $node, $context) {
-  foreach ($context['keywords'] as $keyword) {
-    $elements = node_view(clone $node);
-    if (strpos(drupal_render($elements), $keyword) !== FALSE || strpos($node->label(), $keyword) !== FALSE) {
-      $node->status = NODE_NOT_PUBLISHED;
-      watchdog('action', 'Set @type %title to unpublished.', array('@type' => node_get_type_label($node), '%title' => $node->label()));
-      break;
-    }
-  }
-}
 
 /**
  * Implements hook_requirements().

@@ -28,7 +28,7 @@ function email_field_info() {
       'description' => t('This field stores an e-mail address in the database.'),
       'default_widget' => 'email_default',
       'default_formatter' => 'email_mailto',
-      'field item class' => 'Drupal\email\Type\EmailItem',
+      'field item class' => 'Drupal\Core\Entity\Field\Type\EmailItem',
     ),
   );
 }
@@ -45,7 +45,7 @@ function email_field_info_alter(&$info) {
 /**
  * Implements hook_field_is_empty().
  */
-function email_field_is_empty($item, $field) {
+function email_field_is_empty($item, $field_type) {
   return !isset($item['value']) || $item['value'] === '';
 }
 

@@ -113,11 +113,11 @@ function hook_admin_paths_alter(&$paths) {
 function hook_cron() {
   // Short-running operation example, not using a queue:
   // Delete all expired records since the last cron run.
-  $expires = state()->get('mymodule.cron_last_run') ?: REQUEST_TIME;
+  $expires = \Drupal::state()->get('mymodule.cron_last_run') ?: REQUEST_TIME;
   db_delete('mymodule_table')
     ->condition('expires', $expires, '>=')
     ->execute();
-  state()->set('mymodule.cron_last_run', REQUEST_TIME);
+  \Drupal::state()->set('mymodule.cron_last_run', REQUEST_TIME);
 
   // Long-running operation example, leveraging a queue:
   // Fetch feeds from other sites.
@@ -167,7 +167,7 @@ function hook_cron() {
  *   - constraints: An array of validation constraints for this type. See
  *     \Drupal\Core\TypedData\TypedDataManager::getConstraints() for details.
  *
- * @see typed_data()
+ * @see \Drupal::typedData()
  * @see Drupal\Core\TypedData\TypedDataManager::create()
  * @see hook_data_type_info_alter()
  */
@@ -211,7 +211,7 @@ function hook_data_type_info_alter(&$data_types) {
  * @return
  *   An associative array where the key is the queue name and the value is
  *   again an associative array. Possible keys are:
- *   - 'worker callback': The name of the function to call. It will be called
+ *   - 'worker callback': A PHP callable to call. It will be called
  *     with one argument, the item created via
  *     Drupal\Core\Queue\QueueInterface::createItem() in hook_cron().
  *   - 'cron': (optional) An associative array containing the optional key:
@@ -226,7 +226,7 @@ function hook_data_type_info_alter(&$data_types) {
 function hook_queue_info() {
   $queues['aggregator_feeds'] = array(
     'title' => t('Aggregator refresh'),
-    'worker callback' => 'aggregator_refresh',
+    'worker callback' => array('Drupal\my_module\MyClass', 'aggregatorRefresh'),
     // Only needed if this queue should be processed by cron.
     'cron' => array(
       'time' => 60,
@@ -259,7 +259,7 @@ function hook_queue_info_alter(&$queues) {
  *
  * This hook allows modules to declare their own form element types and to
  * specify their default values. The values returned by this hook will be
- * merged with the elements returned by hook_form() implementations and so
+ * merged with the elements returned by form constructor implementations and so
  * can return defaults for any Form APIs keys in addition to those explicitly
  * mentioned below.
  *
@@ -278,12 +278,12 @@ function hook_queue_info_alter(&$queues) {
  *    (even if it's hidden).
  *  - "#process": array of callback functions taking $element, $form_state,
  *    and $complete_form.
- *  - "#after_build": array of callback functions taking $element and $form_state.
+ *  - "#after_build": array of callables taking $element and $form_state.
  *  - "#validate": array of callback functions taking $form and $form_state.
  *  - "#element_validate": array of callback functions taking $element and
  *    $form_state.
- *  - "#pre_render": array of callback functions taking $element and $form_state.
- *  - "#post_render": array of callback functions taking $element and $form_state.
+ *  - "#pre_render": array of callables taking $element.
+ *  - "#post_render": array of callables taking $children and $element.
  *  - "#submit": array of callback functions taking $form and $form_state.
  *  - "#title_display": optional string indicating if and how #title should be
  *    displayed, see theme_form_element() and theme_form_element_label().
@@ -554,6 +554,7 @@ function hook_menu_get_item_alter(&$router_item, $path, $original_map) {
  * paths and whose values are an associative array of properties for each
  * path. (The complete list of properties is in the return value section below.)
  *
+ * @section sec_callback_funcs Callback Functions
  * The definition for each path may include a page callback function, which is
  * invoked when the registered path is requested. If there is no other
  * registered path that fits the requested path better, any further path
@@ -578,6 +579,7 @@ function hook_menu_get_item_alter(&$router_item, $path, $original_map) {
  * $jkl will be 'foo'. Note that this automatic passing of optional path
  * arguments applies only to page and theme callback functions.
  *
+ * @subsection sub_callback_arguments Callback Arguments
  * In addition to optional path arguments, the page callback and other callback
  * functions may specify argument lists as arrays. These argument lists may
  * contain both fixed/hard-coded argument values and integers that correspond
@@ -620,6 +622,8 @@ function hook_menu_get_item_alter(&$router_item, $path, $original_map) {
  * @endcode
  * See @link form_api Form API documentation @endlink for details.
  *
+ * @section sec_path_wildcards Wildcards in Paths
+ * @subsection sub_simple_wildcards Simple Wildcards
  * Wildcards within paths also work with integer substitution. For example,
  * your module could register path 'my-module/%/edit':
  * @code
@@ -632,6 +636,7 @@ function hook_menu_get_item_alter(&$router_item, $path, $original_map) {
  * with 'foo' and passed to the callback function. Note that wildcards may not
  * be used as the first component.
  *
+ * @subsection sub_autoload_wildcards Auto-Loader Wildcards
  * Registered paths may also contain special "auto-loader" wildcard components
  * in the form of '%mymodule_abc', where the '%' part means that this path
  * component is a wildcard, and the 'mymodule_abc' part defines the prefix for a
@@ -663,6 +668,7 @@ function hook_menu_get_item_alter(&$router_item, $path, $original_map) {
  * return FALSE for the path 'node/999/edit' if a node with a node ID of 999
  * does not exist. The menu routing system will return a 404 error in this case.
  *
+ * @subsection sub_argument_wildcards Argument Wildcards
  * You can also define a %wildcard_to_arg() function (for the example menu
  * entry above this would be 'mymodule_abc_to_arg()'). The _to_arg() function
  * is invoked to retrieve a value that is used in the path in place of the
@@ -687,6 +693,7 @@ function hook_menu_get_item_alter(&$router_item, $path, $original_map) {
  * are called when the menu system is generating links to related paths, such
  * as the tabs for a set of MENU_LOCAL_TASK items.
  *
+ * @section sec_render_tabs Rendering Menu Items As Tabs
  * You can also make groups of menu items to be rendered (by default) as tabs
  * on a page. To do that, first create one menu item of type MENU_NORMAL_ITEM,
  * with your chosen path, such as 'foo'. Then duplicate that menu item, using a
@@ -862,6 +869,31 @@ function hook_menu() {
   );
 
   return $items;
+}
+
+/**
+ * Define route-based local actions.
+ *
+ * Instead of using MENU_LOCAL_ACTION in hook_menu(), implement
+ * hook_local_actions().
+ *
+ * @return array
+ *   An associative array containing the following keys:
+ *   - route_name: The machine name of the local action route.
+ *   - title: The title of the local action.
+ *   - appears_on: An array of route names for this action to be display on.
+ */
+function hook_local_actions() {
+  return array(
+    array(
+      'route_name' => 'mymodule.route.action',
+      'title' => t('Perform local action'),
+      'appears_on' => array(
+        'mymodule.other_route',
+        'mymodule.other_other_route',
+      ),
+    ),
+  );
 }
 
 /**
@@ -1323,23 +1355,6 @@ function hook_forms($form_id, $args) {
 }
 
 /**
- * Perform setup tasks for non-cached page requests.
- *
- * This hook is run at the beginning of the page request. It is typically
- * used to set up global parameters that are needed later in the request.
- * When this hook is called, the theme and all modules are already loaded in
- * memory.
- *
- * This hook is not run on cached pages.
- *
- * Do not use this hook to add CSS/JS to pages, use hook_page_build() instead.
- *
- * @see hook_page_build()
- */
-function hook_init() {
-}
-
-/**
  * Alter an email message created with the drupal_mail() function.
  *
  * hook_mail_alter() allows modification of email messages created and sent
@@ -1589,8 +1604,8 @@ function hook_permission() {
  *   - template: If specified, this theme implementation is a template, and
  *     this is the template file without an extension. Do not put .tpl.php on
  *     this file; that extension will be added automatically by the default
- *     rendering engine (which is PHPTemplate). If 'path', above, is specified,
- *     the template should also be in this path.
+ *     rendering engine (which is Twig). If 'path' above is specified, the
+ *     template should also be in this path.
  *   - function: If specified, this will be the function name to invoke for
  *     this implementation. If neither 'template' nor 'function' is specified,
  *     a default function name will be assumed. For example, if a module
@@ -1611,8 +1626,8 @@ function hook_permission() {
  *   - preprocess functions: A list of functions used to preprocess this data.
  *     Ordinarily this won't be used; it's automatically filled in. By default,
  *     for a module this will be filled in as template_preprocess_HOOK. For
- *     a theme this will be filled in as phptemplate_preprocess and
- *     phptemplate_preprocess_HOOK as well as themename_preprocess and
+ *     a theme this will be filled in as twig_preprocess and
+ *     twig_preprocess_HOOK as well as themename_preprocess and
  *     themename_preprocess_HOOK.
  *   - override preprocess functions: Set to TRUE when a theme does NOT want
  *     the standard preprocess functions to run. This can be used to give a
@@ -1795,7 +1810,7 @@ function hook_custom_theme() {
  */
 function hook_watchdog(array $log_entry) {
   global $base_url;
-  $language_interface = language(LANGUAGE_TYPE_INTERFACE);
+  $language_interface = language(\Drupal\Core\Language\Language::TYPE_INTERFACE);
 
   $severity_list = array(
     WATCHDOG_EMERGENCY     => t('Emergency'),
@@ -2270,8 +2285,6 @@ function hook_file_url_alter(&$uri) {
  * Drupal itself (by install.php) with an installation profile or later by hand.
  * As a consequence, install-time requirements must be checked without access
  * to the full Drupal API, because it is not available during install.php.
- * For localization you should for example use $t = get_t() to
- * retrieve the appropriate localization function name (t() or st()).
  * If a requirement has a severity of REQUIREMENT_ERROR, install.php will abort
  * or at least the module will not install.
  * Other severity levels have no effect on the installation.
@@ -2310,13 +2323,11 @@ function hook_file_url_alter(&$uri) {
  */
 function hook_requirements($phase) {
   $requirements = array();
-  // Ensure translations don't break during installation.
-  $t = get_t();
 
   // Report Drupal version
   if ($phase == 'runtime') {
     $requirements['drupal'] = array(
-      'title' => $t('Drupal'),
+      'title' => t('Drupal'),
       'value' => VERSION,
       'severity' => REQUIREMENT_INFO
     );
@@ -2324,32 +2335,32 @@ function hook_requirements($phase) {
 
   // Test PHP version
   $requirements['php'] = array(
-    'title' => $t('PHP'),
+    'title' => t('PHP'),
     'value' => ($phase == 'runtime') ? l(phpversion(), 'admin/reports/status/php') : phpversion(),
   );
   if (version_compare(phpversion(), DRUPAL_MINIMUM_PHP) < 0) {
-    $requirements['php']['description'] = $t('Your PHP installation is too old. Drupal requires at least PHP %version.', array('%version' => DRUPAL_MINIMUM_PHP));
+    $requirements['php']['description'] = t('Your PHP installation is too old. Drupal requires at least PHP %version.', array('%version' => DRUPAL_MINIMUM_PHP));
     $requirements['php']['severity'] = REQUIREMENT_ERROR;
   }
 
   // Report cron status
   if ($phase == 'runtime') {
-    $cron_last = state()->get('system.cron_last');
+    $cron_last = \Drupal::state()->get('system.cron_last');
 
     if (is_numeric($cron_last)) {
-      $requirements['cron']['value'] = $t('Last run !time ago', array('!time' => format_interval(REQUEST_TIME - $cron_last)));
+      $requirements['cron']['value'] = t('Last run !time ago', array('!time' => format_interval(REQUEST_TIME - $cron_last)));
     }
     else {
       $requirements['cron'] = array(
-        'description' => $t('Cron has not run. It appears cron jobs have not been setup on your system. Check the help pages for <a href="@url">configuring cron jobs</a>.', array('@url' => 'http://drupal.org/cron')),
+        'description' => t('Cron has not run. It appears cron jobs have not been setup on your system. Check the help pages for <a href="@url">configuring cron jobs</a>.', array('@url' => 'http://drupal.org/cron')),
         'severity' => REQUIREMENT_ERROR,
-        'value' => $t('Never run'),
+        'value' => t('Never run'),
       );
     }
 
-    $requirements['cron']['description'] .= ' ' . $t('You can <a href="@cron">run cron manually</a>.', array('@cron' => url('admin/reports/status/run-cron')));
+    $requirements['cron']['description'] .= ' ' . t('You can <a href="@cron">run cron manually</a>.', array('@cron' => url('admin/reports/status/run-cron')));
 
-    $requirements['cron']['title'] = $t('Cron maintenance tasks');
+    $requirements['cron']['title'] = t('Cron maintenance tasks');
   }
 
   return $requirements;
@@ -2398,7 +2409,7 @@ function hook_schema() {
         'not null' => TRUE,
       ),
       'vid' => array(
-        'description' => 'The current {node_revision}.vid version identifier.',
+        'description' => 'The current {node_field_revision}.vid version identifier.',
         'type' => 'int',
         'unsigned' => TRUE,
         'not null' => TRUE,
@@ -2429,7 +2440,7 @@ function hook_schema() {
     ),
     'foreign keys' => array(
       'node_revision' => array(
-        'table' => 'node_revision',
+        'table' => 'node_field_revision',
         'columns' => array('vid' => 'vid'),
       ),
       'node_author' => array(
@@ -2947,7 +2958,7 @@ function hook_install_tasks(&$install_state) {
     // entered data which requires that batch processing will need to occur
     // later on.
     'myprofile_data_import_form' => array(
-      'display_name' => st('Data import options'),
+      'display_name' => t('Data import options'),
       'type' => 'form',
     ),
     // Similarly, to implement this task, your profile would define a function
@@ -2958,7 +2969,7 @@ function hook_install_tasks(&$install_state) {
     // can simply define as many tasks of type 'form' as you wish to execute,
     // and the forms will be presented to the user, one after another.
     'myprofile_settings_form' => array(
-      'display_name' => st('Additional options'),
+      'display_name' => t('Additional options'),
       'type' => 'form',
     ),
     // This is an example of a task that performs batch operations. To
@@ -2969,7 +2980,7 @@ function hook_install_tasks(&$install_state) {
     // hidden and skipped unless your profile set it to TRUE in one of the
     // previous tasks.
     'myprofile_batch_processing' => array(
-      'display_name' => st('Import additional data'),
+      'display_name' => t('Import additional data'),
       'display' => $myprofile_needs_batch_processing,
       'type' => 'batch',
       'run' => $myprofile_needs_batch_processing ? INSTALL_TASK_RUN_IF_NOT_COMPLETED : INSTALL_TASK_SKIP,
@@ -2990,22 +3001,6 @@ function hook_install_tasks(&$install_state) {
     ),
   );
   return $tasks;
-}
-
-/**
- * Change the page the user is sent to by drupal_goto().
- *
- * @param $path
- *   A Drupal path or a full URL.
- * @param $options
- *   An associative array of additional URL options to pass to url().
- * @param $http_response_code
- *   The HTTP status code to use for the redirection. See drupal_goto() for more
- *   information.
- */
-function hook_drupal_goto_alter(&$path, &$options, &$http_response_code) {
-  // A good addition to misery module.
-  $http_response_code = 500;
 }
 
 /**
@@ -3475,35 +3470,11 @@ function hook_updater_info_alter(&$updaters) {
  * @param $countries
  *   The associative array of countries keyed by ISO 3166-1 country code.
  *
- * @see country_get_list()
- * @see standard_country_list()
+ * @see \Drupal\Core\Locale\CountryManager::getList().
  */
 function hook_countries_alter(&$countries) {
   // Elbonia is now independent, so add it to the country list.
   $countries['EB'] = 'Elbonia';
-}
-
-/**
- * Control site status before menu dispatching.
- *
- * The hook is called after checking whether the site is offline but before
- * the current router item is retrieved and executed. If the site is in offline
- * mode, $menu_site_status is set to MENU_SITE_OFFLINE.
- *
- * @param $menu_site_status
- *   Supported values are MENU_SITE_OFFLINE, MENU_ACCESS_DENIED,
- *   MENU_NOT_FOUND and MENU_SITE_ONLINE. Any other value than
- *   MENU_SITE_ONLINE will skip the default menu handling system and be passed
- *   for delivery directly.
- * @param $path
- *   Contains the system path that is going to be loaded. This is read only,
- *   use a request listener to change the inbound path.
- */
-function hook_menu_site_status_alter(&$menu_site_status, $path) {
-  // Allow access to my_module/authentication even if site is in offline mode.
-  if ($menu_site_status == MENU_SITE_OFFLINE && user_is_anonymous() && $path == 'my_module/authentication') {
-    $menu_site_status = MENU_SITE_ONLINE;
-  }
 }
 
 /**

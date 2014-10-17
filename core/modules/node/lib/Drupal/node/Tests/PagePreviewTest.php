@@ -7,6 +7,8 @@
 
 namespace Drupal\node\Tests;
 
+use Drupal\Core\Language\Language;
+
 /**
  * Tests the node entity preview functionality.
  */
@@ -18,6 +20,13 @@ class PagePreviewTest extends NodeTestBase {
    * @var array
    */
   public static $modules = array('node', 'taxonomy');
+
+  /**
+   * The name of the created field.
+   *
+   * @var string
+   */
+  protected $field_name;
 
   public static function getInfo() {
     return array(
@@ -38,7 +47,7 @@ class PagePreviewTest extends NodeTestBase {
       'name' => $this->randomName(),
       'description' => $this->randomName(),
       'vid' => $this->randomName(),
-      'langcode' => LANGUAGE_NOT_SPECIFIED,
+      'langcode' => Language::LANGCODE_NOT_SPECIFIED,
       'help' => '',
     ));
     $vocabulary->save();
@@ -50,7 +59,7 @@ class PagePreviewTest extends NodeTestBase {
       'name' => $this->randomName(),
       'description' => $this->randomName(),
       'vid' => $this->vocabulary->id(),
-      'langcode' => LANGUAGE_NOT_SPECIFIED,
+      'langcode' => Language::LANGCODE_NOT_SPECIFIED,
     ));
     $term->save();
 
@@ -58,7 +67,7 @@ class PagePreviewTest extends NodeTestBase {
 
     // Set up a field and instance.
     $this->field_name = drupal_strtolower($this->randomName());
-    $this->field = array(
+    entity_create('field_entity', array(
       'field_name' => $this->field_name,
       'type' => 'taxonomy_term_reference',
       'settings' => array(
@@ -70,30 +79,27 @@ class PagePreviewTest extends NodeTestBase {
         ),
       ),
       'cardinality' => '-1',
-    );
-
-    field_create_field($this->field);
-    $this->instance = array(
+    ))->save();
+    entity_create('field_instance', array(
       'field_name' => $this->field_name,
       'entity_type' => 'node',
       'bundle' => 'page',
-    );
-    field_create_instance($this->instance);
+    ))->save();
 
     entity_get_form_display('node', 'page', 'default')
-      ->setComponent($this->field['field_name'], array(
+      ->setComponent($this->field_name, array(
         'type' => 'taxonomy_autocomplete',
       ))
       ->save();
 
     // Show on default display and teaser.
     entity_get_display('node', 'page', 'default')
-      ->setComponent($this->field['field_name'], array(
+      ->setComponent($this->field_name, array(
         'type' => 'taxonomy_term_reference_link',
       ))
       ->save();
     entity_get_display('node', 'page', 'teaser')
-      ->setComponent($this->field['field_name'], array(
+      ->setComponent($this->field_name, array(
         'type' => 'taxonomy_term_reference_link',
       ))
       ->save();
@@ -103,7 +109,7 @@ class PagePreviewTest extends NodeTestBase {
    * Checks the node preview functionality.
    */
   function testPagePreview() {
-    $langcode = LANGUAGE_NOT_SPECIFIED;
+    $langcode = Language::LANGCODE_NOT_SPECIFIED;
     $title_key = "title";
     $body_key = "body[$langcode][0][value]";
     $term_key = "{$this->field_name}[$langcode]";
@@ -175,7 +181,7 @@ class PagePreviewTest extends NodeTestBase {
    * Checks the node preview functionality, when using revisions.
    */
   function testPagePreviewWithRevisions() {
-    $langcode = LANGUAGE_NOT_SPECIFIED;
+    $langcode = Language::LANGCODE_NOT_SPECIFIED;
     $title_key = "title";
     $body_key = "body[$langcode][0][value]";
     $term_key = "{$this->field_name}[$langcode]";
@@ -204,4 +210,5 @@ class PagePreviewTest extends NodeTestBase {
     // Check that the log field has the correct value.
     $this->assertFieldByName('log', $edit['log'], 'Log field displayed.');
   }
+
 }

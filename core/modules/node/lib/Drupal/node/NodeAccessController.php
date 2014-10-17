@@ -7,10 +7,11 @@
 
 namespace Drupal\node;
 
-use Drupal\user\Plugin\Core\Entity\User;
+use Drupal\Core\Language\Language;
 use Drupal\Core\Entity\EntityAccessController;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Entity\EntityNG;
+use Drupal\Core\Session\AccountInterface;
 
 /**
  * Defines the access controller for the node entity type.
@@ -20,7 +21,7 @@ class NodeAccessController extends EntityAccessController {
   /**
    * {@inheritdoc}
    */
-  public function access(EntityInterface $entity, $operation, $langcode = LANGUAGE_DEFAULT, User $account = NULL) {
+  public function access(EntityInterface $entity, $operation, $langcode = Language::LANGCODE_DEFAULT, AccountInterface $account = NULL) {
     if (user_access('bypass node access', $account)) {
       return TRUE;
     }
@@ -33,7 +34,7 @@ class NodeAccessController extends EntityAccessController {
   /**
    * {@inheritdoc}
    */
-  protected function checkAccess(EntityInterface $node, $operation, $langcode, User $account) {
+  protected function checkAccess(EntityInterface $node, $operation, $langcode, AccountInterface $account) {
     // Fetch information from the node object if possible.
     $status = isset($node->status) ? $node->status : NULL;
     $uid = isset($node->uid) ? $node->uid : NULL;
@@ -74,7 +75,7 @@ class NodeAccessController extends EntityAccessController {
    *   'delete'.
    * @param string $langcode
    *   The language code for which to check access.
-   * @param \Drupal\user\Plugin\Core\Entity\User $account
+   * @param \Drupal\Core\Session\AccountInterface $account
    *   The user for which to check access.
    *
    * @return bool|null
@@ -82,7 +83,7 @@ class NodeAccessController extends EntityAccessController {
    *   module implements hook_node_grants(), the node does not (yet) have an id
    *   or none of the implementing modules explicitly granted or denied access.
    */
-  protected function accessGrants(EntityInterface $node, $operation, $langcode, User $account) {
+  protected function accessGrants(EntityInterface $node, $operation, $langcode, AccountInterface $account) {
     // If no module implements the hook or the node does not have an id there is
     // no point in querying the database for access grants.
     if (!module_implements('node_grants') || !$node->id()) {
@@ -96,7 +97,7 @@ class NodeAccessController extends EntityAccessController {
     $query->condition('grant_' . $operation, 1, '>=');
     // Check for grants for this node and the correct langcode.
     $nids = db_and()
-      ->condition('nid', $node->nid)
+      ->condition('nid', $node->id())
       ->condition('langcode', $langcode);
     // If the node is published, also take the default grant into account. The
     // default is saved with a node ID of 0.
@@ -110,7 +111,7 @@ class NodeAccessController extends EntityAccessController {
     $query->range(0, 1);
 
     $grants = db_or();
-    foreach (node_access_grants($operation, $account) as $realm => $gids) {
+    foreach (node_access_grants($operation, $account instanceof User ? $account->getBCEntity() : $account) as $realm => $gids) {
       foreach ($gids as $gid) {
         $grants->condition(db_and()
           ->condition('gid', $gid)

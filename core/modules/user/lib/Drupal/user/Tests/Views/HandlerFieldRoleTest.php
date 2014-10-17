@@ -41,17 +41,17 @@ class HandlerFieldRoleTest extends UserTestBase {
     $this->drupalCreateRole(array('access content'), $rolename_not_assigned, $rolename_not_assigned);
 
     // Add roles to user 1.
-    $user = user_load(1);
-    $user->roles[$rid_a] = $rolename_a;
-    $user->roles[$rid_b] = $rolename_b;
+    $user = entity_load('user', 1);
+    $user->roles[1]->value = $rolename_a;
+    $user->roles[2]->value = $rolename_b;
     $user->save();
 
     $view = views_get_view('test_views_handler_field_role');
     $this->executeView($view);
     $view->row_index = 0;
-    // The role field is populated during pre_render.
-    $view->field['rid']->pre_render($view->result);
-    $render = $view->field['rid']->advanced_render($view->result[0]);
+    // The role field is populated during preRender.
+    $view->field['rid']->preRender($view->result);
+    $render = $view->field['rid']->advancedRender($view->result[0]);
 
     $this->assertEqual($rolename_b . $rolename_a, $render, 'View test_views_handler_field_role renders role assigned to user in the correct order.');
     $this->assertFalse(strpos($render, $rolename_not_assigned), 'View test_views_handler_field_role does not render a role not assigned to a user.');

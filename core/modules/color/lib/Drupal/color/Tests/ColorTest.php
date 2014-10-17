@@ -48,6 +48,8 @@ class ColorTest extends WebTestBase {
       ),
     );
     theme_enable(array_keys($this->themes));
+    $this->container->get('router.builder')->rebuild();
+    menu_router_rebuild();
 
     // Array filled with valid and not valid color values
     $this->colorTests = array(
@@ -110,7 +112,7 @@ class ColorTest extends WebTestBase {
     $config->set('css.preprocess', 1);
     $config->save();
     $this->drupalGet('<front>');
-    $stylesheets = state()->get('drupal_css_cache_files') ?: array();
+    $stylesheets = \Drupal::state()->get('drupal_css_cache_files') ?: array();
     $stylesheet_content = '';
     foreach ($stylesheets as $key => $uri) {
       $stylesheet_content .= join("\n", file(drupal_realpath($uri)));

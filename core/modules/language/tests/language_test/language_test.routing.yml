@@ -1,13 +1,13 @@
 language_test_l_active_class:
-  pattern: '/language_test/l-active-class'
+  pattern: '/language_test/type-link-active-class'
   defaults:
-    _content: '\Drupal\language_test\Controller\LanguageTestController::lActiveClass'
+    _content: '\Drupal\language_test\Controller\LanguageTestController::typeLinkActiveClass'
   requirements:
     _access: 'TRUE'
 
-language_test_theme_link_active_class:
-  pattern: '/language_test/theme-link-active-class'
+language_test_subrequest:
+  pattern: '/language_test/subrequest'
   defaults:
-    _content: '\Drupal\language_test\Controller\LanguageTestController::themeLinkActiveClass'
+    _controller: '\Drupal\language_test\Controller\LanguageTestController::testSubRequest'
   requirements:
     _access: 'TRUE'

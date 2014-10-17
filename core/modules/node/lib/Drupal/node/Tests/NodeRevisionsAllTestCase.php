@@ -7,6 +7,8 @@
 
 namespace Drupal\node\Tests;
 
+use Drupal\Core\Language\Language;
+
 /**
  * Tests actions against revisions for user with access to all revisions.
  */
@@ -96,7 +98,7 @@ class NodeRevisionsAllTestCase extends NodeTestBase {
 
     // Confirm the correct revision text appears on "view revisions" page.
     $this->drupalGet("node/$node->nid/revisions/$node->vid/view");
-    $this->assertText($node->body[LANGUAGE_NOT_SPECIFIED][0]['value'], t('Correct text displays for version.'));
+    $this->assertText($node->body[Language::LANGCODE_NOT_SPECIFIED][0]['value'], t('Correct text displays for version.'));
 
     // Confirm the correct log message appears on "revisions overview" page.
     $this->drupalGet("node/$node->nid/revisions");
@@ -117,7 +119,7 @@ class NodeRevisionsAllTestCase extends NodeTestBase {
       )),
       'Revision reverted.');
     $reverted_node = node_load($node->nid, TRUE);
-    $this->assertTrue(($nodes[1]->body[LANGUAGE_NOT_SPECIFIED][0]['value'] == $reverted_node->body[LANGUAGE_NOT_SPECIFIED][0]['value']), t('Node reverted correctly.'));
+    $this->assertTrue(($nodes[1]->body[Language::LANGCODE_NOT_SPECIFIED][0]['value'] == $reverted_node->body[Language::LANGCODE_NOT_SPECIFIED][0]['value']), t('Node reverted correctly.'));
 
     // Confirm that this is not the current version.
     $node = node_revision_load($node->vid);
@@ -132,17 +134,17 @@ class NodeRevisionsAllTestCase extends NodeTestBase {
         '%title' => $nodes[1]->title,
       )),
       'Revision deleted.');
-    $this->assertTrue(db_query('SELECT COUNT(vid) FROM {node_revision} WHERE nid = :nid and vid = :vid',
+    $this->assertTrue(db_query('SELECT COUNT(vid) FROM {node_field_revision} WHERE nid = :nid and vid = :vid',
       array(':nid' => $node->nid, ':vid' => $nodes[1]->vid))->fetchField() == 0,
       'Revision not found.');
 
     // Set the revision timestamp to an older date to make sure that the
     // confirmation message correctly displays the stored revision date.
     $old_revision_date = REQUEST_TIME - 86400;
-    db_update('node_revision')
+    db_update('node_field_revision')
       ->condition('vid', $nodes[2]->vid)
       ->fields(array(
-        'timestamp' => $old_revision_date,
+        'revision_timestamp' => $old_revision_date,
       ))
       ->execute();
     $this->drupalPost("node/$node->nid/revisions/{$nodes[2]->vid}/revert", array(), t('Revert'));

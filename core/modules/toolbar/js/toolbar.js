@@ -178,7 +178,6 @@ Drupal.toolbar.toggleTray = function (event) {
 Drupal.toolbar.adjustPlacement = function (event, offsets) {
   // Set the top of the all the trays to the height of the bar.
   var barHeight = $toolbar.find('.bar').outerHeight();
-  var height = barHeight;
   var bhpx =  barHeight + 'px';
   var tray;
   for (var i = 0, il = $trays.length; i < il; i++) {
@@ -226,9 +225,7 @@ Drupal.toolbar.mediaQueryChangeHandler = function (mql) {
 Drupal.toolbar.orientationChangeHandler = function (event) {
   event.preventDefault();
   event.stopPropagation();
-  var $button = $(event.target);
   var orientation = event.target.value;
-  var $tray = $button.closest('.tray');
   changeOrientation(orientation, true);
   // Update the page and toolbar dimension indicators.
   updatePeripherals();
@@ -245,7 +242,6 @@ Drupal.toolbar.orientationChangeHandler = function (event) {
  *   to vertical.
  */
 function changeOrientation (newOrientation, isLock) {
-  var oldOrientation = orientation;
   if (isLock) {
     locked = (newOrientation === 'vertical');
     if (locked) {
@@ -342,7 +338,7 @@ Drupal.theme.toolbarOrientationToggle = function () {
  *   A string representing a DOM fragment.
  */
 Drupal.theme.toolbarMessageBox = function () {
-  return '<div id="toolbar-messages" class="element-invisible" role="region" aria-live="polite"></div>';
+  return '<div id="toolbar-messages" class="visually-hidden" role="region" aria-live="polite"></div>';
 };
 
 /**

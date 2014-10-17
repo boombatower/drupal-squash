@@ -1,8 +1,7 @@
 picture_mapping_page:
   pattern: '/admin/config/media/picturemapping'
   defaults:
-    _content: '\Drupal\Core\Entity\Controller\EntityListController::listing'
-    entity_type: 'picture_mapping'
+    _entity_list: 'picture_mapping'
   requirements:
     _permission: 'administer pictures'
 
@@ -30,6 +29,6 @@ picture_mapping_page_duplicate:
 picture_mapping_action_confirm:
   pattern: '/admin/config/media/picturemapping/{picture_mapping}/delete'
   defaults:
-    _form: '\Drupal\picture\Form\PictureMappingActionConfirmForm'
+    _entity_form: 'picture_mapping.delete'
   requirements:
     _permission: 'administer pictures'

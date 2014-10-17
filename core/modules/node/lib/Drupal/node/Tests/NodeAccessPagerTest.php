@@ -7,6 +7,7 @@
 
 namespace Drupal\node\Tests;
 
+use Drupal\Core\Language\Language;
 use Drupal\simpletest\WebTestBase;
 
 /**
@@ -86,7 +87,7 @@ class NodeAccessPagerTest extends WebTestBase {
         'nid' => NULL,
         'type' => 'forum',
         'taxonomy_forums' => array(
-          array('tid' => $tid)
+          array('target_id' => $tid),
         ),
       ));
     }

@@ -2,7 +2,7 @@
 
 /**
  * @file
- * Definition of Drupal\comment\Plugin\views\field\LinkDelete.
+ * Contains \Drupal\comment\Plugin\views\field\LinkDelete.
  */
 
 namespace Drupal\comment\Plugin\views\field;
@@ -10,7 +10,7 @@ namespace Drupal\comment\Plugin\views\field;
 use Drupal\Component\Annotation\PluginID;
 
 /**
- * Field handler to present a link to delete a node.
+ * Field handler to present a link to delete a comment.
  *
  * @ingroup views_field_handlers
  *
@@ -25,7 +25,7 @@ class LinkDelete extends Link {
 
   function render_link($data, $values) {
     $text = !empty($this->options['text']) ? $this->options['text'] : t('delete');
-    $cid =  $this->get_value($values, 'cid');
+    $cid =  $this->getValue($values, 'cid');
 
     $this->options['alter']['make_link'] = TRUE;
     $this->options['alter']['path'] = "comment/" . $cid . "/delete";

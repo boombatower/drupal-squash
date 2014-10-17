@@ -779,7 +779,6 @@ function _field_invoke_widget_target($form_display) {
  *         '#default_value' => The field value for delta 0,
  *         '#required' => Whether the widget should be marked required,
  *         '#delta' => 0,
- *         '#columns' => The array of field columns,
  *         // The remaining elements in the sub-array depend on the widget.
  *         '#type' => The type of the widget,
  *         ...
@@ -791,7 +790,6 @@ function _field_invoke_widget_target($form_display) {
  *       // Only for multiple widgets:
  *       '#entity_type' => The name of the entity type,
  *       '#bundle' => $instance['bundle'],
- *       '#columns'  => array_keys($field['columns']),
  *       // The remaining elements in the sub-array depend on the widget.
  *       '#type' => The type of the widget,
  *       ...
@@ -1410,7 +1408,7 @@ function field_attach_prepare_view($entity_type, array $entities, array $display
  * Returns a renderable array for the fields on an entity.
  *
  * Each field is displayed according to the display options specified in the
- * instance definition for the given view mode.
+ * $display parameter for the given view mode.
  *
  * field_attach_prepare_view() and field_attach_view() are two halves of the
  * same operation. It is safe to call field_attach_prepare_view() multiple times
@@ -1418,28 +1416,7 @@ function field_attach_prepare_view($entity_type, array $entities, array $display
  * Field API operation on an entity between passing that entity to these two
  * functions may yield incorrect results.
  *
- * Sample structure:
- * @code
- * array(
- *   'field_foo' => array(
- *     '#theme' => 'field',
- *     '#title' => the label of the field instance,
- *     '#label_display' => the label display mode,
- *     '#object' => the fieldable entity being displayed,
- *     '#entity_type' => the type of the entity being displayed,
- *     '#language' => the language of the field values being displayed,
- *     '#view_mode' => the view mode,
- *     '#field_name' => the name of the field,
- *     '#field_type' => the type of the field,
- *     '#formatter' => the name of the formatter,
- *     '#items' => the field values being displayed,
- *     // The element's children are the formatted values returned by
- *     // hook_field_formatter_view().
- *   ),
- * );
- * @endcode
- *
- * @param Drupal\Core\Entity\EntityInterface $entity
+ * @param \Drupal\Core\Entity\EntityInterface $entity
  *   The entity with fields to render.
  * @param \Drupal\entity\Plugin\Core\Entity\EntityDisplay $display
  *   The entity display object.
@@ -1448,7 +1425,7 @@ function field_attach_prepare_view($entity_type, array $entities, array $display
  *   provided the current language is used.
  * @param array $options
  *   An associative array of additional options. See field_invoke_method() for
- *   details.
+ *   details. Note: key "langcode" will be overridden inside this function.
  *
  * @return array
  *   A renderable array for the field values.
@@ -1610,7 +1587,7 @@ function field_entity_bundle_delete($entity_type, $bundle) {
   // entity types or bundles.
   $instances = field_read_instances(array('entity_type' => $entity_type, 'bundle' => $bundle), array('include_inactive' => TRUE));
   foreach ($instances as $instance) {
-    field_delete_instance($instance);
+    $instance->delete();
   }
 
   // Clear the cache.

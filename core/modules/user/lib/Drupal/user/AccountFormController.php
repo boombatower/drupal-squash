@@ -8,6 +8,7 @@
 namespace Drupal\user;
 
 use Drupal\Core\Entity\EntityFormController;
+use Drupal\Core\Language\Language;
 
 /**
  * Form controller for the user account forms.
@@ -22,7 +23,7 @@ abstract class AccountFormController extends EntityFormController {
     global $user;
     $config = config('user.settings');
 
-    $language_interface = language(LANGUAGE_TYPE_INTERFACE);
+    $language_interface = language(Language::TYPE_INTERFACE);
     $register = empty($account->uid);
     $admin = user_access('administer users');
 
@@ -39,7 +40,8 @@ abstract class AccountFormController extends EntityFormController {
       '#maxlength' => USERNAME_MAX_LENGTH,
       '#description' => t('Spaces are allowed; punctuation is not allowed except for periods, hyphens, apostrophes, and underscores.'),
       '#required' => TRUE,
-      '#attributes' => array('class' => array('username'), 'autocomplete' => 'off'),
+      '#attributes' => array('class' => array('username'), 'autocorrect' => 'off', 'autocomplete' => 'off', 'autocapitalize' => 'off',
+      'spellcheck' => 'false'),
       '#default_value' => (!$register ? $account->name : ''),
       '#access' => ($register || ($user->uid == $account->uid && user_access('change own username')) || $admin),
       '#weight' => -10,
@@ -146,7 +148,7 @@ abstract class AccountFormController extends EntityFormController {
     $form['account']['roles'] = array(
       '#type' => 'checkboxes',
       '#title' => t('Roles'),
-      '#default_value' => (!$register && isset($account->roles) ? array_keys($account->roles) : array()),
+      '#default_value' => (!$register ? $account->roles : array()),
       '#options' => $roles,
       '#access' => $roles && user_access('administer permissions'),
       DRUPAL_AUTHENTICATED_RID => $checkbox_authenticated,
@@ -180,7 +182,7 @@ abstract class AccountFormController extends EntityFormController {
 
     // Is default the interface language?
     include_once DRUPAL_ROOT . '/core/includes/language.inc';
-    $interface_language_is_default = language_negotiation_method_get_first(LANGUAGE_TYPE_INTERFACE) != LANGUAGE_NEGOTIATION_SELECTED;
+    $interface_language_is_default = language_negotiation_method_get_first(Language::TYPE_INTERFACE) != LANGUAGE_NEGOTIATION_SELECTED;
     $form['language'] = array(
       '#type' => language_multilingual() ? 'details' : 'container',
       '#title' => t('Language settings'),
@@ -192,7 +194,7 @@ abstract class AccountFormController extends EntityFormController {
     $form['language']['preferred_langcode'] = array(
       '#type' => 'language_select',
       '#title' => t('Site language'),
-      '#languages' => LANGUAGE_CONFIGURABLE,
+      '#languages' => Language::STATE_CONFIGURABLE,
       '#default_value' => $user_preferred_langcode,
       '#description' => $interface_language_is_default ? t("This account's preferred language for e-mails and site presentation.") : t("This account's preferred language for e-mails."),
     );
@@ -200,7 +202,7 @@ abstract class AccountFormController extends EntityFormController {
     $form['language']['preferred_admin_langcode'] = array(
       '#type' => 'language_select',
       '#title' => t('Administration pages language'),
-      '#languages' => LANGUAGE_CONFIGURABLE,
+      '#languages' => Language::STATE_CONFIGURABLE,
       '#default_value' => $user_preferred_admin_langcode,
       '#access' => user_access('access administration pages', $account),
     );
@@ -222,6 +224,22 @@ abstract class AccountFormController extends EntityFormController {
     );
 
     return parent::form($form, $form_state, $account);
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function buildEntity(array $form, array &$form_state) {
+    // Change the roles array to a list of enabled roles.
+    // @todo: Alter the form state as the form values are directly extracted and
+    //   set on the field, which throws an exception as the list requires
+    //   numeric keys. Allow to override this per field. As this function is
+    //   called twice, we have to prevent it from getting the array keys twice.
+    if (empty($this->roles_filtered)) {
+      $form_state['values']['roles'] = array_keys(array_filter($form_state['values']['roles']));
+      $this->roles_filtered = TRUE;
+    }
+    return parent::buildEntity($form, $form_state);
   }
 
   /**

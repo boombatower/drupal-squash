@@ -7,7 +7,7 @@
 
 namespace Drupal\link\Plugin\field\formatter;
 
-use Drupal\Component\Annotation\Plugin;
+use Drupal\field\Annotation\FieldFormatter;
 use Drupal\Core\Annotation\Translation;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\field\Plugin\Type\Formatter\FormatterBase;
@@ -15,7 +15,7 @@ use Drupal\field\Plugin\Type\Formatter\FormatterBase;
 /**
  * Plugin implementation of the 'link' formatter.
  *
- * @Plugin(
+ * @FieldFormatter(
  *   id = "link",
  *   module = "link",
  *   label = @Translation("Link"),
@@ -150,24 +150,23 @@ class LinkFormatter extends FormatterBase {
     $settings = $this->getSettings();
 
     foreach ($items as $delta => $item) {
-      // By default use the full URL as the link title.
+      // By default use the full URL as the link text.
       $link_title = $item['url'];
 
-      // If the title field value is available, use it for the link title.
+      // If the title field value is available, use it for the link text.
       if (empty($settings['url_only']) && !empty($item['title'])) {
         // Unsanitizied token replacement here because $options['html'] is FALSE
-        // by default in theme_link().
+        // by default in l().
         $link_title = \Drupal::token()->replace($item['title'], array($entity->entityType() => $entity), array('sanitize' => FALSE, 'clear' => TRUE));
       }
 
-      // Trim the link title to the desired length.
+      // Trim the link text to the desired length.
       if (!empty($settings['trim_length'])) {
         $link_title = truncate_utf8($link_title, $settings['trim_length'], FALSE, TRUE);
       }
 
       if (!empty($settings['url_only']) && !empty($settings['url_plain'])) {
         $element[$delta] = array(
-          '#type' => 'markup',
           '#markup' => check_plain($link_title),
         );
       }

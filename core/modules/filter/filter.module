@@ -6,26 +6,35 @@
  */
 
 use Drupal\Core\Cache\CacheBackendInterface;
+use Drupal\Core\Language\Language;
 use Drupal\Core\Template\Attribute;
 use Drupal\filter\Plugin\Core\Entity\FilterFormat;
 
 /**
  * Non-HTML markup language filters that generate HTML.
+ *
+ * @todo Move into \Drupal\filter\Plugin\Filter\FilterInterface
  */
 const FILTER_TYPE_MARKUP_LANGUAGE = 0;
 
 /**
  * HTML tag and attribute restricting filters.
+ *
+ * @todo Move into \Drupal\filter\Plugin\Filter\FilterInterface
  */
 const FILTER_TYPE_HTML_RESTRICTOR = 1;
 
 /**
  * Reversible transformation filters.
+ *
+ * @todo Move into \Drupal\filter\Plugin\Filter\FilterInterface
  */
 const FILTER_TYPE_TRANSFORM_REVERSIBLE = 2;
 
 /**
  * Irreversible transformation filters.
+ *
+ * @todo Move into \Drupal\filter\Plugin\Filter\FilterInterface
  */
 const FILTER_TYPE_TRANSFORM_IRREVERSIBLE = 3;
 
@@ -74,9 +83,6 @@ function filter_theme() {
     'text_format_wrapper' => array(
       'render element' => 'element',
     ),
-    'filter_tips_more_info' => array(
-      'variables' => array(),
-    ),
     'filter_guidelines' => array(
       'variables' => array('format' => NULL),
     ),
@@ -107,18 +113,12 @@ function filter_element_info() {
 function filter_menu() {
   $items['filter/tips'] = array(
     'title' => 'Compose tips',
-    'page callback' => 'filter_tips_long',
-    'access callback' => TRUE,
     'type' => MENU_SUGGESTED_ITEM,
-    'file' => 'filter.pages.inc',
+    'route_name' => 'filter_tips_all',
   );
   $items['filter/tips/%filter_format'] = array(
     'title' => 'Compose tips',
-    'page callback' => 'filter_tips_long',
-    'page arguments' => array(2),
-    'access callback' => 'filter_access',
-    'access arguments' => array(2),
-    'file' => 'filter.pages.inc',
+    'route_name' => 'filter_tips',
   );
   $items['admin/config/content/formats'] = array(
     'title' => 'Text formats',
@@ -166,6 +166,8 @@ function filter_menu() {
  *   has been marked as disabled, FALSE is returned.
  *
  * @see filter_format_exists()
+ *
+ * @todo Use entity_load().
  */
 function filter_format_load($format_id) {
   $formats = filter_formats();
@@ -251,24 +253,6 @@ function filter_permission_name($format) {
 }
 
 /**
- * Implements hook_modules_enabled().
- */
-function filter_modules_enabled($modules) {
-  // Reset the static cache of module-provided filters, in case any of the
-  // newly enabled modules defines a new filter or alters existing ones.
-  drupal_static_reset('filter_get_filters');
-}
-
-/**
- * Implements hook_modules_disabled().
- */
-function filter_modules_disabled($modules) {
-  // Reset the static cache of module-provided filters, in case any of the
-  // newly disabled modules defined or altered any filters.
-  drupal_static_reset('filter_get_filters');
-}
-
-/**
  * Retrieves a list of text formats, ordered by weight.
  *
  * @param $account
@@ -283,7 +267,7 @@ function filter_modules_disabled($modules) {
  * @see filter_formats_reset()
  */
 function filter_formats($account = NULL) {
-  $language_interface = language(LANGUAGE_TYPE_INTERFACE);
+  $language_interface = language(Language::TYPE_INTERFACE);
   $formats = &drupal_static(__FUNCTION__, array());
 
   // All available formats are cached for performance.
@@ -422,22 +406,161 @@ function filter_get_filter_types_by_format($format_id) {
   $filter_types = array();
 
   $filters = filter_list_format($format_id);
-
-  // Ignore filters that are disabled.
-  $filters = array_filter($filters, function($filter) {
-    return $filter->status;
-  });
-
-  $filters_info = filter_get_filters();
   foreach ($filters as $filter) {
-    if (!isset($filters_info[$filter->name]['type'])) {
-      throw new Exception(t('Filter %filter has no type specified.', array ('%filter' => $filter->name)));
+    if ($filter->status) {
+      $filter_types[] = $filter->getType();
     }
-
-    $filter_types[] = $filters_info[$filter->name]['type'];
   }
 
   return array_unique($filter_types);
+}
+
+/**
+ * Retrieve all HTML restrictions (tags and attributes) for a given text format.
+ *
+ * Note that restrictions applied to the "*" tag (the wildcard tag, i.e. all
+ * tags) are treated just like any other HTML tag. That means that any
+ * restrictions applied to it are not automatically applied to all other tags.
+ * It is up to the caller to handle this in whatever way it sees fit; this way
+ * no information granularity is lost.
+ *
+ * @param string $format_id
+ *   A text format ID.
+ *
+ * @return array|FALSE
+ *   An structured array as returned by FilterInterface::getHTMLRestrictions(),
+ *   but with the intersection of all filters in this text format.
+ *   Will either indicate blacklisting of tags or whitelisting of tags. In the
+ *   latter case, it's possible that restrictions on attributes are also stored.
+ *   FALSE means there are no HTML restrictions.
+ */
+function filter_get_html_restrictions_by_format($format_id) {
+  $format = filter_format_load($format_id);
+
+  // Ignore filters that are disabled or don't have HTML restrictions.
+  $filters = array_filter($format->filters()->getAll(), function($filter) {
+    if (!$filter->status) {
+      return FALSE;
+    }
+    if ($filter->getType() === FILTER_TYPE_HTML_RESTRICTOR && $filter->getHTMLRestrictions() !== FALSE) {
+      return TRUE;
+    }
+    return FALSE;
+  });
+
+  if (empty($filters)) {
+    return FALSE;
+  }
+  else {
+    // From the set of remaining filters (they were filtered by array_filter()
+    // above), collect the list of tags and attributes that are allowed by all
+    // filters, i.e. the intersection of all allowed tags and attributes.
+    $restrictions = array_reduce($filters, function($restrictions, $filter) {
+      $new_restrictions = $filter->getHTMLRestrictions();
+
+      // The first filter with HTML restrictions provides the initial set.
+      if (!isset($restrictions)) {
+        return $new_restrictions;
+      }
+      // Subsequent filters with an "allowed html" setting must be intersected
+      // with the existing set, to ensure we only end up with the tags that are
+      // allowed by *all* filters with an "allowed html" setting.
+      else {
+        // Track the union of forbidden (blacklisted) tags.
+        if (isset($new_restrictions['forbidden_tags'])) {
+          if (!isset($restrictions['forbidden_tags'])) {
+            $restrictions['forbidden_tags'] = $new_restrictions['forbidden_tags'];
+          }
+          else {
+            $restrictions['forbidden_tags'] = array_unique(array_merge($restrictions['forbidden_tags'], $new_restrictions['forbidden_tags']));
+          }
+        }
+
+        // Track the intersection of allowed (whitelisted) tags.
+        if (isset($restrictions['allowed'])) {
+          $intersection = $restrictions['allowed'];
+          foreach ($intersection as $tag => $attributes) {
+            // If the current tag is not whitelisted by the new filter, then
+            // it's outside of the intersection.
+            if (!array_key_exists($tag, $new_restrictions['allowed'])) {
+              // The exception is the asterisk (which applies to all tags): it
+              // does not need to be whitelisted by every filter in order to be
+              // used; not every filter needs attribute restrictions on all tags.
+              if ($tag === '*') {
+                continue;
+              }
+              unset($intersection[$tag]);
+            }
+            // The tag is in the intersection, but now we must calculate the
+            // intersection of the allowed attributes.
+            else {
+              $current_attributes = $intersection[$tag];
+              $new_attributes = $new_restrictions['allowed'][$tag];
+              // The current intersection does not allow any attributes, never
+              // allow.
+              if (!is_array($current_attributes) && $current_attributes == FALSE) {
+                continue;
+              }
+              // The new filter allows less attributes (all -> list or none).
+              else if (!is_array($current_attributes) && $current_attributes == TRUE && ($new_attributes == FALSE || is_array($new_attributes))) {
+                $intersection[$tag] = $new_attributes;
+              }
+              // The new filter allows less attributes (list -> none).
+              else if (is_array($current_attributes) && $new_attributes == FALSE) {
+                $intersection[$tag] = $new_attributes;
+              }
+              // The new filter allows more attributes; retain current.
+              else if (is_array($current_attributes) && $new_attributes == TRUE) {
+                continue;
+              }
+              // The new filter allows the same attributes; retain current.
+              else if ($current_attributes == $new_attributes) {
+                continue;
+              }
+              // Both list an array of attribute values; do an intersection,
+              // where we take into account that a value of:
+              //  - TRUE means the attribute value is allowed;
+              //  - FALSE means the attribute value is forbidden;
+              // hence we keep the ANDed result.
+              else {
+                $intersection[$tag] = array_intersect_key($intersection[$tag], $new_attributes);
+                foreach (array_keys($intersection[$tag]) as $attribute_value) {
+                  $intersection[$tag][$attribute_value] = $intersection[$tag][$attribute_value] && $new_attributes[$attribute_value];
+                }
+              }
+            }
+          }
+          $restrictions['allowed'] = $intersection;
+        }
+
+        return $restrictions;
+      }
+    }, NULL);
+
+    // Simplification: if we have both a (intersected) whitelist and a (unioned)
+    // blacklist, then remove any tags from the whitelist that also exist in the
+    // blacklist. Now the whitelist alone expresses all tag-level restrictions,
+    // and we can delete the blacklist.
+    if (isset($restrictions['allowed']) && isset($restrictions['forbidden_tags'])) {
+      foreach ($restrictions['forbidden_tags'] as $tag) {
+        if (isset($restrictions['allowed'][$tag])) {
+          unset($restrictions['allowed'][$tag]);
+        }
+      }
+      unset($restrictions['forbidden_tags']);
+    }
+
+    // Simplification: if the only remaining allowed tag is the asterisk (which
+    // contains attribute restrictions that apply to all tags), and only
+    // whitelisting filters were used, then effectively nothing is allowed.
+    if (isset($restrictions['allowed'])) {
+      if (count($restrictions['allowed']) === 1 && array_key_exists('*', $restrictions['allowed']) && !isset($restrictions['forbidden_tags'])) {
+        $restrictions['allowed'] = array();
+      }
+    }
+
+    return $restrictions;
+  }
 }
 
 /**
@@ -491,50 +614,6 @@ function filter_fallback_format_title() {
 }
 
 /**
- * Returns a list of all filters provided by modules.
- *
- * @return array
- *   An array of filter formats.
- */
-function filter_get_filters() {
-  $filters = &drupal_static(__FUNCTION__, array());
-
-  if (empty($filters)) {
-    foreach (module_implements('filter_info') as $module) {
-      $info = module_invoke($module, 'filter_info');
-      if (isset($info) && is_array($info)) {
-        // Assign the name of the module implementing the filters and ensure
-        // default values.
-        foreach (array_keys($info) as $name) {
-          $info[$name]['module'] = $module;
-          $info[$name] += array(
-            'description' => '',
-            'weight' => 0,
-            'default settings' => array(),
-          );
-        }
-        $filters = array_merge($filters, $info);
-      }
-    }
-    // Allow modules to alter filter definitions.
-    drupal_alter('filter_info', $filters);
-
-    uasort($filters, '_filter_list_cmp');
-  }
-
-  return $filters;
-}
-
-/**
- * Sorts an array of filters by filter name.
- *
- * Callback for uasort() within filter_get_filters().
- */
-function _filter_list_cmp($a, $b) {
-  return strcmp($a['title'], $b['title']);
-}
-
-/**
  * Checks if the text in a certain text format is allowed to be cached.
  *
  * This function can be used to check whether the result of the filtering
@@ -553,35 +632,6 @@ function filter_format_allowcache($format_id) {
 }
 
 /**
- * Determines whether the output of a given text format can be cached.
- *
- * The output of a given text format can be cached when all enabled filters in
- * the text format allow caching.
- *
- * @param $format
- *   The text format object to check.
- *
- * @return
- *   TRUE if all the filters enabled in the given text format allow caching,
- *   FALSE otherwise.
- *
- * @see Drupal\filter\Plugin\Core\Entity\FilterFormat::save()
- */
-function _filter_format_is_cacheable($format) {
-  if (empty($format->filters)) {
-    return TRUE;
-  }
-  $filter_info = filter_get_filters();
-  foreach ($format->filters as $name => $filter) {
-    // By default, 'cache' is TRUE for all filters unless specified otherwise.
-    if (!empty($filter['status']) && isset($filter_info[$name]['cache']) && !$filter_info[$name]['cache']) {
-      return FALSE;
-    }
-  }
-  return TRUE;
-}
-
-/**
  * Retrieves a list of filters for a given text format.
  *
  * Note that this function returns all associated filters regardless of whether
@@ -595,48 +645,33 @@ function _filter_format_is_cacheable($format) {
  * @return
  *   An array of filter objects associated to the given text format, keyed by
  *   filter name.
+ *
+ * @todo Change this function to only return enabled filters. Code that needs to
+ *   access disabled filters is not regular runtime code and thus can work with
+ *   the FilterFormat::filters().
  */
 function filter_list_format($format_id) {
   $filters = &drupal_static(__FUNCTION__, array());
-  $filter_info = filter_get_filters();
 
   if (!isset($filters['all'])) {
     if ($cache = cache()->get('filter_list_format')) {
       $filters['all'] = $cache->data;
     }
     else {
+      $filters['all'] = array();
       $filter_formats = filter_formats();
       foreach ($filter_formats as $filter_format) {
-        foreach ($filter_format->filters as $filter_name => $filter) {
-          $filter['name'] = $filter_name;
-          $filters['all'][$filter_format->format][$filter_name] = $filter;
-        }
-        uasort($filters['all'][$filter_format->format], 'Drupal\filter\Plugin\Core\Entity\FilterFormat::sortFilters');
-        // Convert filters into objects.
-        // @todo Retain filters as arrays or convert to plugins.
-        foreach ($filters['all'][$filter_format->format] as $filter_name => $filter) {
-          $filters['all'][$filter_format->format][$filter_name] = (object) $filter;
-        }
+        // This loop must not instantiate the actual filter plugins, since the
+        // filter bag would be duplicated for each filter plugin instance upon
+        // unserialization of the cache item.
+        $filters['all'][$filter_format->id()] = $filter_format->filters();
       }
       cache()->set('filter_list_format', $filters['all']);
     }
   }
 
-  if (!isset($filters[$format_id])) {
-    $format_filters = array();
-    $filter_map = isset($filters['all'][$format_id]) ? $filters['all'][$format_id] : array();
-    foreach ($filter_map as $name => $filter) {
-      if (isset($filter_info[$name])) {
-        $filter->title = $filter_info[$name]['title'];
-
-        $filter->settings = isset($filter->settings) ? $filter->settings : array();
-        // Merge in default settings.
-        $filter->settings += $filter_info[$name]['default settings'];
-
-        $format_filters[$name] = $filter;
-      }
-    }
-    $filters[$format_id] = $format_filters;
+  if (!isset($filters[$format_id]) && isset($filters['all'][$format_id])) {
+    $filters[$format_id] = $filters['all'][$format_id];
   }
 
   return isset($filters[$format_id]) ? $filters[$format_id] : array();
@@ -712,36 +747,33 @@ function check_markup($text, $format_id = NULL, $langcode = '', $cache = FALSE, 
 
   // Get a complete list of filters, ordered properly.
   $filters = filter_list_format($format->format);
-  $filter_info = filter_get_filters();
 
   // Give filters the chance to escape HTML-like data such as code or formulas.
-  foreach ($filters as $name => $filter) {
+  foreach ($filters as $filter) {
     // If necessary, skip filters of a certain type.
-    if (in_array($filter_info[$name]['type'], $filter_types_to_skip)) {
+    if (in_array($filter->getType(), $filter_types_to_skip)) {
       continue;
     }
-    if (!empty($filter->status) && isset($filter_info[$name]['prepare callback'])) {
-      $function = $filter_info[$name]['prepare callback'];
-      $text = $function($text, $filter, $format, $langcode, $cache, $cache_id);
+    if ($filter->status) {
+      $text = $filter->prepare($text, $langcode, $cache, $cache_id);
     }
   }
 
   // Perform filtering.
-  foreach ($filters as $name => $filter) {
+  foreach ($filters as $filter) {
     // If necessary, skip filters of a certain type.
-    if (in_array($filter_info[$name]['type'], $filter_types_to_skip)) {
+    if (in_array($filter->getType(), $filter_types_to_skip)) {
       continue;
     }
-    if (!empty($filter->status) && isset($filter_info[$name]['process callback'])) {
-      $function = $filter_info[$name]['process callback'];
-      $text = $function($text, $filter, $format, $langcode, $cache, $cache_id);
+    if ($filter->status) {
+      $text = $filter->process($text, $langcode, $cache, $cache_id);
     }
   }
 
   // Cache the filtered text. This cache is infinitely valid. It becomes
   // obsolete when $text changes (which leads to a new $cache_id). It is
   // automatically flushed when the text format is updated.
-  // @see Drupal\filter\Plugin\Core\Entity\FilterFormat::save()
+  // @see \Drupal\filter\Plugin\Core\Entity\FilterFormat::save()
   if ($cache) {
     cache('filter')->set($cache_id, $text, CacheBackendInterface::CACHE_PERMANENT, array('filter_format' => $format->format));
   }
@@ -867,8 +899,8 @@ function filter_process_format($element) {
 
   $element['format']['help'] = array(
     '#type' => 'container',
-    '#theme' => 'filter_tips_more_info',
     '#attributes' => array('class' => array('filter-help')),
+    '#markup' => l(t('More information about text formats'), 'filter/tips', array('attributes' => array('target' => '_blank'))),
     '#weight' => 0,
   );
 
@@ -1003,7 +1035,6 @@ function _filter_tips($format_id, $long = FALSE) {
   global $user;
 
   $formats = filter_formats($user);
-  $filter_info = filter_get_filters();
 
   $tips = array();
 
@@ -1014,10 +1045,9 @@ function _filter_tips($format_id, $long = FALSE) {
 
   foreach ($formats as $format) {
     $filters = filter_list_format($format->format);
-    $tips[$format->name] = array();
     foreach ($filters as $name => $filter) {
-      if (!empty($filter->status) && isset($filter_info[$name]['tips callback'])) {
-        $tip = $filter_info[$name]['tips callback']($filter, $format, $long);
+      if ($filter->status) {
+        $tip = $filter->tips($long);
         if (isset($tip)) {
           $tips[$format->name][$name] = array('tip' => $tip, 'id' => $name);
         }
@@ -1126,15 +1156,6 @@ function filter_dom_serialize_escape_cdata_element($dom_document, $dom_element, 
 }
 
 /**
- * Returns HTML for a link to the more extensive filter tips.
- *
- * @ingroup themeable
- */
-function theme_filter_tips_more_info() {
-  return '<p>' . l(t('More information about text formats'), 'filter/tips', array('attributes' => array('target' => '_blank'))) . '</p>';
-}
-
-/**
  * Returns HTML for guidelines for a text format.
  *
  * @param array $variables
@@ -1149,7 +1170,11 @@ function theme_filter_guidelines($variables) {
   $attributes['class'][] = 'filter-guidelines-' . $format->format;
   $output = '<div' . new Attribute($attributes) . '>';
   $output .= '<h4 class="label">' . check_plain($format->name) . '</h4>';
-  $output .= theme('filter_tips', array('tips' => _filter_tips($format->format, FALSE)));
+  $filter_tips = array(
+    '#theme' => 'filter_tips',
+    '#tips' => _filter_tips($format->format, FALSE),
+  );
+  $output .= drupal_render($filter_tips);
   $output .= '</div>';
   return $output;
 }
@@ -1159,93 +1184,6 @@ function theme_filter_guidelines($variables) {
  * @{
  * Filters implemented by the Filter module.
  */
-
-/**
- * Implements hook_filter_info().
- */
-function filter_filter_info() {
-  $filters['filter_html'] = array(
-    'title' => t('Limit allowed HTML tags'),
-    'type' => FILTER_TYPE_HTML_RESTRICTOR,
-    'process callback' => '_filter_html',
-    'settings callback' => '_filter_html_settings',
-    'default settings' => array(
-      'allowed_html' => '<a> <em> <strong> <cite> <blockquote> <code> <ul> <ol> <li> <dl> <dt> <dd> <h4> <h5> <h6>',
-      'filter_html_help' => 1,
-      'filter_html_nofollow' => 0,
-    ),
-    'tips callback' => '_filter_html_tips',
-    'weight' => -10,
-  );
-  $filters['filter_autop'] = array(
-    'title' => t('Convert line breaks into HTML (i.e. <code>&lt;br&gt;</code> and <code>&lt;p&gt;</code>)'),
-    'type' => FILTER_TYPE_MARKUP_LANGUAGE,
-    'process callback' => '_filter_autop',
-    'tips callback' => '_filter_autop_tips',
-  );
-  $filters['filter_url'] = array(
-    'title' => t('Convert URLs into links'),
-    'type' => FILTER_TYPE_MARKUP_LANGUAGE,
-    'process callback' => '_filter_url',
-    'settings callback' => '_filter_url_settings',
-    'default settings' => array(
-      'filter_url_length' => 72,
-    ),
-    'tips callback' => '_filter_url_tips',
-  );
-  $filters['filter_html_image_secure'] = array(
-    'title' => t('Restrict images to this site'),
-    'type' => FILTER_TYPE_HTML_RESTRICTOR,
-    'description' => t('Disallows usage of &lt;img&gt; tag sources that are not hosted on this site by replacing them with a placeholder image.'),
-    'process callback' => '_filter_html_image_secure_process',
-    'tips callback' => '_filter_html_image_secure_tips',
-    // Supposed to run after other filters and before HTML corrector by default.
-    'weight' => 9,
-  );
-  $filters['filter_htmlcorrector'] = array(
-    'title' =>  t('Correct faulty and chopped off HTML'),
-    'type' => FILTER_TYPE_HTML_RESTRICTOR,
-    'process callback' => '_filter_htmlcorrector',
-    'weight' => 10,
-  );
-  $filters['filter_html_escape'] = array(
-    'title' => t('Display any HTML as plain text'),
-    'type' => FILTER_TYPE_HTML_RESTRICTOR,
-    'process callback' => '_filter_html_escape',
-    'tips callback' => '_filter_html_escape_tips',
-    'weight' => -10,
-  );
-  return $filters;
-}
-
-/**
- * Filter settings callback for the HTML content filter.
- *
- * See hook_filter_FILTER_settings() for documentation of parameters and return
- * value.
- */
-function _filter_html_settings($form, &$form_state, $filter, $format, $defaults) {
-  $filter->settings += $defaults;
-
-  $settings['allowed_html'] = array(
-    '#type' => 'textfield',
-    '#title' => t('Allowed HTML tags'),
-    '#default_value' => $filter->settings['allowed_html'],
-    '#maxlength' => 1024,
-    '#description' => t('A list of HTML tags that can be used. JavaScript event attributes, JavaScript URLs, and CSS are always stripped.'),
-  );
-  $settings['filter_html_help'] = array(
-    '#type' => 'checkbox',
-    '#title' => t('Display basic HTML help in long filter tips'),
-    '#default_value' => $filter->settings['filter_html_help'],
-  );
-  $settings['filter_html_nofollow'] = array(
-    '#type' => 'checkbox',
-    '#title' => t('Add rel="nofollow" to all links'),
-    '#default_value' => $filter->settings['filter_html_nofollow'],
-  );
-  return $settings;
-}
 
 /**
  * Provides filtering of input into accepted HTML.
@@ -1264,125 +1202,6 @@ function _filter_html($text, $filter) {
   }
 
   return trim($text);
-}
-
-/**
- * Filter tips callback: Provides help for the HTML filter.
- *
- * @see filter_filter_info()
- */
-function _filter_html_tips($filter, $format, $long = FALSE) {
-  global $base_url;
-
-  if (!($allowed_html = $filter->settings['allowed_html'])) {
-    return;
-  }
-  $output = t('Allowed HTML tags: @tags', array('@tags' => $allowed_html));
-  if (!$long) {
-    return $output;
-  }
-
-  $output = '<p>' . $output . '</p>';
-  if (!$filter->settings['filter_html_help']) {
-    return $output;
-  }
-
-  $output .= '<p>' . t('This site allows HTML content. While learning all of HTML may feel intimidating, learning how to use a very small number of the most basic HTML "tags" is very easy. This table provides examples for each tag that is enabled on this site.') . '</p>';
-  $output .= '<p>' . t('For more information see W3C\'s <a href="@html-specifications">HTML Specifications</a> or use your favorite search engine to find other sites that explain HTML.', array('@html-specifications' => 'http://www.w3.org/TR/html/')) . '</p>';
-  $tips = array(
-    'a' => array(t('Anchors are used to make links to other pages.'), '<a href="' . $base_url . '">' . check_plain(config('system.site')->get('name')) . '</a>'),
-    'br' => array(t('By default line break tags are automatically added, so use this tag to add additional ones. Use of this tag is different because it is not used with an open/close pair like all the others. Use the extra " /" inside the tag to maintain XHTML 1.0 compatibility'), t('Text with <br />line break')),
-    'p' => array(t('By default paragraph tags are automatically added, so use this tag to add additional ones.'), '<p>' . t('Paragraph one.') . '</p> <p>' . t('Paragraph two.') . '</p>'),
-    'strong' => array(t('Strong', array(), array('context' => 'Font weight')), '<strong>' . t('Strong', array(), array('context' => 'Font weight')) . '</strong>'),
-    'em' => array(t('Emphasized'), '<em>' . t('Emphasized') . '</em>'),
-    'cite' => array(t('Cited'), '<cite>' . t('Cited') . '</cite>'),
-    'code' => array(t('Coded text used to show programming source code'), '<code>' . t('Coded') . '</code>'),
-    'b' => array(t('Bolded'), '<b>' . t('Bolded') . '</b>'),
-    'u' => array(t('Underlined'), '<u>' . t('Underlined') . '</u>'),
-    'i' => array(t('Italicized'), '<i>' . t('Italicized') . '</i>'),
-    'sup' => array(t('Superscripted'), t('<sup>Super</sup>scripted')),
-    'sub' => array(t('Subscripted'), t('<sub>Sub</sub>scripted')),
-    'pre' => array(t('Preformatted'), '<pre>' . t('Preformatted') . '</pre>'),
-    'abbr' => array(t('Abbreviation'), t('<abbr title="Abbreviation">Abbrev.</abbr>')),
-    'acronym' => array(t('Acronym'), t('<acronym title="Three-Letter Acronym">TLA</acronym>')),
-    'blockquote' => array(t('Block quoted'), '<blockquote>' . t('Block quoted') . '</blockquote>'),
-    'q' => array(t('Quoted inline'), '<q>' . t('Quoted inline') . '</q>'),
-    // Assumes and describes tr, td, th.
-    'table' => array(t('Table'), '<table> <tr><th>' . t('Table header') . '</th></tr> <tr><td>' . t('Table cell') . '</td></tr> </table>'),
-    'tr' => NULL, 'td' => NULL, 'th' => NULL,
-    'del' => array(t('Deleted'), '<del>' . t('Deleted') . '</del>'),
-    'ins' => array(t('Inserted'), '<ins>' . t('Inserted') . '</ins>'),
-     // Assumes and describes li.
-    'ol' => array(t('Ordered list - use the &lt;li&gt; to begin each list item'), '<ol> <li>' . t('First item') . '</li> <li>' . t('Second item') . '</li> </ol>'),
-    'ul' => array(t('Unordered list - use the &lt;li&gt; to begin each list item'), '<ul> <li>' . t('First item') . '</li> <li>' . t('Second item') . '</li> </ul>'),
-    'li' => NULL,
-    // Assumes and describes dt and dd.
-    'dl' => array(t('Definition lists are similar to other HTML lists. &lt;dl&gt; begins the definition list, &lt;dt&gt; begins the definition term and &lt;dd&gt; begins the definition description.'), '<dl> <dt>' . t('First term') . '</dt> <dd>' . t('First definition') . '</dd> <dt>' . t('Second term') . '</dt> <dd>' . t('Second definition') . '</dd> </dl>'),
-    'dt' => NULL, 'dd' => NULL,
-    'h1' => array(t('Heading'), '<h1>' . t('Title') . '</h1>'),
-    'h2' => array(t('Heading'), '<h2>' . t('Subtitle') . '</h2>'),
-    'h3' => array(t('Heading'), '<h3>' . t('Subtitle three') . '</h3>'),
-    'h4' => array(t('Heading'), '<h4>' . t('Subtitle four') . '</h4>'),
-    'h5' => array(t('Heading'), '<h5>' . t('Subtitle five') . '</h5>'),
-    'h6' => array(t('Heading'), '<h6>' . t('Subtitle six') . '</h6>')
-  );
-  $header = array(t('Tag Description'), t('You Type'), t('You Get'));
-  preg_match_all('/<([a-z0-9]+)[^a-z0-9]/i', $allowed_html, $out);
-  foreach ($out[1] as $tag) {
-    if (!empty($tips[$tag])) {
-      $rows[] = array(
-        array('data' => $tips[$tag][0], 'class' => array('description')),
-        array('data' => '<code>' . check_plain($tips[$tag][1]) . '</code>', 'class' => array('type')),
-        array('data' => $tips[$tag][1], 'class' => array('get'))
-      );
-    }
-    else {
-      $rows[] = array(
-        array('data' => t('No help provided for tag %tag.', array('%tag' => $tag)), 'class' => array('description'), 'colspan' => 3),
-      );
-    }
-  }
-  $output .= theme('table', array('header' => $header, 'rows' => $rows));
-
-  $output .= '<p>' . t('Most unusual characters can be directly entered without any problems.') . '</p>';
-  $output .= '<p>' . t('If you do encounter problems, try using HTML character entities. A common example looks like &amp;amp; for an ampersand &amp; character. For a full list of entities see HTML\'s <a href="@html-entities">entities</a> page. Some of the available characters include:', array('@html-entities' => 'http://www.w3.org/TR/html4/sgml/entities.html')) . '</p>';
-
-  $entities = array(
-    array(t('Ampersand'), '&amp;'),
-    array(t('Greater than'), '&gt;'),
-    array(t('Less than'), '&lt;'),
-    array(t('Quotation mark'), '&quot;'),
-  );
-  $header = array(t('Character Description'), t('You Type'), t('You Get'));
-  unset($rows);
-  foreach ($entities as $entity) {
-    $rows[] = array(
-      array('data' => $entity[0], 'class' => array('description')),
-      array('data' => '<code>' . check_plain($entity[1]) . '</code>', 'class' => array('type')),
-      array('data' => $entity[1], 'class' => array('get'))
-    );
-  }
-  $output .= theme('table', array('header' => $header, 'rows' => $rows));
-  return $output;
-}
-
-/**
- * Filter URL settings callback: Provides settings for the URL filter.
- *
- * @see filter_filter_info()
- */
-function _filter_url_settings($form, &$form_state, $filter, $format, $defaults) {
-  $filter->settings += $defaults;
-
-  $settings['filter_url_length'] = array(
-    '#type' => 'number',
-    '#title' => t('Maximum link text length'),
-    '#default_value' => $filter->settings['filter_url_length'],
-    '#min' => 1,
-    '#field_suffix' => t('characters'),
-    '#description' => t('URLs longer than this number of characters will be truncated to prevent long strings that break formatting. The link itself will be retained; just the text portion of the link will be truncated.'),
-  );
-  return $settings;
 }
 
 /**
@@ -1419,34 +1238,46 @@ function _filter_url($text, $filter) {
   $protocols = config('system.filter')->get('protocols');
   $protocols = implode(':(?://)?|', $protocols) . ':(?://)?';
 
+  $valid_url_path_characters = "[\p{L}\p{M}\p{N}!\*\';:=\+,\.\$\/%#\[\]\-_~@&]";
+
+  // Allow URL paths to contain balanced parens
+  // 1. Used in Wikipedia URLs like /Primer_(film)
+  // 2. Used in IIS sessions like /S(dfd346)/
+  $valid_url_balanced_parens = '\('. $valid_url_path_characters . '+\)';
+
+  // Valid end-of-path chracters (so /foo. does not gobble the period).
+  // 1. Allow =&# for empty URL parameters and other URL-join artifacts
+  $valid_url_ending_characters = '[\p{L}\p{M}\p{N}:_+~#=/]|(?:' . $valid_url_balanced_parens . ')';
+
+  $valid_url_query_chars = '[a-z0-9!?\*\'@\(\);:&=\+\$\/%#\[\]\-_\.,~|]';
+  $valid_url_query_ending_chars = '[a-z0-9_&=#\/]';
+
+  //full path
+  //and allow @ in a url, but only in the middle. Catch things like http://example.com/@user/
+  $valid_url_path = '(?:(?:'.$valid_url_path_characters . '*(?:'.$valid_url_balanced_parens .$valid_url_path_characters . '*)*'. $valid_url_ending_characters . ')|(?:@' . $valid_url_path_characters . '+\/))';
+
   // Prepare domain name pattern.
   // The ICANN seems to be on track towards accepting more diverse top level
   // domains, so this pattern has been "future-proofed" to allow for TLDs
   // of length 2-64.
-  $domain = '(?:[A-Za-z0-9._+-]+\.)?[A-Za-z]{2,64}\b';
+  $domain = '(?:[\p{L}\p{M}\p{N}._+-]+\.)?[\p{L}\p{M}]{2,64}\b';
   $ip = '(?:[0-9]{1,3}\.){3}[0-9]{1,3}';
-  $auth = '[a-zA-Z0-9:%_+*~#?&=.,/;-]+@';
-  $trail = '[a-zA-Z0-9:%_+*~#&\[\]=/;?!\.,-]*[a-zA-Z0-9:%_+*~#&\[\]=/;-]';
-
-  // Prepare pattern for optional trailing punctuation.
-  // Even these characters could have a valid meaning for the URL, such usage is
-  // rare compared to using a URL at the end of or within a sentence, so these
-  // trailing characters are optionally excluded.
-  $punctuation = '[\.,?!]*?';
+  $auth = '[\p{L}\p{M}\p{N}:%_+*~#?&=.,/;-]+@';
+  $trail = '('.$valid_url_path.'*)?(\\?'.$valid_url_query_chars .'*'.$valid_url_query_ending_chars.')?';
 
   // Match absolute URLs.
   $url_pattern = "(?:$auth)?(?:$domain|$ip)/?(?:$trail)?";
-  $pattern = "`((?:$protocols)(?:$url_pattern))($punctuation)`";
+  $pattern = "`((?:$protocols)(?:$url_pattern))`u";
   $tasks['_filter_url_parse_full_links'] = $pattern;
 
   // Match e-mail addresses.
-  $url_pattern = "[A-Za-z0-9._-]{1,254}@(?:$domain)";
-  $pattern = "`($url_pattern)`";
+  $url_pattern = "[\p{L}\p{M}\p{N}._-]{1,254}@(?:$domain)";
+  $pattern = "`($url_pattern)`u";
   $tasks['_filter_url_parse_email_links'] = $pattern;
 
   // Match www domains.
   $url_pattern = "www\.(?:$domain)/?(?:$trail)?";
-  $pattern = "`($url_pattern)($punctuation)`";
+  $pattern = "`($url_pattern)`u";
   $tasks['_filter_url_parse_partial_links'] = $pattern;
 
   // Each type of URL needs to be processed separately. The text is joined and
@@ -1521,7 +1352,7 @@ function _filter_url_parse_full_links($match) {
   $match[$i] = decode_entities($match[$i]);
   $caption = check_plain(_filter_url_trim($match[$i]));
   $match[$i] = check_plain($match[$i]);
-  return '<a href="' . $match[$i] . '">' . $caption . '</a>' . $match[$i + 1];
+  return '<a href="' . $match[$i] . '">' . $caption . '</a>';
 }
 
 /**
@@ -1551,7 +1382,7 @@ function _filter_url_parse_partial_links($match) {
   $match[$i] = decode_entities($match[$i]);
   $caption = check_plain(_filter_url_trim($match[$i]));
   $match[$i] = check_plain($match[$i]);
-  return '<a href="http://' . $match[$i] . '">' . $caption . '</a>' . $match[$i + 1];
+  return '<a href="http://' . $match[$i] . '">' . $caption . '</a>';
 }
 
 /**
@@ -1609,15 +1440,6 @@ function _filter_url_trim($text, $length = NULL) {
   }
 
   return $text;
-}
-
-/**
- * Filter tips callback: Provides help for the URL filter.
- *
- * @see filter_filter_info()
- */
-function _filter_url_tips($filter, $format, $long = FALSE) {
-  return t('Web page addresses and e-mail addresses turn into links automatically.');
 }
 
 /**
@@ -1695,33 +1517,10 @@ function _filter_autop($text) {
 }
 
 /**
- * Filter tips callback: Provides help for the auto-paragraph filter.
- *
- * @see filter_filter_info()
- */
-function _filter_autop_tips($filter, $format, $long = FALSE) {
-  if ($long) {
-    return t('Lines and paragraphs are automatically recognized. The &lt;br /&gt; line break, &lt;p&gt; paragraph and &lt;/p&gt; close paragraph tags are inserted automatically. If paragraphs are not recognized simply add a couple blank lines.');
-  }
-  else {
-    return t('Lines and paragraphs break automatically.');
-  }
-}
-
-/**
  * Escapes all HTML tags, so they will be visible instead of being effective.
  */
 function _filter_html_escape($text) {
   return trim(check_plain($text));
-}
-
-/**
- * Filter tips callback: Provides help for the HTML escaping filter.
- *
- * @see filter_filter_info()
- */
-function _filter_html_escape_tips($filter, $format, $long = FALSE) {
-  return t('No HTML tags allowed.');
 }
 
 /**
@@ -1757,7 +1556,11 @@ function _filter_html_image_secure_process($text) {
       }
     }
     // Replace an invalid image with an error indicator.
-    theme('filter_html_image_secure_image', array('image' => $image));
+    $filter_html_image_secure_image = array(
+      '#theme' => 'filter_html_image_secure_image',
+      '#image' => $image,
+    );
+    drupal_render($filter_html_image_secure_image);
   }
   $text = filter_dom_serialize($html_dom);
   return $text;
@@ -1790,13 +1593,6 @@ function theme_filter_html_image_secure_image(&$variables) {
 }
 
 /**
- * Filter tips callback for secure HTML image filter.
- */
-function _filter_html_image_secure_tips($filter, $format, $long = FALSE) {
-  return t('Only images hosted on this site may be used in &lt;img&gt; tags.');
-}
-
-/**
  * @} End of "defgroup standard_filters".
  */
 
@@ -1804,14 +1600,16 @@ function _filter_html_image_secure_tips($filter, $format, $long = FALSE) {
  * Implements hook_library_info().
  */
 function filter_library_info() {
+  $path = drupal_get_path('module', 'filter');
+
   $libraries['drupal.filter.admin'] = array(
     'title' => 'Filter',
     'version' => VERSION,
     'js' => array(
-      drupal_get_path('module', 'filter') . '/filter.admin.js' => array(),
+      $path . '/filter.admin.js' => array(),
     ),
     'css' => array(
-      drupal_get_path('module', 'filter') . '/filter.admin.css'
+      $path . '/css/filter.admin.css'
     ),
     'dependencies' => array(
       array('system', 'jquery'),
@@ -1820,14 +1618,26 @@ function filter_library_info() {
       array('system', 'drupal.form'),
     ),
   );
+  $libraries['drupal.filter.filter_html.admin'] = array(
+    'title' => 'Automatic "Limit allowed HTML tags" filter setting updating.',
+    'version' => VERSION,
+    'js' => array(
+      $path . '/filter.filter_html.admin.js' => array(),
+    ),
+    'dependencies' => array(
+      array('system', 'jquery'),
+      array('system', 'jquery.once'),
+      array('system', 'underscore'),
+    ),
+  );
   $libraries['drupal.filter'] = array(
     'title' => 'Filter',
     'version' => VERSION,
     'js' => array(
-      drupal_get_path('module', 'filter') . '/filter.js' => array(),
+      $path . '/filter.js' => array(),
     ),
     'css' => array(
-      drupal_get_path('module', 'filter') . '/filter.admin.css'
+      $path . '/css/filter.admin.css'
     ),
     'dependencies' => array(
       array('system', 'jquery'),

@@ -5,7 +5,7 @@ entity_type: test_entity
 bundle: test_bundle
 label: 'Test import field'
 description: ''
-required: 0
+required: '0'
 default_value: {  }
 default_value_function: ''
 settings:

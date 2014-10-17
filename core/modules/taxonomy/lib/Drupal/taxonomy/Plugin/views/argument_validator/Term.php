@@ -93,7 +93,7 @@ class Term extends ArgumentValidatorPluginBase {
     $options['vids'] = array_filter($options['vids']);
   }
 
-  function validate_argument($argument) {
+  public function validateArgument($argument) {
     $vocabularies = array_filter($this->options['vids']);
     $type = $this->options['type'];
     $transform = $this->options['transform'];
@@ -182,7 +182,7 @@ class Term extends ArgumentValidatorPluginBase {
     }
   }
 
-  function process_summary_arguments(&$args) {
+  public function processSummaryArguments(&$args) {
     $type = $this->options['type'];
     $transform = $this->options['transform'];
 

@@ -60,26 +60,18 @@ function custom_block_menu() {
   );
   $items['admin/structure/custom-blocks/manage/%custom_block_type/delete'] = array(
     'title' => 'Delete',
-    'page callback' => 'drupal_get_form',
-    'page arguments' => array('custom_block_type_delete_form', 4),
-    'access arguments' => array('administer blocks'),
     'type' => MENU_LOCAL_TASK,
     'weight' => 10,
-    'file' => 'custom_block.admin.inc',
+    'route_name' => 'custom_block_type_delete',
   );
-
   $items['block/add'] = array(
     'title' => 'Add custom block',
     'route_name' => 'custom_block_add_page',
   );
   $items['block/add/%custom_block_type'] = array(
-    'title callback' => 'entity_page_label',
-    'title arguments' => array(2),
-    'page callback' => 'custom_block_add',
-    'page arguments' => array(2),
-    'access arguments' => array('administer blocks'),
+    'title' => 'Add custom block',
     'description' => 'Add custom block',
-    'file' => 'custom_block.pages.inc',
+    'route_name' => 'custom_block_add_form'
   );
   // There has to be a base-item in order for contextual links to work.
   $items['block/%custom_block'] = array(
@@ -115,26 +107,12 @@ function custom_block_menu() {
  */
 function custom_block_theme($existing, $type, $theme, $path) {
   return array(
-    'custom_block_block' => array(
-      'variables' => array('body' => NULL, 'format' => NULL),
-    ),
     'custom_block_add_list' => array(
       'variables' => array('content' => NULL),
       'file' => 'custom_block.pages.inc',
+      'template' => 'custom-block-add-list',
     ),
   );
-}
-
-/**
- * Returns HTML for a custom block.
- *
- * @ingroup themeable
- */
-function theme_custom_block_block($variables) {
-  $body = $variables['body'];
-  $format = $variables['format'];
-
-  return check_markup($body, $format);
 }
 
 /**
@@ -201,22 +179,22 @@ function custom_block_add_body_field($block_type_id, $label = 'Block body') {
   $field = field_info_field('block_body');
   $instance = field_info_instance('custom_block', 'block_body', $block_type_id);
   if (empty($field)) {
-    $field = array(
+    $field = entity_create('field_entity', array(
       'field_name' => 'block_body',
       'type' => 'text_with_summary',
       'entity_types' => array('custom_block'),
-    );
-    $field = field_create_field($field);
+    ));
+    $field->save();
   }
   if (empty($instance)) {
-    $instance = array(
+    $instance = entity_create('field_instance', array(
       'field_name' => 'block_body',
       'entity_type' => 'custom_block',
       'bundle' => $block_type_id,
       'label' => $label,
       'settings' => array('display_summary' => FALSE),
-    );
-    $instance = field_create_instance($instance);
+    ));
+    $instance->save();
 
     // Assign widget settings for the 'default' form mode.
     entity_get_form_display('custom_block', $block_type_id, 'default')

@@ -12,11 +12,57 @@ use Drupal\Core\Ajax\HtmlCommand;
 use Drupal\Core\Ajax\ReplaceCommand;
 use Drupal\Component\Utility\NestedArray;
 use Drupal\views\ViewExecutable;
+use Drupal\Core\Entity\EntityControllerInterface;
+use Drupal\user\TempStoreFactory;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
  * Form controller for the Views edit form.
  */
-class ViewEditFormController extends ViewFormControllerBase {
+class ViewEditFormController extends ViewFormControllerBase implements EntityControllerInterface {
+
+  /**
+   * The views temp store.
+   *
+   * @var \Drupal\user\TempStore
+   */
+  protected $tempStore;
+
+  /**
+   * The request object.
+   *
+   * @var \Symfony\Component\HttpFoundation\Request
+   */
+  protected $request;
+
+  /**
+   * Constructs a new ViewEditFormController object.
+   *
+   * @param string $operation
+   *   The name of the current operation.
+   * @param \Drupal\user\TempStoreFactory $temp_store_factory
+   *   The factory for the temp store object.
+   * @param \Symfony\Component\HttpFoundation\Request $request
+   *   The request object.
+   */
+  public function __construct($operation, TempStoreFactory $temp_store_factory, Request $request) {
+    parent::__construct($operation);
+
+    $this->tempStore = $temp_store_factory->get('views');
+    $this->request = $request;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public static function createInstance(ContainerInterface $container, $entity_type, array $entity_info, $operation = NULL) {
+    return new static(
+      $operation,
+      $container->get('user.tempstore'),
+      $container->get('request')
+    );
+  }
 
   /**
    * Overrides Drupal\Core\Entity\EntityFormController::form().
@@ -68,7 +114,9 @@ class ViewEditFormController extends ViewFormControllerBase {
       '#prefix' => '',
       '#suffix' => '',
     );
-    $form['#prefix'] .= '<div class="views-edit-view views-admin clearfix">';
+
+    $view_status = $view->status() ? 'enabled' : 'disabled';
+    $form['#prefix'] .= '<div class="views-edit-view views-admin ' . $view_status . ' clearfix">';
     $form['#suffix'] = '</div>' . $form['#suffix'];
 
     $form['#attributes']['class'] = array('form-edit');
@@ -222,10 +270,10 @@ class ViewEditFormController extends ViewFormControllerBase {
     }
     $view->set('display', $displays);
 
-    // Direct the user to the right url, if the path of the display has changed.
-    $query = drupal_container()->get('request')->query;
     // @todo: Revisit this when http://drupal.org/node/1668866 is in.
+    $query = $this->request->query;
     $destination = $query->get('destination');
+
     if (!empty($destination)) {
       // Find out the first display which has a changed path and redirect to this url.
       $old_view = views_get_view($view->id());
@@ -252,7 +300,7 @@ class ViewEditFormController extends ViewFormControllerBase {
     drupal_set_message(t('The view %name has been saved.', array('%name' => $view->label())));
 
     // Remove this view from cache so we can edit it properly.
-    drupal_container()->get('user.tempstore')->get('views')->delete($view->id());
+    $this->tempStore->delete($view->id());
   }
 
   /**
@@ -266,25 +314,8 @@ class ViewEditFormController extends ViewFormControllerBase {
   public function cancel(array $form, array &$form_state) {
     // Remove this view from cache so edits will be lost.
     $view = $this->entity;
-    drupal_container()->get('user.tempstore')->get('views')->delete($view->id());
+    $this->tempStore->delete($view->id());
     $form_state['redirect'] = 'admin/structure/views';
-  }
-
-  /**
-   * Overrides Drupal\Core\Entity\EntityFormController::actionsElement().
-   */
-  protected function actionsElement(array $form, array &$form_state) {
-    $element = parent::actionsElement($form, $form_state);
-    $element['#weight'] = 0;
-    $view = $this->entity;
-    if (empty($view->changed)) {
-      $element['#attributes'] = array(
-        'class' => array(
-          'js-hide',
-        ),
-      );
-    }
-    return $element;
   }
 
   /**
@@ -350,7 +381,7 @@ class ViewEditFormController extends ViewFormControllerBase {
         if (!$is_enabled) {
           $build['top']['actions']['enable'] = array(
             '#type' => 'submit',
-            '#value' => t('enable @display_title', array('@display_title' => $display_title)),
+            '#value' => t('Enable @display_title', array('@display_title' => $display_title)),
             '#limit_validation_errors' => array(),
             '#submit' => array(array($this, 'submitDisplayEnable'), array($this, 'submitDelayDestination')),
             '#prefix' => '<li class="enable">',
@@ -364,7 +395,7 @@ class ViewEditFormController extends ViewFormControllerBase {
           if ($path && (strpos($path, '%') === FALSE)) {
             $build['top']['actions']['path'] = array(
               '#type' => 'link',
-              '#title' => t('view @display', array('@display' => $display['display_title'])),
+              '#title' => t('View @display', array('@display' => $display['display_title'])),
               '#options' => array('alt' => array(t("Go to the real page for this display"))),
               '#href' => $path,
               '#prefix' => '<li class="view">',
@@ -375,7 +406,7 @@ class ViewEditFormController extends ViewFormControllerBase {
         if (!$is_default) {
           $build['top']['actions']['duplicate'] = array(
             '#type' => 'submit',
-            '#value' => t('clone @display_title', array('@display_title' => $display_title)),
+            '#value' => t('Clone @display_title', array('@display_title' => $display_title)),
             '#limit_validation_errors' => array(),
             '#submit' => array(array($this, 'submitDisplayDuplicate'), array($this, 'submitDelayDestination')),
             '#prefix' => '<li class="duplicate">',
@@ -385,7 +416,7 @@ class ViewEditFormController extends ViewFormControllerBase {
         // Always allow a display to be deleted.
         $build['top']['actions']['delete'] = array(
           '#type' => 'submit',
-          '#value' => t('delete @display_title', array('@display_title' => $display_title)),
+          '#value' => t('Delete @display_title', array('@display_title' => $display_title)),
           '#limit_validation_errors' => array(),
           '#submit' => array(array($this, 'submitDisplayDelete'), array($this, 'submitDelayDestination')),
           '#prefix' => '<li class="delete">',
@@ -399,7 +430,7 @@ class ViewEditFormController extends ViewFormControllerBase {
 
           $build['top']['actions']['clone_as'][$type] = array(
             '#type' => 'submit',
-            '#value' => t('clone as @type', array('@type' => $label)),
+            '#value' => t('Clone as @type', array('@type' => $label)),
             '#limit_validation_errors' => array(),
             '#submit' => array(array($this, 'submitCloneDisplayAsType'), array($this, 'submitDelayDestination')),
             '#prefix' => '<li class="duplicate">',
@@ -410,7 +441,7 @@ class ViewEditFormController extends ViewFormControllerBase {
       else {
         $build['top']['actions']['undo_delete'] = array(
           '#type' => 'submit',
-          '#value' => t('undo delete of @display_title', array('@display_title' => $display_title)),
+          '#value' => t('Undo delete of @display_title', array('@display_title' => $display_title)),
           '#limit_validation_errors' => array(),
           '#submit' => array(array($this, 'submitDisplayUndoDelete'), array($this, 'submitDelayDestination')),
           '#prefix' => '<li class="undo-delete">',
@@ -420,7 +451,7 @@ class ViewEditFormController extends ViewFormControllerBase {
       if ($is_enabled) {
         $build['top']['actions']['disable'] = array(
           '#type' => 'submit',
-          '#value' => t('disable @display_title', array('@display_title' => $display_title)),
+          '#value' => t('Disable @display_title', array('@display_title' => $display_title)),
           '#limit_validation_errors' => array(),
           '#submit' => array(array($this, 'submitDisplayDisable'), array($this, 'submitDelayDestination')),
           '#prefix' => '<li class="disable">',
@@ -628,21 +659,21 @@ class ViewEditFormController extends ViewFormControllerBase {
       ),
       '#links' => array(
         'edit-details' => array(
-          'title' => t('edit view name/description'),
+          'title' => t('Edit view name/description'),
           'href' => "admin/structure/views/nojs/edit-details/{$view->id()}/$display_id",
           'attributes' => array('class' => array('views-ajax-link')),
         ),
         'analyze' => array(
-          'title' => t('analyze view'),
+          'title' => t('Analyze view'),
           'href' => "admin/structure/views/nojs/analyze/{$view->id()}/$display_id",
           'attributes' => array('class' => array('views-ajax-link')),
         ),
         'clone' => array(
-          'title' => t('clone view'),
+          'title' => t('Clone view'),
           'href' => "admin/structure/views/view/{$view->id()}/clone",
         ),
         'reorder' => array(
-          'title' => t('reorder displays'),
+          'title' => t('Reorder displays'),
           'href' => "admin/structure/views/nojs/reorder-displays/{$view->id()}/$display_id",
           'attributes' => array('class' => array('views-ajax-link')),
         ),
@@ -655,14 +686,14 @@ class ViewEditFormController extends ViewFormControllerBase {
     if (isset($view->type) && $view->type != t('Default')) {
       if ($view->type == t('Overridden')) {
         $element['extra_actions']['#links']['revert'] = array(
-          'title' => t('revert view'),
+          'title' => t('Revert view'),
           'href' => "admin/structure/views/view/{$view->id()}/revert",
           'query' => array('destination' => "admin/structure/views/view/{$view->id()}"),
         );
       }
       else {
         $element['extra_actions']['#links']['delete'] = array(
-          'title' => t('delete view'),
+          'title' => t('Delete view'),
           'href' => "admin/structure/views/view/{$view->id()}/delete",
         );
       }
@@ -673,7 +704,7 @@ class ViewEditFormController extends ViewFormControllerBase {
       if ($display_id) {
         $tabs[$display_id]['#active'] = TRUE;
       }
-      $tabs['#prefix'] = '<h2 class="element-invisible">' . t('Secondary tabs') . '</h2><ul id = "views-display-menu-tabs" class="tabs secondary">';
+      $tabs['#prefix'] = '<h2 class="visually-hidden">' . t('Secondary tabs') . '</h2><ul id = "views-display-menu-tabs" class="tabs secondary">';
       $tabs['#suffix'] = '</ul>';
       $element['tabs'] = $tabs;
     }
@@ -707,7 +738,7 @@ class ViewEditFormController extends ViewFormControllerBase {
    * should not yet redirect to the destination.
    */
   public function submitDelayDestination($form, &$form_state) {
-    $query = \Drupal::request()->query;
+    $query = $this->request->query;
     // @todo: Revisit this when http://drupal.org/node/1668866 is in.
     $destination = $query->get('destination');
     if (isset($destination) && $form_state['redirect'] !== FALSE) {
@@ -902,7 +933,7 @@ class ViewEditFormController extends ViewFormControllerBase {
     $count_handlers = count($executable->display_handler->getHandlers($type));
 
     // Create the add text variable for the add action.
-    $add_text = t('Add <span class="element-invisible">@type</span>', array('@type' => $types[$type]['ltitle']));
+    $add_text = t('Add <span class="visually-hidden">@type</span>', array('@type' => $types[$type]['ltitle']));
 
     $actions['add'] = array(
       'title' => $add_text,
@@ -912,7 +943,7 @@ class ViewEditFormController extends ViewFormControllerBase {
     );
     if ($count_handlers > 0) {
       // Create the rearrange text variable for the rearrange action.
-      $rearrange_text = $type == 'filter' ? t('And/Or Rearrange <span class="element-invisible">filter criteria</span>') : t('Rearrange <span class="element-invisible">@type</span>', array('@type' => $types[$type]['ltitle']));
+      $rearrange_text = $type == 'filter' ? t('And/Or Rearrange <span class="visually-hidden">filter criteria</span>') : t('Rearrange <span class="visually-hidden">@type</span>', array('@type' => $types[$type]['ltitle']));
 
       $actions['rearrange'] = array(
         'title' => $rearrange_text,
@@ -988,6 +1019,8 @@ class ViewEditFormController extends ViewFormControllerBase {
       $link_attributes = array('class' => array('views-ajax-link'));
       if (!empty($field['exclude'])) {
         $link_attributes['class'][] = 'views-field-excluded';
+        // Add a [hidden] marker, if the field is excluded.
+        $link_text .= ' [' . t('hidden') . ']';
       }
       $build['fields'][$id]['#link'] = l($link_text, "admin/structure/views/nojs/config-item/{$view->id()}/{$display['id']}/$type/$id", array('attributes' => $link_attributes, 'html' => TRUE));
       $build['fields'][$id]['#class'][] = drupal_clean_css_identifier($display['id']. '-' . $type . '-' . $id);

@@ -7,11 +7,13 @@
 
 use Drupal\Component\Utility\NestedArray;
 use Drupal\Core\Cache\CacheBackendInterface;
+use Drupal\Core\Language\Language;
 use Drupal\Core\Template\Attribute;
 use Drupal\menu_link\Plugin\Core\Entity\MenuLink;
 use Drupal\menu_link\MenuLinkStorageController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Symfony\Component\Routing\Route;
 
 /**
  * @defgroup menu Menu system
@@ -194,6 +196,14 @@ define('MENU_DEFAULT_LOCAL_TASK', MENU_IS_LOCAL_TASK | MENU_LINKS_TO_PARENT | ME
 define('MENU_LOCAL_ACTION', MENU_IS_LOCAL_TASK | MENU_IS_LOCAL_ACTION | MENU_VISIBLE_IN_BREADCRUMB);
 
 /**
+ * Menu type -- A task specific to the parent, which is never rendered.
+ *
+ * Sibling local tasks are not rendered themselves, but affect the breadcrumb
+ * trail and need their sibling tasks rendered as tabs.
+ */
+define('MENU_SIBLING_LOCAL_TASK', MENU_IS_LOCAL_TASK | MENU_IS_LOCAL_ACTION | MENU_VISIBLE_IN_BREADCRUMB);
+
+/**
  * @} End of "defgroup menu_item_types".
  */
 
@@ -327,7 +337,7 @@ function menu_get_ancestors($parts) {
   $ancestors = array();
   $length =  $number_parts - 1;
   $end = (1 << $number_parts) - 1;
-  $masks = state()->get('menu.masks');
+  $masks = Drupal::state()->get('menu.masks');
   // If the optimized menu.masks array is not available use brute force to get
   // the correct $ancestors and $placeholders returned. Do not use this as the
   // default value of the menu.masks variable to avoid building such a big
@@ -461,7 +471,7 @@ function menu_get_item($path = NULL, $router_item = NULL) {
   if (!isset($router_items[$path])) {
     // Rebuild if we know it's needed, or if the menu masks are missing which
     // occurs rarely, likely due to a race condition of multiple rebuilds.
-    if (state()->get('menu_rebuild_needed') || !state()->get('menu.masks')) {
+    if (Drupal::state()->get('menu_rebuild_needed') || !Drupal::state()->get('menu.masks')) {
       menu_router_rebuild();
     }
     $original_map = arg(NULL, $path);
@@ -769,17 +779,7 @@ function _menu_translate(&$router_item, $map, $to_arg = FALSE) {
   if (!empty($router_item['route_name'])) {
     $route_provider = Drupal::getContainer()->get('router.route_provider');
     $route = $route_provider->getRouteByName($router_item['route_name']);
-    $request = Request::create('/' . $router_item['href']);
-    $request->attributes->set('system_path', $router_item['href']);
-    // Attempt to match this path to provide a fully built request to the
-    // acccess checker.
-    try {
-      $request->attributes->add(Drupal::service('router')->matchRequest($request));
-      $router_item['access'] = Drupal::service('access_manager')->check($route, $request);
-    }
-    catch (NotFoundHttpException $e) {
-      $router_item['access'] = FALSE;
-    }
+    $router_item['access'] = menu_item_route_access($route, $router_item['href']);
   }
   else {
     // @todo: Remove once all routes are converted.
@@ -917,8 +917,7 @@ function _menu_link_translate(&$item, $translate = FALSE) {
     // menu_tree_check_access() may set this ahead of time for links to nodes.
     if (!isset($item['access'])) {
       if ($route = $item->getRoute()) {
-        $request = Request::create('/' . $item['path']);
-        $item['access'] = drupal_container()->get('access_manager')->check($route, $request);
+        $item['access'] = menu_item_route_access($route, $item['href']);
       }
       elseif (!empty($item['load_functions']) && !_menu_load_objects($item, $map)) {
         // An error occurred loading an object.
@@ -945,6 +944,32 @@ function _menu_link_translate(&$item, $translate = FALSE) {
   }
 
   return $map;
+}
+
+/**
+ * Checks access to a menu item by mocking a request for a path.
+ *
+ * @param \Symfony\Component\Routing\Route $route
+ *   Router for the given menu item.
+ * @param string $href
+ *   Menu path as returned by $item['href'] of menu_get_item().
+ *
+ * @return bool
+ *   TRUE if the user has access or FALSE if the user should be presented
+ *   with access denied.
+ */
+function menu_item_route_access(Route $route, $href) {
+  $request = Request::create('/' . $href);
+  $request->attributes->set('system_path', $href);
+  // Attempt to match this path to provide a fully built request to the
+  // access checker.
+  try {
+    $request->attributes->add(Drupal::service('router.dynamic')->matchRequest($request));
+    return Drupal::service('access_manager')->check($route, $request);
+  }
+  catch (NotFoundHttpException $e) {
+    return FALSE;
+  }
 }
 
 /**
@@ -1109,7 +1134,7 @@ function menu_tree_output($tree) {
  */
 function menu_tree_all_data($menu_name, $link = NULL, $max_depth = NULL) {
   $tree = &drupal_static(__FUNCTION__, array());
-  $language_interface = language(LANGUAGE_TYPE_INTERFACE);
+  $language_interface = language(Language::TYPE_INTERFACE);
 
   // Use $mlid as a flag for whether the data being loaded is for the whole tree.
   $mlid = isset($link['mlid']) ? $link['mlid'] : 0;
@@ -1220,7 +1245,7 @@ function menu_tree_get_path($menu_name) {
 function menu_tree_page_data($menu_name, $max_depth = NULL, $only_active_trail = FALSE) {
   $tree = &drupal_static(__FUNCTION__, array());
 
-  $language_interface = language(LANGUAGE_TYPE_INTERFACE);
+  $language_interface = language(Language::TYPE_INTERFACE);
 
   // Check if the active trail has been overridden for this menu tree.
   $active_path = menu_tree_get_path($menu_name);
@@ -1288,7 +1313,7 @@ function menu_tree_page_data($menu_name, $max_depth = NULL, $only_active_trail =
           }
           $parents = $active_trail;
 
-          $expanded = state()->get('menu_expanded');
+          $expanded = Drupal::state()->get('menu_expanded');
           // Check whether the current menu has any links set to be expanded.
           if (!$only_active_trail && $expanded && in_array($menu_name, $expanded)) {
             // Collect all the links set to be expanded, and then add all of
@@ -1371,7 +1396,7 @@ function menu_build_tree($menu_name, array $parameters = array()) {
 function _menu_build_tree($menu_name, array $parameters = array()) {
   // Static cache of already built menu trees.
   $trees = &drupal_static(__FUNCTION__, array());
-  $language_interface = language(LANGUAGE_TYPE_INTERFACE);
+  $language_interface = language(Language::TYPE_INTERFACE);
 
   // Build the cache id; sort parents to prevent duplicate storage and remove
   // default parameter values.
@@ -1467,9 +1492,12 @@ function menu_tree_collect_node_links(&$tree, &$node_links) {
 function menu_tree_check_access(&$tree, $node_links = array()) {
   if ($node_links) {
     $nids = array_keys($node_links);
-    $select = db_select('node', 'n');
+    $select = db_select('node_field_data', 'n');
     $select->addField('n', 'nid');
+    // @todo This should be actually filtering on the desired node status field
+    //   language and just fall back to the default language.
     $select->condition('n.status', 1);
+
     $select->condition('n.nid', $nids, 'IN');
     $select->addTag('node_access');
     $nids = $select->execute()->fetchCol();
@@ -1634,7 +1662,7 @@ function theme_menu_local_task($variables) {
 
   if (!empty($variables['element']['#active'])) {
     // Add text to indicate active tab for non-visual users.
-    $active = '<span class="element-invisible">' . t('(active tab)') . '</span>';
+    $active = '<span class="visually-hidden">' . t('(active tab)') . '</span>';
 
     // If the link does not contain HTML already, check_plain() it now.
     // After we set 'html'=TRUE the link will not be sanitized by l().
@@ -2069,7 +2097,7 @@ function menu_local_tasks($level = 0) {
     $data['tabs'] = $tabs;
 
     // Allow modules to dynamically add further tasks.
-    $module_handler = drupal_container()->get('module_handler');
+    $module_handler = Drupal::moduleHandler();
     foreach ($module_handler->getImplementations('menu_local_tasks') as $module) {
       $function = $module . '_menu_local_tasks';
       $function($data, $router_item, $root_path);
@@ -2174,6 +2202,13 @@ function menu_contextual_links($module, $parent_path, $args) {
     if (!$item['access']) {
       continue;
     }
+
+    // If this item is a default local task, rewrite the href to link to its
+    // parent item.
+    if ($item['type'] == MENU_DEFAULT_LOCAL_TASK) {
+      $item['href'] = $item['tab_parent_href'];
+    }
+
     // All contextual links are keyed by the actual "task" path argument,
     // prefixed with the name of the implementing module.
     $links[$module . '-' . $key] = $item;
@@ -2213,8 +2248,24 @@ function menu_secondary_local_tasks() {
 /**
  * Returns the rendered local actions at the current level.
  */
-function menu_local_actions() {
+function menu_get_local_actions() {
   $links = menu_local_tasks();
+  $router_item = menu_get_item();
+  // @todo Consider storing the results of hook_local_actions() in a static.
+  foreach (Drupal::moduleHandler()->invokeAll('local_actions') as $route_info) {
+    if (in_array($router_item['route_name'], $route_info['appears_on'])) {
+      $route_path = _menu_router_translate_route($route_info['route_name']);
+      $action_router_item = menu_get_item($route_path);
+      $links['actions'][$route_path] = array(
+        '#theme' => 'menu_local_action',
+        '#link' => array(
+          'title' => $route_info['title'],
+          'href' => $route_path,
+        ),
+        '#access' => $action_router_item['access'],
+      );
+    }
+  }
   return $links['actions'];
 }
 
@@ -2253,13 +2304,13 @@ function theme_menu_local_tasks(&$variables) {
   $output = '';
 
   if (!empty($variables['primary'])) {
-    $variables['primary']['#prefix'] = '<h2 class="element-invisible">' . t('Primary tabs') . '</h2>';
+    $variables['primary']['#prefix'] = '<h2 class="visually-hidden">' . t('Primary tabs') . '</h2>';
     $variables['primary']['#prefix'] .= '<ul class="tabs primary">';
     $variables['primary']['#suffix'] = '</ul>';
     $output .= drupal_render($variables['primary']);
   }
   if (!empty($variables['secondary'])) {
-    $variables['secondary']['#prefix'] = '<h2 class="element-invisible">' . t('Secondary tabs') . '</h2>';
+    $variables['secondary']['#prefix'] = '<h2 class="visually-hidden">' . t('Secondary tabs') . '</h2>';
     $variables['secondary']['#prefix'] .= '<ul class="tabs secondary">';
     $variables['secondary']['#suffix'] = '</ul>';
     $output .= drupal_render($variables['secondary']);
@@ -2647,7 +2698,7 @@ function menu_router_rebuild() {
     menu_cache_clear_all();
     _menu_clear_page_cache();
     // Indicate that the menu has been successfully rebuilt.
-    state()->delete('menu_rebuild_needed');
+    Drupal::state()->delete('menu_rebuild_needed');
   }
   catch (Exception $e) {
     $transaction->rollback();
@@ -2672,24 +2723,6 @@ function menu_router_build($save = FALSE) {
     $router_items = call_user_func($module . '_menu');
     if (isset($router_items) && is_array($router_items)) {
       foreach (array_keys($router_items) as $path) {
-        // If the menu item is a default local task and incorrectly references a
-        // route, remove it.
-        // @todo This may be removed later depending on the outcome of
-        // http://drupal.org/node/1889790
-        if (isset($router_items[$path]['type']) && $router_items[$path]['type'] == MENU_DEFAULT_LOCAL_TASK) {
-          unset($router_items[$path]['route_name']);
-        }
-        // If the menu item references a route, normalize the route information
-        // into the old structure. Note that routes are keyed by name, not path,
-        // so the path of the route takes precedence.
-        if (isset($router_items[$path]['route_name'])) {
-          $router_item = $router_items[$path];
-          $router_item = _menu_router_merge_route($router_item, $path);
-          $new_path = $router_item['path'];
-          unset($router_items[$path]);
-          $router_items[$new_path] = $router_item;
-          $path = $new_path;
-        }
         $router_items[$path]['module'] = $module;
       }
       $callbacks = array_merge($callbacks, $router_items);
@@ -2697,6 +2730,26 @@ function menu_router_build($save = FALSE) {
   }
   // Alter the menu as defined in modules, keys are like user/%user.
   drupal_alter('menu', $callbacks);
+  foreach ($callbacks as $path => $router_item) {
+    // If the menu item is a default local task and incorrectly references a
+    // route, remove it.
+    // @todo This may be removed later depending on the outcome of
+    // http://drupal.org/node/1889790
+    if (isset($router_item['type']) && $router_item['type'] == MENU_DEFAULT_LOCAL_TASK) {
+      unset($callbacks[$path]['route_name']);
+    }
+    // If the menu item references a route, normalize the route information
+    // into the old structure. Note that routes are keyed by name, not path,
+    // so the path of the route takes precedence.
+    if (isset($router_item['route_name'])) {
+      $router_item['page callback'] = 'USES_ROUTE';
+      $router_item['access callback'] = TRUE;
+      $new_path = _menu_router_translate_route($router_item['route_name']);
+
+      unset($callbacks[$path]);
+      $callbacks[$new_path] = $router_item;
+    }
+  }
   list($menu, $masks) = _menu_router_build($callbacks, $save);
   _menu_router_cache($menu);
 
@@ -2704,32 +2757,20 @@ function menu_router_build($save = FALSE) {
 }
 
 /**
- * Merges a legacy menu router item with its referenced route.
+ * Translates a route name to its router item path.
  *
- * @param array $router_item
- *   The router item to modify.
- * @param string $path
- *   The path this router item is for.
+ * @param string $route_name
+ *   The route name to translate.
  *
- * @return array
- *   The modified router item, including the path pattern from the route in the
- *   'path' key.
+ * @return string
+ *   The translated path pattern from the route.
  */
-function _menu_router_merge_route(array $router_item, $path) {
-  $router_item['path'] = $path;
-
-  $route_provider = drupal_container()->get('router.route_provider');
-
-  $route = $route_provider->getRouteByName($router_item['route_name']);
-  $router_item['path'] = trim($route->getPattern(), '/');
-
-  $router_item['page callback'] = 'USES_ROUTE';
-  $router_item['access callback'] = TRUE;
+function _menu_router_translate_route($route_name) {
+  $route = Drupal::service('router.route_provider')->getRouteByName($route_name);
+  $path = trim($route->getPattern(), '/');
 
   // Translate placeholders, e.g. {foo} -> %.
-  $router_item['path'] = preg_replace('/{' . DRUPAL_PHP_FUNCTION_PATTERN . '}/', '%', $router_item['path']);
-
-  return $router_item;
+  return preg_replace('/{' . DRUPAL_PHP_FUNCTION_PATTERN . '}/', '%', $path);
 }
 
 /**
@@ -2769,7 +2810,7 @@ function _menu_navigation_links_rebuild($menu) {
   else {
     // The Menu link module is not available at install time, so we need to
     // hardcode the default storage controller.
-    $menu_link_controller = new MenuLinkStorageController('menu_link');
+    $menu_link_controller = new MenuLinkStorageController('menu_link', Drupal::service('database'), Drupal::service('router.route_provider'));
   }
 
   // Add normal and suggested items as links.
@@ -2934,7 +2975,7 @@ function _menu_clear_page_cache() {
  */
 function _menu_set_expanded_menus() {
   $names = db_query("SELECT menu_name FROM {menu_links} WHERE expanded <> 0 GROUP BY menu_name")->fetchCol();
-  state()->set('menu_expanded', $names);
+  Drupal::state()->set('menu_expanded', $names);
 }
 
 /**
@@ -3209,8 +3250,8 @@ function _menu_router_build($callbacks, $save = FALSE) {
     $path_roots = array_values($path_roots);
     // Update the path roots variable and reset the path alias whitelist cache
     // if the list has changed.
-    if ($path_roots != state()->get('menu_path_roots')) {
-      state()->set('menu_path_roots', array_values($path_roots));
+    if ($path_roots != Drupal::state()->get('menu_path_roots')) {
+      Drupal::state()->set('menu_path_roots', array_values($path_roots));
       drupal_container()->get('path.alias_manager')->cacheClear();
     }
     _menu_router_save($menu, $masks);
@@ -3298,7 +3339,7 @@ function _menu_router_save($menu, $masks) {
   // Insert any remaining records.
   $insert->execute();
   // Store the masks.
-  state()->set('menu.masks', $masks);
+  Drupal::state()->set('menu.masks', $masks);
 
   return $menu;
 }

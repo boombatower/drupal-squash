@@ -17,7 +17,7 @@ use Drupal\field\Plugin\Type\Widget\WidgetBase;
 abstract class AutocompleteWidgetBase extends WidgetBase {
 
   /**
-   * Overrides \Drupal\field\Plugin\Type\Widget\WidgetBase::settingsForm().
+   * {@inheritdoc}
    */
   public function settingsForm(array $form, array &$form_state) {
     $element['match_operator'] = array(
@@ -50,16 +50,15 @@ abstract class AutocompleteWidgetBase extends WidgetBase {
   }
 
   /**
-   * Implements \Drupal\field\Plugin\Type\Widget\WidgetInterface::formElement().
+   * {@inheritdoc}
    */
   public function formElement(array $items, $delta, array $element, $langcode, array &$form, array &$form_state) {
-    $instance = $this->instance;
-    $field = $this->field;
-    $entity = isset($element['#entity']) ? $element['#entity'] : NULL;
+    global $user;
+    $entity = $element['#entity'];
 
     // Prepare the autocomplete path.
     $autocomplete_path = $this->getSetting('autocomplete_path');
-    $autocomplete_path .= '/' . $field['field_name'] . '/' . $instance['entity_type'] . '/' . $instance['bundle'] . '/';
+    $autocomplete_path .= '/' . $this->fieldDefinition->getFieldName() . '/' . $entity->entityType() . '/' . $entity->bundle() . '/';
 
     // Use <NULL> as a placeholder in the URL when we don't have an entity.
     // Most web servers collapse two consecutive slashes.
@@ -77,13 +76,15 @@ abstract class AutocompleteWidgetBase extends WidgetBase {
       '#size' => $this->getSetting('size'),
       '#placeholder' => $this->getSetting('placeholder'),
       '#element_validate' => array(array($this, 'elementValidate')),
+      // @todo: Use wrapper to get the user if exists or needed.
+      '#autocreate_uid' => isset($entity->uid) ? $entity->uid : $user->uid,
     );
 
     return array('target_id' => $element);
   }
 
   /**
-   * Overrides \Drupal\field\Plugin\Type\Widget\WidgetBase::errorElement().
+   * {@inheritdoc}
    */
   public function errorElement(array $element, array $error, array $form, array &$form_state) {
     return $element['target_id'];
@@ -107,7 +108,7 @@ abstract class AutocompleteWidgetBase extends WidgetBase {
     }
 
     // Load those entities and loop through them to extract their labels.
-    $entities = entity_load_multiple($this->field['settings']['target_type'], $entity_ids);
+    $entities = entity_load_multiple($this->getFieldSetting('target_type'), $entity_ids);
 
     foreach ($entities as $entity_id => $entity_item) {
       $label = $entity_item->label();
@@ -120,4 +121,54 @@ abstract class AutocompleteWidgetBase extends WidgetBase {
     }
     return $entity_labels;
   }
+
+  /**
+   * Creates a new entity from a label entered in the autocomplete input.
+   *
+   * @param string $label
+   *   The entity label.
+   * @param int $uid
+   *   The entity uid.
+   *
+   * @return \Drupal\Core\Entity\EntityInterface
+   */
+  protected function createNewEntity($label, $uid) {
+    $entity_manager = \Drupal::entityManager();
+    $target_type = $this->getFieldSetting('target_type');
+    $target_bundles = $this->getSelectionHandlerSetting('target_bundles');
+
+    // Get the bundle.
+    if (!empty($target_bundles) && count($target_bundles) == 1) {
+      $bundle = reset($target_bundles);
+    }
+    else {
+      $bundles = entity_get_bundles($target_type);
+      $bundle = reset($bundles);
+    }
+
+    $entity_info = $entity_manager->getDefinition($target_type);
+    $bundle_key = $entity_info['entity_keys']['bundle'];
+    $label_key = $entity_info['entity_keys']['label'];
+
+    return $entity_manager->getStorageController($target_type)->create(array(
+      $label_key => $label,
+      $bundle_key => $bundle,
+      'uid' => $uid,
+    ));
+  }
+
+  /**
+   * Returns the value of a setting for the entity reference selection handler.
+   *
+   * @param string $setting_name
+   *   The setting name.
+   *
+   * @return mixed
+   *   The setting value.
+   */
+  protected function getSelectionHandlerSetting($setting_name) {
+    $settings = $this->getFieldSetting('handler_settings');
+    return isset($settings[$setting_name]) ? $settings[$setting_name] : NULL;
+  }
+
 }

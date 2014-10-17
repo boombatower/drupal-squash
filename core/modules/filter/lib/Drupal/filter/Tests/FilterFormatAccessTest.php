@@ -7,6 +7,7 @@
 
 namespace Drupal\filter\Tests;
 
+use Drupal\Core\Language\Language;
 use Drupal\simpletest\WebTestBase;
 
 /**
@@ -136,7 +137,7 @@ class FilterFormatAccessTest extends WebTestBase {
     // the disallowed format does not.
     $this->drupalLogin($this->web_user);
     $this->drupalGet('node/add/page');
-    $langcode = LANGUAGE_NOT_SPECIFIED;
+    $langcode = Language::LANGCODE_NOT_SPECIFIED;
     $elements = $this->xpath('//select[@name=:name]/option', array(
       ':name' => "body[$langcode][0][format]",
       ':option' => $this->allowed_format->format,
@@ -176,9 +177,7 @@ class FilterFormatAccessTest extends WebTestBase {
    */
   function testFormatRoles() {
     // Get the role ID assigned to the regular user.
-    $roles = $this->web_user->roles;
-    unset($roles[DRUPAL_AUTHENTICATED_RID]);
-    $rid = key($roles);
+    $rid = $this->web_user->roles[0];
 
     // Check that this role appears in the list of roles that have access to an
     // allowed text format, but does not appear in the list of roles that have
@@ -206,7 +205,7 @@ class FilterFormatAccessTest extends WebTestBase {
    * choose a new format before saving the page.
    */
   function testFormatWidgetPermissions() {
-    $langcode = LANGUAGE_NOT_SPECIFIED;
+    $langcode = Language::LANGCODE_NOT_SPECIFIED;
     $title_key = "title";
     $body_value_key = "body[$langcode][0][value]";
     $body_format_key = "body[$langcode][0][format]";

@@ -7,10 +7,12 @@
 
 namespace Drupal\comment\Plugin\views\field;
 
+use Drupal\Component\Annotation\PluginID;
+use Drupal\Core\Database\Connection;
 use Drupal\views\Plugin\views\field\Numeric;
 use Drupal\views\Plugin\views\display\DisplayPluginBase;
 use Drupal\views\ViewExecutable;
-use Drupal\Component\Annotation\PluginID;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
  * Field handler to display the number of new comments.
@@ -20,6 +22,38 @@ use Drupal\Component\Annotation\PluginID;
  * @PluginID("node_new_comments")
  */
 class NodeNewComments extends Numeric {
+
+  /**
+   * Database Service Object.
+   *
+   * @var \Drupal\Core\Database\Connection
+   */
+  protected $database;
+
+  /**
+   * Constructs a Drupal\Component\Plugin\PluginBase object.
+   *
+   * @param array $configuration
+   *   A configuration array containing information about the plugin instance.
+   * @param string $plugin_id
+   *   The plugin_id for the plugin instance.
+   * @param array $plugin_definition
+   *   The plugin implementation definition.
+   * @param \Drupal\Core\Database\Connection $database
+   *   Database Service Object.
+   */
+  public function __construct(array $configuration, $plugin_id, array $plugin_definition, Connection $database) {
+    parent::__construct($configuration, $plugin_id, $plugin_definition);
+
+    $this->database = $database;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public static function create(ContainerInterface $container, array $configuration, $plugin_id, array $plugin_definition) {
+    return new static($configuration, $plugin_id, $plugin_definition, $container->get('database'));
+  }
 
   /**
    * Overrides Drupal\views\Plugin\views\field\FieldPluginBase::init().
@@ -53,11 +87,11 @@ class NodeNewComments extends Numeric {
 
   public function query() {
     $this->ensureMyTable();
-    $this->add_additional_fields();
+    $this->addAdditionalFields();
     $this->field_alias = $this->table . '_' . $this->field;
   }
 
-  function pre_render(&$values) {
+  public function preRender(&$values) {
     global $user;
     if (!$user->uid || empty($values)) {
       return;
@@ -76,16 +110,15 @@ class NodeNewComments extends Numeric {
     }
 
     if ($nids) {
-      $query = db_select('node', 'n');
-      $query->addField('n', 'nid');
-      $query->innerJoin('comment', 'c', 'n.nid = c.nid');
-      $query->addExpression('COUNT(c.cid)', 'num_comments');
-      $query->leftJoin('history', 'h', 'h.nid = n.nid');
-      $query->condition('n.nid', $nids);
-      $query->where('c.changed > GREATEST(COALESCE(h.timestamp, :timestamp), :timestamp)', array(':timestamp' => HISTORY_READ_LIMIT));
-      $query->condition('c.status', COMMENT_PUBLISHED);
-      $query->groupBy('n.nid');
-      $result = $query->execute();
+      $result = $this->database->query('SELECT n.nid, COUNT(c.cid) as num_comments FROM {node} n INNER JOIN {comment} c ON n.nid = c.nid
+        LEFT JOIN {history} h ON h.nid = n.nid AND h.uid = :h_uid WHERE n.nid IN (:nids)
+        AND c.changed > GREATEST(COALESCE(h.timestamp, :timestamp), :timestamp) AND c.status = :status GROUP BY n.nid', array(
+          ':status' => COMMENT_PUBLISHED,
+          ':h_uid' => $user->uid,
+          ':nids' => $nids,
+          ':timestamp' => HISTORY_READ_LIMIT,
+        ));
+
       foreach ($result as $node) {
         foreach ($ids[$node->nid] as $id) {
           $values[$id]->{$this->field_alias} = $node->num_comments;
@@ -97,12 +130,12 @@ class NodeNewComments extends Numeric {
   function render_link($data, $values) {
     if (!empty($this->options['link_to_comment']) && $data !== NULL && $data !== '') {
       $node = entity_create('node', array(
-        'nid' => $this->get_value($values, 'nid'),
-        'type' => $this->get_value($values, 'type'),
+        'nid' => $this->getValue($values, 'nid'),
+        'type' => $this->getValue($values, 'type'),
       ));
       $this->options['alter']['make_link'] = TRUE;
       $this->options['alter']['path'] = 'node/' . $node->nid;
-      $this->options['alter']['query'] = comment_new_page_count($this->get_value($values, 'comment_count'), $this->get_value($values), $node);
+      $this->options['alter']['query'] = comment_new_page_count($this->getValue($values, 'comment_count'), $this->getValue($values), $node);
       $this->options['alter']['fragment'] = 'new';
     }
 
@@ -110,7 +143,7 @@ class NodeNewComments extends Numeric {
   }
 
   function render($values) {
-    $value = $this->get_value($values);
+    $value = $this->getValue($values);
     if (!empty($value)) {
       return $this->render_link(parent::render($values), $values);
     }

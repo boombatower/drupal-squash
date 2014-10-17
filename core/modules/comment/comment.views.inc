@@ -360,7 +360,7 @@ function comment_views_data() {
     ),
   );
 
-  if (drupal_container()->get('module_handler')->moduleExists('translation_entity')) {
+  if (Drupal::moduleHandler()->moduleExists('translation_entity')) {
     $data['comment']['translation_link'] = array(
       'title' => t('Translation link'),
       'help' => t('Provide a link to the translations overview for comments.'),
@@ -503,7 +503,7 @@ function comment_views_data_alter(&$data) {
     ),
   );
 
-  $data['node']['comment'] = array(
+  $data['node_field_data']['comment'] = array(
     'title' => t('Comment status'),
     'help' => t('Whether comments are enabled or disabled on the node.'),
     'field' => array(
@@ -517,7 +517,7 @@ function comment_views_data_alter(&$data) {
     ),
   );
 
-  $data['node']['uid_touch'] = array(
+  $data['node_field_data']['uid_touch'] = array(
     'title' => t('User posted or commented'),
     'help' => t('Display nodes only if a user posted the node or commented on the node.'),
     'argument' => array(
@@ -548,4 +548,16 @@ function comment_views_data_alter(&$data) {
     ),
   );
 
+}
+
+/**
+ * Implements hook_views_plugins_row_alter().
+ *
+ * Replaces the generic row plugin by a custom one for comments.
+ *
+ * @see \Drupal\views\Plugin\views\row\EntityRow
+ */
+function comment_views_plugins_row_alter(array &$plugins) {
+  $plugins['entity:comment']['class'] = 'Drupal\comment\Plugin\views\row\CommentRow';
+  $plugins['entity:comment']['module'] = 'comment';
 }

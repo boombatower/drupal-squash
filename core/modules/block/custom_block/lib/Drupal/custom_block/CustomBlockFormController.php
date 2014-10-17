@@ -9,6 +9,7 @@ namespace Drupal\custom_block;
 
 use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\Core\Entity\EntityFormControllerNG;
+use Drupal\Core\Language\Language;
 
 /**
  * Form controller for the custom block edit forms.
@@ -77,7 +78,7 @@ class CustomBlockFormController extends EntityFormControllerNG {
       '#title' => t('Language'),
       '#type' => 'language_select',
       '#default_value' => $block->langcode->value,
-      '#languages' => LANGUAGE_ALL,
+      '#languages' => Language::STATE_ALL,
       '#access' => isset($language_configuration['language_show']) && $language_configuration['language_show'],
     );
 
@@ -206,9 +207,10 @@ class CustomBlockFormController extends EntityFormControllerNG {
    */
   public function delete(array $form, array &$form_state) {
     $destination = array();
-    if (isset($_GET['destination'])) {
+    $query = \Drupal::request()->query;
+    if (!is_null($query->get('destination'))) {
       $destination = drupal_get_destination();
-      unset($_GET['destination']);
+      $query->remove('destination');
     }
     $block = $this->buildEntity($form, $form_state);
     $form_state['redirect'] = array('block/' . $block->id() . '/delete', array('query' => $destination));

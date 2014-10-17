@@ -81,7 +81,7 @@ class ViewExecutableTest extends ViewUnitTestBase {
 
   protected function setUpFixtures() {
     $this->installSchema('user', array('users', 'role_permission'));
-    $this->installSchema('node', array('node_type', 'node'));
+    $this->installSchema('node', array('node_type', 'node', 'node_field_data'));
     $this->installSchema('comment', array('comment', 'node_comment_statistics'));
     parent::setUpFixtures();
 
@@ -213,14 +213,12 @@ class ViewExecutableTest extends ViewUnitTestBase {
     $view->initStyle();
     $this->assertTrue($view->style_plugin instanceof DefaultStyle);
     $this->assertTrue($view->rowPlugin instanceof Fields);
-    $this->assertEqual($view->plugin_name, 'default');
 
     $view->setDisplay('page_2');
     $view->initStyle();
     $this->assertTrue($view->style_plugin instanceof Grid);
     // @todo Change this rowPlugin type too.
     $this->assertTrue($view->rowPlugin instanceof Fields);
-    $this->assertEqual($view->plugin_name, 'grid');
   }
 
   /**

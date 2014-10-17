@@ -10,6 +10,7 @@ namespace Drupal\node;
 use Drupal\Component\Utility\NestedArray;
 use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\Core\Entity\EntityFormController;
+use Drupal\Core\Language\Language;
 
 /**
  * Form controller for the node edit forms.
@@ -19,8 +20,8 @@ class NodeFormController extends EntityFormController {
   /**
    * Prepares the node object.
    *
-   * Fills in a few default values, and then invokes hook_prepare() on the node
-   * type module, and hook_node_prepare() on all modules.
+   * Fills in a few default values, and then invokes hook_node_prepare() on all
+   * modules.
    *
    * Overrides Drupal\Core\Entity\EntityFormController::prepareEntity().
    */
@@ -41,14 +42,13 @@ class NodeFormController extends EntityFormController {
       $node->created = REQUEST_TIME;
     }
     else {
-      $node->date = new DrupalDateTime($node->created);
+      $node->date = format_date($node->created, 'custom', 'Y-m-d H:i:s O');
       // Remove the log message from the original node entity.
       $node->log = NULL;
     }
     // Always use the default revision setting.
     $node->setNewRevision(in_array('revision', $node_options));
 
-    node_invoke($node, 'prepare');
     module_invoke_all('node_prepare', $node);
   }
 
@@ -57,6 +57,10 @@ class NodeFormController extends EntityFormController {
    */
   public function form(array $form, array &$form_state) {
     $node = $this->entity;
+
+    if ($this->operation == 'edit') {
+      drupal_set_title(t('<em>Edit @type</em> @title', array('@type' => node_get_type_label($node), '@title' => $node->label())), PASS_THROUGH);
+    }
 
     $user_config = config('user.settings');
     // Some special stuff when previewing a node.
@@ -88,18 +92,16 @@ class NodeFormController extends EntityFormController {
       '#default_value' => isset($node->changed) ? $node->changed : NULL,
     );
 
-    // Invoke hook_form() to get the node-specific bits. Can't use node_invoke()
-    // because hook_form() needs to be able to receive $form_state by reference.
-    // @todo hook_form() implementations are unable to add #validate or #submit
-    //   handlers to the form buttons below. Remove hook_form() entirely.
-    $function = node_hook($node->type, 'form');
-    if ($function && ($extra = $function($node, $form_state))) {
-      $form = NestedArray::mergeDeep($form, $extra);
-    }
-    // If the node type has a title, and the node type form defined no special
-    // weight for it, we default to a weight of -5 for consistency.
-    if (isset($form['title']) && !isset($form['title']['#weight'])) {
-      $form['title']['#weight'] = -5;
+    $node_type = node_type_load($node->type);
+    if ($node_type->has_title) {
+      $form['title'] = array(
+        '#type' => 'textfield',
+        '#title' => check_plain($node_type->title_label),
+        '#required' => TRUE,
+        '#default_value' => $node->title,
+        '#maxlength' => 255,
+        '#weight' => -5,
+      );
     }
 
     $language_configuration = module_invoke('language', 'get_default_configuration', 'node', $node->type);
@@ -107,7 +109,7 @@ class NodeFormController extends EntityFormController {
       '#title' => t('Language'),
       '#type' => 'language_select',
       '#default_value' => $node->langcode,
-      '#languages' => LANGUAGE_ALL,
+      '#languages' => Language::STATE_ALL,
       '#access' => isset($language_configuration['language_show']) && $language_configuration['language_show'],
     );
 
@@ -186,11 +188,11 @@ class NodeFormController extends EntityFormController {
       '#weight' => -1,
       '#description' => t('Leave blank for %anonymous.', array('%anonymous' => $user_config->get('anonymous'))),
     );
-    $format = variable_get('date_format_html_date', 'Y-m-d') . ' ' . variable_get('date_format_html_time', 'H:i:s');
     $form['author']['date'] = array(
-      '#type' => 'datetime',
+      '#type' => 'textfield',
       '#title' => t('Authored on'),
-      '#description' => t('Format: %format. Leave blank to use the time of form submission.', array('%format' => datetime_format_example($format))),
+      '#maxlength' => 25,
+      '#description' => t('Format: %time. The date format is YYYY-MM-DD and %timezone is the time zone offset from UTC. Leave blank to use the time of form submission.', array('%time' => !empty($node->date) ? date_format(date_create($node->date), 'Y-m-d H:i:s O') : format_date($node->created, 'custom', 'Y-m-d H:i:s O'), '%timezone' => !empty($node->date) ? date_format(date_create($node->date), 'O') : format_date($node->created, 'custom', 'O'))),
       '#default_value' => !empty($node->date) ? $node->date : '',
     );
 
@@ -318,7 +320,7 @@ class NodeFormController extends EntityFormController {
   public function validate(array $form, array &$form_state) {
     $node = $this->buildEntity($form, $form_state);
 
-    if (isset($node->nid) && (node_last_changed($node->nid) > $node->changed)) {
+    if (isset($node->nid) && (node_last_changed($node->nid, $this->getFormLangcode($form_state)) > $node->changed)) {
       form_set_error('changed', t('The content on this page has either been modified by another user, or you have already submitted modifications using this form. As a result, your changes cannot be saved.'));
     }
 
@@ -332,17 +334,14 @@ class NodeFormController extends EntityFormController {
 
     // Validate the "authored on" field.
     // The date element contains the date object.
-    if ($node->date instanceOf DrupalDateTime && $node->date->hasErrors()) {
+    $date = $node->date instanceof DrupalDateTime ? $node->date : new DrupalDateTime($node->date);
+    if ($date->hasErrors()) {
       form_set_error('date', t('You have to specify a valid date.'));
     }
 
-    // Invoke hook_validate() for node type specific validation and
-    // hook_node_validate() for miscellaneous validation needed by modules.
-    // Can't use node_invoke() or module_invoke_all(), because $form_state must
+    // Invoke hook_node_validate() for validation needed by modules.
+    // Can't use module_invoke_all(), because $form_state must
     // be receivable by reference.
-    if ($function = node_hook($node->type, 'validate')) {
-      $function($node, $form, $form_state);
-    }
     foreach (module_implements('node_validate') as $module) {
       $function = $module . '_node_validate';
       $function($node, $form, $form_state);
@@ -464,9 +463,10 @@ class NodeFormController extends EntityFormController {
    */
   public function delete(array $form, array &$form_state) {
     $destination = array();
-    if (isset($_GET['destination'])) {
+    $query = \Drupal::request()->query;
+    if ($query->has('destination')) {
       $destination = drupal_get_destination();
-      unset($_GET['destination']);
+      $query->remove('destination');
     }
     $node = $this->entity;
     $form_state['redirect'] = array('node/' . $node->nid . '/delete', array('query' => $destination));

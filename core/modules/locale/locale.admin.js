@@ -46,7 +46,6 @@ Drupal.behaviors.localeTranslateDirty = {
 Drupal.behaviors.hideUpdateInformation = {
   attach: function (context, settings) {
     var $table = $('#locale-translation-status-form').once('expand-updates');
-    var effect = settings.hideUpdates;
     if ($table.length) {
       var $tbodies = $table.find('tbody');
 
@@ -70,8 +69,8 @@ Drupal.behaviors.hideUpdateInformation = {
           }
         });
       });
+      $table.find('.requirements, .links').hide();
     }
-    $table.find('.requirements, .links').hide();
   }
 };
 

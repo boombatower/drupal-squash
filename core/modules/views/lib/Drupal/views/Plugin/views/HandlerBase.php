@@ -7,7 +7,10 @@
 
 namespace Drupal\views\Plugin\views;
 
+use Drupal\Component\Utility\String;
 use Drupal\Component\Utility\Unicode;
+use Drupal\Component\Utility\UrlValidator;
+use Drupal\Component\Utility\Xss;
 use Drupal\views\Plugin\views\display\DisplayPluginBase;
 use Drupal\views\Plugin\views\PluginBase;
 use Drupal\views\ViewExecutable;
@@ -174,7 +177,7 @@ abstract class HandlerBase extends PluginBase {
   public function getField($field = NULL) {
     if (!isset($field)) {
       if (!empty($this->formula)) {
-        $field = $this->get_formula();
+        $field = $this->getFormula();
       }
       else {
         $field = $this->tableAlias . '.' . $this->realField;
@@ -185,7 +188,7 @@ abstract class HandlerBase extends PluginBase {
     if ($this->view->display_handler->useGroupBy()) {
       $this->view->initQuery();
       if ($this->query) {
-        $info = $this->query->get_aggregation_info();
+        $info = $this->query->getAggregationInfo();
         if (!empty($info[$this->options['group_type']]['method'])) {
           $method = $info[$this->options['group_type']]['method'];
           if (method_exists($this->query, $method)) {
@@ -212,16 +215,16 @@ abstract class HandlerBase extends PluginBase {
   public function sanitizeValue($value, $type = NULL) {
     switch ($type) {
       case 'xss':
-        $value = filter_xss($value);
+        $value = Xss::filter($value);
         break;
       case 'xss_admin':
-        $value = filter_xss_admin($value);
+        $value = Xss::filterAdmin($value);
         break;
       case 'url':
-        $value = check_url($value);
+        $value = String::checkPlain(UrlValidator::stripDangerousProtocols($value));
         break;
       default:
-        $value = check_plain($value);
+        $value = String::checkPlain($value);
         break;
     }
     return $value;
@@ -274,7 +277,7 @@ abstract class HandlerBase extends PluginBase {
     // Some form elements belong in a fieldset for presentation, but can't
     // be moved into one because of the form_state['values'] hierarchy. Those
     // elements can add a #fieldset => 'fieldset_name' property, and they'll
-    // be moved to their fieldset during pre_render.
+    // be moved to their fieldset during preRender.
     $form['#pre_render'][] = 'views_ui_pre_render_add_fieldset_markup';
 
     $form['admin_label'] = array(
@@ -322,7 +325,7 @@ abstract class HandlerBase extends PluginBase {
     $form['#section'] = $display_id . '-' . $type . '-' . $id;
 
     $this->view->initQuery();
-    $info = $this->view->query->get_aggregation_info();
+    $info = $this->view->query->getAggregationInfo();
     foreach ($info as $id => $aggregate) {
       $group_types[$id] = $aggregate['title'];
     }
@@ -527,7 +530,7 @@ abstract class HandlerBase extends PluginBase {
    */
   public function ensureMyTable() {
     if (!isset($this->tableAlias)) {
-      $this->tableAlias = $this->query->ensure_table($this->table, $this->relationship);
+      $this->tableAlias = $this->query->ensureTable($this->table, $this->relationship);
     }
     return $this->tableAlias;
   }
@@ -864,7 +867,7 @@ abstract class HandlerBase extends PluginBase {
       if (empty($executable->query)) {
         $executable->initQuery();
       }
-      $aggregate = $executable->query->get_aggregation_info();
+      $aggregate = $executable->query->getAggregationInfo();
       if (!empty($aggregate[$item['group_type']]['handler'][$type])) {
         $override = $aggregate[$item['group_type']]['handler'][$type];
       }
@@ -872,7 +875,7 @@ abstract class HandlerBase extends PluginBase {
 
     // Create a new handler and unpack the options from the form onto it. We
     // can use that for storage.
-    $handler = views_get_handler($item, $handler_type, $override);
+    $handler = Views::handlerManager($handler_type)->getHandler($item, $override);
     $handler->init($executable, $executable->display_handler, $item);
 
     // Add the incoming options to existing options because items using

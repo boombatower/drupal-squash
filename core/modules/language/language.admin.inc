@@ -6,6 +6,8 @@
  */
 
 use Drupal\Core\Language\Language;
+use Drupal\Core\Language\LanguageManager;
+use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 /**
@@ -196,7 +198,7 @@ function _language_admin_common_controls(&$form, $language = NULL) {
     '#required' => TRUE,
     '#description' => t('Direction that text in this language is presented.'),
     '#default_value' => @$language->direction,
-    '#options' => array(LANGUAGE_LTR => t('Left to right'), LANGUAGE_RTL => t('Right to left')),
+    '#options' => array(Language::DIRECTION_LTR => t('Left to right'), Language::DIRECTION_RTL => t('Right to left')),
   );
   return $form;
 }
@@ -297,7 +299,7 @@ function language_admin_delete_form($form, &$form_state, $language) {
 
   if (language_default()->langcode == $langcode) {
     drupal_set_message(t('The default language cannot be deleted.'));
-    drupal_goto('admin/config/regional/language');
+    return new RedirectResponse(url('admin/config/regional/language', array('absolute' => TRUE)));
   }
 
   // For other languages, warn the user that data loss is ahead.
@@ -334,9 +336,8 @@ function language_admin_delete_form_submit($form, &$form_state) {
  * Prepare a language code list for unused predefined languages.
  */
 function language_admin_predefined_list() {
-  include_once DRUPAL_ROOT . '/core/includes/standard.inc';
   $languages = language_list();
-  $predefined = standard_language_list();
+  $predefined = LanguageManager::getStandardLanguageList();
   foreach ($predefined as $key => $value) {
     if (isset($languages[$key])) {
       unset($predefined[$key]);
@@ -514,12 +515,13 @@ function theme_language_negotiation_configure_form($variables) {
       $header[] = array('data' => t('Operations'));
     }
 
-    $variables = array(
-      'header' => $header,
-      'rows' => $rows,
-      'attributes' => array('id' => "language-negotiation-methods-$type"),
+    $build = array(
+      '#theme' => 'table',
+      '#header' => $header,
+      '#rows' => $rows,
+      '#attributes' => array('id' => "language-negotiation-methods-$type"),
     );
-    $table  = theme('table', $variables);
+    $table  = drupal_render($build);
     $table .= drupal_render_children($form[$type]);
 
     drupal_add_tabledrag("language-negotiation-methods-$type", 'order', 'sibling', "language-method-weight-$type");
@@ -683,7 +685,13 @@ function theme_language_negotiation_configure_browser_form_table($variables) {
     t('Operations'),
   );
 
-  $output = theme('table', array('header' => $header, 'rows' => $rows, 'attributes' => array('id' => 'lang-neg-browser')));
+  $table = array(
+    '#theme' => 'table',
+    '#header' => $header,
+    '#rows' => $rows,
+    '#attributes' => array('id' => 'lang-neg-browser'),
+  );
+  $output = drupal_render($table);
 
   return $output;
 }
@@ -805,7 +813,7 @@ function language_content_settings_form(array $form, array $form_state, array $s
   $form = array(
     '#labels' => $labels,
     '#attached' => array(
-      'css' => array($path . '/language.admin.css'),
+      'css' => array($path . '/css/language.admin.css'),
     ),
   );
 

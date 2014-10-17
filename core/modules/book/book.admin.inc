@@ -7,6 +7,7 @@
 
 use Drupal\Component\Utility\Crypt;
 use Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Language\Language;
 
 /**
  * Form constructor for administering a single book's hierarchy.
@@ -78,7 +79,7 @@ function book_admin_edit_submit($form, &$form_state) {
       // Update the title if changed.
       if ($row['title']['#default_value'] != $values['title']) {
         $node = node_load($values['nid']);
-        $langcode = LANGUAGE_NOT_SPECIFIED;
+        $langcode = Language::LANGCODE_NOT_SPECIFIED;
         $node->title = $values['title'];
         $node->book['link_title'] = $values['title'];
         $node->setNewRevision();
@@ -218,8 +219,9 @@ function theme_book_admin_table($variables) {
     $form[$key]['mlid']['#attributes']['class'] = array('book-mlid');
     $form[$key]['weight']['#attributes']['class'] = array('book-weight');
 
+    $indentation = array('#theme' => 'indentation', '#size' => $form[$key]['depth']['#value'] - 2);
     $data = array(
-      theme('indentation', array('size' => $form[$key]['depth']['#value'] - 2)) . drupal_render($form[$key]['title']),
+      drupal_render($indentation) . drupal_render($form[$key]['title']),
       drupal_render($form[$key]['weight']),
       drupal_render($form[$key]['plid']) . drupal_render($form[$key]['mlid']),
     );
@@ -253,6 +255,6 @@ function theme_book_admin_table($variables) {
     $row['class'][] = 'draggable';
     $rows[] = $row;
   }
-
-  return theme('table', array('header' => $header, 'rows' => $rows, 'attributes' => array('id' => 'book-outline'), 'empty' => t('No book content available.')));
+  $table = array('#theme' => 'table', '#header' => $header, '#rows' => $rows, '#attributes' => array('id' => 'book-outline'), '#empty' => t('No book content available.'));
+  return drupal_render($table);
 }

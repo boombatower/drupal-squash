@@ -7,6 +7,8 @@
 
 namespace Drupal\system\Tests\Upgrade;
 
+use Drupal\Core\Language\Language;
+
 /**
  * Tests upgrading a filled database with user picture data.
  *
@@ -42,11 +44,11 @@ class UserPictureUpgradePathTest extends UpgradePathTestBase {
     $instance = field_info_instance('user', 'user_picture', 'user');
     $file = entity_load('file', $instance['settings']['default_image'][0]);
     $this->assertIdentical($instance['settings']['default_image'][0], $file->id(), 'Default user picture has been migrated.');
-    $this->assertEqual($file->uri, 'public://user_pictures_dir/druplicon.png', 'File id matches the uri expected.');
-    $this->assertEqual($file->filename, 'druplicon.png');
-    $this->assertEqual($file->langcode, LANGUAGE_NOT_SPECIFIED);
-    $this->assertEqual($file->filemime, 'image/png');
-    $this->assertFalse(empty($file->uuid));
+    $this->assertEqual($file->getFileUri(), 'public://user_pictures_dir/druplicon.png', 'File id matches the uri expected.');
+    $this->assertEqual($file->getFilename(), 'druplicon.png');
+    $this->assertEqual($file->langcode->value, Language::LANGCODE_NOT_SPECIFIED);
+    $this->assertEqual($file->getMimeType(), 'image/png');
+    $this->assertFalse(empty($file->uuid->value));
 
     // Check file usage for the default image.
     $usage = file_usage()->listUsage($file);
@@ -67,8 +69,8 @@ class UserPictureUpgradePathTest extends UpgradePathTestBase {
 
     // Check the user picture and file usage record.
     $user = user_load(1);
-    $file = file_load($user->user_picture[LANGUAGE_NOT_SPECIFIED][0]['fid']);
-    $this->assertEqual('public://user_pictures_dir/faked_image.png', $file->uri);
+    $file = file_load($user->user_picture[Language::LANGCODE_NOT_SPECIFIED][0]['fid']);
+    $this->assertEqual('public://user_pictures_dir/faked_image.png', $file->getFileUri());
     $usage = file_usage()->listUsage($file);
     $this->assertEqual(1, $usage['file']['user'][1]);
   }

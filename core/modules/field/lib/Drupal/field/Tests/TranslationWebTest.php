@@ -21,6 +21,34 @@ class TranslationWebTest extends FieldTestBase {
    */
   public static $modules = array('language', 'field_test');
 
+  /**
+   * The name of the field to use in this test.
+   *
+   * @var string
+   */
+  protected $field_name;
+
+  /**
+   * The name of the entity type to use in this test.
+   *
+   * @var string
+   */
+  protected $entity_type = 'test_entity';
+
+  /**
+   * The field to use in this test.
+   *
+   * @var \Drupal\field\Plugin\Core\Entity\Field
+   */
+  protected $field;
+
+  /**
+   * The field instance to use in this test.
+   *
+   * @var \Drupal\field\Plugin\Core\Entity\FieldInstance
+   */
+  protected $instance;
+
   public static function getInfo() {
     return array(
       'name' => 'Field translations web tests',
@@ -34,15 +62,13 @@ class TranslationWebTest extends FieldTestBase {
 
     $this->field_name = drupal_strtolower($this->randomName() . '_field_name');
 
-    $this->entity_type = 'test_entity';
-
     $field = array(
       'field_name' => $this->field_name,
       'type' => 'test_field',
       'cardinality' => 4,
       'translatable' => TRUE,
     );
-    field_create_field($field);
+    entity_create('field_entity', $field)->save();
     $this->field = field_read_field($this->field_name);
 
     $instance = array(
@@ -50,7 +76,7 @@ class TranslationWebTest extends FieldTestBase {
       'entity_type' => $this->entity_type,
       'bundle' => 'test_bundle',
     );
-    field_create_instance($instance);
+    entity_create('field_instance', $instance)->save();
     $this->instance = field_read_instance('test_entity', $this->field_name, 'test_bundle');
 
     entity_get_form_display($this->entity_type, 'test_bundle', 'default')
@@ -78,7 +104,7 @@ class TranslationWebTest extends FieldTestBase {
     $eid = 1;
     $entity = field_test_create_entity($eid, $eid, $this->instance['bundle']);
     $available_langcodes = array_flip(field_available_languages($this->entity_type, $this->field));
-    unset($available_langcodes[LANGUAGE_NOT_SPECIFIED]);
+    unset($available_langcodes[Language::LANGCODE_NOT_SPECIFIED]);
     $field_name = $this->field['field_name'];
 
     // Store the field translations.

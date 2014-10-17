@@ -3,7 +3,7 @@ base_field: nid
 base_table: node
 core: 8.x
 description: ''
-disabled: '0'
+status: '1'
 display:
   default:
     display_plugin: default
@@ -30,7 +30,7 @@ display:
       fields:
         title:
           id: title
-          table: node
+          table: node_field_data
           field: title
           label: ''
           alter:
@@ -213,7 +213,7 @@ display:
       filters:
         status:
           value: '1'
-          table: node
+          table: node_field_data
           field: status
           id: status
           expose:
@@ -222,7 +222,7 @@ display:
       sorts:
         created:
           id: created
-          table: node
+          table: node_field_data
           field: created
           order: DESC
   page_1:

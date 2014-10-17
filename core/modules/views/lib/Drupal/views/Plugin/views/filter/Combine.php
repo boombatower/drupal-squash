@@ -87,51 +87,51 @@ class Combine extends String {
     }
   }
 
-  // By default things like op_equal uses add_where, that doesn't support
+  // By default things like opEqual uses add_where, that doesn't support
   // complex expressions, so override all operators.
 
-  function op_equal($expression) {
+  function opEqual($expression) {
     $placeholder = $this->placeholder();
     $operator = $this->operator();
-    $this->query->add_where_expression($this->options['group'], "$expression $operator $placeholder", array($placeholder => $this->value));
+    $this->query->addWhereExpression($this->options['group'], "$expression $operator $placeholder", array($placeholder => $this->value));
   }
 
-  function op_contains($expression) {
+  protected function opContains($expression) {
     $placeholder = $this->placeholder();
-    $this->query->add_where_expression($this->options['group'], "$expression LIKE $placeholder", array($placeholder => '%' . db_like($this->value) . '%'));
+    $this->query->addWhereExpression($this->options['group'], "$expression LIKE $placeholder", array($placeholder => '%' . db_like($this->value) . '%'));
   }
 
-  function op_starts($expression) {
+  protected function opStartsWith($expression) {
     $placeholder = $this->placeholder();
-    $this->query->add_where_expression($this->options['group'], "$expression LIKE $placeholder", array($placeholder => db_like($this->value) . '%'));
+    $this->query->addWhereExpression($this->options['group'], "$expression LIKE $placeholder", array($placeholder => db_like($this->value) . '%'));
   }
 
-  function op_not_starts($expression) {
+  protected function opNotStartsWith($expression) {
     $placeholder = $this->placeholder();
-    $this->query->add_where_expression($this->options['group'], "$expression NOT LIKE $placeholder", array($placeholder => db_like($this->value) . '%'));
+    $this->query->addWhereExpression($this->options['group'], "$expression NOT LIKE $placeholder", array($placeholder => db_like($this->value) . '%'));
   }
 
-  function op_ends($expression) {
+  protected function opEndsWith($expression) {
     $placeholder = $this->placeholder();
-    $this->query->add_where_expression($this->options['group'], "$expression LIKE $placeholder", array($placeholder => '%' . db_like($this->value)));
+    $this->query->addWhereExpression($this->options['group'], "$expression LIKE $placeholder", array($placeholder => '%' . db_like($this->value)));
   }
 
-  function op_not_ends($expression) {
+  protected function opNotEndsWith($expression) {
     $placeholder = $this->placeholder();
-    $this->query->add_where_expression($this->options['group'], "$expression NOT LIKE $placeholder", array($placeholder => '%' . db_like($this->value)));
+    $this->query->addWhereExpression($this->options['group'], "$expression NOT LIKE $placeholder", array($placeholder => '%' . db_like($this->value)));
   }
 
-  function op_not($expression) {
+  protected function opNotLike($expression) {
     $placeholder = $this->placeholder();
-    $this->query->add_where_expression($this->options['group'], "$expression NOT LIKE $placeholder", array($placeholder => '%' . db_like($this->value) . '%'));
+    $this->query->addWhereExpression($this->options['group'], "$expression NOT LIKE $placeholder", array($placeholder => '%' . db_like($this->value) . '%'));
   }
 
-  function op_regex($expression) {
+  protected function opRegex($expression) {
     $placeholder = $this->placeholder();
-    $this->query->add_where_expression($this->options['group'], "$expression RLIKE $placeholder", array($placeholder => $this->value));
+    $this->query->addWhereExpression($this->options['group'], "$expression RLIKE $placeholder", array($placeholder => $this->value));
   }
 
-  function op_empty($expression) {
+  protected function opEmpty($expression) {
     if ($this->operator == 'empty') {
       $operator = "IS NULL";
     }
@@ -139,7 +139,7 @@ class Combine extends String {
       $operator = "IS NOT NULL";
     }
 
-    $this->query->add_where_expression($this->options['group'], "$expression $operator");
+    $this->query->addWhereExpression($this->options['group'], "$expression $operator");
   }
 
 }

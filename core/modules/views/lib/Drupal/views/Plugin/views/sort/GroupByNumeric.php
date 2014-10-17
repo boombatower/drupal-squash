@@ -10,6 +10,7 @@ namespace Drupal\views\Plugin\views\sort;
 use Drupal\Component\Annotation\PluginID;
 use Drupal\views\Plugin\views\display\DisplayPluginBase;
 use Drupal\views\ViewExecutable;
+use Drupal\views\Views;
 
 /**
  * Handler for GROUP BY on simple numeric fields.
@@ -25,7 +26,7 @@ class GroupByNumeric extends SortPluginBase {
     parent::init($view, $display, $options);
 
     // Initialize the original handler.
-    $this->handler = views_get_handler($options, 'sort');
+    $this->handler = Views::handlerManager('sort')->getHandler($options);
     $this->handler->init($view, $display, $options);
   }
 
@@ -39,7 +40,7 @@ class GroupByNumeric extends SortPluginBase {
       'function' => $this->options['group_type'],
     );
 
-    $this->query->add_orderby($this->tableAlias, $this->realField, $this->options['order'], NULL, $params);
+    $this->query->addOrderBy($this->tableAlias, $this->realField, $this->options['order'], NULL, $params);
   }
 
   public function adminLabel($short = FALSE) {

@@ -7,6 +7,7 @@
 
 namespace Drupal\taxonomy\Tests;
 
+use Drupal\Core\Language\Language;
 use Drupal\Core\Entity\Field\FieldInterface;
 use Drupal\Core\Entity\Field\FieldItemInterface;
 use Drupal\field\Tests\FieldUnitTestBase;
@@ -39,10 +40,11 @@ class TaxonomyTermReferenceItemTest extends FieldUnitTestBase {
     $vocabulary = entity_create('taxonomy_vocabulary', array(
       'name' => $this->randomName(),
       'vid' => drupal_strtolower($this->randomName()),
-      'langcode' => LANGUAGE_NOT_SPECIFIED,
+      'langcode' => Language::LANGCODE_NOT_SPECIFIED,
     ));
     $vocabulary->save();
-    $field = array(
+
+    entity_create('field_entity', array(
       'field_name' => 'field_test_taxonomy',
       'type' => 'taxonomy_term_reference',
       'cardinality' => FIELD_CARDINALITY_UNLIMITED,
@@ -54,18 +56,16 @@ class TaxonomyTermReferenceItemTest extends FieldUnitTestBase {
           ),
         ),
       ),
-    );
-    field_create_field($field);
-    $instance = array(
+    ))->save();
+    entity_create('field_instance', array(
       'entity_type' => 'entity_test',
       'field_name' => 'field_test_taxonomy',
       'bundle' => 'entity_test',
-    );
-    field_create_instance($instance);
+    ))->save();
     $this->term = entity_create('taxonomy_term', array(
       'name' => $this->randomName(),
       'vid' => $vocabulary->id(),
-      'langcode' => LANGUAGE_NOT_SPECIFIED,
+      'langcode' => Language::LANGCODE_NOT_SPECIFIED,
     ));
     $this->term->save();
   }
@@ -77,14 +77,14 @@ class TaxonomyTermReferenceItemTest extends FieldUnitTestBase {
     $tid = $this->term->id();
     // Just being able to create the entity like this verifies a lot of code.
     $entity = entity_create('entity_test', array());
-    $entity->field_test_taxonomy->tid = $this->term->id();
+    $entity->field_test_taxonomy->target_id = $this->term->id();
     $entity->name->value = $this->randomName();
     $entity->save();
 
     $entity = entity_load('entity_test', $entity->id());
     $this->assertTrue($entity->field_test_taxonomy instanceof FieldInterface, 'Field implements interface.');
     $this->assertTrue($entity->field_test_taxonomy[0] instanceof FieldItemInterface, 'Field item implements interface.');
-    $this->assertEqual($entity->field_test_taxonomy->tid, $this->term->id());
+    $this->assertEqual($entity->field_test_taxonomy->target_id, $this->term->id());
     $this->assertEqual($entity->field_test_taxonomy->entity->name->value, $this->term->name->value);
     $this->assertEqual($entity->field_test_taxonomy->entity->id(), $tid);
     $this->assertEqual($entity->field_test_taxonomy->entity->uuid(), $this->term->uuid());
@@ -101,11 +101,11 @@ class TaxonomyTermReferenceItemTest extends FieldUnitTestBase {
     $term2 = entity_create('taxonomy_term', array(
       'name' => $this->randomName(),
       'vid' => $this->term->vid->value,
-      'langcode' => LANGUAGE_NOT_SPECIFIED,
+      'langcode' => Language::LANGCODE_NOT_SPECIFIED,
     ));
     $term2->save();
 
-    $entity->field_test_taxonomy->tid = $term2->id();
+    $entity->field_test_taxonomy->target_id = $term2->id();
     $this->assertEqual($entity->field_test_taxonomy->entity->id(), $term2->id());
     $this->assertEqual($entity->field_test_taxonomy->entity->name->value, $term2->name->value);
   }

@@ -19,7 +19,7 @@ require_once __DIR__ . '/locale.translation.inc';
  */
 function locale_translation_flush_projects() {
   // Followup issue: http://drupal.org/node/1842362
-  // Replace {locale_project} table by state() variable(s).
+  // Replace {locale_project} table by Drupal::state() variable(s).
   db_truncate('locale_project')->execute();
 }
 
@@ -46,7 +46,7 @@ function locale_translation_flush_projects() {
  */
 function locale_translation_build_projects() {
   // This function depends on Update module. We degrade gracefully.
-  if (!module_exists('update')) {
+  if (!Drupal::moduleHandler()->moduleExists('update')) {
     return array();
   }
 
@@ -79,11 +79,6 @@ function locale_translation_build_projects() {
             break;
           }
         }
-      }
-      // If project is not a dev version, but is core, pick latest release.
-      elseif ($name == "drupal") {
-        // Pick latest available release.
-        $release = array_shift($project_updates[$name]['releases']);
       }
 
       if (!empty($release['version'])) {
@@ -132,7 +127,7 @@ function locale_translation_build_projects() {
  */
 function locale_translation_project_list() {
   // This function depends on Update module. We degrade gracefully.
-  if (!module_exists('update')) {
+  if (!Drupal::moduleHandler()->moduleExists('update')) {
     return array();
   }
 
@@ -297,7 +292,6 @@ function locale_translation_check_projects_batch($projects = array(), $langcodes
  *   Batch definition array.
  */
 function locale_translation_batch_status_build($projects = array(), $langcodes = array()) {
-  $t = get_t();
   $projects = $projects ? $projects : array_keys(locale_translation_get_projects());
   $langcodes = $langcodes ? $langcodes : array_keys(locale_translatable_language_list());
 
@@ -305,10 +299,10 @@ function locale_translation_batch_status_build($projects = array(), $langcodes =
 
   $batch = array(
     'operations' => $operations,
-    'title' => $t('Checking translations'),
+    'title' => t('Checking translations'),
     'progress_message' => '',
     'finished' => 'locale_translation_batch_status_finished',
-    'error_message' => $t('Error checking translation updates.'),
+    'error_message' => t('Error checking translation updates.'),
     'file' => drupal_get_path('module', 'locale') . '/locale.batch.inc',
   );
   return $batch;

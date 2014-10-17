@@ -41,9 +41,9 @@ class Markup extends FieldPluginBase {
   }
 
   function render($values) {
-    $value = $this->get_value($values);
+    $value = $this->getValue($values);
     if (is_array($this->format)) {
-      $format = $this->get_value($values, 'format');
+      $format = $this->getValue($values, 'format');
     }
     else {
       $format = $this->format;
@@ -54,7 +54,7 @@ class Markup extends FieldPluginBase {
     }
   }
 
-  function element_type($none_supported = FALSE, $default_empty = FALSE, $inline = FALSE) {
+  public function elementType($none_supported = FALSE, $default_empty = FALSE, $inline = FALSE) {
     if ($inline) {
       return 'span';
     }

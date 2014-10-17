@@ -16,7 +16,7 @@ class UserAdminTest extends WebTestBase {
    *
    * @var array
    */
-  public static $modules = array('taxonomy');
+  public static $modules = array('taxonomy', 'views');
 
   public static function getInfo() {
     return array(
@@ -30,8 +30,9 @@ class UserAdminTest extends WebTestBase {
    * Registers a user and deletes it.
    */
   function testUserAdmin() {
-
-    $user_a = $this->drupalCreateUser(array());
+    $user_a = $this->drupalCreateUser();
+    $user_a->mail = $this->randomName() . '@example.com';
+    $user_a->save();
     $user_b = $this->drupalCreateUser(array('administer taxonomy'));
     $user_c = $this->drupalCreateUser(array('administer taxonomy'));
 
@@ -48,10 +49,19 @@ class UserAdminTest extends WebTestBase {
     $link = l(t('Edit'), "user/$user_a->uid/edit", array('query' => array('destination' => 'admin/people')));
     $this->assertRaw($link, 'Found user A edit link on admin users page');
 
+    // Filter the users by name/e-mail.
+    $this->drupalGet('admin/people', array('query' => array('user' => $user_a->name)));
+    $result = $this->xpath('//table/tbody/tr');
+    $this->assertEqual(1, count($result), 'Filter by username returned the right amount.');
+    $this->assertEqual($user_a->name, (string) $result[0]->td[1]->span, 'Filter by username returned the right user.');
+
+    $this->drupalGet('admin/people', array('query' => array('user' => $user_a->mail)));
+    $result = $this->xpath('//table/tbody/tr');
+    $this->assertEqual(1, count($result), 'Filter by username returned the right amount.');
+    $this->assertEqual($user_a->name, (string) $result[0]->td[1]->span, 'Filter by username returned the right user.');
+
     // Filter the users by permission 'administer taxonomy'.
-    $edit = array();
-    $edit['permission'] = 'administer taxonomy';
-    $this->drupalPost('admin/people', $edit, t('Filter'));
+    $this->drupalGet('admin/people', array('query' => array('permission' => 'administer taxonomy')));
 
     // Check if the correct users show up.
     $this->assertNoText($user_a->name, 'User A not on filtered by perm admin users page');
@@ -60,9 +70,8 @@ class UserAdminTest extends WebTestBase {
 
     // Filter the users by role. Grab the system-generated role name for User C.
     $roles = $user_c->roles;
-    unset($roles[DRUPAL_AUTHENTICATED_RID]);
-    $edit['role'] = key($roles);
-    $this->drupalPost('admin/people', $edit, t('Refine'));
+    unset($roles[array_search(DRUPAL_AUTHENTICATED_RID, $roles)]);
+    $this->drupalGet('admin/people', array('query' => array('role' => reset($roles))));
 
     // Check if the correct users show up when filtered by role.
     $this->assertNoText($user_a->name, 'User A not on filtered by role on admin users page');
@@ -73,17 +82,23 @@ class UserAdminTest extends WebTestBase {
     $account = user_load($user_c->uid);
     $this->assertEqual($account->status, 1, 'User C not blocked');
     $edit = array();
-    $edit['operation'] = 'block';
-    $edit['accounts[' . $account->uid . ']'] = TRUE;
-    $this->drupalPost('admin/people', $edit, t('Update'));
+    $edit['action'] = 'user_block_user_action';
+    $edit['user_bulk_form[1]'] = TRUE;
+    $this->drupalPost('admin/people', $edit, t('Apply'));
     $account = user_load($user_c->uid, TRUE);
     $this->assertEqual($account->status, 0, 'User C blocked');
 
+    // Test filtering on admin page for blocked users
+    $this->drupalGet('admin/people', array('query' => array('status' => 0)));
+    $this->assertNoText($user_a->name, 'User A not on filtered by status on admin users page');
+    $this->assertNoText($user_b->name, 'User B not on filtered by status on admin users page');
+    $this->assertText($user_c->name, 'User C on filtered by status on admin users page');
+
     // Test unblocking of a user from /admin/people page and sending of activation mail
     $editunblock = array();
-    $editunblock['operation'] = 'unblock';
-    $editunblock['accounts[' . $account->uid . ']'] = TRUE;
-    $this->drupalPost('admin/people', $editunblock, t('Update'));
+    $editunblock['action'] = 'user_unblock_user_action';
+    $editunblock['user_bulk_form[1]'] = TRUE;
+    $this->drupalPost('admin/people', $editunblock, t('Apply'));
     $account = user_load($user_c->uid, TRUE);
     $this->assertEqual($account->status, 1, 'User C unblocked');
     $this->assertMail("to", $account->mail, "Activation mail sent to user C");

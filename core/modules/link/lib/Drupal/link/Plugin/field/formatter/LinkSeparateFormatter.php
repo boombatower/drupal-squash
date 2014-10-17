@@ -12,7 +12,7 @@
 
 namespace Drupal\link\Plugin\field\formatter;
 
-use Drupal\Component\Annotation\Plugin;
+use Drupal\field\Annotation\FieldFormatter;
 use Drupal\Core\Annotation\Translation;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\field\Plugin\Type\Formatter\FormatterBase;
@@ -20,10 +20,10 @@ use Drupal\field\Plugin\Type\Formatter\FormatterBase;
 /**
  * Plugin implementation of the 'link_separate' formatter.
  *
- * @Plugin(
+ * @FieldFormatter(
  *   id = "link_separate",
  *   module = "link",
- *   label = @Translation("Separate title and URL"),
+ *   label = @Translation("Separate link text and URL"),
  *   field_types = {
  *     "link"
  *   },
@@ -44,20 +44,20 @@ class LinkSeparateFormatter extends LinkFormatter {
     $settings = $this->getSettings();
 
     foreach ($items as $delta => $item) {
-      // By default use the full URL as the link title.
+      // By default use the full URL as the link text.
       $link_title = $item['url'];
 
-      // If the title field value is available, use it for the link title.
+      // If the link text field value is available, use it for the text.
       if (empty($settings['url_only']) && !empty($item['title'])) {
         // Unsanitized token replacement here because $options['html'] is FALSE
-        // by default in theme_link().
+        // by default in l().
         $link_title = \Drupal::token()->replace($item['title'], array($entity->entityType() => $entity), array('sanitize' => FALSE, 'clear' => TRUE));
       }
 
-      // The link_separate formatter has two titles; the link title (as in the
-      // field values) and the URL itself. If there is no title value,
+      // The link_separate formatter has two titles; the link text (as in the
+      // field values) and the URL itself. If there is no link text value,
       // $link_title defaults to the URL, so it needs to be unset.
-      // The URL title may need to be trimmed as well.
+      // The URL version may need to be trimmed as well.
       if (empty($item['title'])) {
         $link_title = NULL;
       }

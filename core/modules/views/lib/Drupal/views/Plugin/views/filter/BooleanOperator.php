@@ -38,6 +38,42 @@ class BooleanOperator extends FilterPluginBase {
   // Whether to accept NULL as a false value or not
   var $accept_null = FALSE;
 
+
+
+  /**
+   * {@inheritdoc}
+   */
+  public function operatorOptions($which = 'title') {
+    $options = array();
+    foreach ($this->operators() as $id => $info) {
+      $options[$id] = $info[$which];
+    }
+
+    return $options;
+  }
+
+  /**
+   * Returns an array of operator information.
+   *
+   * @return array
+   */
+  protected function operators() {
+    return array(
+      '=' => array(
+        'title' => t('Is equal to'),
+        'method' => 'queryOpBoolean',
+        'short' => t('='),
+        'values' => 1,
+      ),
+      '!=' => array(
+        'title' => t('Is not equal to'),
+        'method' => 'queryOpBoolean',
+        'short' => t('!='),
+        'values' => 1,
+      ),
+    );
+  }
+
   /**
    * Overrides \Drupal\views\Plugin\views\filter\FilterPluginBase::init().
    */
@@ -69,7 +105,7 @@ class BooleanOperator extends FilterPluginBase {
    * dynamic for some reason, child classes should use a guard to reduce
    * database hits as much as possible.
    */
-  function get_value_options() {
+  public function getValueOptions() {
     if (isset($this->definition['type'])) {
       if ($this->definition['type'] == 'yes-no') {
         $this->value_options = array(1 => t('Yes'), 0 => t('No'));
@@ -96,14 +132,10 @@ class BooleanOperator extends FilterPluginBase {
     return $options;
   }
 
-  function operator_form(&$form, &$form_state) {
-    $form['operator'] = array();
-  }
-
-  function value_form(&$form, &$form_state) {
+  protected function valueForm(&$form, &$form_state) {
     if (empty($this->value_options)) {
       // Initialize the array of possible values for this filter.
-      $this->get_value_options();
+      $this->getValueOptions();
     }
     if (!empty($form_state['exposed'])) {
       // Exposed filter: use a select box to save space.
@@ -135,8 +167,8 @@ class BooleanOperator extends FilterPluginBase {
     }
   }
 
-  function value_validate($form, &$form_state) {
-    if ($form_state['values']['options']['value'] == 'All' && !empty($form_state['values']['options']['expose']['required'])) {
+  protected function valueValidate($form, &$form_state) {
+    if (isset($form_state['values']['options']['value']) && $form_state['values']['options']['value'] == 'All' && !empty($form_state['values']['options']['expose']['required'])) {
       form_set_error('value', t('You must select a value unless this is an non-required exposed filter.'));
     }
   }
@@ -149,7 +181,7 @@ class BooleanOperator extends FilterPluginBase {
       return t('exposed');
     }
     if (empty($this->value_options)) {
-      $this->get_value_options();
+      $this->getValueOptions();
     }
     // Now that we have the valid options for this filter, just return the
     // human-readable label based on the current value.  The value_options
@@ -165,27 +197,43 @@ class BooleanOperator extends FilterPluginBase {
     $this->options['expose']['required'] = TRUE;
   }
 
+  /**
+   * {@inheritdoc}
+   */
   public function query() {
     $this->ensureMyTable();
     $field = "$this->tableAlias.$this->realField";
 
+    $info = $this->operators();
+    if (!empty($info[$this->operator]['method'])) {
+      call_user_func(array($this, $info[$this->operator]['method']), $field);
+    }
+  }
+
+  /**
+   * Adds a where condition to the query for a boolean value.
+   *
+   * @param string $field
+   *   The field name to add the where condition for.
+   */
+  protected function queryOpBoolean($field) {
     if (empty($this->value)) {
       if ($this->accept_null) {
         $or = db_or()
           ->condition($field, 0, '=')
           ->condition($field, NULL, 'IS NULL');
-        $this->query->add_where($this->options['group'], $or);
+        $this->query->addWhere($this->options['group'], $or);
       }
       else {
-        $this->query->add_where($this->options['group'], $field, 0, '=');
+        $this->query->addWhere($this->options['group'], $field, 0, '=');
       }
     }
     else {
       if (!empty($this->definition['use_equal'])) {
-        $this->query->add_where($this->options['group'], $field, 1, '=');
+        $this->query->addWhere($this->options['group'], $field, 1, '=');
       }
       else {
-        $this->query->add_where($this->options['group'], $field, 0, '<>');
+        $this->query->addWhere($this->options['group'], $field, 0, '<>');
       }
     }
   }

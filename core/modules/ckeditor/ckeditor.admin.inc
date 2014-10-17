@@ -5,6 +5,7 @@
  * Callbacks and theming for the CKEditor toolbar configuration UI.
  */
 
+use Drupal\Core\Language\Language;
 use Drupal\Core\Template\Attribute;
 
 /**
@@ -12,7 +13,7 @@ use Drupal\Core\Template\Attribute;
  */
 function template_preprocess_ckeditor_settings_toolbar(&$variables) {
   // Simplify the language direction information for toolbar buttons.
-  $language_interface = language(LANGUAGE_TYPE_INTERFACE);
+  $language_interface = language(Language::TYPE_INTERFACE);
   $variables['language_direction'] = $language_interface->direction ? 'rtl' : 'ltr';
 
   // Create lists of active and disabled buttons.
@@ -57,7 +58,12 @@ function theme_ckeditor_settings_toolbar($variables) {
       $value = $button['image_alternative' . $rtl];
     }
     elseif (isset($button['image'])) {
-      $value = theme('image', array('uri' => $button['image' . $rtl], 'title' => $button['label']));
+      $image = array(
+        '#theme' => 'image',
+        '#uri' => $button['image' . $rtl],
+        '#title' => $button['label'],
+      );
+      $value = drupal_render($image);
     }
     else {
       $value = '?';
@@ -118,7 +124,7 @@ function theme_ckeditor_settings_toolbar($variables) {
 
   // aria-live region for outputing aural information about the state of the
   // configuration.
-  $output .= '<div id="ckeditor-button-configuration-aria-live" class="element-invisible" aria-live="polite"></div>';
+  $output .= '<div id="ckeditor-button-configuration-aria-live" class="visually-hidden" aria-live="polite"></div>';
 
   $output .= '<div id="ckeditor-button-description" class="fieldset-description">' . t('Move a button into the <em>Active toolbar</em> to enable it, or into the list of <em>Available buttons</em> to disable it. Use dividers to create button groups. Buttons may be moved with the mouse or keyboard arrow keys.') . '</div>';
 

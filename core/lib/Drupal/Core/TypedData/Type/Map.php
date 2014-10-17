@@ -116,7 +116,7 @@ class Map extends TypedData implements \IteratorAggregate, ComplexDataInterface 
         $value = $this->values[$property_name];
       }
       // If the property is unknown, this will throw an exception.
-      $this->properties[$property_name] = typed_data()->getPropertyInstance($this, $property_name, $value);
+      $this->properties[$property_name] = \Drupal::typedData()->getPropertyInstance($this, $property_name, $value);
     }
     return $this->properties[$property_name];
   }
@@ -229,5 +229,16 @@ class Map extends TypedData implements \IteratorAggregate, ComplexDataInterface 
     if (isset($this->parent)) {
       $this->parent->onChange($this->name);
     }
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function applyDefaultValue($notify = TRUE) {
+    // Apply the default value of all properties.
+    foreach ($this->getProperties() as $property) {
+      $property->applyDefaultValue(FALSE);
+    }
+    return $this;
   }
 }

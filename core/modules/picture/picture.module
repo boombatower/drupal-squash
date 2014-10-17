@@ -117,24 +117,6 @@ function picture_mapping_load($id) {
 }
 
 /**
- * Gets Picture uri callback.
- */
-function picture_mapping_uri(PictureMapping $picture_mapping) {
-  return array(
-    'path' => 'admin/config/media/picturemapping/' . $picture_mapping->id(),
-  );
-}
-
-/**
- * Sets Picture uri callback.
- */
-function picture_mapping_set_uri(PictureMapping $picture_mapping) {
-  return array(
-    'path' => 'admin/config/media/picturemapping/' . $picture_mapping->id(),
-  );
-}
-
-/**
  * Implements hook_theme().
  */
 function picture_theme() {
@@ -197,8 +179,8 @@ function theme_picture_formatter($variables) {
   $item['style_name'] = $variables['image_style'];
   $item['breakpoints'] = $variables['breakpoints'];
 
-  if (!isset($item['path']) && isset($variables['uri'])) {
-    $item['path'] = $variables['uri'];
+  if (!isset($item['uri']) && isset($item['entity'])) {
+    $item['uri'] = $item['entity']->getFileUri();
   }
   $output = theme('picture', $item);
 
@@ -268,7 +250,7 @@ function theme_picture($variables) {
         );
       }
       else {
-        // Mutliple images, use srcset.
+        // Multiple images, use srcset.
         $srcset = array();
         foreach ($new_sources as $new_source) {
           $srcset[] = image_style_url($new_source['style_name'], $new_source['uri']) . ' ' . $new_source['#multiplier'];

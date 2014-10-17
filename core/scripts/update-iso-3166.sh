@@ -34,8 +34,9 @@ if (!file_exists($uri)) {
 // Read in existing codes.
 // @todo Allow to remove previously existing country codes.
 // @see http://drupal.org/node/1436754
-require_once DRUPAL_ROOT . '/core/includes/standard.inc';
-$existing_countries = standard_country_list();
+require_once DRUPAL_ROOT . '/core/lib/Drupal/Core/Locale/CountryManagerInterface.php';
+require_once DRUPAL_ROOT . '/core/lib/Drupal/Core/Locale/CountryManager.php';
+$existing_countries = \Drupal\Core\Locale\CountryManager::getStandardList();
 $countries = $existing_countries;
 
 // Parse the source data into an array.
@@ -61,7 +62,7 @@ foreach ($countries as $code => $name) {
   // For .po translation file's sake, use double-quotes instead of escaped
   // single-quotes.
   $name = (strpos($name, '\'') !== FALSE ? '"' . $name . '"' : "'" . $name . "'");
-  $out .= '    ' . var_export($code, TRUE) . ' => $t(' . $name . '),' . "\n";
+  $out .= '    ' . var_export($code, TRUE) . ' => t(' . $name . '),' . "\n";
 }
 
 // Replace the actual PHP code in standard.inc.
@@ -69,13 +70,3 @@ $file = DRUPAL_ROOT . '/core/includes/standard.inc';
 $content = file_get_contents($file);
 $content = preg_replace('/(\$countries = array\(\n)(.+?)(^\s+\);)/ms', '$1' . $out . '$3', $content);
 file_put_contents($file, $content);
-
-
-/**
- * No-op script helper.
- */
-function get_t() {
-  return function ($string) {
-    return $string;
-  };
-}

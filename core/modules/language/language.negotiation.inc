@@ -7,6 +7,8 @@ use \Symfony\Component\HttpFoundation\Request;
  * Language negotiation functions.
  */
 
+use Drupal\Core\Language\Language;
+
 /**
  * The language is determined using path prefix or domain.
  */
@@ -59,7 +61,7 @@ const LANGUAGE_NEGOTIATION_URL_DOMAIN = 'domain';
  *   The current interface language code.
  */
 function language_from_interface() {
-  return language(LANGUAGE_TYPE_INTERFACE)->langcode;
+  return language(Language::TYPE_INTERFACE)->langcode;
 }
 
 /**
@@ -352,7 +354,7 @@ function language_from_url($languages, Request $request = NULL) {
  * @return
  *   A valid language code.
  */
-function language_url_fallback($language = NULL, $request = NULL, $language_type = LANGUAGE_TYPE_INTERFACE) {
+function language_url_fallback($language = NULL, $request = NULL, $language_type = Language::TYPE_INTERFACE) {
   $default = language_default();
   $prefix = (config('language.negotiation')->get('url.source') == LANGUAGE_NEGOTIATION_URL_PREFIX);
 
@@ -420,83 +422,6 @@ function language_switcher_session($type, $path) {
   }
 
   return $links;
-}
-
-/**
- * Rewrite URLs for the URL language negotiation method.
- */
-function language_url_rewrite_url(&$path, &$options) {
-  static $drupal_static_fast;
-  if (!isset($drupal_static_fast)) {
-    $drupal_static_fast['languages'] = &drupal_static(__FUNCTION__);
-  }
-  $languages = &$drupal_static_fast['languages'];
-
-  if (!isset($languages)) {
-    $languages = language_list();
-    $languages = array_flip(array_keys($languages));
-  }
-
-  // Language can be passed as an option, or we go for current URL language.
-  if (!isset($options['language'])) {
-    $language_url = language(LANGUAGE_TYPE_URL);
-    $options['language'] = $language_url;
-  }
-  // We allow only enabled languages here.
-  elseif (is_object($options['language']) && !isset($languages[$options['language']->langcode])) {
-    unset($options['language']);
-    return;
-  }
-
-  if (isset($options['language'])) {
-    switch (config('language.negotiation')->get('url.source')) {
-      case LANGUAGE_NEGOTIATION_URL_DOMAIN:
-        $domains = language_negotiation_url_domains();
-        if (is_object($options['language']) && !empty($domains[$options['language']->langcode])) {
-          // Save the original base URL. If it contains a port, we need to
-          // retain it below.
-          if (!empty($options['base_url'])) {
-            // The colon in the URL scheme messes up the port checking below.
-            $normalized_base_url = str_replace(array('https://', 'http://'), '', $options['base_url']);
-
-          }
-
-          // Ask for an absolute URL with our modified base URL.
-          $url_scheme = Drupal::request()->isSecure() ? 'https://' : 'http://';
-          $options['absolute'] = TRUE;
-          $options['base_url'] = $url_scheme . $domains[$options['language']->langcode];
-
-          // In case either the original base URL or the HTTP host contains a
-          // port, retain it.
-          $http_host = $_SERVER['HTTP_HOST'];
-          if (isset($normalized_base_url) && strpos($normalized_base_url, ':') !== FALSE) {
-            list($host, $port) = explode(':', $normalized_base_url);
-            $options['base_url'] .= ':' . $port;
-          }
-          elseif (strpos($http_host, ':') !== FALSE) {
-            list($host, $port) = explode(':', $http_host);
-            $options['base_url'] .= ':' . $port;
-          }
-
-          if (isset($options['https']) && settings()->get('mixed_mode_sessions', FALSE)) {
-            if ($options['https'] === TRUE) {
-              $options['base_url'] = str_replace('http://', 'https://', $options['base_url']);
-            }
-            elseif ($options['https'] === FALSE) {
-              $options['base_url'] = str_replace('https://', 'http://', $options['base_url']);
-            }
-          }
-        }
-        break;
-
-      case LANGUAGE_NEGOTIATION_URL_PREFIX:
-        $prefixes = language_negotiation_url_prefixes();
-        if (is_object($options['language']) &&!empty($prefixes[$options['language']->langcode])) {
-          $options['prefix'] = $prefixes[$options['language']->langcode] . '/';
-        }
-        break;
-    }
-  }
 }
 
 /**

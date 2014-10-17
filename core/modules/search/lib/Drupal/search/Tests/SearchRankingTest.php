@@ -7,6 +7,8 @@
 
 namespace Drupal\search\Tests;
 
+use Drupal\Core\Language\Language;
+
 class SearchRankingTest extends SearchTestBase {
 
   /**
@@ -70,7 +72,7 @@ class SearchRankingTest extends SearchTestBase {
     // Add a comment to one of the nodes.
     $edit = array();
     $edit['subject'] = 'my comment title';
-    $edit['comment_body[' . LANGUAGE_NOT_SPECIFIED . '][0][value]'] = 'some random comment';
+    $edit['comment_body[' . Language::LANGCODE_NOT_SPECIFIED . '][0][value]'] = 'some random comment';
     $this->drupalGet('comment/reply/' . $nodes['comments'][1]->nid);
     $this->drupalPost(NULL, $edit, t('Preview'));
     $this->drupalPost(NULL, $edit, t('Save'));
@@ -186,7 +188,7 @@ class SearchRankingTest extends SearchTestBase {
       $this->assertEqual($set[0]['node']->nid, $node->nid, 'Search tag ranking for "&lt;' . $tag . '&gt;" order.');
 
       // Delete node so it doesn't show up in subsequent search results.
-      node_delete($node->nid);
+      $node->delete();
     }
   }
 

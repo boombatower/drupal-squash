@@ -81,8 +81,8 @@ function ajax_test_order() {
   // HTML insertion command.
   $response->addCommand(new HtmlCommand('body', 'Hello, world!'));
   // Add two CSS files (order should remain the same).
-  drupal_add_css($path . '/system.admin.css');
-  drupal_add_css($path . '/system.maintenance.css');
+  drupal_add_css($path . '/css/system.admin.css');
+  drupal_add_css($path . '/css/system.maintenance.css');
   // Add two JavaScript files (first to the footer, should appear last).
   drupal_add_js($path . '/system.modules.js', array('scope' => 'footer'));
   drupal_add_js($path . '/system.js');
@@ -158,6 +158,37 @@ function ajax_test_dialog() {
         'href' => 'ajax-test/dialog-close',
         'attributes' => array(
           'class' => array('use-ajax'),
+        ),
+      ),
+      'link5' => array(
+        'title' => 'Link 5 (form)',
+        'href' => 'ajax-test/dialog-form',
+        'attributes' => array(
+          'class' => array('use-ajax'),
+          'data-accepts' => 'application/vnd.drupal-modal',
+        ),
+      ),
+      'link6' => array(
+        'title' => 'Link 6 (entity form)',
+        'href' => 'admin/structure/contact/add',
+        'attributes' => array(
+          'class' => array('use-ajax'),
+          'data-accepts' => 'application/vnd.drupal-modal',
+          'data-dialog-options' => json_encode(array(
+            'width' => 800,
+            'height' => 500,
+          ))
+        ),
+      ),
+      'link7' => array(
+        'title' => 'Link 7 (non-modal, no target)',
+        'href' => 'ajax-test/dialog-contents',
+        'attributes' => array(
+          'class' => array('use-ajax'),
+          'data-accepts' => 'application/vnd.drupal-dialog',
+          'data-dialog-options' => json_encode(array(
+            'width' => 800,
+          ))
         ),
       ),
     ),

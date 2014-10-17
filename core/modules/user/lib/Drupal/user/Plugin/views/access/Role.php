@@ -10,6 +10,8 @@ namespace Drupal\user\Plugin\views\access;
 use Drupal\Component\Annotation\Plugin;
 use Drupal\views\Plugin\views\access\AccessPluginBase;
 use Drupal\Core\Annotation\Translation;
+use Symfony\Component\Routing\Route;
+use Drupal\Core\Session\AccountInterface;
 
 /**
  * Access plugin that provides role-based access control.
@@ -29,12 +31,18 @@ class Role extends AccessPluginBase {
    */
   protected $usesOptions = TRUE;
 
-  public function access($account) {
-    return views_check_roles(array_filter($this->options['role']), $account);
+  /**
+   * {@inheritdoc}
+   */
+  public function access(AccountInterface $account) {
+    return user_access('access all views', $account) || array_intersect(array_filter($this->options['role']), $account->roles);
   }
 
-  function get_access_callback() {
-    return array('views_check_roles', array(array_filter($this->options['role'])));
+  /**
+   * {@inheritdoc}
+   */
+  public function alterRouteDefinition(Route $route) {
+    $route->setRequirement('_role_id', $this->options['role']);
   }
 
   public function summaryTitle() {

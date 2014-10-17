@@ -7,6 +7,7 @@
 
 namespace Drupal\system\Tests\TypedData;
 
+use Drupal\Component\Utility\String;
 use Drupal\simpletest\DrupalUnitTestBase;
 use Drupal\Core\Datetime\DrupalDateTime;
 use DateInterval;
@@ -42,7 +43,7 @@ class TypedDataTest extends DrupalUnitTestBase {
     parent::setup();
 
     $this->installSchema('file', array('file_managed', "file_usage"));
-    $this->typedData = typed_data();
+    $this->typedData = $this->container->get('typed_data');
   }
 
   /**
@@ -54,7 +55,7 @@ class TypedDataTest extends DrupalUnitTestBase {
     // Save the type that was passed in so we can compare with it later.
     $type = $definition['type'];
     // Construct the object.
-    $data = typed_data()->create($definition, $value, $name);
+    $data = $this->typedData->create($definition, $value, $name);
     // Assert the definition of the wrapper.
     $this->assertTrue($data instanceof \Drupal\Core\TypedData\TypedDataInterface, 'Typed data object is an instance of the typed data interface.');
     $definition = $data->getDefinition();
@@ -215,17 +216,17 @@ class TypedDataTest extends DrupalUnitTestBase {
     $this->assertEqual($typed_data->validate()->count(), 1, 'Validation detected invalid value.');
 
     // Binary type.
-    $typed_data = $this->createTypedData(array('type' => 'binary'), $files[0]->uri);
+    $typed_data = $this->createTypedData(array('type' => 'binary'), $files[0]->getFileUri());
     $this->assertTrue(is_resource($typed_data->getValue()), 'Binary value was fetched.');
     $this->assertEqual($typed_data->validate()->count(), 0);
     // Try setting by URI.
-    $typed_data->setValue($files[1]->uri);
-    $this->assertEqual(is_resource($typed_data->getValue()), fopen($files[1]->uri, 'r'), 'Binary value was changed.');
+    $typed_data->setValue($files[1]->getFileUri());
+    $this->assertEqual(is_resource($typed_data->getValue()), fopen($files[1]->getFileUri(), 'r'), 'Binary value was changed.');
     $this->assertTrue(is_string($typed_data->getString()), 'Binary value was converted to string');
     $this->assertEqual($typed_data->validate()->count(), 0);
     // Try setting by resource.
-    $typed_data->setValue(fopen($files[2]->uri, 'r'));
-    $this->assertEqual(is_resource($typed_data->getValue()), fopen($files[2]->uri, 'r'), 'Binary value was changed.');
+    $typed_data->setValue(fopen($files[2]->getFileUri(), 'r'));
+    $this->assertEqual(is_resource($typed_data->getValue()), fopen($files[2]->getFileUri(), 'r'), 'Binary value was changed.');
     $this->assertTrue(is_string($typed_data->getString()), 'Binary value was converted to string');
     $this->assertEqual($typed_data->validate()->count(), 0);
     $typed_data->setValue(NULL);
@@ -548,5 +549,19 @@ class TypedDataTest extends DrupalUnitTestBase {
     $this->assertEqual($violations->count(), 1);
     $violations = $this->typedData->create($definition, 0)->validate();
     $this->assertEqual($violations->count(), 0);
+
+    // Test validating a list of a values and make sure property paths starting
+    // with "0" are created.
+    $definition = array(
+      'type' => 'integer_field',
+      'list' => TRUE,
+    );
+    $violations = $this->typedData->create($definition, array(array('value' => 10)))->validate();
+    $this->assertEqual($violations->count(), 0);
+    $violations = $this->typedData->create($definition, array(array('value' => 'string')))->validate();
+    $this->assertEqual($violations->count(), 1);
+
+    $this->assertEqual($violations[0]->getInvalidValue(), 'string');
+    $this->assertIdentical($violations[0]->getPropertyPath(), '0.value');
   }
 }

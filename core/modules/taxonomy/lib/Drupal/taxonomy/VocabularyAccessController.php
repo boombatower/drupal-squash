@@ -9,7 +9,7 @@ namespace Drupal\taxonomy;
 
 use Drupal\Core\Entity\EntityAccessController;
 use Drupal\Core\Entity\EntityInterface;
-use Drupal\user\Plugin\Core\Entity\User;
+use Drupal\Core\Session\AccountInterface;
 
 /**
  * Defines an access controller for the vocabulary entity.
@@ -21,7 +21,7 @@ class VocabularyAccessController extends EntityAccessController {
   /**
    * {@inheritdoc}
    */
-  protected function checkAccess(EntityInterface $entity, $operation, $langcode, User $account) {
+  protected function checkAccess(EntityInterface $entity, $operation, $langcode, AccountInterface $account) {
     return user_access('administer taxonomy', $account);
   }
 

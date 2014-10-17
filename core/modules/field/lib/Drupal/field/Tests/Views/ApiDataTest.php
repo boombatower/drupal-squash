@@ -36,7 +36,7 @@ class ApiDataTest extends FieldTestBase {
       'entity_type' => 'node',
       'bundle' => 'page',
     );
-    field_create_instance($instance);
+    entity_create('field_instance', $instance)->save();
 
     // The second one will be attached to users only.
     $instance = array(
@@ -44,7 +44,7 @@ class ApiDataTest extends FieldTestBase {
       'entity_type' => 'user',
       'bundle' => 'user',
     );
-    field_create_instance($instance);
+    entity_create('field_instance', $instance)->save();
 
     // The third will be attached to both nodes and users.
     $instance = array(
@@ -52,13 +52,13 @@ class ApiDataTest extends FieldTestBase {
       'entity_type' => 'node',
       'bundle' => 'page',
     );
-    field_create_instance($instance);
+    entity_create('field_instance', $instance)->save();
     $instance = array(
       'field_name' => $field_names[2],
       'entity_type' => 'user',
       'bundle' => 'user',
     );
-    field_create_instance($instance);
+    entity_create('field_instance', $instance)->save();
 
     // Now create some example nodes/users for the view result.
     for ($i = 0; $i < 5; $i++) {
@@ -66,7 +66,7 @@ class ApiDataTest extends FieldTestBase {
         'field_name_0' => array((array('value' => $this->randomName()))),
         'field_name_2' => array((array('value' => $this->randomName()))),
       );
-      $this->nodes[] = $this->drupalCreateNode($edit);
+      $nodes[] = $this->drupalCreateNode($edit);
     }
 
     $this->container->get('views.views_data')->clear();
@@ -93,7 +93,7 @@ class ApiDataTest extends FieldTestBase {
     $this->assertTrue(isset($data[$revision_table]));
     // The node field should join against node.
     $this->assertTrue(isset($data[$current_table]['table']['join']['node']));
-    $this->assertTrue(isset($data[$revision_table]['table']['join']['node_revision']));
+    $this->assertTrue(isset($data[$revision_table]['table']['join']['node_field_revision']));
 
     $expected_join = array(
       'left_field' => 'nid',
@@ -112,7 +112,7 @@ class ApiDataTest extends FieldTestBase {
         array('field' => 'deleted', 'value' => 0, 'numeric' => TRUE),
       ),
     );
-    $this->assertEqual($expected_join, $data[$revision_table]['table']['join']['node_revision']);
+    $this->assertEqual($expected_join, $data[$revision_table]['table']['join']['node_field_revision']);
 
     // Check the table and the joins of the second field.
     // Attached to both node and user.
@@ -126,7 +126,7 @@ class ApiDataTest extends FieldTestBase {
     $this->assertTrue(isset($data[$revision_table_2]));
     // The second field should join against both node and users.
     $this->assertTrue(isset($data[$current_table_2]['table']['join']['node']));
-    $this->assertTrue(isset($data[$revision_table_2]['table']['join']['node_revision']));
+    $this->assertTrue(isset($data[$revision_table_2]['table']['join']['node_field_revision']));
     $this->assertTrue(isset($data[$current_table_2]['table']['join']['users']));
 
     $expected_join = array(
@@ -146,7 +146,7 @@ class ApiDataTest extends FieldTestBase {
         array('field' => 'deleted', 'value' => 0, 'numeric' => TRUE),
       )
     );
-    $this->assertEqual($expected_join, $data[$revision_table_2]['table']['join']['node_revision']);
+    $this->assertEqual($expected_join, $data[$revision_table_2]['table']['join']['node_field_revision']);
     $expected_join = array(
       'left_field' => 'uid',
       'field' => 'entity_id',

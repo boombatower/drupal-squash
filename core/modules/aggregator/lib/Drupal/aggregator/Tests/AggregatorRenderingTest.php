@@ -7,6 +7,8 @@
 
 namespace Drupal\aggregator\Tests;
 
+use Drupal\Component\Utility\String;
+
 /**
  * Tests rendering functionality in the Aggregator module.
  */
@@ -90,6 +92,21 @@ class AggregatorRenderingTest extends AggregatorTestBase {
     $this->createSampleNodes(30);
     $feed = $this->createFeed();
     $this->updateFeedItems($feed, 30);
+
+    // Check for presence of an aggregator pager.
+    $this->drupalGet('aggregator');
+    $elements = $this->xpath("//ul[@class=:class]", array(':class' => 'pager'));
+    $this->assertTrue(!empty($elements), 'Individual source page contains a pager.');
+
+    // Check for sources page title.
+    $this->drupalGet('aggregator/sources');
+    $titles = $this->xpath('//h1[normalize-space(text())=:title]', array(':title' => 'Sources'));
+    $this->assertTrue(!empty($titles), 'Source page contains correct title.');
+
+    // Find the expected read_more link on the sources page.
+    $href = 'aggregator/sources/' . $feed->id();
+    $links = $this->xpath('//a[@href = :href]', array(':href' => url($href)));
+    $this->assertTrue(isset($links[0]), String::format('Link to href %href found.', array('%href' => $href)));
 
     // Check for the presence of a pager.
     $this->drupalGet('aggregator/sources/' . $feed->id());

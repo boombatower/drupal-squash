@@ -8,6 +8,7 @@
 namespace Drupal\text\Tests\Formatter;
 
 use Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Language\Language;
 use Drupal\entity\Plugin\Core\Entity\EntityDisplay;
 use Drupal\simpletest\DrupalUnitTestBase;
 
@@ -25,7 +26,7 @@ class TextPlainUnitTest extends DrupalUnitTestBase {
    *
    * @var array
    */
-  public static $modules = array('system', 'entity', 'field', 'field_sql_storage', 'text', 'field_test');
+  public static $modules = array('entity', 'field', 'field_sql_storage', 'text', 'entity_test', 'system');
 
   /**
    * Contains rendered content.
@@ -47,10 +48,11 @@ class TextPlainUnitTest extends DrupalUnitTestBase {
 
     // Configure the theme system.
     $this->installConfig(array('system', 'field'));
+    $this->installSchema('entity_test', 'entity_test');
 
     // @todo Add helper methods for all of the following.
 
-    $this->entity_type = 'test_entity';
+    $this->entity_type = 'entity_test';
     if (!isset($this->bundle)) {
       $this->bundle = $this->entity_type;
     }
@@ -65,21 +67,21 @@ class TextPlainUnitTest extends DrupalUnitTestBase {
     $this->formatter_type = 'text_plain';
     $this->formatter_settings = array();
 
-    $this->field = array(
+    $this->field = entity_create('field_entity', array(
       'field_name' => $this->field_name,
       'type' => $this->field_type,
       'settings' => $this->field_settings,
-    );
-    $this->field = field_create_field($this->field);
+    ));
+    $this->field->save();
 
-    $this->instance = array(
+    $this->instance = entity_create('field_instance', array(
       'entity_type' => $this->entity_type,
       'bundle' => $this->bundle,
       'field_name' => $this->field_name,
       'label' => $this->randomName(),
       'settings' => $this->instance_settings,
-    );
-    $this->instance = field_create_instance($this->instance);
+    ));
+    $this->instance->save();
 
     $this->view_mode = 'default';
     $this->display = entity_get_display($this->entity_type, $this->bundle, $this->view_mode)
@@ -89,7 +91,7 @@ class TextPlainUnitTest extends DrupalUnitTestBase {
       ));
     $this->display->save();
 
-    $this->langcode = LANGUAGE_NOT_SPECIFIED;
+    $this->langcode = Language::LANGCODE_NOT_SPECIFIED;
   }
 
   /**
@@ -122,41 +124,6 @@ class TextPlainUnitTest extends DrupalUnitTestBase {
     $content = field_attach_view($entity, $display);
     $this->content = drupal_render($content);
     return $this->content;
-  }
-
-  /**
-   * Sets the item of a field on an entity.
-   *
-   * @param \Drupal\Core\Entity\EntityInterface $entity
-   *   The entity object.
-   * @param string $field_name
-   *   The name of the field.
-   * @param array $item
-   *   The new field item to set.
-   * @param int $delta
-   *   (optional) A specific delta to set. If omitted, all field items are
-   *   replaced and $item will be delta 0.
-   * @param string $langcode
-   *   (optional) A specific langcode for which to the set the field. If
-   *   omitted, $this->langcode is used.
-   */
-  protected function setFieldItem(EntityInterface $entity, $field_name, $item, $delta = NULL, $langcode = NULL) {
-    if (!isset($langcode)) {
-      $langcode = $this->langcode;
-    }
-    if (!isset($delta)) {
-      $entity->set($field_name, array(
-        $langcode => array(
-          0 => $item,
-        ),
-      ));
-    }
-    else {
-      $property = $entity->get($field_name);
-      $property[$langcode][$delta] = $item;
-      ksort($property[$langcode]);
-      $entity->set($field_name, $property);
-    }
   }
 
   /**
@@ -331,9 +298,7 @@ class TextPlainUnitTest extends DrupalUnitTestBase {
     $value .= "\n\n" . $this->randomString();
 
     $entity = $this->createEntity(array());
-    $this->setFieldItem($entity, $this->field_name, array(
-      'value' => $value,
-    ));
+    $entity->{$this->field_name}->value = $value;
 
     // Verify that all HTML is escaped and newlines are retained.
     $this->renderEntityFields($entity, $this->display);

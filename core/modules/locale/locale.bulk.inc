@@ -9,7 +9,8 @@ use Drupal\Component\Gettext\PoStreamWriter;
 use Drupal\locale\Gettext;
 use Drupal\locale\PoDatabaseReader;
 use Drupal\Core\Language\Language;
-
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Drupal\file\FileInterface;
 
 /**
  * Form constructor for the translation import screen.
@@ -157,7 +158,7 @@ function locale_translate_export_form($form, &$form_state) {
   if (empty($language_options)) {
     $form['langcode'] = array(
       '#type' => 'value',
-      '#value' => LANGUAGE_SYSTEM,
+      '#value' => Language::LANGCODE_SYSTEM,
     );
     $form['langcode_text'] = array(
       '#type' => 'item',
@@ -172,7 +173,7 @@ function locale_translate_export_form($form, &$form_state) {
       '#options' => $language_options,
       '#default_value' => $language_default->langcode,
       '#empty_option' => t('Source text only, no translations'),
-      '#empty_value' => LANGUAGE_SYSTEM,
+      '#empty_value' => Language::LANGCODE_SYSTEM,
     );
     $form['content_options'] = array(
       '#type' => 'details',
@@ -181,7 +182,7 @@ function locale_translate_export_form($form, &$form_state) {
       '#tree' => TRUE,
       '#states' => array(
         'invisible' => array(
-          ':input[name="langcode"]' => array('value' => LANGUAGE_SYSTEM),
+          ':input[name="langcode"]' => array('value' => Language::LANGCODE_SYSTEM),
         ),
       ),
     );
@@ -217,7 +218,7 @@ function locale_translate_export_form($form, &$form_state) {
  */
 function locale_translate_export_form_submit($form, &$form_state) {
   // If template is required, language code is not given.
-  if ($form_state['values']['langcode'] != LANGUAGE_SYSTEM) {
+  if ($form_state['values']['langcode'] != Language::LANGCODE_SYSTEM) {
     $language = language_load($form_state['values']['langcode']);
   }
   else {
@@ -254,10 +255,11 @@ function locale_translate_export_form_submit($form, &$form_state) {
     $writer->writeItems($reader);
     $writer->close();
 
-    header("Content-Disposition: attachment; filename=$filename");
-    header("Content-Type: text/plain; charset=utf-8");
-    print file_get_contents($uri);
-    drupal_exit();
+    $response = new BinaryFileResponse($uri);
+    $response->setContentDisposition('attachment', $filename);
+    // @todo remove lines below once converted to new routing system.
+    $response->prepare(Drupal::request())
+      ->send();
   }
   else {
     drupal_set_message('Nothing to export.');
@@ -390,7 +392,6 @@ function locale_translate_batch_build($files, $options) {
     'customized' => LOCALE_NOT_CUSTOMIZED,
     'finish_feedback' => TRUE,
   );
-  $t = get_t();
   if (count($files)) {
     $operations = array();
     foreach ($files as $file) {
@@ -405,9 +406,9 @@ function locale_translate_batch_build($files, $options) {
 
     $batch = array(
       'operations'    => $operations,
-      'title'         => $t('Importing interface translations'),
+      'title'         => t('Importing interface translations'),
       'progress_message' => '',
-      'error_message' => $t('Error importing interface translations'),
+      'error_message' => t('Error importing interface translations'),
       'file'          => drupal_get_path('module', 'locale') . '/locale.bulk.inc',
     );
     if ($options['finish_feedback']) {
@@ -423,7 +424,7 @@ function locale_translate_batch_build($files, $options) {
  *
  * @param object $file
  *   A file object of the gettext file to be imported. The file object must
- *   contain a language parameter (other than LANGUAGE_NOT_SPECIFIED). This
+ *   contain a language parameter (other than Language::LANGCODE_NOT_SPECIFIED). This
  *   is used as the language of the import.
  *
  * @param array $options
@@ -448,7 +449,7 @@ function locale_translate_batch_import($file, $options, &$context) {
     'customized' => LOCALE_NOT_CUSTOMIZED,
   );
 
-  if (isset($file->langcode) && $file->langcode != LANGUAGE_NOT_SPECIFIED) {
+  if (isset($file->langcode) && $file->langcode != Language::LANGCODE_NOT_SPECIFIED) {
 
     try {
       if (empty($context['sandbox'])) {
@@ -632,7 +633,7 @@ function locale_translate_batch_finished($success, $results) {
       watchdog('locale', 'Translations imported: %number added, %update updated, %delete removed.', array('%number' => $additions, '%update' => $updates, '%delete' => $deletes));
 
       if ($skips) {
-        if (module_exists('dblog')) {
+        if (Drupal::moduleHandler()->moduleExists('dblog')) {
           $message = format_plural($skips, 'One translation string was skipped because of disallowed or malformed HTML. <a href="@url">See the log</a> for details.', '@count translation strings were skipped because of disallowed or malformed HTML. <a href="@url">See the log</a> for details.', array('@url' => url('admin/reports/dblog')));
         }
         else {
@@ -684,6 +685,14 @@ function locale_translate_file_create($filepath) {
  *   Modified file object.
  */
 function locale_translate_file_attach_properties($file, $options = array()) {
+  // If $file is a file entity, convert it to a stdClass.
+  if ($file instanceof FileInterface) {
+    $file = (object) array(
+      'filename' => $file->getFilename(),
+      'uri' => $file->getFileUri(),
+    );
+  }
+
   // Extract project, verion and language code from the file name. Supported:
   // {project}-{version}.{langcode}.po, {prefix}.{langcode}.po or {langcode}.po
   preg_match('!
@@ -707,7 +716,7 @@ function locale_translate_file_attach_properties($file, $options = array()) {
     $file->langcode = isset($options['langcode']) ? $options['langcode'] : $matches[5];
   }
   else {
-    $file->langcode = LANGUAGE_NOT_SPECIFIED;
+    $file->langcode = Language::LANGCODE_NOT_SPECIFIED;
   }
   return $file;
 }
@@ -784,15 +793,14 @@ function locale_config_batch_update_components(array $options, $langcodes = arra
  */
 function locale_config_batch_build(array $names, array $langcodes, $options = array()) {
   $options += array('finish_feedback' => TRUE);
-  $t = get_t();
   foreach ($names as $name) {
     $operations[] = array('locale_config_batch_refresh_name', array($name, $langcodes));
   }
   $batch = array(
     'operations'    => $operations,
-    'title'         => $t('Updating configuration translations'),
-    'init_message'  => $t('Starting configuration update'),
-    'error_message' => $t('Error updating configuration translations'),
+    'title'         => t('Updating configuration translations'),
+    'init_message'  => t('Starting configuration update'),
+    'error_message' => t('Error updating configuration translations'),
     'file'          => drupal_get_path('module', 'locale') . '/locale.bulk.inc',
   );
   if (!empty($options['finish_feedback'])) {

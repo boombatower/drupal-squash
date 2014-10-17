@@ -7,6 +7,8 @@
 
 namespace Drupal\node\Tests;
 
+use Drupal\Core\Language\Language;
+
 /**
  * Tests the node edit functionality.
  */
@@ -35,7 +37,7 @@ class PageEditTest extends NodeTestBase {
   function testPageEdit() {
     $this->drupalLogin($this->web_user);
 
-    $langcode = LANGUAGE_NOT_SPECIFIED;
+    $langcode = Language::LANGCODE_NOT_SPECIFIED;
     $title_key = "title";
     $body_key = "body[$langcode][0][value]";
     // Create node to edit.
@@ -55,7 +57,7 @@ class PageEditTest extends NodeTestBase {
     $this->assertEqual($edit_url, $actual_url, 'On edit page.');
 
     // Check that the title and body fields are displayed with the correct values.
-    $active = '<span class="element-invisible">' . t('(active tab)') . '</span>';
+    $active = '<span class="visually-hidden">' . t('(active tab)') . '</span>';
     $link_text = t('!local-task-title!active', array('!local-task-title' => t('Edit'), '!active' => $active));
     $this->assertText(strip_tags($link_text), 0, 'Edit tab found and marked active.');
     $this->assertFieldByName($title_key, $edit[$title_key], 'Title field displayed.');
@@ -103,7 +105,7 @@ class PageEditTest extends NodeTestBase {
     $this->drupalLogin($this->admin_user);
 
     // Create node to edit.
-    $langcode = LANGUAGE_NOT_SPECIFIED;
+    $langcode = Language::LANGCODE_NOT_SPECIFIED;
     $body_key = "body[$langcode][0][value]";
     $edit = array();
     $edit['title'] = $this->randomName(8);

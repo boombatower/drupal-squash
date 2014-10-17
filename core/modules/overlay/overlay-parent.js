@@ -342,7 +342,7 @@ Drupal.overlay.loadChild = function (event) {
 Drupal.overlay.setFocusBefore = function ($element, document) {
   // Create an anchor inside the placeholder document.
   var placeholder = document.createElement('a');
-  var $placeholder = $(placeholder).addClass('element-invisible').attr('href', '#');
+  var $placeholder = $(placeholder).addClass('visually-hidden').attr('href', '#');
   // Put the placeholder where it belongs, and set the document focus to it.
   $placeholder.insertBefore($element);
   $placeholder.attr('autofocus', true);
@@ -470,7 +470,6 @@ Drupal.overlay.eventhandlerAlterDisplacedElements = function (event) {
   });
   // Trigger a repaint.
   iframeBody.style.display = 'none';
-  var _tmp = iframeBody.offsetHeight;
   iframeBody.style.display = 'block';
 
   // Constrain the width of offsetting top and bottom elements, such as the
@@ -767,7 +766,7 @@ function refreshRegion(regionName, regionSelector) {
  *   corresponding to this region.
  */
 Drupal.overlay.refreshRegions = function (data) {
-  var region, region_info, regionClass, regionName, regionSelector;
+  var region, region_info, regionClass;
   for (region in data) {
     if (data.hasOwnProperty(region)) {
       region_info = data[region];

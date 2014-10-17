@@ -106,7 +106,7 @@ function field_test_field_test_op_multiple($entity_type, $entities, $field, $ins
  * Implements hook_field_available_languages_alter().
  */
 function field_test_field_available_languages_alter(&$langcodes, $context) {
-  if (state()->get('field_test.field_available_languages_alter')) {
+  if (Drupal::state()->get('field_test.field_available_languages_alter')) {
     // Add an unavailable language code.
     $langcodes[] = 'xx';
     // Remove an available language code.
@@ -119,7 +119,7 @@ function field_test_field_available_languages_alter(&$langcodes, $context) {
  * Implements hook_field_language_alter().
  */
 function field_test_field_language_alter(&$display_langcode, $context) {
-  if (state()->get('field_test.language_fallback') ?: TRUE) {
+  if (Drupal::state()->get('field_test.language_fallback') ?: TRUE) {
     field_language_fallback($display_langcode, $context['entity'], $context['langcode']);
   }
 }
@@ -147,7 +147,7 @@ function field_test_field_language_alter(&$display_langcode, $context) {
  *   field_test_memorize();
  *
  *   // call some Field API functions that invoke field_test hooks
- *   $field = field_create_field(...);
+ *   entity_create('field_entity', $field_definition)->save();
  *
  *   // retrieve and reset the memorized hook call data
  *   $mem = field_test_memorize();
@@ -203,15 +203,13 @@ function field_test_field_attach_view_alter(&$output, $context) {
  * Implements hook_field_widget_form_alter().
  */
 function field_test_field_widget_form_alter(&$element, &$form_state, $context) {
-  $instance = $context['instance'];
-  $entity_form_display = entity_get_form_display($instance['entity_type'], $instance['bundle'], 'default');
-  switch ($context['field']['field_name']) {
+  switch ($context['field_definition']->getFieldName()) {
     case 'alter_test_text':
-      drupal_set_message('Field size: ' . $entity_form_display->getWidget($context['field']['field_name'])->getSetting('size'));
+      drupal_set_message('Field size: ' . $context['widget']->getSetting('size'));
       break;
 
     case 'alter_test_options':
-      drupal_set_message('Widget type: ' . $entity_form_display->getWidget($context['field']['field_name'])->getPluginId());
+      drupal_set_message('Widget type: ' . $context['widget']->getPluginId());
       break;
   }
   // Set a message if this is for the form displayed to set default value for
@@ -268,21 +266,4 @@ function field_test_field_formatter_settings_summary_alter(&$summary, $context) 
 function field_test_field_extra_fields_alter(&$info) {
   // Remove all extra fields from the 'no_fields' content type;
   unset($info['node']['no_fields']);
-}
-
-/**
- * Implements hook_module_implements_alter().
- *
- * field_test_entity_info_alter() adds the bundles for its entities, and thus
- * needs to run before rdf_entity_info_alter().
- * @todo Remove when http://drupal.org/node/1822458 is fixed.
- */
-function field_test_module_implements_alter(&$implementations, $hook) {
-  if ($hook == 'entity_bundle_info_alter' && isset($implementations['field_test']) && isset($implementations['rdf'])) {
-    foreach (array('field_test', 'rdf') as $module) {
-      $group = $implementations[$module];
-      unset($implementations[$module]);
-      $implementations[$module] = $group;
-    }
-  }
 }

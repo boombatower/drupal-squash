@@ -7,6 +7,8 @@
 
 namespace Drupal\taxonomy\Tests;
 
+use Drupal\Core\Language\Language;
+
 /**
  * Tests the hook implementations that maintain the taxonomy index.
  */
@@ -31,7 +33,7 @@ class TermIndexTest extends TaxonomyTestBase {
     $this->vocabulary = $this->createVocabulary();
 
     $this->field_name_1 = drupal_strtolower($this->randomName());
-    $this->field_1 = array(
+    entity_create('field_entity', array(
       'field_name' => $this->field_name_1,
       'type' => 'taxonomy_term_reference',
       'cardinality' => FIELD_CARDINALITY_UNLIMITED,
@@ -43,14 +45,12 @@ class TermIndexTest extends TaxonomyTestBase {
           ),
         ),
       ),
-    );
-    field_create_field($this->field_1);
-    $this->instance_1 = array(
+    ))->save();
+    entity_create('field_instance', array(
       'field_name' => $this->field_name_1,
       'bundle' => 'article',
       'entity_type' => 'node',
-    );
-    field_create_instance($this->instance_1);
+    ))->save();
     entity_get_form_display('node', 'article', 'default')
       ->setComponent($this->field_name_1, array(
         'type' => 'options_select',
@@ -63,7 +63,7 @@ class TermIndexTest extends TaxonomyTestBase {
       ->save();
 
     $this->field_name_2 = drupal_strtolower($this->randomName());
-    $this->field_2 = array(
+    entity_create('field_entity', array(
       'field_name' => $this->field_name_2,
       'type' => 'taxonomy_term_reference',
       'cardinality' => FIELD_CARDINALITY_UNLIMITED,
@@ -75,14 +75,12 @@ class TermIndexTest extends TaxonomyTestBase {
           ),
         ),
       ),
-    );
-    field_create_field($this->field_2);
-    $this->instance_2 = array(
+    ))->save();
+    entity_create('field_instance', array(
       'field_name' => $this->field_name_2,
       'bundle' => 'article',
       'entity_type' => 'node',
-    );
-    field_create_instance($this->instance_2);
+    ))->save();
     entity_get_form_display('node', 'article', 'default')
       ->setComponent($this->field_name_2, array(
         'type' => 'options_select',
@@ -105,7 +103,7 @@ class TermIndexTest extends TaxonomyTestBase {
 
     // Post an article.
     $edit = array();
-    $langcode = LANGUAGE_NOT_SPECIFIED;
+    $langcode = Language::LANGCODE_NOT_SPECIFIED;
     $edit["title"] = $this->randomName();
     $edit["body[$langcode][0][value]"] = $this->randomName();
     $edit["{$this->field_name_1}[$langcode][]"] = $term_1->id();
@@ -173,7 +171,7 @@ class TermIndexTest extends TaxonomyTestBase {
     $this->assertEqual(1, $index_count, 'Term 2 is indexed once.');
 
     // Update the article to change one term.
-    $node->{$this->field_name_1}[$langcode] = array(array('tid' => $term_1->id()));
+    $node->{$this->field_name_1}[$langcode] = array(array('target_id' => $term_1->id()));
     $node->save();
 
     // Check that both terms are indexed.
@@ -189,7 +187,7 @@ class TermIndexTest extends TaxonomyTestBase {
     $this->assertEqual(1, $index_count, 'Term 2 is indexed.');
 
     // Update the article to change another term.
-    $node->{$this->field_name_2}[$langcode] = array(array('tid' => $term_1->id()));
+    $node->{$this->field_name_2}[$langcode] = array(array('target_id' => $term_1->id()));
     $node->save();
 
     // Check that only one term is indexed.

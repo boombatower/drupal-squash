@@ -48,19 +48,19 @@ class Link extends FieldPluginBase {
 
   // An example of field level access control.
   public function access() {
-    return user_access('access user profiles');
+    return user_access('administer users') || user_access('access user profiles');
   }
 
   public function query() {
     $this->ensureMyTable();
-    $this->add_additional_fields();
+    $this->addAdditionalFields();
   }
 
   /**
    * Overrides \Drupal\views\Plugin\views\field\FieldPluginBase::render().
    */
   function render($values) {
-    return $this->render_link($this->get_entity($values), $values);
+    return $this->render_link($this->getEntity($values), $values);
   }
 
   /**

@@ -31,7 +31,7 @@ abstract class FieldItemBase extends Map implements FieldItemInterface {
     // with the whole item.
     foreach ($this->getPropertyDefinitions() as $name => $definition) {
       if (!empty($definition['computed'])) {
-        $this->properties[$name] = typed_data()->getPropertyInstance($this, $name);
+        $this->properties[$name] = \Drupal::typedData()->getPropertyInstance($this, $name);
       }
     }
   }
@@ -91,6 +91,7 @@ abstract class FieldItemBase extends Map implements FieldItemInterface {
     // value that needs to be updated.
     if (isset($this->properties[$property_name])) {
       $this->properties[$property_name]->setValue($value, FALSE);
+      unset($this->values[$property_name]);
     }
     // Allow setting plain values for not-defined properties also.
     else {
@@ -136,4 +137,19 @@ abstract class FieldItemBase extends Map implements FieldItemInterface {
     // updated property object.
     unset($this->values[$property_name]);
   }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getConstraints() {
+    $constraints = parent::getConstraints();
+    // If property constraints are present add in a ComplexData constraint for
+    // applying them.
+    if (!empty($this->definition['property_constraints'])) {
+      $constraints[] = \Drupal::typedData()->getValidationConstraintManager()
+        ->create('ComplexData', $this->definition['property_constraints']);
+    }
+    return $constraints;
+  }
+
 }

@@ -59,9 +59,9 @@ class BookNavigationBlock extends BlockBase {
   }
 
   /**
-   * Implements \Drupal\block\BlockBase::blockBuild().
+   * {@inheritdoc}
    */
-  protected function blockBuild() {
+  public function build() {
     $current_bid = 0;
     if ($node = menu_get_object()) {
       $current_bid = empty($node->book['bid']) ? 0 : $node->book['bid'];
@@ -96,19 +96,20 @@ class BookNavigationBlock extends BlockBase {
     elseif ($current_bid) {
       // Only display this block when the user is browsing a book.
       $select = db_select('node', 'n')
-        ->fields('n', array('title'))
+        ->fields('n', array('nid'))
         ->condition('n.nid', $node->book['bid'])
         ->addTag('node_access');
-      $title = $select->execute()->fetchField();
+      $nid = $select->execute()->fetchField();
       // Only show the block if the user has view access for the top-level node.
-      if ($title) {
+      if ($nid) {
         $tree = menu_tree_all_data($node->book['menu_name'], $node->book);
         // There should only be one element at the top level.
         $data = array_shift($tree);
         $below = menu_tree_output($data['below']);
         if (!empty($below)) {
+          $book_title_link = array('#theme' => 'book_title_link', '#link' => $data['link']);
           return array(
-            '#title' => theme('book_title_link', array('link' => $data['link'])),
+            '#title' => drupal_render($book_title_link),
             $below,
           );
         }

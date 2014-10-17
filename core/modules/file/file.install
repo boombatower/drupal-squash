@@ -112,7 +112,7 @@ function file_schema() {
       'module' => array(
         'description' => 'The name of the module that is using the file.',
         'type' => 'varchar',
-        'length' => 255,
+        'length' => DRUPAL_EXTENSION_NAME_MAX_LENGTH,
         'not null' => TRUE,
         'default' => '',
       ),
@@ -197,8 +197,9 @@ function file_requirements($phase) {
   // Check the server's ability to indicate upload progress.
   if ($phase == 'runtime') {
     $implementation = file_progress_implementation();
-    $apache = strpos($_SERVER['SERVER_SOFTWARE'], 'Apache') !== FALSE;
-    $fastcgi = strpos($_SERVER['SERVER_SOFTWARE'], 'mod_fastcgi') !== FALSE || strpos($_SERVER["SERVER_SOFTWARE"], 'mod_fcgi') !== FALSE;
+    $server_software = Drupal::request()->server->get('SERVER_SOFTWARE');
+    $apache = strpos($server_software, 'Apache') !== FALSE;
+    $fastcgi = strpos($server_software, 'mod_fastcgi') !== FALSE || strpos($server_software, 'mod_fcgi') !== FALSE;
     $description = NULL;
     if (!$apache) {
       $value = t('Not enabled');
@@ -234,6 +235,18 @@ function file_requirements($phase) {
 }
 
 /**
+ * Implements hook_update_dependencies().
+ */
+function file_update_dependencies() {
+  // Convert fields and instances to ConfigEntities after the {file_usage}.id
+  // column has moved to varchar.
+  $dependencies['field'][8003] = array(
+    'file' => 8001,
+  );
+  return $dependencies;
+}
+
+/**
 * Converts default_file_main variable to config.
 *
 * @ingroup config_upgrade
@@ -261,30 +274,17 @@ function file_update_8001() {
 }
 
 /**
-* Convert image field's default image configuration to the new format.
-*/
+ * Convert the 'module' column in {file_usage} to the maximum shortname length.
+ */
 function file_update_8002() {
-  if (module_exists('field_sql_storage')) {
-    $fields = field_read_fields(array('type' => 'image'), array('include_deleted' => TRUE, 'include_inactive' => TRUE));
-    foreach ($fields as $field) {
-      if (!empty($field['settings']['default_image'])) {
-        $field['settings']['default_image'] = array($field['settings']['default_image']);
-      }
-      else {
-        $field['settings']['default_image'] = array();
-      }
-      field_update_field($field);
-
-      $instances = field_read_instances(array('field_name' => $field['field_name']));
-      foreach ($instances as $instance) {
-        if (!empty($instance['settings']['default_image'])) {
-          $instance['settings']['default_image'] = array($instance['settings']['default_image']);
-        }
-        else {
-          $instance['settings']['default_image'] = array();
-        }
-        field_update_instance($instance);
-      }
-    }
+  if (db_field_exists('file_usage', 'module')) {
+    $spec = array(
+      'description' => 'The name of the module that is using the file.',
+      'type' => 'varchar',
+      'length' => 50,
+      'not null' => TRUE,
+      'default' => '',
+    );
+    db_change_field('file_usage', 'module', 'module', $spec);
   }
 }

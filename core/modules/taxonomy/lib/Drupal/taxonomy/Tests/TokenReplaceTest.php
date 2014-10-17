@@ -7,6 +7,8 @@
 
 namespace Drupal\taxonomy\Tests;
 
+use Drupal\Core\Language\Language;
+
 /**
  * Test taxonomy token replacement in strings.
  */
@@ -25,10 +27,10 @@ class TokenReplaceTest extends TaxonomyTestBase {
     $this->admin_user = $this->drupalCreateUser(array('administer taxonomy', 'bypass node access'));
     $this->drupalLogin($this->admin_user);
     $this->vocabulary = $this->createVocabulary();
-    $this->langcode = LANGUAGE_NOT_SPECIFIED;
-
-    $field = array(
-      'field_name' => 'taxonomy_' . $this->vocabulary->id(),
+    $this->langcode = Language::LANGCODE_NOT_SPECIFIED;
+    $this->field_name = 'taxonomy_' . $this->vocabulary->id();
+    entity_create('field_entity', array(
+      'field_name' => $this->field_name,
       'type' => 'taxonomy_term_reference',
       'cardinality' => FIELD_CARDINALITY_UNLIMITED,
       'settings' => array(
@@ -39,22 +41,20 @@ class TokenReplaceTest extends TaxonomyTestBase {
           ),
         ),
       ),
-    );
-    field_create_field($field);
+    ))->save();
 
-    $this->instance = array(
-      'field_name' => 'taxonomy_' . $this->vocabulary->id(),
+    entity_create('field_instance', array(
+      'field_name' => $this->field_name,
       'bundle' => 'article',
       'entity_type' => 'node',
-    );
-    field_create_instance($this->instance);
+    ))->save();
     entity_get_form_display('node', 'article', 'default')
-      ->setComponent('taxonomy_' . $this->vocabulary->id(), array(
+      ->setComponent($this->field_name, array(
         'type' => 'options_select',
       ))
       ->save();
     entity_get_display('node', 'article', 'default')
-      ->setComponent('taxonomy_' . $this->vocabulary->id(), array(
+      ->setComponent($this->field_name, array(
         'type' => 'taxonomy_term_reference_link',
       ))
       ->save();
@@ -65,7 +65,7 @@ class TokenReplaceTest extends TaxonomyTestBase {
    */
   function testTaxonomyTokenReplacement() {
     $token_service = \Drupal::token();
-    $language_interface = language(LANGUAGE_TYPE_INTERFACE);
+    $language_interface = language(Language::TYPE_INTERFACE);
 
     // Create two taxonomy terms.
     $term1 = $this->createTerm($this->vocabulary);
@@ -80,7 +80,7 @@ class TokenReplaceTest extends TaxonomyTestBase {
     // Create node with term2.
     $edit = array();
     $node = $this->drupalCreateNode(array('type' => 'article'));
-    $edit[$this->instance['field_name'] . '[' . $this->langcode . '][]'] = $term2->id();
+    $edit[$this->field_name . '[' . $this->langcode . '][]'] = $term2->id();
     $this->drupalPost('node/' . $node->nid . '/edit', $edit, t('Save'));
 
     // Generate and test sanitized tokens for term1.

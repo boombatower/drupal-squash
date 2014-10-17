@@ -47,7 +47,7 @@ display:
       fields:
         title:
           id: title
-          table: node
+          table: node_field_data
           field: title
           relationship: none
           group_type: group
@@ -171,7 +171,7 @@ display:
             fail: 'not found'
           validate_options: {  }
           plugin_id: tracker_user_uid
-human_name: 'tracker test'
+label: 'tracker test'
 module: views
 id: test_tracker_user_uid
 tag: ''

@@ -24,7 +24,7 @@ class Equality extends FilterPluginBase {
   /**
    * Provide simple equality operator
    */
-  function operator_options() {
+  public function operatorOptions() {
     return array(
       '=' => t('Is equal to'),
       '!=' => t('Is not equal to'),
@@ -34,7 +34,7 @@ class Equality extends FilterPluginBase {
   /**
    * Provide a simple textfield for equality
    */
-  function value_form(&$form, &$form_state) {
+  protected function valueForm(&$form, &$form_state) {
     $form['value'] = array(
       '#type' => 'textfield',
       '#title' => t('Value'),

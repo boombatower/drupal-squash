@@ -52,7 +52,7 @@ class User extends FieldPluginBase {
   }
 
   function render_link($data, $values) {
-    if (!empty($this->options['link_to_user']) && user_access('access user profiles') && ($entity = $this->get_entity($values)) && $data !== NULL && $data !== '') {
+    if (!empty($this->options['link_to_user']) && user_access('access user profiles') && ($entity = $this->getEntity($values)) && $data !== NULL && $data !== '') {
       $this->options['alter']['make_link'] = TRUE;
       $uri = $entity->uri();
       $this->options['alter']['path'] = $uri['path'];
@@ -61,7 +61,7 @@ class User extends FieldPluginBase {
   }
 
   function render($values) {
-    $value = $this->get_value($values);
+    $value = $this->getValue($values);
     return $this->render_link($this->sanitizeValue($value), $values);
   }
 

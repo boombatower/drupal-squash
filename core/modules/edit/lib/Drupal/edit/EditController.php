@@ -30,12 +30,10 @@ class EditController extends ContainerAware {
    * entity and field level to determine whether the current user may edit them.
    * Also retrieves other metadata.
    *
-   * @return \Drupal\Core\Ajax\AjaxResponse
-   *   The Ajax response.
+   * @return \Symfony\Component\HttpFoundation\JsonResponse
+   *   The JSON response.
    */
   public function metadata(Request $request) {
-    $response = new AjaxResponse();
-
     $fields = $request->request->get('fields');
     if (!isset($fields)) {
       throw new NotFoundHttpException();
@@ -66,15 +64,25 @@ class EditController extends ContainerAware {
       $metadata[$field] = $metadataGenerator->generate($entity, $instance, $langcode, $view_mode);
     }
 
-    $response->addCommand(new MetaDataCommand($metadata));
+    return new JsonResponse($metadata);
+  }
 
-    // Determine in-place editors and ensure their attachments are loaded.
-    $editors = array();
-    foreach ($metadata as $edit_id => $field_metadata) {
-      if (isset($field_metadata['editor'])) {
-        $editors[] = $field_metadata['editor'];
-      }
+  /**
+   * Returns AJAX commands to load in-place editors' attachments.
+   *
+   * Given a list of in-place editor IDs as POST parameters, render AJAX
+   * commands to load those in-place editors.
+   *
+   * @return \Drupal\Core\Ajax\AjaxResponse
+   *   The Ajax response.
+   */
+  public function attachments(Request $request) {
+    $response = new AjaxResponse();
+    $editors = $request->request->get('editors');
+    if (!isset($editors)) {
+      throw new NotFoundHttpException();
     }
+
     $editorSelector = $this->container->get('edit.editor.selector');
     $elements['#attached'] = $editorSelector->getEditorAttachments($editors);
     drupal_process_attached($elements);
@@ -93,10 +101,13 @@ class EditController extends ContainerAware {
    *   The name of the language for which the field is being edited.
    * @param string $view_mode_id
    *   The view mode the field should be rerendered in.
+   * @param \Symfony\Component\HttpFoundation\Request $request
+   *   The current request object containing the search string.
+   *
    * @return \Drupal\Core\Ajax\AjaxResponse
    *   The Ajax response.
    */
-  public function fieldForm(EntityInterface $entity, $field_name, $langcode, $view_mode_id) {
+  public function fieldForm(EntityInterface $entity, $field_name, $langcode, $view_mode_id, Request $request) {
     $response = new AjaxResponse();
 
     $form_state = array(
@@ -121,12 +132,15 @@ class EditController extends ContainerAware {
 
       $errors = form_get_errors();
       if (count($errors)) {
-        $response->addCommand(new FieldFormValidationErrorsCommand(theme('status_messages')));
+        $status_messages = array(
+          '#theme' => 'status_messages'
+        );
+        $response->addCommand(new FieldFormValidationErrorsCommand(drupal_render($status_messages)));
       }
     }
 
     // When working with a hidden form, we don't want any CSS or JS to be loaded.
-    if (isset($_POST['nocssjs']) && $_POST['nocssjs'] === 'true') {
+    if ($request->request->get('nocssjs') === 'true') {
       drupal_static_reset('drupal_add_css');
       drupal_static_reset('drupal_add_js');
     }

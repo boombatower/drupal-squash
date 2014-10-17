@@ -28,7 +28,7 @@ function update_manual_status() {
     'file' => drupal_get_path('module', 'update') . '/update.fetch.inc',
   );
   batch_set($batch);
-  batch_process('admin/reports/updates');
+  return batch_process('admin/reports/updates');
 }
 
 /**
@@ -189,11 +189,11 @@ function _update_process_fetch_task($project) {
   Drupal::keyValueExpirable('update')->setWithExpire('fetch_failures', $fail, $request_time_difference + (60 * 5));
 
   // Whether this worked or not, we did just (try to) check for updates.
-  state()->set('update.last_check', REQUEST_TIME + $request_time_difference);
+  Drupal::state()->set('update.last_check', REQUEST_TIME + $request_time_difference);
 
   // Now that we processed the fetch task for this project, clear out the
   // record for this task so we're willing to fetch again.
-  drupal_container()->get('keyvalue')->get('update_fetch_task')->delete($project_name);
+  Drupal::keyValue('update_fetch_task')->delete($project_name);
 
   return $success;
 }
@@ -245,12 +245,12 @@ function _update_refresh() {
 function _update_create_fetch_task($project) {
   $fetch_tasks = &drupal_static(__FUNCTION__, array());
   if (empty($fetch_tasks)) {
-    $fetch_tasks = drupal_container()->get('keyvalue')->get('update_fetch_task')->getAll();
+    $fetch_tasks = Drupal::keyValue('update_fetch_task')->getAll();
   }
   if (empty($fetch_tasks[$project['name']])) {
     $queue = Drupal::queue('update_fetch_tasks');
     $queue->createItem($project);
-    drupal_container()->get('keyvalue')->get('update_fetch_task')->set($project['name'], $project);
+    Drupal::keyValue('update_fetch_task')->set($project['name'], $project);
     $fetch_tasks[$project['name']] = REQUEST_TIME;
   }
 }
@@ -364,7 +364,7 @@ function _update_cron_notify() {
         // Track when the last mail was successfully sent to avoid sending
         // too many e-mails.
         if ($message['result']) {
-          state()->set('update.last_email_notification', REQUEST_TIME);
+          Drupal::state()->set('update.last_email_notification', REQUEST_TIME);
         }
       }
     }

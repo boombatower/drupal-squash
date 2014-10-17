@@ -7,6 +7,8 @@
 
 namespace Drupal\taxonomy\Tests;
 
+use Drupal\Core\Language\Language;
+
 /**
  * Tests the rendering of term reference fields in RSS feeds.
  */
@@ -33,9 +35,10 @@ class RssTest extends TaxonomyTestBase {
     $this->admin_user = $this->drupalCreateUser(array('administer taxonomy', 'bypass node access', 'administer content types', 'administer node display'));
     $this->drupalLogin($this->admin_user);
     $this->vocabulary = $this->createVocabulary();
+    $this->field_name = 'taxonomy_' . $this->vocabulary->id();
 
-    $field = array(
-      'field_name' => 'taxonomy_' . $this->vocabulary->id(),
+    $this->field = entity_create('field_entity', array(
+      'field_name' => $this->field_name,
       'type' => 'taxonomy_term_reference',
       'cardinality' => FIELD_CARDINALITY_UNLIMITED,
       'settings' => array(
@@ -46,22 +49,20 @@ class RssTest extends TaxonomyTestBase {
           ),
         ),
       ),
-    );
-    field_create_field($field);
-
-    $this->instance = array(
-      'field_name' => 'taxonomy_' . $this->vocabulary->id(),
+    ));
+    $this->field->save();
+    entity_create('field_instance', array(
+      'field_name' => $this->field_name,
       'bundle' => 'article',
       'entity_type' => 'node',
-    );
-    field_create_instance($this->instance);
+    ))->save();
     entity_get_form_display('node', 'article', 'default')
-      ->setComponent($field['field_name'], array(
+      ->setComponent($this->field_name, array(
         'type' => 'options_select',
       ))
       ->save();
     entity_get_display('node', 'article', 'default')
-      ->setComponent('taxonomy_' . $this->vocabulary->id(), array(
+      ->setComponent($this->field_name, array(
         'type' => 'taxonomy_term_reference_link',
       ))
       ->save();
@@ -92,9 +93,9 @@ class RssTest extends TaxonomyTestBase {
 
     // Post an article.
     $edit = array();
-    $langcode = LANGUAGE_NOT_SPECIFIED;
+    $langcode = Language::LANGCODE_NOT_SPECIFIED;
     $edit["title"] = $this->randomName();
-    $edit[$this->instance['field_name'] . '[' . $langcode . '][]'] = $term1->id();
+    $edit[$this->field_name . '[' . $langcode . '][]'] = $term1->id();
     $this->drupalPost('node/add/article', $edit, t('Save'));
 
     // Check that the term is displayed when the RSS feed is viewed.

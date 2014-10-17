@@ -17,7 +17,7 @@
 function theme_update_report($variables) {
   $data = $variables['data'];
 
-  $last = state()->get('update.last_check') ?: 0;
+  $last = Drupal::state()->get('update.last_check') ?: 0;
   $output = theme('update_last_check', array('last' => $last));
 
   if (!is_array($data)) {
@@ -231,7 +231,7 @@ function theme_update_report($variables) {
       $output .= theme('table', array('header' => $header, 'rows' => $rows[$type_name], 'attributes' => array('class' => array('update'))));
     }
   }
-  drupal_add_css(drupal_get_path('module', 'update') . '/update.css');
+  drupal_add_css(drupal_get_path('module', 'update') . '/css/update.admin.css');
   return $output;
 }
 

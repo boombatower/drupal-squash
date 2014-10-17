@@ -7,6 +7,7 @@
 
 namespace Drupal\node\Tests;
 
+use Drupal\Core\Language\Language;
 use Drupal\simpletest\WebTestBase;
 
 /**
@@ -15,10 +16,11 @@ use Drupal\simpletest\WebTestBase;
 class MultiStepNodeFormBasicOptionsTest extends NodeTestBase {
 
   /**
-   * Modules to enable.
+   * The field name to create.
    *
-   * @var array
+   * @var string
    */
+  protected $field_name;
 
   public static function getInfo() {
     return array(
@@ -38,15 +40,14 @@ class MultiStepNodeFormBasicOptionsTest extends NodeTestBase {
 
     // Create an unlimited cardinality field.
     $this->field_name = drupal_strtolower($this->randomName());
-    $this->field = array(
-      'field_name' => drupal_strtolower($this->field_name),
+    entity_create('field_entity', array(
+      'field_name' => $this->field_name,
       'type' => 'text',
       'cardinality' => -1,
-    );
-    field_create_field($this->field);
+    ))->save();
 
     // Attach an instance of the field to the page content type.
-    $this->instance = array(
+    entity_create('field_instance', array(
       'field_name' => $this->field_name,
       'entity_type' => 'node',
       'bundle' => 'page',
@@ -54,24 +55,24 @@ class MultiStepNodeFormBasicOptionsTest extends NodeTestBase {
       'settings' => array(
         'text_processing' => TRUE,
       ),
-    );
-    field_create_instance($this->instance);
+    ))->save();
     entity_get_form_display('node', 'page', 'default')
       ->setComponent($this->field_name, array(
         'type' => 'text_textfield',
       ))
       ->save();
 
-    $langcode = LANGUAGE_NOT_SPECIFIED;
+    $langcode = Language::LANGCODE_NOT_SPECIFIED;
 
     $edit = array(
       'title' => 'a',
       'promote' => FALSE,
       'sticky' => 1,
-      "$this->field_name[$langcode][0][value]" => $this->randomString(32),
+      "{$this->field_name}[$langcode][0][value]" => $this->randomString(32),
     );
     $this->drupalPost('node/add/page', $edit, t('Add another item'));
     $this->assertNoFieldChecked('edit-promote', 'promote stayed unchecked');
     $this->assertFieldChecked('edit-sticky', 'sticky stayed checked');
   }
+
 }

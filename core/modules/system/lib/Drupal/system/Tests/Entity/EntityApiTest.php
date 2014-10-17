@@ -7,7 +7,8 @@
 
 namespace Drupal\system\Tests\Entity;
 
-use Drupal\user\Plugin\Core\Entity\User;
+use Drupal\Core\Entity\EntityStorageException;
+use Drupal\user\UserInterface;
 
 /**
  * Tests the basic Entity API.
@@ -50,10 +51,10 @@ class EntityApiTest extends EntityUnitTestBase {
    *
    * @param string $entity_type
    *   The entity type to run the tests with.
-   * @param \Drupal\user\Plugin\Core\Entity\User $user1
+   * @param \Drupal\user\UserInterface $user1
    *   The user to run the tests with.
    */
-  protected function assertCRUD($entity_type, User $user1) {
+  protected function assertCRUD($entity_type, UserInterface $user1) {
     // Create some test entities.
     $entity = entity_create($entity_type, array('name' => 'test', 'user_id' => $user1->uid));
     $entity->save();
@@ -90,4 +91,52 @@ class EntityApiTest extends EntityUnitTestBase {
     $all = entity_load_multiple($entity_type);
     $this->assertTrue(empty($all), format_string('%entity_type: Deleted all entities.', array('%entity_type' => $entity_type)));
   }
+
+   /**
+    * Tests that exceptions are properly thrown when saving or deleting an
+    * entity.
+    */
+   public function testEntityStorageExceptionHandling() {
+     $entity = entity_create('entity_test', array('name' => 'test'));
+     try {
+       $GLOBALS['entity_test_throw_exception'] = TRUE;
+       $entity->save();
+       $this->fail('Entity presave EntityStorageException thrown but not caught.');
+     }
+     catch (EntityStorageException $e) {
+       $this->assertEqual($e->getcode(), 1, 'Entity presave EntityStorageException caught.');
+     }
+
+     $entity = entity_create('entity_test', array('name' => 'test2'));
+     try {
+       unset($GLOBALS['entity_test_throw_exception']);
+       $entity->save();
+       $this->pass('Exception presave not thrown and not caught.');
+     }
+     catch (EntityStorageException $e) {
+       $this->assertNotEqual($e->getCode(), 1, 'Entity presave EntityStorageException caught.');
+     }
+
+     $entity = entity_create('entity_test', array('name' => 'test3'));
+     $entity->save();
+     try {
+       $GLOBALS['entity_test_throw_exception'] = TRUE;
+       $entity->delete();
+       $this->fail('Entity predelete EntityStorageException not thrown.');
+     }
+     catch (EntityStorageException $e) {
+       $this->assertEqual($e->getCode(), 2, 'Entity predelete EntityStorageException caught.');
+     }
+
+     unset($GLOBALS['entity_test_throw_exception']);
+     $entity = entity_create('entity_test', array('name' => 'test4'));
+     $entity->save();
+     try {
+       $entity->delete();
+       $this->pass('Entity predelete EntityStorageException not thrown and not caught.');
+     }
+     catch (EntityStorageException $e) {
+       $this->assertNotEqual($e->getCode(), 2, 'Entity predelete EntityStorageException thrown.');
+     }
+   }
 }

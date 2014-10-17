@@ -7,7 +7,7 @@
 
 namespace Drupal\options\Plugin\field\formatter;
 
-use Drupal\Component\Annotation\Plugin;
+use Drupal\field\Annotation\FieldFormatter;
 use Drupal\Core\Annotation\Translation;
 use Drupal\field\Plugin\Type\Formatter\FormatterBase;
 use Drupal\Core\Entity\EntityInterface;
@@ -15,7 +15,7 @@ use Drupal\Core\Entity\EntityInterface;
 /**
  * Plugin implementation of the 'list_default' formatter.
  *
- * @Plugin(
+ * @FieldFormatter(
  *   id = "list_default",
  *   module = "options",
  *   label = @Translation("Default"),
@@ -35,7 +35,7 @@ class OptionsDefaultFormatter extends FormatterBase {
   public function viewElements(EntityInterface $entity, $langcode, array $items) {
     $elements = array();
 
-    $allowed_values = options_allowed_values($this->field, $this->instance, $entity);
+    $allowed_values = options_allowed_values($this->fieldDefinition, $entity);
 
     foreach ($items as $delta => $item) {
       if (isset($allowed_values[$item['value']])) {

@@ -134,7 +134,7 @@ class JoinPluginBase extends ContainerFactoryPluginBase {
    * @var bool
    *
    * @see Drupal\views\Plugin\HandlerBase::getTableJoin()
-   * @see Drupal\views\Plugin\views\query\Sql::adjust_join()
+   * @see Drupal\views\Plugin\views\query\Sql::adjustJoin()
    * @see Drupal\views\Plugin\views\relationship\RelationshipPluginBase::query()
    */
   public $adjusted;
@@ -192,7 +192,7 @@ class JoinPluginBase extends ContainerFactoryPluginBase {
     }
 
     if ($this->leftTable) {
-      $left = $view_query->get_table_info($this->leftTable);
+      $left = $view_query->getTableInfo($this->leftTable);
       $left_field = "$left[alias].$this->leftField";
     }
     else {

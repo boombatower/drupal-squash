@@ -7,7 +7,6 @@
 
 namespace Drupal\block\Tests\Views;
 
-use Drupal\block\Plugin\Core\Entity\Block;
 use Drupal\views\Tests\ViewTestBase;
 use Drupal\views\Tests\ViewTestData;
 
@@ -45,43 +44,6 @@ class DisplayBlockTest extends ViewTestBase {
 
     ViewTestData::importTestViews(get_class($this), array('block_test_views'));
     $this->enableViewsTestModule();
-  }
-
-  /**
-   * Checks to see whether a block appears on the page.
-   *
-   * @param \Drupal\block\Plugin\Core\Entity\Block $block
-   *   The block entity to find on the page.
-   */
-  protected function assertBlockAppears(Block $block) {
-    $result = $this->findBlockInstance($block);
-    $this->assertTrue(!empty($result), format_string('Ensure the block @id appears on the page', array('@id' => $block->id())));
-  }
-
-  /**
-   * Checks to see whether a block does not appears on the page.
-   *
-   * @param \Drupal\block\Plugin\Core\Entity\Block $block
-   *   The block entity to find on the page.
-   */
-  protected function assertNoBlockAppears(Block $block) {
-    $result = $this->findBlockInstance($block);
-    $this->assertFalse(!empty($result), format_string('Ensure the block @id does not appear on the page', array('@id' => $block->id())));
-  }
-
-  /**
-   * Find a block instance on the page.
-   *
-   * @param \Drupal\block\Plugin\Core\Entity\Block $block
-   *   The block entity to find on the page.
-   *
-   * @return array
-   *   The result from the xpath query.
-   */
-  protected function findBlockInstance(Block $block) {
-    $config_id = explode('.', $block->id());
-    $machine_name = array_pop($config_id);
-    return $this->xpath('//div[@id = :id]', array(':id' => 'block-' . $machine_name));
   }
 
   /**
@@ -146,16 +108,54 @@ class DisplayBlockTest extends ViewTestBase {
     $this->drupalGet('admin/structure/block/add/views_block:test_view_block-block_1/' . $default_theme);
     $elements = $this->xpath('//input[@name="label"]');
     $this->assertTrue(empty($elements), 'The label field is not found for Views blocks.');
+    // Test that that machine name field is hidden from display and has been
+    // saved as expected from the default value.
+    $this->assertNoFieldById('edit-machine-name', 'stark.views_block__test_view_block_1', 'The machine name is hidden on the views block form.');
+    // Save the block.
+    $this->drupalPost(NULL, array(), t('Save block'));
+    $storage = $this->container->get('plugin.manager.entity')->getStorageController('block');
+    $blocks = $storage->load(array('stark.views_block__test_view_block_block_1'));
+    // This will only return a result if our new block has been created with the
+    // expected machine name.
+    $this->assertTrue(!empty($blocks), 'The expected block was loaded.');
+
+    for ($i = 2; $i <= 3; $i++) {
+      // Place the same block again and make sure we have a new ID.
+      $this->drupalPost('admin/structure/block/add/views_block:test_view_block-block_1/' . $default_theme, array(), t('Save block'));
+      $blocks = $storage->load(array('stark.views_block__test_view_block_block_1_' . $i));
+      // This will only return a result if our new block has been created with the
+      // expected machine name.
+      $this->assertTrue(!empty($blocks), 'The expected block was loaded.');
+    }
   }
 
   /**
    * Tests the contextual links on a Views block.
    */
   public function testBlockContextualLinks() {
-    $this->drupalLogin($this->drupalCreateUser(array('administer views', 'access contextual links')));
-    $this->drupalPlaceBlock('views_block:test_view_block-block_1', array(), array('title' => 'test_view_block-block_1:1'));
+    $this->drupalLogin($this->drupalCreateUser(array('administer views', 'access contextual links', 'administer blocks')));
+    $block = $this->drupalPlaceBlock('views_block:test_view_block-block_1');
     $this->drupalGet('test-page');
-    $this->assertLinkByHref("admin/structure/views/view/test_view_block/edit");
+
+    $id = 'block:admin/structure/block/manage:' . $block->id() . ':|views_ui:admin/structure/views/view:test_view_block:location=block&name=test_view_block&display_id=block_1';
+    // @see \Drupal\contextual\Tests\ContextualDynamicContextTest:assertContextualLinkPlaceHolder()
+    $this->assertRaw('<div data-contextual-id="'. $id . '"></div>', format_string('Contextual link placeholder with id @id exists.', array('@id' => $id)));
+
+    // Get server-rendered contextual links.
+    // @see \Drupal\contextual\Tests\ContextualDynamicContextTest:renderContextualLinks()
+    $post = urlencode('ids[0]') . '=' . urlencode($id);
+    $response = $this->curlExec(array(
+      CURLOPT_URL => url('contextual/render', array('absolute' => TRUE, 'query' => array('destination' => 'test-page'))),
+      CURLOPT_POST => TRUE,
+      CURLOPT_POSTFIELDS => $post,
+      CURLOPT_HTTPHEADER => array(
+        'Accept: application/json',
+        'Content-Type: application/x-www-form-urlencoded',
+      ),
+    ));
+    $this->assertResponse(200);
+    $json = drupal_json_decode($response);
+    $this->assertIdentical($json[$id], '<ul class="contextual-links"><li class="block-configure odd first"><a href="' . base_path() . 'admin/structure/block/manage/' . $block->id() . '?destination=test-page">Configure block</a></li><li class="views-ui-edit even last"><a href="' . base_path() . 'admin/structure/views/view/test_view_block/edit/block_1?destination=test-page">Edit view</a></li></ul>');
   }
 
 }

@@ -9,6 +9,7 @@ use Drupal\node\Plugin\Core\Entity\Node;
 use Drupal\taxonomy\Plugin\Core\Entity\Term;
 use Drupal\taxonomy\Plugin\Core\Entity\Vocabulary;
 use Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Entity\Field\FieldDefinitionInterface;
 
 /**
  * Denotes that no term in the vocabulary has a parent.
@@ -232,10 +233,7 @@ function taxonomy_menu() {
   $items['admin/structure/taxonomy'] = array(
     'title' => 'Taxonomy',
     'description' => 'Manage tagging, categorization, and classification of your content.',
-    'page callback' => 'drupal_get_form',
-    'page arguments' => array('taxonomy_overview_vocabularies'),
-    'access arguments' => array('administer taxonomy'),
-    'file' => 'taxonomy.admin.inc',
+    'route_name' => 'taxonomy_vocabulary_list',
   );
   $items['admin/structure/taxonomy/list'] = array(
     'title' => 'List',
@@ -452,7 +450,18 @@ function taxonomy_term_view_multiple(array $terms, $view_mode = 'full', $langcod
 }
 
 /**
- * Process variables for taxonomy-term.tpl.php.
+ * Prepares variables for taxonomy term templates.
+ *
+ * Default template: taxonomy-term.html.twig.
+ *
+ * @param array $variables
+ *   An associative array containing:
+ *   - elements: An associative array containing the taxonomy term and any
+ *     fields attached to the term. Properties used:
+ *     - #term: The term object.
+ *     - #view_mode: The current view mode for this taxonomy term, e.g.
+ *       'full' or 'teaser'.
+ *   - attributes: HTML attributes for the containing element.
  */
 function template_preprocess_taxonomy_term(&$variables) {
   $variables['view_mode'] = $variables['elements']['#view_mode'];
@@ -461,8 +470,9 @@ function template_preprocess_taxonomy_term(&$variables) {
 
   $uri = $term->uri();
   $variables['url']  = url($uri['path'], $uri['options']);
-  $variables['label'] = check_plain($term->label());
-  $variables['page']      = $variables['view_mode'] == 'full' && taxonomy_term_is_page($term);
+  // We use name here because that is what appears in the UI.
+  $variables['name'] = check_plain($term->label());
+  $variables['page'] = $variables['view_mode'] == 'full' && taxonomy_term_is_page($term);
 
   // Helpful $content variable for templates.
   $variables['content'] = array();
@@ -895,6 +905,7 @@ function taxonomy_field_info() {
       'default_formatter' => 'taxonomy_term_reference_link',
       'field item class' => 'Drupal\taxonomy\Type\TaxonomyTermReferenceItem',
       'settings' => array(
+        'options_list_callback' => NULL,
         'allowed_values' => array(
           array(
             'vocabulary' => '',
@@ -917,9 +928,9 @@ function taxonomy_field_widget_info_alter(&$info) {
 /**
  * Implements hook_options_list().
  */
-function taxonomy_options_list($field, $instance, $entity) {
-  $function = !empty($field['settings']['options_list_callback']) ? $field['settings']['options_list_callback'] : 'taxonomy_allowed_values';
-  return $function($field, $instance, $entity);
+function taxonomy_options_list(FieldDefinitionInterface $field_definition, EntityInterface $entity) {
+  $function = $field_definition->getFieldSetting('options_list_callback') ?: 'taxonomy_allowed_values';
+  return $function($field_definition, $entity);
 }
 
 /**
@@ -937,8 +948,8 @@ function taxonomy_field_validate(EntityInterface $entity = NULL, $field, $instan
   // Build an array of existing term IDs so they can be loaded with
   // taxonomy_term_load_multiple();
   foreach ($items as $delta => $item) {
-    if (!empty($item['tid']) && $item['tid'] != 'autocreate') {
-      $tids[] = $item['tid'];
+    if (!empty($item['target_id']) && $item['target_id'] != 'autocreate') {
+      $tids[] = $item['target_id'];
     }
   }
   if (!empty($tids)) {
@@ -948,12 +959,12 @@ function taxonomy_field_validate(EntityInterface $entity = NULL, $field, $instan
     // allowed values for this field.
     foreach ($items as $delta => $item) {
       $validate = TRUE;
-      if (!empty($item['tid']) && $item['tid'] != 'autocreate') {
+      if (!empty($item['target_id']) && $item['target_id'] != 'autocreate') {
         $validate = FALSE;
         foreach ($field['settings']['allowed_values'] as $settings) {
           // If no parent is specified, check if the term is in the vocabulary.
           if (isset($settings['vocabulary']) && empty($settings['parent'])) {
-            if ($settings['vocabulary'] == $terms[$item['tid']]->bundle()) {
+            if ($settings['vocabulary'] == $terms[$item['target_id']]->bundle()) {
               $validate = TRUE;
               break;
             }
@@ -961,7 +972,7 @@ function taxonomy_field_validate(EntityInterface $entity = NULL, $field, $instan
           // If a parent is specified, then to validate it must appear in the
           // array returned by taxonomy_term_load_parents_all().
           elseif (!empty($settings['parent'])) {
-            $ancestors = taxonomy_term_load_parents_all($item['tid']);
+            $ancestors = taxonomy_term_load_parents_all($item['target_id']);
             foreach ($ancestors as $ancestor) {
               if ($ancestor->id() == $settings['parent']) {
                 $validate = TRUE;
@@ -984,28 +995,24 @@ function taxonomy_field_validate(EntityInterface $entity = NULL, $field, $instan
 /**
  * Implements hook_field_is_empty().
  */
-function taxonomy_field_is_empty($item, $field) {
-  return !is_array($item) || (empty($item['tid']) && empty($item['entity']));
+function taxonomy_field_is_empty($item, $field_type) {
+  return !is_array($item) || (empty($item['target_id']) && empty($item['entity']));
 }
 
 /**
  * Returns the set of valid terms for a taxonomy field.
  *
- * @param $field
+ * @param \Drupal\Core\Entity\Field\FieldDefinitionInterface $field_definition
  *   The field definition.
- * @param $instance
- *   The instance definition. It is recommended to only use instance level
- *   properties to filter out values from a list defined by field level
- *   properties.
  * @param \Drupal\Core\Entity\EntityInterface $entity
  *   The entity object the field is attached to.
  *
  * @return
  *   The array of valid terms for this field, keyed by term id.
  */
-function taxonomy_allowed_values($field, $instance, EntityInterface $entity) {
+function taxonomy_allowed_values(FieldDefinitionInterface $field_definition, EntityInterface $entity) {
   $options = array();
-  foreach ($field['settings']['allowed_values'] as $tree) {
+  foreach ($field_definition->getFieldSetting('allowed_values') as $tree) {
     if ($vocabulary = taxonomy_vocabulary_load($tree['vocabulary'])) {
       if ($terms = taxonomy_get_tree($vocabulary->id(), $tree['parent'], NULL, TRUE)) {
         foreach ($terms as $term) {
@@ -1046,7 +1053,7 @@ function taxonomy_autocomplete_validate($element, &$form_state) {
 /**
  * Implements hook_field_settings_form().
  */
-function taxonomy_field_settings_form($field, $instance, $has_data) {
+function taxonomy_field_settings_form($field, $instance) {
   // Get proper values for 'allowed_values_function', which is a core setting.
   $vocabularies = taxonomy_vocabulary_load_multiple();
   $options = array();
@@ -1065,7 +1072,7 @@ function taxonomy_field_settings_form($field, $instance, $has_data) {
       '#options' => $options,
       '#required' => TRUE,
       '#description' => t('The vocabulary which supplies the options for this field.'),
-      '#disabled' => $has_data,
+      '#disabled' => $field->hasData(),
     );
     $form['allowed_values'][$delta]['parent'] = array(
       '#type' => 'value',
@@ -1146,10 +1153,9 @@ function taxonomy_rdf_mapping() {
  */
 function taxonomy_field_presave(EntityInterface $entity, $field, $instance, $langcode, &$items) {
   foreach ($items as $delta => $item) {
-    if (!$item['tid'] && isset($item['entity'])) {
-      unset($item['tid']);
+    if (!$item['target_id'] && isset($item['target_id'])) {
       $item['entity']->save();
-      $items[$delta]['tid'] = $item['entity']->id();
+      $items[$delta]['target_id'] = $item['entity']->id();
     }
   }
 }
@@ -1176,7 +1182,7 @@ function taxonomy_build_node_index($node) {
   // only data for current, published nodes.
   $status = NULL;
   if (config('taxonomy.settings')->get('maintain_index_table')) {
-    // If a node property is not set in the node object when node_save() is
+    // If a node property is not set in the node object when $node->save() is
     // called, the old value from $node->original is used.
     if (!empty($node->original)) {
       $status = (int)(!empty($node->status) || (!isset($node->status) && !empty($node->original->status)));
@@ -1195,7 +1201,7 @@ function taxonomy_build_node_index($node) {
       $field_name = $instance['field_name'];
       $field = field_info_field($field_name);
       if ($field['module'] == 'taxonomy' && $field['storage']['type'] == 'field_sql_storage') {
-        // If a field value is not set in the node object when node_save() is
+        // If a field value is not set in the node object when $node->save() is
         // called, the old value from $node->original is used.
         if (isset($node->{$field_name})) {
           $items = $node->{$field_name};
@@ -1209,7 +1215,7 @@ function taxonomy_build_node_index($node) {
         foreach (field_available_languages('node', $field) as $langcode) {
           if (!empty($items[$langcode])) {
             foreach ($items[$langcode] as $item) {
-              $tid_all[$item['tid']] = $item['tid'];
+              $tid_all[$item['target_id']] = $item['target_id'];
             }
           }
         }
@@ -1285,7 +1291,7 @@ function taxonomy_library_info() {
       drupal_get_path('module', 'taxonomy') . '/taxonomy.js' => array(),
     ),
     'css' => array(
-      drupal_get_path('module', 'taxonomy') . '/taxonomy.css' => array(),
+      drupal_get_path('module', 'taxonomy') . '/css/taxonomy.module.css' => array(),
     ),
     'dependencies' => array(
       array('system', 'jquery'),

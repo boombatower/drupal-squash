@@ -47,43 +47,6 @@ function hook_search_info() {
 }
 
 /**
- * Provide search query conditions.
- *
- * Callback for hook_search_info().
- *
- * This callback is invoked by search_view() to get an array of additional
- * search conditions to pass to search_data(). For example, a search module
- * may get additional keywords, filters, or modifiers for the search from
- * the query string.
- *
- * This example pulls additional search keywords out of the $_REQUEST variable,
- * (i.e. from the query string of the request). The conditions may also be
- * generated internally - for example based on a module's settings.
- *
- * @param $keys
- *   The search keywords string.
- *
- * @return
- *   An array of additional conditions, such as filters.
- *
- * @ingroup search
- */
-function callback_search_conditions($keys) {
-  $conditions = array();
-
-  if (!empty($_REQUEST['keys'])) {
-    $conditions['keys'] = $_REQUEST['keys'];
-  }
-  if (!empty($_REQUEST['sample_search_keys'])) {
-    $conditions['sample_search_keys'] = $_REQUEST['sample_search_keys'];
-  }
-  if ($force_keys = config('sample_search.settings')->get('force_keywords')) {
-    $conditions['sample_search_force_keywords'] = $force_keys;
-  }
-  return $conditions;
-}
-
-/**
  * Define access to a custom search routine.
  *
  * This hook allows a module to define permissions for a search tab.
@@ -125,8 +88,8 @@ function hook_search_reset() {
  * @ingroup search
  */
 function hook_search_status() {
-  $total = db_query('SELECT COUNT(*) FROM {node} WHERE status = 1')->fetchField();
-  $remaining = db_query("SELECT COUNT(*) FROM {node} n LEFT JOIN {search_dataset} d ON d.type = 'node' AND d.sid = n.nid WHERE n.status = 1 AND d.sid IS NULL OR d.reindex <> 0")->fetchField();
+  $total = db_query('SELECT COUNT(DISTINCT nid) FROM {node_field_data} WHERE status = 1')->fetchField();
+  $remaining = db_query("SELECT COUNT(DISTINCT nid) FROM {node_field_data} n LEFT JOIN {search_dataset} d ON d.type = 'node' AND d.sid = n.nid WHERE n.status = 1 AND d.sid IS NULL OR d.reindex <> 0")->fetchField();
   return array('remaining' => $remaining, 'total' => $total);
 }
 
@@ -212,7 +175,7 @@ function hook_search_execute($keys = NULL, $conditions = NULL) {
   $query = db_select('search_index', 'i', array('target' => 'slave'))
     ->extend('Drupal\search\SearchQuery')
     ->extend('Drupal\Core\Database\Query\PagerSelectExtender');
-  $query->join('node', 'n', 'n.nid = i.sid');
+  $query->join('node_field_data', 'n', 'n.nid = i.sid');
   $query
     ->condition('n.status', 1)
     ->addTag('node_access')
@@ -234,6 +197,9 @@ function hook_search_execute($keys = NULL, $conditions = NULL) {
 
   // Load results.
   $find = $query
+    // Add the language code of the indexed item to the result of the query,
+    // since the node will be rendered using the respective language.
+    ->fields('i', array('langcode'))
     ->limit(10)
     ->execute();
   $results = array();
@@ -251,12 +217,16 @@ function hook_search_execute($keys = NULL, $conditions = NULL) {
 
     $language = language_load($item->langcode);
     $uri = $node->uri();
+    $username = array(
+      '#theme' => 'username',
+      '#account' => $node,
+    );
     $results[] = array(
       'link' => url($uri['path'], array_merge($uri['options'], array('absolute' => TRUE, 'language' => $language))),
       'type' => check_plain(node_get_type_label($node)),
       'title' => $node->label($item->langcode),
-      'user' => theme('username', array('account' => $node)),
-      'date' => $node->get('changed', $item->langcode),
+      'user' => drupal_render($username),
+      'date' => $node->changed,
       'node' => $node,
       'extra' => $extra,
       'score' => $item->calculated_score,
@@ -298,7 +268,10 @@ function hook_search_page($results) {
       '#module' => 'my_module_name',
     );
   }
-  $output['suffix']['#markup'] = '</ol>' . theme('pager');
+  $pager = array(
+    '#theme' => 'pager',
+  );
+  $output['suffix']['#markup'] = '</ol>' . drupal_render($pager);
 
   return $output;
 }
@@ -374,7 +347,7 @@ function hook_update_index() {
 
     // Save the changed time of the most recent indexed node, for the search
     // results half-life calculation.
-    state()->set('node.cron_last', $node->changed);
+    \Drupal::state()->set('node.cron_last', $node->changed);
 
     // Render the node.
     $build = node_view($node, 'search_index');
@@ -396,3 +369,42 @@ function hook_update_index() {
 /**
  * @} End of "addtogroup hooks".
  */
+
+/**
+ * Provide search query conditions.
+ *
+ * Callback for hook_search_info().
+ *
+ * This callback is invoked by search_view() to get an array of additional
+ * search conditions to pass to search_data(). For example, a search module
+ * may get additional keywords, filters, or modifiers for the search from
+ * the query string.
+ *
+ * This example pulls additional search keywords out of the $_REQUEST variable,
+ * (i.e. from the query string of the request). The conditions may also be
+ * generated internally - for example based on a module's settings.
+ *
+ * @param $keys
+ *   The search keywords string.
+ *
+ * @return
+ *   An array of additional conditions, such as filters.
+ *
+ * @ingroup callbacks
+ * @ingroup search
+ */
+function callback_search_conditions($keys) {
+  $conditions = array();
+
+  if (!empty($_REQUEST['keys'])) {
+    $conditions['keys'] = $_REQUEST['keys'];
+  }
+  if (!empty($_REQUEST['sample_search_keys'])) {
+    $conditions['sample_search_keys'] = $_REQUEST['sample_search_keys'];
+  }
+  if ($force_keys = config('sample_search.settings')->get('force_keywords')) {
+    $conditions['sample_search_force_keywords'] = $force_keys;
+  }
+  return $conditions;
+}
+

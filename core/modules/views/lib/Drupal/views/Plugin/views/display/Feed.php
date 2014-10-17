@@ -22,7 +22,7 @@ use Drupal\Core\Annotation\Translation;
  *   id = "feed",
  *   title = @Translation("Feed"),
  *   help = @Translation("Display the view as a feed, such as an RSS feed."),
- *   uses_hook_menu = TRUE,
+ *   uses_route = TRUE,
  *   admin = @Translation("Feed")
  * )
  */
@@ -258,7 +258,7 @@ class Feed extends PathPluginBase {
     $clone->setDisplay($this->display['id']);
     $clone->buildTitle();
     if ($plugin = $clone->display_handler->getPlugin('style')) {
-      $plugin->attach_to($display_id, $this->getPath(), $clone->getTitle());
+      $plugin->attachTo($display_id, $this->getPath(), $clone->getTitle());
     }
 
     // Clean up.

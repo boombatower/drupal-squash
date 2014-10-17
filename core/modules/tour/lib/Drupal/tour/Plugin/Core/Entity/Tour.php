@@ -82,7 +82,7 @@ class Tour extends ConfigEntityBase implements TourInterface {
   public function __construct(array $values, $entity_type) {
     parent::__construct($values, $entity_type);
 
-    $this->tipsBag = new TipsBag(drupal_container()->get('plugin.manager.tour.tip'), $this->tips);
+    $this->tipsBag = new TipsBag(\Drupal::service('plugin.manager.tour.tip'), $this->tips);
   }
 
   /**
@@ -114,7 +114,7 @@ class Tour extends ConfigEntityBase implements TourInterface {
       return ($a->getWeight() < $b->getWeight()) ? -1 : 1;
     });
 
-    drupal_container()->get('module_handler')->alter('tour_tips', $tips, $this);
+    \Drupal::moduleHandler()->alter('tour_tips', $tips, $this);
     return array_values($tips);
   }
 

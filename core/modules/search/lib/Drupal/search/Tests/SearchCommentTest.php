@@ -7,6 +7,8 @@
 
 namespace Drupal\search\Tests;
 
+use Drupal\Core\Language\Language;
+
 /**
  * Test integration searching comments.
  */
@@ -75,9 +77,9 @@ class SearchCommentTest extends SearchTestBase {
     // Post a comment using 'Full HTML' text format.
     $edit_comment = array();
     $edit_comment['subject'] = 'Test comment subject';
-    $edit_comment['comment_body[' . LANGUAGE_NOT_SPECIFIED . '][0][value]'] = '<h1>' . $comment_body . '</h1>';
+    $edit_comment['comment_body[' . Language::LANGCODE_NOT_SPECIFIED . '][0][value]'] = '<h1>' . $comment_body . '</h1>';
     $full_html_format_id = 'full_html';
-    $edit_comment['comment_body[' . LANGUAGE_NOT_SPECIFIED . '][0][format]'] = $full_html_format_id;
+    $edit_comment['comment_body[' . Language::LANGCODE_NOT_SPECIFIED . '][0][format]'] = $full_html_format_id;
     $this->drupalPost('comment/reply/' . $node->nid, $edit_comment, t('Save'));
 
     // Invoke search index update.
@@ -103,7 +105,7 @@ class SearchCommentTest extends SearchTestBase {
     // Verify that comment is rendered using proper format.
     $this->assertText($comment_body, 'Comment body text found in search results.');
     $this->assertNoRaw(t('n/a'), 'HTML in comment body is not hidden.');
-    $this->assertNoRaw(check_plain($edit_comment['comment_body[' . LANGUAGE_NOT_SPECIFIED . '][0][value]']), 'HTML in comment body is not escaped.');
+    $this->assertNoRaw(check_plain($edit_comment['comment_body[' . Language::LANGCODE_NOT_SPECIFIED . '][0][value]']), 'HTML in comment body is not escaped.');
 
     // Hide comments.
     $this->drupalLogin($this->admin_user);
@@ -125,9 +127,7 @@ class SearchCommentTest extends SearchTestBase {
   function testSearchResultsCommentAccess() {
     $comment_body = 'Test comment body';
     $this->comment_subject = 'Test comment subject';
-    $this->admin_role = $this->admin_user->roles;
-    unset($this->admin_role[DRUPAL_AUTHENTICATED_RID]);
-    $this->admin_role = key($this->admin_role);
+    $this->admin_role = $this->admin_user->roles[0];
 
     // Create a node.
     variable_set('comment_preview_article', DRUPAL_OPTIONAL);
@@ -136,7 +136,7 @@ class SearchCommentTest extends SearchTestBase {
     // Post a comment using 'Full HTML' text format.
     $edit_comment = array();
     $edit_comment['subject'] = $this->comment_subject;
-    $edit_comment['comment_body[' . LANGUAGE_NOT_SPECIFIED . '][0][value]'] = '<h1>' . $comment_body . '</h1>';
+    $edit_comment['comment_body[' . Language::LANGCODE_NOT_SPECIFIED . '][0][value]'] = '<h1>' . $comment_body . '</h1>';
     $this->drupalPost('comment/reply/' . $this->node->nid, $edit_comment, t('Save'));
 
     $this->drupalLogout();

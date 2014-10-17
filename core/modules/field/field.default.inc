@@ -12,6 +12,8 @@ use Drupal\Core\Entity\EntityInterface;
  * the corresponding field_attach_[operation]() function.
  */
 
+use Drupal\Core\Language\Language;
+
 /**
  * Generic field validation handler.
  *
@@ -40,7 +42,7 @@ use Drupal\Core\Entity\EntityInterface;
  */
 function field_default_validate(EntityInterface $entity, $field, $instance, $langcode, $items, &$errors) {
   // Filter out empty values.
-  $items = _field_filter_items($field, $items);
+  $items = _field_filter_items($field['type'], $items);
 
   // Check that the number of values doesn't exceed the field cardinality.
   // For form submitted values, this can only happen with 'multiple value'
@@ -73,9 +75,9 @@ function field_default_validate(EntityInterface $entity, $field, $instance, $lan
  */
 function field_default_prepare_translation(EntityInterface $entity, $field, $instance, $langcode, &$items, EntityInterface $source_entity, $source_langcode) {
   $field_name = $field['field_name'];
-  // If the field is untranslatable keep using LANGUAGE_NOT_SPECIFIED.
-  if ($langcode == LANGUAGE_NOT_SPECIFIED) {
-    $source_langcode = LANGUAGE_NOT_SPECIFIED;
+  // If the field is untranslatable keep using Language::LANGCODE_NOT_SPECIFIED.
+  if ($langcode == Language::LANGCODE_NOT_SPECIFIED) {
+    $source_langcode = Language::LANGCODE_NOT_SPECIFIED;
   }
   if (isset($source_entity->{$field_name}[$source_langcode])) {
     $items = $source_entity->{$field_name}[$source_langcode];
