@@ -2,6 +2,9 @@
 
 /* ---------- Basic Layout Styles ----------- */
 
+#page-wrapper {
+  min-width: 960px;
+}
 #header div.section,
 #featured div.section,
 #messages,
@@ -33,7 +36,8 @@
   width: 480px;
 }
 #content,
-.sidebar,
+#sidebar-first,
+#sidebar-second,
 .region-triptych-first,
 .region-triptych-middle,
 .region-triptych-last,
@@ -55,11 +59,12 @@
   width: 960px;
   float: none;
 }
-.sidebar {
+#sidebar-first,
+#sidebar-second {
   width: 240px;
 }
 #main-wrapper {
-  min-height: 500px;
+  min-height: 300px;
 }
 #messages div.section,
 #content .section,
