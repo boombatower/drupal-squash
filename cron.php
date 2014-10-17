@@ -9,7 +9,7 @@
 /**
  * Root directory of Drupal installation.
  */
-define('DRUPAL_ROOT', dirname(realpath(__FILE__)));
+define('DRUPAL_ROOT', getcwd());
 
 include_once DRUPAL_ROOT . '/includes/bootstrap.inc';
 drupal_bootstrap(DRUPAL_BOOTSTRAP_FULL);
@@ -17,6 +17,6 @@ if (isset($_GET['cron_key']) && variable_get('cron_key', 'drupal') == $_GET['cro
   drupal_cron_run();
 }
 else {
-  watchdog('cron', 'Cron did not run because an invalid key used.', array(), WATCHDOG_NOTICE);
+  watchdog('cron', 'Cron could not run because an invalid key was used.', array(), WATCHDOG_NOTICE);
   drupal_access_denied();
 }

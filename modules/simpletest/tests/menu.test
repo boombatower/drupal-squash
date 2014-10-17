@@ -21,6 +21,15 @@ class MenuIncTestCase extends DrupalWebTestCase {
   }
 
   /**
+   * Test title callback set to FALSE.
+   */
+  function testTitleCallbackFalse() {
+    $this->drupalGet('node');
+    $this->assertText('A title with @placeholder', t('Raw text found on the page'));
+    $this->assertNoText(t('A title with @placeholder', array('@placeholder' => 'some other text')), t('Text with placeholder substitutions not found.'));
+  }
+
+  /**
    * Tests for menu_name parameter for hook_menu().
    */
   function testMenuName() {
@@ -51,7 +60,7 @@ class MenuRebuildTestCase extends DrupalWebTestCase {
       'group' => t('Menu'),
     );
   }
-  
+
   /**
    * Test if the 'menu_rebuild_needed' variable triggers a menu_rebuild() call.
    */
@@ -75,5 +84,5 @@ class MenuRebuildTestCase extends DrupalWebTestCase {
     $admin_exists = db_result(db_query("SELECT path from {menu_router} WHERE path = 'admin'"));
     $this->assertEqual($admin_exists, 'admin', t("The menu has been rebuilt, the path 'admin' now exists again."));
   }
-  
+
 }

@@ -169,8 +169,8 @@ function node_type_form(&$form_state, $type = NULL) {
     '#type' => 'checkbox',
     '#title' => t('Display post information'),
     '#default_value' => variable_get('node_submitted_'. $type->type, TRUE),
-    '#description' => t('Enable the <em>submitted by Username on date</em> text.'), 
-  ); 
+    '#description' => t('Enable the <em>submitted by Username on date</em> text.'),
+  );
   $form['old_type'] = array(
     '#type' => 'value',
     '#value' => $type->type,
@@ -328,7 +328,6 @@ function node_type_form_submit($form, &$form_state) {
   }
 
   node_types_rebuild();
-  menu_rebuild();
   $t_args = array('%name' => $type->name);
 
   if ($op == t('Reset to defaults')) {
@@ -413,7 +412,6 @@ function node_type_delete_confirm_submit($form, &$form_state) {
   watchdog('menu', 'Deleted content type %name.', $t_args, WATCHDOG_NOTICE);
 
   node_types_rebuild();
-  menu_rebuild();
 
   $form_state['redirect'] = 'admin/build/types';
   return;
