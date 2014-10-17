@@ -7,8 +7,10 @@
 
 namespace Drupal\entity_reference\Plugin\Field\FieldWidget;
 
+use Drupal\Component\Utility\Tags;
 use Drupal\Core\Field\FieldItemListInterface;
 use Drupal\Core\Field\WidgetBase;
+use Drupal\user\EntityOwnerInterface;
 use Symfony\Component\Validator\ConstraintViolationInterface;
 
 /**
@@ -77,7 +79,7 @@ abstract class AutocompleteWidgetBase extends WidgetBase {
     $autocomplete_route_parameters = array(
       'type' => $this->getSetting('autocomplete_type'),
       'field_name' => $this->fieldDefinition->getName(),
-      'entity_type' => $entity->entityType(),
+      'entity_type' => $entity->getEntityTypeId(),
       'bundle_name' => $entity->bundle(),
     );
 
@@ -88,14 +90,13 @@ abstract class AutocompleteWidgetBase extends WidgetBase {
     $element += array(
       '#type' => 'textfield',
       '#maxlength' => 1024,
-      '#default_value' => implode(', ', $this->getLabels($items)),
+      '#default_value' => implode(', ', $this->getLabels($items, $delta)),
       '#autocomplete_route_name' => 'entity_reference.autocomplete',
       '#autocomplete_route_parameters' => $autocomplete_route_parameters,
       '#size' => $this->getSetting('size'),
       '#placeholder' => $this->getSetting('placeholder'),
       '#element_validate' => array(array($this, 'elementValidate')),
-      // @todo: Use wrapper to get the user if exists or needed.
-      '#autocreate_uid' => isset($entity->uid) ? $entity->uid : $user->id(),
+      '#autocreate_uid' => ($entity instanceof EntityOwnerInterface) ? $entity->getOwnerId() : $user->id(),
     );
 
     return array('target_id' => $element);
@@ -116,32 +117,45 @@ abstract class AutocompleteWidgetBase extends WidgetBase {
   /**
    * Gets the entity labels.
    */
-  protected function getLabels(FieldItemListInterface $items) {
+  protected function getLabels(FieldItemListInterface $items, $delta) {
     if ($items->isEmpty()) {
       return array();
     }
 
-    $entity_ids = array();
     $entity_labels = array();
 
-    // Build an array of entity IDs.
-    foreach ($items as $item) {
-      $entity_ids[] = $item->target_id;
-    }
-
     // Load those entities and loop through them to extract their labels.
-    $entities = entity_load_multiple($this->getFieldSetting('target_type'), $entity_ids);
+    $entities = entity_load_multiple($this->getFieldSetting('target_type'), $this->getEntityIds($items, $delta));
 
     foreach ($entities as $entity_id => $entity_item) {
       $label = $entity_item->label();
       $key = "$label ($entity_id)";
       // Labels containing commas or quotes must be wrapped in quotes.
-      if (strpos($key, ',') !== FALSE || strpos($key, '"') !== FALSE) {
-        $key = '"' . str_replace('"', '""', $key) . '"';
-      }
+      $key = Tags::encode($key);
       $entity_labels[] = $key;
     }
     return $entity_labels;
+  }
+
+  /**
+   * Builds an array of entity IDs for which to get the entity labels.
+   *
+   * @param \Drupal\Core\Field\FieldItemListInterface $items
+   *   Array of default values for this field.
+   * @param int $delta
+   *   The order of a field item in the array of subelements (0, 1, 2, etc).
+   *
+   * @return array
+   *   An array of entity IDs.
+   */
+  protected function getEntityIds(FieldItemListInterface $items, $delta) {
+    $entity_ids = array();
+
+    foreach ($items as $item) {
+      $entity_ids[] = $item->target_id;
+    }
+
+    return $entity_ids;
   }
 
   /**
@@ -168,15 +182,20 @@ abstract class AutocompleteWidgetBase extends WidgetBase {
       $bundle = reset($bundles);
     }
 
-    $entity_info = $entity_manager->getDefinition($target_type);
-    $bundle_key = $entity_info->getKey('bundle');
-    $label_key = $entity_info->getKey('label');
+    $entity_type = $entity_manager->getDefinition($target_type);
+    $bundle_key = $entity_type->getKey('bundle');
+    $label_key = $entity_type->getKey('label');
 
-    return $entity_manager->getStorageController($target_type)->create(array(
+    $entity = $entity_manager->getStorageController($target_type)->create(array(
       $label_key => $label,
       $bundle_key => $bundle,
-      'uid' => $uid,
     ));
+
+    if ($entity instanceof EntityOwnerInterface) {
+      $entity->setOwnerId($uid);
+    }
+
+    return $entity;
   }
 
   /**

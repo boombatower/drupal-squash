@@ -67,7 +67,7 @@ class LanguageUILanguageNegotiationTest extends WebTestBase {
   function setUp() {
     parent::setUp();
 
-    $this->request = Request::create('http://example.com/');
+    $this->request = Request::createFromGlobals();
     $this->container->set('request', $this->request);
 
     $admin_user = $this->drupalCreateUser(array('administer languages', 'translate interface', 'access administration pages', 'administer blocks'));
@@ -94,8 +94,14 @@ class LanguageUILanguageNegotiationTest extends WebTestBase {
     $language_domain = 'example.cn';
 
     // Setup the site languages by installing two languages.
+    // Set the default language in order for the translated string to be registered
+    // into database when seen by t(). Without doing this, our target string
+    // is for some reason not found when doing translate search. This might
+    // be some bug.
+    $default_language = language_default();
     $language = new Language(array(
       'id' => $langcode_browser_fallback,
+      'default' => TRUE,
     ));
     language_save($language);
     $language = new Language(array(
@@ -107,17 +113,15 @@ class LanguageUILanguageNegotiationTest extends WebTestBase {
     // corresponding translated string is shown.
     $default_string = 'Configure languages for content and the user interface';
 
-    // Set the default language in order for the translated string to be registered
-    // into database when seen by t(). Without doing this, our target string
-    // is for some reason not found when doing translate search. This might
-    // be some bug.
-    $this->container->get('language_manager')->reset();
-    $languages = language_list();
-    variable_set('language_default', (array) $languages['vi']);
     // First visit this page to make sure our target string is searchable.
     $this->drupalGet('admin/config');
+
     // Now the t()'ed string is in db so switch the language back to default.
-    variable_del('language_default');
+    // This will rebuild the container so we need to rebuild the container in
+    // the test environment.
+    language_save($default_language);
+    \Drupal::config('language.negotiation')->set('url.prefixes.en', '')->save();
+    $this->rebuildContainer();
 
     // Translate the string.
     $language_browser_fallback_string = "In $langcode_browser_fallback In $langcode_browser_fallback In $langcode_browser_fallback";
@@ -238,7 +242,9 @@ class LanguageUILanguageNegotiationTest extends WebTestBase {
 
     // Unknown language prefix should return 404.
     $definitions = \Drupal::languageManager()->getNegotiator()->getNegotiationMethods();
-    variable_set('language_negotiation_' . Language::TYPE_INTERFACE, array_flip(array_keys($definitions)));
+    \Drupal::config('language.types')
+      ->set('negotiation.' . Language::TYPE_INTERFACE . '.enabled', array_flip(array_keys($definitions)))
+      ->save();
     $this->drupalGet("$langcode_unknown/admin/config", array(), $http_header_browser_fallback);
     $this->assertResponse(404, "Unknown language path prefix should return 404");
 
@@ -378,6 +384,11 @@ class LanguageUILanguageNegotiationTest extends WebTestBase {
     // Enable the language switcher block.
     $this->drupalPlaceBlock('language_block:' . Language::TYPE_INTERFACE, array('id' => 'test_language_block'));
 
+    // Log out, because for anonymous users, the "active" class is set by PHP
+    // (which means we can easily test it here), whereas for authenticated users
+    // it is set by JavaScript.
+    $this->drupalLogout();
+
     // Access the front page without specifying any valid URL language prefix
     // and having as browser language preference a non-default language.
     $http_header = array("Accept-Language: $langcode_browser_fallback;q=1");
@@ -431,7 +442,7 @@ class LanguageUILanguageNegotiationTest extends WebTestBase {
     $italian_url = url('admin', array('language' => $languages['it'], 'script' => ''));
     $url_scheme = $this->request->isSecure() ? 'https://' : 'http://';
     $correct_link = $url_scheme . $link;
-    $this->assertTrue($italian_url == $correct_link, format_string('The url() function returns the right URL (@url) in accordance with the chosen language', array('@url' => $italian_url)));
+    $this->assertEqual($italian_url, $correct_link, format_string('The url() function returns the right URL (@url) in accordance with the chosen language', array('@url' => $italian_url)));
 
     // Test HTTPS via options.
     $this->settingsSet('mixed_mode_sessions', TRUE);

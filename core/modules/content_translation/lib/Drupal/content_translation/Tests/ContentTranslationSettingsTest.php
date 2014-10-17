@@ -40,7 +40,7 @@ class ContentTranslationSettingsTest extends WebTestBase {
     $this->drupalCreateContentType(array('type' => 'page'));
     $this->container->get('comment.manager')->addDefaultField('node', 'article', 'comment_article');
 
-    $admin_user = $this->drupalCreateUser(array('administer languages', 'administer content translation', 'administer content types', 'administer node fields', 'administer comment fields'));
+    $admin_user = $this->drupalCreateUser(array('access administration pages', 'administer languages', 'administer content translation', 'administer content types', 'administer node fields', 'administer comment fields'));
     $this->drupalLogin($admin_user);
   }
 
@@ -48,6 +48,10 @@ class ContentTranslationSettingsTest extends WebTestBase {
    * Tests that the settings UI works as expected.
    */
   function testSettingsUI() {
+    // Check for the content_translation_menu_link_defaults_alter() changes.
+    $this->drupalGet('admin/config');
+    $this->assertLink('Content language and translation');
+    $this->assertText('Configure language and translation support for content.');
     // Test that the translation settings are ignored if the bundle is marked
     // translatable but the entity type is not.
     $edit = array('settings[comment][node__comment_article][translatable]' => TRUE);
@@ -170,6 +174,46 @@ class ContentTranslationSettingsTest extends WebTestBase {
     field_info_cache_clear();
     entity_info_cache_clear();
     return $this->assertEqual(content_translation_enabled($entity_type, $bundle), $enabled, $message);
+  }
+
+  /**
+   * Tests that field instance setting depends on bundle translatability.
+   */
+  function testFieldTranslatableSettingsUI() {
+
+    // At least one field needs to be translatable to enable article for
+    // translation. Create an extra field to be used for this purpose.
+    $field = array(
+      'name' => 'article_text',
+      'entity_type' => 'node',
+      'type' => 'text',
+    );
+    entity_create('field_entity', $field)->save();
+    $instance = array(
+      'field_name' => 'article_text',
+      'entity_type' => 'node',
+      'bundle' => 'article',
+    );
+    entity_create('field_instance', $instance)->save();
+
+    // Tests that field instance doesn't have translatable setting if bundle
+    // is not translatable.
+    $path = 'admin/structure/types/manage/article/fields/node.article.body/field';
+    $this->drupalGet($path);
+    $this->assertText('To enable translation of this field, enable language support for this type.', 'No translatable setting for field.');
+
+    // Tests that field instance has translatable setting if bundle is
+    // translatable. Note: this field instance is not translatable when
+    // enable bundle translatability.
+    $edit = array(
+      'entity_types[node]' => TRUE,
+      'settings[node][article][settings][language][language_show]' => TRUE,
+      'settings[node][article][translatable]' => TRUE,
+      'settings[node][article][fields][article_text]' => TRUE,
+    );
+    $this->assertSettings('node', 'article', TRUE, $edit);
+    $this->drupalGet($path);
+    $this->assertNoText('To enable translation of this field, enable language support for this type.', 'No translatable setting for field.');
   }
 
 }

@@ -7,12 +7,11 @@
 
 namespace Drupal\field;
 
+use Drupal\Core\Cache\Cache;
 use Drupal\Core\Cache\CacheBackendInterface;
-use Drupal\Core\Config\ConfigFactory;
-use Drupal\Core\Field\FieldTypePluginManager;
+use Drupal\Core\Config\ConfigFactoryInterface;
+use Drupal\Core\Field\FieldTypePluginManagerInterface;
 use Drupal\Core\Extension\ModuleHandlerInterface;
-use Drupal\field\FieldInterface;
-use Drupal\field\FieldInstanceInterface;
 
 /**
  * Provides field and instance definitions for the current runtime environment.
@@ -50,14 +49,14 @@ class FieldInfo {
   /**
    * The field type manager to define field.
    *
-   * @var \Drupal\Core\Field\FieldTypePluginManager
+   * @var \Drupal\Core\Field\FieldTypePluginManagerInterface
    */
   protected $fieldTypeManager;
 
   /**
    * The config factory.
    *
-   * @var \Drupal\Core\Config\ConfigFactory
+   * @var \Drupal\Core\Config\ConfigFactoryInterface
    */
   protected $config;
 
@@ -129,14 +128,14 @@ class FieldInfo {
    *
    * @param \Drupal\Core\Cache\CacheBackendInterface $cache_backend
    *   The cache backend to use.
-   * @param \Drupal\Core\Config\ConfigFactory $config
+   * @param \Drupal\Core\Config\ConfigFactoryInterface $config
    *   The configuration factory object to use.
    * @param \Drupal\Core\Extension\ModuleHandlerInterface $module_handler
    *   The module handler class to use for invoking hooks.
-   * @param \Drupal\Core\Field\FieldTypePluginManager $field_type_manager
+   * @param \Drupal\Core\Field\FieldTypePluginManagerInterface $field_type_manager
    *   The 'field type' plugin manager.
    */
-  public function __construct(CacheBackendInterface $cache_backend, ConfigFactory $config, ModuleHandlerInterface $module_handler, FieldTypePluginManager $field_type_manager) {
+  public function __construct(CacheBackendInterface $cache_backend, ConfigFactoryInterface $config, ModuleHandlerInterface $module_handler, FieldTypePluginManagerInterface $field_type_manager) {
     $this->cacheBackend = $cache_backend;
     $this->moduleHandler = $module_handler;
     $this->config = $config;
@@ -160,7 +159,7 @@ class FieldInfo {
 
     $this->bundleExtraFields = array();
 
-    $this->cacheBackend->deleteTags(array('field_info' => TRUE));
+    Cache::deleteTags(array('field_info' => TRUE));
   }
 
   /**
@@ -208,7 +207,7 @@ class FieldInfo {
 
     // Save in "static" and persistent caches.
     $this->fieldMap = $map;
-    $this->cacheBackend->set('field_info:field_map', $map, CacheBackendInterface::CACHE_PERMANENT, array('field_info' => TRUE));
+    $this->cacheBackend->set('field_info:field_map', $map, Cache::PERMANENT, array('field_info' => TRUE));
 
     return $map;
   }
@@ -236,7 +235,7 @@ class FieldInfo {
       }
 
       // Store in persistent cache.
-      $this->cacheBackend->set('field_info:fields', $this->fieldsById, CacheBackendInterface::CACHE_PERMANENT, array('field_info' => TRUE));
+      $this->cacheBackend->set('field_info:fields', $this->fieldsById, Cache::PERMANENT, array('field_info' => TRUE));
     }
 
     // Fill the name/ID map.
@@ -283,7 +282,7 @@ class FieldInfo {
         }
 
         // Store in persistent cache.
-        $this->cacheBackend->set('field_info:instances', $this->bundleInstances, CacheBackendInterface::CACHE_PERMANENT, array('field_info' => TRUE));
+        $this->cacheBackend->set('field_info:instances', $this->bundleInstances, Cache::PERMANENT, array('field_info' => TRUE));
       }
 
       $this->loadedAllInstances = TRUE;
@@ -485,8 +484,8 @@ class FieldInfo {
 
     // Store in the persistent cache. Fields and instances are cached in
     // separate entries because they need to be unserialized separately.
-    $this->cacheBackend->set("field_info:bundle:fields:$entity_type:$bundle", $fields, CacheBackendInterface::CACHE_PERMANENT, array('field_info' => TRUE));
-    $this->cacheBackend->set("field_info:bundle:instances:$entity_type:$bundle", $instances, CacheBackendInterface::CACHE_PERMANENT, array('field_info' => TRUE));
+    $this->cacheBackend->set("field_info:bundle:fields:$entity_type:$bundle", $fields, Cache::PERMANENT, array('field_info' => TRUE));
+    $this->cacheBackend->set("field_info:bundle:instances:$entity_type:$bundle", $instances, Cache::PERMANENT, array('field_info' => TRUE));
 
     return $instances;
   }
@@ -544,7 +543,7 @@ class FieldInfo {
 
     // Store in the 'static' and persistent caches.
     $this->bundleExtraFields[$entity_type][$bundle] = $info;
-    $this->cacheBackend->set("field_info:bundle_extra:$entity_type:$bundle", $info, CacheBackendInterface::CACHE_PERMANENT, array('field_info' => TRUE));
+    $this->cacheBackend->set("field_info:bundle_extra:$entity_type:$bundle", $info, Cache::PERMANENT, array('field_info' => TRUE));
 
     return $this->bundleExtraFields[$entity_type][$bundle];
   }

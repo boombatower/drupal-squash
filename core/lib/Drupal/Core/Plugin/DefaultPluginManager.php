@@ -12,6 +12,7 @@ use Drupal\Core\Plugin\Discovery\ContainerDerivativeDiscoveryDecorator;
 use Drupal\Component\Plugin\PluginManagerBase;
 use Drupal\Component\Plugin\PluginManagerInterface;
 use Drupal\Component\Utility\NestedArray;
+use Drupal\Core\Cache\Cache;
 use Drupal\Core\Cache\CacheBackendInterface;
 use Drupal\Core\Extension\ModuleHandlerInterface;
 use Drupal\Core\Language\LanguageManagerInterface;
@@ -87,6 +88,15 @@ class DefaultPluginManager extends PluginManagerBase implements PluginManagerInt
    * @var \Drupal\Core\Language\LanguageManagerInterface
    */
   protected $languageManager;
+
+  /**
+   * A set of defaults to be referenced by $this->processDefinition() if
+   * additional processing of plugins is necessary or helpful for development
+   * purposes.
+   *
+   * @var array
+   */
+  protected $defaults = array();
 
   /**
    * Creates the discovery object.
@@ -184,7 +194,7 @@ class DefaultPluginManager extends PluginManagerBase implements PluginManagerInt
     if ($this->cacheBackend) {
       if ($this->cacheTags) {
         // Use the cache tags to clear the cache.
-        $this->cacheBackend->deleteTags($this->cacheTags);
+        Cache::deleteTags($this->cacheTags);
       }
       elseif ($this->languageManager) {
         $cache_keys = array();
@@ -224,9 +234,23 @@ class DefaultPluginManager extends PluginManagerBase implements PluginManagerInt
    */
   protected function setCachedDefinitions($definitions) {
     if ($this->cacheBackend) {
-      $this->cacheBackend->set($this->cacheKey, $definitions, CacheBackendInterface::CACHE_PERMANENT, $this->cacheTags);
+      $this->cacheBackend->set($this->cacheKey, $definitions, Cache::PERMANENT, $this->cacheTags);
     }
     $this->definitions = $definitions;
+  }
+
+
+  /**
+   * Performs extra processing on plugin definitions.
+   *
+   * By default we add defaults for the type to the definition. If a type has
+   * additional processing logic they can do that by replacing or extending the
+   * method.
+   */
+  public function processDefinition(&$definition, $plugin_id) {
+    if (!empty($this->defaults) && is_array($this->defaults)) {
+      $definition = NestedArray::mergeDeep($this->defaults, $definition);
+    }
   }
 
   /**

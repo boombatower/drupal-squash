@@ -48,12 +48,12 @@ abstract class DraggableListController extends ConfigEntityListController implem
   /**
    * {@inheritdoc}
    */
-  public function __construct(EntityTypeInterface $entity_info, EntityStorageControllerInterface $storage) {
-    parent::__construct($entity_info, $storage);
+  public function __construct(EntityTypeInterface $entity_type, EntityStorageControllerInterface $storage) {
+    parent::__construct($entity_type, $storage);
 
     // Check if the entity type supports weighting.
-    if ($this->entityInfo->hasKey('weight')) {
-      $this->weightKey = $this->entityInfo->getKey('weight');
+    if ($this->entityType->hasKey('weight')) {
+      $this->weightKey = $this->entityType->getKey('weight');
     }
   }
 
@@ -106,7 +106,7 @@ abstract class DraggableListController extends ConfigEntityListController implem
     $form[$this->entitiesKey] = array(
       '#type' => 'table',
       '#header' => $this->buildHeader(),
-      '#empty' => t('There is no @label yet.', array('@label' => $this->entityInfo->getLabel())),
+      '#empty' => t('There is no @label yet.', array('@label' => $this->entityType->getLabel())),
       '#tabledrag' => array(
         array(
           'action' => 'order',

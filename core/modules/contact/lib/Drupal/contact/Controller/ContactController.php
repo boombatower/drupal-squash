@@ -8,7 +8,6 @@
 namespace Drupal\contact\Controller;
 
 use Drupal\Core\Controller\ControllerBase;
-use Drupal\Core\DependencyInjection\ContainerInjectionInterface;
 use Drupal\Core\Flood\FloodInterface;
 use Drupal\contact\CategoryInterface;
 use Drupal\user\UserInterface;
@@ -20,7 +19,7 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 /**
  * Controller routines for contact routes.
  */
-class ContactController extends ControllerBase implements ContainerInjectionInterface {
+class ContactController extends ControllerBase {
 
   /**
    * The flood service.
@@ -91,7 +90,7 @@ class ContactController extends ControllerBase implements ContainerInjectionInte
         'category' => $contact_category->id(),
       ));
 
-    $form = $this->entityManager()->getForm($message);
+    $form = $this->entityFormBuilder()->getForm($message);
     $form['#title'] = String::checkPlain($contact_category->label());
     return $form;
   }
@@ -116,7 +115,7 @@ class ContactController extends ControllerBase implements ContainerInjectionInte
       'recipient' => $user->id(),
     ));
 
-    $form = $this->entityManager()->getForm($message);
+    $form = $this->entityFormBuilder()->getForm($message);
     $form['#title'] = $this->t('Contact @username', array('@username' => $user->getUsername()));
     return $form;
   }

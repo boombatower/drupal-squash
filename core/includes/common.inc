@@ -15,7 +15,6 @@ use Symfony\Component\HttpFoundation\Request;
 use Drupal\Component\PhpStorage\PhpStorageFactory;
 use Drupal\Component\Utility\MapArray;
 use Drupal\Component\Utility\NestedArray;
-use Drupal\Core\Cache\CacheBackendInterface;
 use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\Core\Routing\GeneratorNotInitializedException;
 use Drupal\Core\SystemListingInfo;
@@ -375,9 +374,13 @@ function drupal_add_feed($url = NULL, $title = '') {
   $stored_feed_links = &drupal_static(__FUNCTION__, array());
 
   if (isset($url)) {
-    $stored_feed_links[$url] = theme('feed_icon', array('url' => $url, 'title' => $title));
+    $feed_icon = array(
+      '#theme' => 'feed_icon',
+      '#url' => $url,
+      '#title' => $title,
+    );
 
-    $build['#attached']['drupal_add_html_head_link'][][] = array(
+    $feed_icon['#attached']['drupal_add_html_head_link'][][] = array(
       'rel' => 'alternate',
       'type' => 'application/rss+xml',
       'title' => $title,
@@ -385,7 +388,8 @@ function drupal_add_feed($url = NULL, $title = '') {
       // output by Drupal.
       'href' => url($url, array('absolute' => TRUE)),
     );
-    drupal_render($build);
+
+    $stored_feed_links[$url] = drupal_render($feed_icon);
   }
   return $stored_feed_links;
 }
@@ -1214,12 +1218,24 @@ function drupal_http_header_attributes(array $attributes = array()) {
  *     internal to the site, $options['language'] is used to determine whether
  *     the link is "active", or pointing to the current page (the language as
  *     well as the path must match). This element is also used by url().
+ *   - 'set_active_class': Whether l() should compare the $path, language and
+ *     query options to the current URL to determine whether the link is
+ *     "active". Defaults to FALSE. If TRUE, an "active" class will be applied
+ *     to the link. It is important to use this sparingly since it is usually
+ *     unnecessary and requires extra processing.
+ *     For anonymous users, the "active" class will be calculated on the server,
+ *     because most sites serve each anonymous user the same cached page anyway.
+ *     For authenticated users, the "active" class will be calculated on the
+ *     client (through JavaScript), only data- attributes are added to links to
+ *     prevent breaking the render cache. The JavaScript is added in
+ *     system_page_build().
  *   - Additional $options elements used by the url() function.
  *
  * @return string
  *   An HTML string containing a link to the given path.
  *
  * @see url()
+ * @see system_page_build()
  */
 function l($text, $path, array $options = array()) {
   // Start building a structured representation of our link to be altered later.
@@ -1235,6 +1251,7 @@ function l($text, $path, array $options = array()) {
     'query' => array(),
     'html' => FALSE,
     'language' => NULL,
+    'set_active_class' => FALSE,
   );
 
   // Add a hreflang attribute if we know the language of this link's url and
@@ -1243,35 +1260,21 @@ function l($text, $path, array $options = array()) {
     $variables['options']['attributes']['hreflang'] = $variables['options']['language']->id;
   }
 
-  // Because l() is called very often we statically cache values that require an
-  // extra function call.
-  static $drupal_static_fast;
-  if (!isset($drupal_static_fast['active'])) {
-    $drupal_static_fast['active'] = &drupal_static(__FUNCTION__);
-  }
-  $active = &$drupal_static_fast['active'];
-  if (!isset($active)) {
-    $active = array(
-      'path' => current_path(),
-      'front_page' => drupal_is_front_page(),
-      'language' => language(Language::TYPE_URL)->id,
-      'query' => \Drupal::service('request')->query->all(),
-    );
-  }
+  // Set the "active" class if the 'set_active_class' option is not empty.
+  if (!empty($variables['options']['set_active_class'])) {
+    // Add a "data-drupal-link-query" attribute to let the drupal.active-link
+    // library know the query in a standardized manner.
+    if (!empty($variables['options']['query'])) {
+      $query = $variables['options']['query'];
+      ksort($query);
+      $variables['options']['attributes']['data-drupal-link-query'] = Json::encode($query);
+    }
 
-  // Determine whether this link is "active', meaning that it links to the
-  // current page. It is important that we stop checking "active" conditions if
-  // we know the link is not active. This helps ensure that l() remains fast.
-  // An active link's path is equal to the current path.
-  $variables['url_is_active'] = ($path == $active['path'] || ($path == '<front>' && $active['front_page']))
-  // The language of an active link is equal to the current language.
-  && (empty($variables['options']['language']) || $variables['options']['language']->id == $active['language'])
-  // The query parameters of an active link are equal to the current parameters.
-  && ($variables['options']['query'] == $active['query']);
-
-  // Add the "active" class if appropriate.
-  if ($variables['url_is_active']) {
-    $variables['options']['attributes']['class'][] = 'active';
+    // Add a "data-drupal-link-system-path" attribute to let the
+    // drupal.active-link library know the path in a standardized manner.
+    if (!isset($variables['options']['attributes']['data-drupal-link-system-path'])) {
+      $variables['options']['attributes']['data-drupal-link-system-path'] = \Drupal::service('path.alias_manager.cached')->getSystemPath($path);
+    }
   }
 
   // Remove all HTML and PHP tags from a tooltip, calling expensive strip_tags()
@@ -1373,7 +1376,7 @@ function base_path() {
  * Adds a LINK tag with a distinct 'rel' attribute to the page's HEAD.
  *
  * This function can be called as long the HTML header hasn't been sent, which
- * on normal pages is up through the preprocess step of theme('html'). Adding
+ * on normal pages is up through the preprocess step of _theme('html'). Adding
  * a link will overwrite a prior link with the exact same 'rel' and 'href'
  * attributes.
  *
@@ -2149,6 +2152,7 @@ function _drupal_add_js($data = NULL, $options = NULL) {
           // @todo Make this less hacky: http://drupal.org/node/1547376.
           $scriptPath = $GLOBALS['script_path'];
           $pathPrefix = '';
+          $current_query = \Drupal::service('request')->query->all();
           url('', array('script' => &$scriptPath, 'prefix' => &$pathPrefix));
           $current_path = current_path();
           $current_path_is_admin = FALSE;
@@ -2156,13 +2160,20 @@ function _drupal_add_js($data = NULL, $options = NULL) {
           if (!(defined('MAINTENANCE_MODE') && MAINTENANCE_MODE === 'update')) {
             $current_path_is_admin = path_is_admin($current_path);
           }
-          $javascript['settings']['data'][] = array(
+          $path = array(
             'basePath' => base_path(),
             'scriptPath' => $scriptPath,
             'pathPrefix' => $pathPrefix,
             'currentPath' => $current_path,
             'currentPathIsAdmin' => $current_path_is_admin,
+            'isFront' => drupal_is_front_page(),
+            'currentLanguage' => \Drupal::languageManager()->getCurrentLanguage(Language::TYPE_URL)->id,
           );
+          if (!empty($current_query)) {
+            ksort($current_query);
+            $path['currentQuery'] = (object) $current_query;
+          }
+          $javascript['settings']['data'][] = array('path' => $path);
         }
         // All JavaScript settings are placed in the header of the page with
         // the library weight so that inline scripts appear afterwards.
@@ -2764,7 +2775,7 @@ function drupal_get_library($module, $name = NULL) {
 
   if (!isset($libraries[$module])) {
     // Retrieve all libraries associated with the module.
-    $module_libraries = module_invoke($module, 'library_info');
+    $module_libraries = \Drupal::moduleHandler()->invoke($module, 'library_info');
     if (empty($module_libraries)) {
       $module_libraries = array();
     }
@@ -2811,8 +2822,15 @@ function drupal_get_library($module, $name = NULL) {
  * into a table. The table must have an ID attribute set. If using
  * theme_table(), the ID may be set as follows:
  * @code
- * $output = theme('table', array('header' => $header, 'rows' => $rows, 'attributes' => array('id' => 'my-module-table')));
- * return $output;
+ * $table = array(
+ *   '#type' => 'table',
+ *   '#header' => $header,
+ *   '#rows' => $rows,
+ *   '#attributes' => array(
+ *     'id' => 'my-module-table',
+ *   ),
+ * );
+ * return drupal_render($table);
  * @endcode
  *
  * In the theme function for the form, a special class must be added to each
@@ -2999,6 +3017,11 @@ function drupal_get_private_key() {
  * @param string $value
  *   An additional value to base the token on.
  *
+ * The generated token is based on the session ID of the current user. Normally,
+ * anonymous users do not have a session, so the generated token will be
+ * different on every page request. To generate a token for users without a
+ * session, manually start a session prior to calling this function.
+ *
  * @return string
  *   A 43-character URL-safe token for validation, based on the user session ID,
  *   the hash salt provided from drupal_get_hash_salt(), and the
@@ -3006,6 +3029,7 @@ function drupal_get_private_key() {
  *
  * @see drupal_get_hash_salt()
  * @see \Drupal\Core\Access\CsrfTokenManager
+ * @see drupal_session_start()
  *
  * @deprecated as of Drupal 8.0. Use the csrf_token service instead.
  */
@@ -3059,14 +3083,6 @@ function _drupal_bootstrap_code() {
 
   // Make sure all stream wrappers are registered.
   file_get_stream_wrappers();
-
-  // Now that stream wrappers are registered, log fatal errors from a simpletest
-  // child site to a test specific file directory.
-  $test_info = &$GLOBALS['drupal_test_info'];
-  if (!empty($test_info['in_child_site'])) {
-    ini_set('log_errors', 1);
-    ini_set('error_log', 'public://error.log');
-  }
 
   // Set the allowed protocols once we have the config available.
   $allowed_protocols = \Drupal::config('system.filter')->get('protocols');
@@ -3141,8 +3157,8 @@ function drupal_page_set_cache(Response $response, Request $request) {
         // because by the time it is read, the configuration might change.
         'page_compressed' => $page_compressed,
       ),
-      'tags' => array('content' => TRUE) + drupal_cache_tags_page_get(),
-      'expire' => CacheBackendInterface::CACHE_PERMANENT,
+      'tags' => array('content' => TRUE) + drupal_cache_tags_page_get($response),
+      'expire' => Cache::PERMANENT,
       'created' => REQUEST_TIME,
     );
 
@@ -3168,96 +3184,6 @@ function drupal_page_set_cache(Response $response, Request $request) {
     }
     return $cache;
   }
-}
-
-/**
- * Executes a cron run when called.
- *
- * Do not call this function from a test. Use $this->cronRun() instead.
- *
- * @return
- *   TRUE if cron ran successfully.
- */
-function drupal_cron_run() {
-  // Allow execution to continue even if the request gets canceled.
-  @ignore_user_abort(TRUE);
-
-  // Prevent session information from being saved while cron is running.
-  $original_session_saving = drupal_save_session();
-  drupal_save_session(FALSE);
-
-  // Force the current user to anonymous to ensure consistent permissions on
-  // cron runs.
-  $original_user = $GLOBALS['user'];
-  $GLOBALS['user'] = drupal_anonymous_user();
-
-  // Try to allocate enough time to run all the hook_cron implementations.
-  drupal_set_time_limit(240);
-
-  $return = FALSE;
-  // Grab the defined cron queues.
-  $queues = \Drupal::moduleHandler()->invokeAll('queue_info');
-  drupal_alter('queue_info', $queues);
-
-  // Try to acquire cron lock.
-  if (!lock()->acquire('cron', 240.0)) {
-    // Cron is still running normally.
-    watchdog('cron', 'Attempting to re-run cron while it is already running.', array(), WATCHDOG_WARNING);
-  }
-  else {
-    // Make sure every queue exists. There is no harm in trying to recreate an
-    // existing queue.
-    foreach ($queues as $queue_name => $info) {
-      if (isset($info['cron'])) {
-        \Drupal::queue($queue_name)->createQueue();
-      }
-    }
-
-    // Iterate through the modules calling their cron handlers (if any):
-    foreach (\Drupal::moduleHandler()->getImplementations('cron') as $module) {
-      // Do not let an exception thrown by one module disturb another.
-      try {
-        module_invoke($module, 'cron');
-      }
-      catch (Exception $e) {
-        watchdog_exception('cron', $e);
-      }
-    }
-
-    // Record cron time.
-    \Drupal::state()->set('system.cron_last', REQUEST_TIME);
-    watchdog('cron', 'Cron run completed.', array(), WATCHDOG_NOTICE);
-
-    // Release cron lock.
-    lock()->release('cron');
-
-    // Return TRUE so other functions can check if it did run successfully
-    $return = TRUE;
-  }
-
-  foreach ($queues as $queue_name => $info) {
-    if (isset($info['cron'])) {
-      $callback = $info['worker callback'];
-      $end = time() + (isset($info['cron']['time']) ? $info['cron']['time'] : 15);
-      $queue = \Drupal::queue($queue_name);
-      while (time() < $end && ($item = $queue->claimItem())) {
-        try {
-          call_user_func_array($callback, array($item->data));
-          $queue->deleteItem($item);
-        }
-        catch (Exception $e) {
-          // In case of exception log it and leave the item in the queue
-          // to be processed again later.
-          watchdog_exception('cron', $e);
-        }
-      }
-    }
-  }
-  // Restore the user.
-  $GLOBALS['user'] = $original_user;
-  drupal_save_session($original_session_saving);
-
-  return $return;
 }
 
 /**
@@ -3493,7 +3419,7 @@ function drupal_pre_render_link($element) {
  * Pre-render callback: Collects child links into a single array.
  *
  * This function can be added as a pre_render callback for a renderable array,
- * usually one which will be themed by theme_links(). It iterates through all
+ * usually one which will be themed by links.html.twig. It iterates through all
  * unrendered children of the element, collects any #links properties it finds,
  * merges them into the parent element's #links array, and prevents those
  * children from being rendered separately.
@@ -3514,21 +3440,21 @@ function drupal_pre_render_link($element) {
  *     '#theme' => 'links__node__comment',
  *     '#links' => array(
  *       // An array of links associated with node comments, suitable for
- *       // passing in to theme_links().
+ *       // passing in to links.html.twig.
  *     ),
  *   ),
  *   'statistics' => array(
  *     '#theme' => 'links__node__statistics',
  *     '#links' => array(
  *       // An array of links associated with node statistics, suitable for
- *       // passing in to theme_links().
+ *       // passing in to links.html.twig.
  *     ),
  *   ),
  *   'translation' => array(
  *     '#theme' => 'links__node__translation',
  *     '#links' => array(
  *       // An array of links associated with node translation, suitable for
- *       // passing in to theme_links().
+ *       // passing in to links.html.twig.
  *     ),
  *   ),
  * );
@@ -3646,6 +3572,20 @@ function drupal_prepare_page($page) {
   // 'sidebar_first', 'footer', etc.
   drupal_alter('page', $page);
 
+  // The "main" and "secondary" menus are never part of the page-level render
+  // array and therefore their cache tags will never bubble up into the page
+  // cache, even though they should be. This happens because they're rendered
+  // directly by the theme system.
+  // @todo Remove this once https://drupal.org/node/1869476 lands.
+  if (theme_get_setting('features.main_menu') && count(menu_main_menu())) {
+    $main_links_source = _menu_get_links_source('main_links', 'main');
+    $page['page_top']['#cache']['tags']['menu'][$main_links_source] = $main_links_source;
+  }
+  if (theme_get_setting('features.secondary_menu') && count(menu_secondary_menu())) {
+    $secondary_links_source = _menu_get_links_source('secondary_links', 'account');
+    $page['page_top']['#cache']['tags']['menu'][$secondary_links_source] = $secondary_links_source;
+  }
+
   // If no module has taken care of the main content, add it to the page now.
   // This allows the site to still be usable even if no modules that
   // control page regions (for example, the Block module) are enabled.
@@ -3735,9 +3675,9 @@ function drupal_render_page($page) {
  *     $elements['#sorted'] = TRUE to avoid sorting them a second time.
  *   - The main render phase to produce #children for this element takes place:
  *     - If this element has #theme defined and #theme is an implemented theme
- *       hook/suggestion then theme() is called and must render both the element
- *       and its children. If #render_children is set, theme() will not be
- *       called. #render_children is usually only set internally by theme() so
+ *       hook/suggestion then _theme() is called and must render both the element
+ *       and its children. If #render_children is set, _theme() will not be
+ *       called. #render_children is usually only set internally by _theme() so
  *       that we can avoid the situation where drupal_render() called from
  *       within a theme preprocess function creates an infinite loop.
  *     - If this element does not have a defined #theme, or the defined #theme
@@ -3755,7 +3695,7 @@ function drupal_render_page($page) {
  *     drupal_process_attached().
  *   - If this element has an array of #theme_wrappers defined and
  *     #render_children is not set, #children is then re-rendered by passing the
- *     element in its current state to theme() successively for each item in
+ *     element in its current state to _theme() successively for each item in
  *     #theme_wrappers. Since #theme and #theme_wrappers hooks often define
  *     variables with the same names it is possible to explicitly override each
  *     attribute passed to each #theme_wrappers hook by setting the hook name as
@@ -3815,7 +3755,7 @@ function drupal_render_page($page) {
  *   The rendered HTML.
  *
  * @see element_info()
- * @see theme()
+ * @see _theme()
  * @see drupal_process_states()
  * @see drupal_process_attached()
  */
@@ -3888,11 +3828,11 @@ function drupal_render(&$elements, $is_recursive_call = FALSE) {
   // property is set, do not call the #theme function to prevent infinite
   // recursion.
   if ($theme_is_implemented && !isset($elements['#render_children'])) {
-    $elements['#children'] = theme($elements['#theme'], $elements);
+    $elements['#children'] = _theme($elements['#theme'], $elements);
 
-    // If theme() returns FALSE this means that the hook in #theme was not found
-    // in the registry and so we need to update our flag accordingly. This is
-    // common for theme suggestions.
+    // If _theme() returns FALSE this means that the hook in #theme was not
+    // found in the registry and so we need to update our flag accordingly. This
+    // is common for theme suggestions.
     $theme_is_implemented = ($elements['#children'] !== FALSE);
   }
 
@@ -3935,7 +3875,7 @@ function drupal_render(&$elements, $is_recursive_call = FALSE) {
       // If the value of a #theme_wrappers item is an array then the theme hook
       // is found in the key of the item and the value contains attribute
       // overrides. Attribute overrides replace key/value pairs in $elements for
-      // only this theme() call. This allows #theme hooks and #theme_wrappers
+      // only this _theme() call. This allows #theme hooks and #theme_wrappers
       // hooks to share variable names without conflict or ambiguity.
       $wrapper_elements = $elements;
       if (is_string($key)) {
@@ -3948,7 +3888,7 @@ function drupal_render(&$elements, $is_recursive_call = FALSE) {
         $wrapper_hook = $value;
       }
 
-      $elements['#children'] = theme($wrapper_hook, $wrapper_elements);
+      $elements['#children'] = _theme($wrapper_hook, $wrapper_elements);
     }
   }
 
@@ -4186,7 +4126,7 @@ function drupal_render_cache_set(&$markup, array $elements) {
   }
 
   $bin = isset($elements['#cache']['bin']) ? $elements['#cache']['bin'] : 'cache';
-  $expire = isset($elements['#cache']['expire']) ? $elements['#cache']['expire'] : CacheBackendInterface::CACHE_PERMANENT;
+  $expire = isset($elements['#cache']['expire']) ? $elements['#cache']['expire'] : Cache::PERMANENT;
   $tags = drupal_render_collect_cache_tags($elements);
   cache($bin)->set($cid, $data, $expire, $tags);
 }
@@ -4214,7 +4154,7 @@ function drupal_render_cache_generate_placeholder($callback, array $context, $to
   foreach ($context as $key => $value) {
     $context_attribute .= $key . ':' . $value . ';';
   }
-  return '<drupal:render-cache-placeholder callback="' . $callback .  '" context="' . $context_attribute . '" token="'. $token . '" />';;
+  return '<drupal:render-cache-placeholder callback="' . $callback . '" context="' . $context_attribute . '" token="' . $token . '" />';
 }
 
 /**
@@ -4443,35 +4383,20 @@ function drupal_render_collect_cache_tags($element, $tags = array()) {
 }
 
 /**
- * A #post_render callback at the top level of the $page array. Collects the
- * tags for use in page cache.
- *
- * @param string $children
- *   An HTML string of rendered output.
- * @param array $elements
- *   A render array.
- *
- * @return string
- *   The same $children that was passed in - no modifications.
- */
-function drupal_post_render_cache_tags_page_set($children, array $elements) {
-  if (drupal_page_is_cacheable()) {
-    $tags = &drupal_static('system_cache_tags_page', array());
-    $tags = drupal_render_collect_cache_tags($elements);
-  }
-  return $children;
-}
-
-/**
  * Return the cache tags that were stored during drupal_render_page().
  *
+ * @param \Symfony\Component\HttpFoundation\Response $response
+ *   The response object.
  * @return array
  *   An array of cache tags.
  *
- * @see drupal_post_render_cache_tags_page_set()
+ * @see \Drupal\Core\EventSubscriber\HtmlViewSubscriber::onHtmlPage()
  */
-function drupal_cache_tags_page_get() {
-  return drupal_static('system_cache_tags_page', array());
+function drupal_cache_tags_page_get(Response $response) {
+  if (($tags = $response->headers->get('cache_tags')) && $tags = unserialize($tags)) {
+    return $tags;
+  }
+  return array();
 }
 
 /**
@@ -4501,7 +4426,7 @@ function drupal_cache_tags_page_get() {
  *   - #pre_render: $function with a _pre_render suffix.
  *   - #cache: An associative array prepared for drupal_render_cache_set().
  */
-function drupal_render_cache_by_query($query, $function, $expire = CacheBackendInterface::CACHE_PERMANENT, $granularity = NULL) {
+function drupal_render_cache_by_query($query, $function, $expire = Cache::PERMANENT, $granularity = NULL) {
   $cache_keys = array_merge(array($function), drupal_render_cid_parts($granularity));
   $query->preExecute();
   $cache_keys[] = hash('sha256', serialize(array((string) $query, $query->getArguments())));
@@ -4674,32 +4599,6 @@ function element_info($type) {
  */
 function element_info_property($type, $property_name, $default = NULL) {
   return (($info = element_info($type)) && array_key_exists($property_name, $info)) ? $info[$property_name] : $default;
-}
-
-/**
- * Sorts a structured array by the 'weight' element.
- *
- * Note that the sorting is by the 'weight' array element, not by the render
- * element property '#weight'.
- *
- * Callback for uasort() used in various functions.
- *
- * @param $a
- *   First item for comparison. The compared items should be associative arrays
- *   that optionally include a 'weight' element. For items without a 'weight'
- *   element, a default value of 0 will be used.
- * @param $b
- *   Second item for comparison.
- *
- * @return int
- *   The comparison result for uasort().
- *
- * @see \Drupal\Component\Utility\SortArray::sortByWeightElement()
- *
- * @deprecated as of Drupal 8.0. Use SortArray::sortByWeightElement() instead.
- */
-function drupal_sort_weight($a, $b) {
-  return SortArray::sortByWeightElement((array) $a, (array) $b);
 }
 
 /**
@@ -4999,7 +4898,6 @@ function drupal_flush_all_caches() {
   // Important: This rebuild must happen last, so the menu router is guaranteed
   // to be based on up to date information.
   \Drupal::service('router.builder')->rebuild();
-  menu_router_rebuild();
 
   // Re-initialize the maintenance theme, if the current request attempted to
   // use it. Unlike regular usages of this function, the installer and update
@@ -5131,7 +5029,7 @@ function drupal_get_updaters() {
   if (!isset($updaters)) {
     $updaters = \Drupal::moduleHandler()->invokeAll('updater_info');
     drupal_alter('updater_info', $updaters);
-    uasort($updaters, 'drupal_sort_weight');
+    uasort($updaters, array('Drupal\Component\Utility\SortArray', 'sortByWeightElement'));
   }
   return $updaters;
 }
@@ -5151,7 +5049,7 @@ function drupal_get_filetransfer_info() {
   if (!isset($info)) {
     $info = \Drupal::moduleHandler()->invokeAll('filetransfer_info');
     drupal_alter('filetransfer_info', $info);
-    uasort($info, 'drupal_sort_weight');
+    uasort($info, array('Drupal\Component\Utility\SortArray', 'sortByWeightElement'));
   }
   return $info;
 }

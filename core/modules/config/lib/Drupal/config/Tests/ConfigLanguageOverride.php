@@ -33,15 +33,28 @@ class ConfigLanguageOverride extends DrupalUnitTestBase {
   public function setUp() {
     parent::setUp();
     $this->installConfig(array('config_test'));
-    \Drupal::configFactory()->setLanguage(language_default());
   }
 
   /**
    * Tests locale override based on language.
    */
   function testConfigLanguageOverride() {
+    // The default configuration factory does not have the default language
+    // injected unless the Language module is enabled.
+    $config = \Drupal::config('config_test.system');
+    $this->assertIdentical($config->get('foo'), 'bar');
+
+    // \Drupal\language\LanguageServiceProvider::alter() calls
+    // \Drupal\Core\Config\ConfigFactory::setLanguageFromDefault() to set the
+    // language when the Language module is enabled. This test ensures that
+    // English overrides work.
+    \Drupal::configFactory()->setLanguageFromDefault(\Drupal::service('language.default'));
     $config = \Drupal::config('config_test.system');
     $this->assertIdentical($config->get('foo'), 'en bar');
+
+    // Ensure that the raw data is not translated.
+    $raw = $config->getRawData();
+    $this->assertIdentical($raw['foo'], 'bar');
 
     language_save(new Language(array(
       'name' => 'French',
@@ -69,10 +82,11 @@ class ConfigLanguageOverride extends DrupalUnitTestBase {
     $config = \Drupal::config('config_test.new');
     $this->assertTrue($config->isNew(), 'The configuration object config_test.new is new');
     $this->assertIdentical($config->get('language'), 'override');
-    \Drupal::configFactory()->disableOverrides();
+    $old_state = \Drupal::configFactory()->getOverrideState();
+    \Drupal::configFactory()->setOverrideState(FALSE);
     $config = \Drupal::config('config_test.new');
     $this->assertIdentical($config->get('language'), NULL);
-    \Drupal::configFactory()->enableOverrides();
+    \Drupal::configFactory()->setOverrideState($old_state);
 
     // Ensure that language configuration overrides can not be overridden.
     global $conf;

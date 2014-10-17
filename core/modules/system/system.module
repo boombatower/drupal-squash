@@ -9,10 +9,13 @@ use Drupal\Core\Cache\CacheBackendInterface;
 use Drupal\Core\Cache\Cache;
 use Drupal\Core\Language\Language;
 use Drupal\Core\Utility\ModuleInfo;
+use Drupal\block\BlockPluginInterface;
+use Drupal\menu_link\MenuLinkInterface;
 use Drupal\user\UserInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\Request;
 use Guzzle\Http\Exception\BadResponseException;
 use Guzzle\Http\Exception\RequestException;
 
@@ -177,6 +180,7 @@ function system_theme() {
     'status_report' => array(
       'variables' => array('requirements' => NULL),
       'file' => 'system.admin.inc',
+      'template' => 'status-report',
     ),
     'admin_page' => array(
       'variables' => array('blocks' => NULL),
@@ -266,7 +270,6 @@ function system_element_info() {
     '#theme_wrappers' => array('form'),
   );
   $types['page'] = array(
-    '#post_render' => array('drupal_post_render_cache_tags_page_set'),
     '#show_messages' => TRUE,
     '#theme' => 'page',
   );
@@ -548,6 +551,9 @@ function system_element_info() {
     '#pre_render' => array('form_pre_render_group'),
     '#theme_wrappers' => array('fieldset'),
   );
+  $types['fieldgroup'] = $types['fieldset'] + array(
+    '#attributes' => array('class' => array('fieldgroup')),
+  );
   $types['details'] = array(
     '#collapsed' => FALSE,
     '#value' => NULL,
@@ -816,6 +822,207 @@ function system_menu() {
 }
 
 /**
+ * Implements hook_menu_link_defaults().
+ */
+function system_menu_link_defaults() {
+  $items['system.admin'] = array(
+    'link_title' => 'Administration',
+    'route_name' => 'system.admin',
+    'weight' => 9,
+    'menu_name' => 'admin',
+  );
+
+  // Menu items that are basically just menu blocks.
+  $items['system.admin.structure'] = array(
+    'route_name' => 'system.admin_structure',
+    'parent' => 'system.admin',
+    'description' => 'Administer blocks, content types, menus, etc.',
+    'link_title' => 'Structure',
+    'weight' => -8,
+  );
+  // Appearance.
+  $items['system.admin.appearance'] = array(
+    'route_name' => 'system.themes_page',
+    'link_title' => 'Appearance',
+    'parent' => 'system.admin',
+    'weight' => -6,
+  );
+  // Modules.
+  $items['system.admin.modules'] = array(
+    'link_title' => 'Extend',
+    'parent' => 'system.admin',
+    'route_name' => 'system.modules_list',
+    'weight' => -2,
+  );
+  // Configuration.
+  $items['system.admin.config'] = array(
+    'link_title' => 'Configuration',
+    'parent' => 'system.admin',
+    'description' => 'Administer settings.',
+    'route_name' => 'system.admin_config',
+    'weight' => 0,
+  );
+
+  // Media settings.
+  $items['system.admin.config.media'] = array(
+    'route_name' => 'system.admin_config_media',
+    'parent' => 'system.admin.config',
+    'link_title' => 'Media',
+    'weight' => -10,
+  );
+  $items['system.admin.config.media.file-system'] = array(
+    'link_title' => 'File system',
+    'description' => 'Tell Drupal where to store uploaded files and how they are accessed.',
+    'parent' => 'system.admin.config.media',
+    'route_name' => 'system.file_system_settings',
+  );
+  $items['system.admin.config.media.image-toolkit'] = array(
+    'link_title' => 'Image toolkit',
+    'parent' => 'system.admin.config.media',
+    'route_name' => 'system.image_toolkit_settings',
+    'description' => 'Choose which image toolkit to use if you have installed optional toolkits.',
+    'weight' => 20,
+  );
+
+  // Service settings.
+  $items['system.admin.config.services'] = array(
+    'link_title' => 'Web services',
+    'parent' => 'system.admin.config',
+    'route_name' => 'system.admin_config_services',
+  );
+  $items['system.admin.config.services.rss-publishing'] = array(
+    'link_title' => 'RSS publishing',
+    'parent' => 'system.admin.config.services',
+    'description' => 'Configure the site description, the number of items per feed and whether feeds should be titles/teasers/full-text.',
+    'route_name' => 'system.rss_feeds_settings',
+  );
+
+  // Development settings.
+  $items['system.admin.config.development'] = array(
+    'route_name' => 'system.admin_config_development',
+    'parent' => 'system.admin.config',
+    'link_title' => 'Development',
+    'description' => 'Development tools.',
+    'weight' => -10,
+  );
+  $items['system.admin.config.development.maintenance'] = array(
+    'link_title' => 'Maintenance mode',
+    'parent' => 'system.admin.config.development',
+    'description' => 'Take the site offline for maintenance or bring it back online.',
+    'route_name' => 'system.site_maintenance_mode',
+    'weight' => -10,
+  );
+  $items['system.admin.config.development.performance'] = array(
+    'link_title' => 'Performance',
+    'parent' => 'system.admin.config.development',
+    'description' => 'Enable or disable page caching for anonymous users and set CSS and JS bandwidth optimization options.',
+    'route_name' => 'system.performance_settings',
+    'weight' => -20,
+  );
+  $items['system.admin.config.development.logging'] = array(
+    'link_title' => 'Logging and errors',
+    'parent' => 'system.admin.config.development',
+    'description' => "Settings for logging and alerts modules. Various modules can route Drupal's system events to different destinations, such as syslog, database, email, etc.",
+    'route_name' => 'system.logging_settings',
+    'weight' => -15,
+  );
+
+  // Regional and date settings.
+  $items['system.admin.config.regional'] = array(
+    'route_name' => 'system.admin_config_regional',
+    'link_title' => 'Regional and language',
+    'parent' => 'system.admin.config',
+    'description' => 'Regional settings, localization and translation.',
+    'weight' => -5,
+  );
+  $items['system.admin.config.regional.settings'] = array(
+    'link_title' => 'Regional settings',
+    'parent' => 'system.admin.config.regional',
+    'description' => "Settings for the site's default time zone and country.",
+    'route_name' => 'system.regional_settings',
+    'weight' => -20,
+  );
+  $items['system.admin.config.regional.date-time'] = array(
+    'link_title' => 'Date and time formats',
+    'parent' => 'system.admin.config.regional',
+    'description' => 'Configure display format strings for date and time.',
+    'route_name' => 'system.date_format_list',
+    'weight' => -9,
+  );
+
+  // Search settings.
+  $items['system.admin.config.search'] = array(
+    'link_title' => 'Search and metadata',
+    'route_name' => 'system.admin_config_search',
+    'parent' => 'system.admin.config',
+    'description' => 'Local site search, metadata and SEO.',
+    'weight' => -10,
+  );
+
+  // System settings.
+  $items['system.admin.config.system'] = array(
+    'link_title' => 'System',
+    'route_name' => 'system.admin_config_system',
+    'parent' => 'system.admin.config',
+    'description' => 'General system related configuration.',
+    'weight' => -20,
+  );
+  $items['system.admin.config.system.site-information'] = array(
+    'link_title' => 'Site information',
+    'parent' => 'system.admin.config.system',
+    'description' => 'Change site name, e-mail address, slogan, default front page, and number of posts per page, error pages.',
+    'route_name' => 'system.site_information_settings',
+    'weight' => -20,
+  );
+  $items['system.admin.config.system.cron'] = array(
+    'link_title' => 'Cron',
+    'parent' => 'system.admin.config.system',
+    'description' => 'Manage automatic site maintenance tasks.',
+    'route_name' => 'system.cron_settings',
+    'weight' => 20,
+  );
+  // Additional categories
+  $items['system.admin.config.user-interface'] = array(
+    'link_title' => 'User interface',
+    'route_name' => 'system.admin_config_ui',
+    'parent' => 'system.admin.config',
+    'description' => 'Tools that enhance the user interface.',
+    'weight' => -15,
+  );
+  $items['system.admin.config.workflow'] = array(
+    'link_title' => 'Workflow',
+    'route_name' => 'system.admin_config_workflow',
+    'parent' => 'system.admin.config',
+    'description' => 'Content workflow, editorial workflow tools.',
+    'weight' => 5,
+  );
+  $items['system.admin.config.content'] = array(
+    'link_title' => 'Content authoring',
+    'route_name' => 'system.admin_config_content',
+    'parent' => 'system.admin.config',
+    'description' => 'Settings related to formatting and authoring content.',
+    'weight' => -15,
+  );
+
+  // Reports.
+  $items['system.admin.reports'] = array(
+    'link_title' => 'Reports',
+    'route_name' => 'system.admin_reports',
+    'parent' => 'system.admin',
+    'description' => 'View reports, updates, and errors.',
+    'weight' => 5,
+  );
+  $items['system.admin.reports.status'] = array(
+    'link_title' => 'Status report',
+    'parent' => 'system.admin.reports',
+    'description' => "Get a status report about your site's operation and any detected problems.",
+    'route_name' => 'system.status',
+  );
+
+  return $items;
+}
+
+/**
  * Implements hook_theme_suggestions_HOOK().
  */
 function system_theme_suggestions_html(array $variables) {
@@ -885,6 +1092,20 @@ function system_library_info() {
     'version' => \Drupal::VERSION,
     'js' => array(
       array('type' => 'setting', 'data' => array()),
+    ),
+  );
+
+  // Drupal's active link marking.
+  $libraries['drupal.active-link'] = array(
+    'title' => 'Drupal active link marking',
+    'version' => \Drupal::VERSION,
+    'js' => array(
+      'core/misc/active-link.js' => array(),
+    ),
+    'dependencies' => array(
+      array('system', 'drupal'),
+      array('system', 'drupalSettings'),
+      array('system', 'classList'),
     ),
   );
 
@@ -959,6 +1180,7 @@ function system_library_info() {
     'dependencies' => array(
       array('system', 'jquery'),
       array('system', 'drupal'),
+      array('system', 'drupal.debounce'),
       array('system', 'jquery.cookie'),
       array('system', 'jquery.once'),
     ),
@@ -1134,6 +1356,20 @@ function system_library_info() {
     ),
   );
 
+  // IE9 classList polyfill.
+  $libraries['classList'] = array(
+    'title' => 'classList.js',
+    'website' => 'https://github.com/eligrey/classList.js',
+    'version' => 'master',
+    'js' => array(
+      'core/assets/vendor/classList/classList.min.js' => array(
+        'group' => JS_LIBRARY,
+        'weight' => -21,
+        'browsers' => array('IE' => 'lte IE 9', '!IE' => FALSE),
+      ),
+    ),
+  );
+
   // jQuery.
   $libraries['jquery'] = array(
     'title' => 'jQuery',
@@ -1151,6 +1387,18 @@ function system_library_info() {
     'version' => '1.2.3',
     'js' => array(
       'core/assets/vendor/jquery-once/jquery.once.js' => array('group' => JS_LIBRARY, 'weight' => -19),
+    ),
+    'dependencies' => array(
+      array('system', 'jquery'),
+    ),
+  );
+
+  // jQuery Intrinsic Measurements.
+  $libraries['jquery.intrinsic'] = array(
+    'title' => 'Instric Measurements',
+    'version' => '1.0',
+    'js' => array(
+      'core/misc/jquery.intrinsic.js' => array(),
     ),
     'dependencies' => array(
       array('system', 'jquery'),
@@ -2100,6 +2348,7 @@ function system_filetransfer_info() {
  * Implements hook_page_build().
  *
  * @see template_preprocess_maintenance_page()
+ * @see \Drupal\system\Controller\SystemController::setLinkActiveClass()
  */
 function system_page_build(&$page) {
   // Ensure the same CSS is loaded in template_preprocess_maintenance_page().
@@ -2117,6 +2366,28 @@ function system_page_build(&$page) {
   if (path_is_admin(current_path())) {
     $page['#attached']['css'][$path . '/css/system.admin.css'] = array(
       'weight' => CSS_COMPONENT - 10,
+    );
+  }
+
+  // Handle setting the "active" class on links by:
+  // - loading the active-link library if the current user is authenticated;
+  // - applying a post-render cache callback if the current user is anonymous.
+  // @see l()
+  // @see \Drupal\Core\Utility\LinkGenerator::generate()
+  // @see template_preprocess_links()
+  // @see \Drupal\system\Controller\SystemController::setLinkActiveClass
+  if (\Drupal::currentUser()->isAuthenticated()) {
+    $page['#attached']['library'][] = array('system', 'drupal.active-link');
+  }
+  else {
+    $page['#post_render_cache']['\Drupal\system\Controller\SystemController::setLinkActiveClass'] = array(
+      // Collect the current state that determines whether a link is active.
+      array(
+        'path' => current_path(),
+        'front' => drupal_is_front_page(),
+        'language' => language(\Drupal\Core\Language\Language::TYPE_URL)->id,
+        'query' => \Drupal::service('request')->query->all(),
+      )
     );
   }
 }
@@ -2297,27 +2568,6 @@ function system_get_info($type, $name = NULL) {
 }
 
 /**
- * Return .info.yml data for modules.
- *
- * @param string $property
- *   The .info.yml property to retrieve.
- *
- * @return array
- *   An array keyed by module name, with the .info.yml file property as values.
- *   Only modules with the property specified in their .info.yml file will be
- *   returned.
- *
- * @see \Drupal\Core\Utility\ModuleInfo
- */
-function system_get_module_info($property) {
-  static $info;
-  if (!isset($info)) {
-    $info = new ModuleInfo('system_info', 'cache');
-  }
-  return $info[$property];
-}
-
-/**
  * Helper function to scan and collect module .info.yml data.
  *
  * @return
@@ -2344,7 +2594,6 @@ function _system_rebuild_module_data() {
     'package' => 'Other',
     'version' => NULL,
     'php' => DRUPAL_MINIMUM_PHP,
-    'files' => array(),
   );
 
   // Read info files for each module.
@@ -2381,6 +2630,13 @@ function _system_rebuild_module_data() {
     drupal_alter('system_info', $modules[$key]->info, $modules[$key], $type);
   }
 
+  // It is possible that a module was marked as required by
+  // hook_system_info_alter() and modules that it depends on are not required.
+  foreach ($modules as $module) {
+    _system_rebuild_module_data_ensure_required($module, $modules);
+  }
+
+
   if (isset($modules[$profile])) {
     // The installation profile is required, if it's a valid module.
     $modules[$profile]->info['required'] = TRUE;
@@ -2392,6 +2648,27 @@ function _system_rebuild_module_data() {
   }
 
   return $modules;
+}
+
+/**
+ * Ensures that dependencies of required modules are also required.
+ *
+ * @param \stdClass $module
+ *   The module info.
+ * @param array $modules
+ *   The array of all module info.
+ */
+function _system_rebuild_module_data_ensure_required($module, &$modules) {
+  if (!empty($module->info['required'])) {
+    foreach ($module->info['dependencies'] as $dependant) {
+      if (!isset($modules[$dependant]->info['required'])) {
+        $modules[$dependant]->info['required'] = TRUE;
+        $modules[$dependant]->info['explanation'] = t('Dependency of required module @module', array('@module' => $module->name));
+        // Ensure any dependencies it has are required.
+        _system_rebuild_module_data_ensure_required($modules[$dependant], $modules);
+      }
+    }
+  }
 }
 
 /**
@@ -2607,17 +2884,17 @@ function system_get_module_admin_tasks($module, $info) {
     foreach ($menu_links as $link) {
       _menu_link_translate($link);
       if ($link['access']) {
-        $links[$link['router_path']] = $link;
+        $links[$link['machine_name']] = $link;
       }
     }
   }
 
   $admin_tasks = array();
   $titles = array();
-  if ($menu = module_invoke($module, 'menu')) {
-    foreach ($menu as $path => $item) {
-      if (isset($links[$path])) {
-        $task = $links[$path];
+  if ($menu = \Drupal::moduleHandler()->invoke($module, 'menu_link_defaults')) {
+    foreach ($menu as $machine_name => $item) {
+      if (isset($links[$machine_name])) {
+        $task = $links[$machine_name];
         // The link description, either derived from 'description' in
         // hook_menu() or customized via menu module is used as title attribute.
         if (!empty($task['localized_options']['attributes']['title'])) {
@@ -2640,10 +2917,10 @@ function system_get_module_admin_tasks($module, $info) {
           }
         }
         else {
-          $titles[$path] = $task['title'];
+          $titles[$machine_name] = $task['title'];
         }
 
-        $admin_tasks[$path] = $task;
+        $admin_tasks[$machine_name] = $task;
       }
     }
   }
@@ -2752,30 +3029,32 @@ function theme_system_compact_link() {
 /**
  * Attempts to get a file using Guzzle HTTP client and to store it locally.
  *
- * @param $url
+ * @param string $url
  *   The URL of the file to grab.
- *
- * @param $destination
+ * @param string $destination
  *   Stream wrapper URI specifying where the file should be placed. If a
  *   directory path is provided, the file is saved into that directory under
  *   its original name. If the path contains a filename as well, that one will
  *   be used instead.
  *   If this value is omitted, the site's default files scheme will be used,
  *   usually "public://".
- *
- * @param $managed boolean
+ * @param bool $managed
  *   If this is set to TRUE, the file API hooks will be invoked and the file is
  *   registered in the database.
- *
- * @param $replace boolean
+ * @param int $replace
  *   Replace behavior when the destination file already exists:
  *   - FILE_EXISTS_REPLACE: Replace the existing file.
  *   - FILE_EXISTS_RENAME: Append _{incrementing number} until the filename is
  *     unique.
  *   - FILE_EXISTS_ERROR: Do nothing and return FALSE.
  *
- * @return
- *   On success the location the file was saved to, FALSE on failure.
+ * @return mixed
+ *   One of these possibilities:
+ *   - If it succeeds and $managed is FALSE, the location where the file was
+ *     saved.
+ *   - If it succeeds and $managed is TRUE, a \Drupal\file\FileInterface
+ *     object which describes the file.
+ *   - If it fails, FALSE.
  */
 function system_retrieve_file($url, $destination = NULL, $managed = FALSE, $replace = FILE_EXISTS_RENAME) {
   $parsed_url = parse_url($url);
@@ -2830,6 +3109,24 @@ function system_page_alter(&$page) {
 }
 
 /**
+ * Implements hook_block_view_BASE_BLOCK_ID_alter().
+ */
+function system_block_view_system_main_block_alter(array &$build, BlockPluginInterface $block) {
+  // Contextual links on the system_main block would basically duplicate the
+  // tabs/local tasks, so reduce the clutter.
+  unset($build['#contextual_links']);
+}
+
+/**
+ * Implements hook_block_view_BASE_BLOCK_ID_alter().
+ */
+function system_block_view_system_help_block_alter(array &$build, BlockPluginInterface $block) {
+  // Assume that most users do not need or want to perform contextual actions on
+  // the help block, so don't needlessly draw attention to it.
+  unset($build['#contextual_links']);
+}
+
+/**
  * Run the automated cron if enabled.
  */
 function system_run_automated_cron() {
@@ -2839,7 +3136,7 @@ function system_run_automated_cron() {
   if (($threshold = \Drupal::config('system.cron')->get('threshold.autorun')) > 0 && \Drupal::state()->get('install_task') == 'done') {
     $cron_last = \Drupal::state()->get('system.cron_last') ?: NULL;
     if (!isset($cron_last) || (REQUEST_TIME - $cron_last > $threshold)) {
-      drupal_cron_run();
+      \Drupal::service('cron')->run();
     }
   }
 }
@@ -2889,4 +3186,25 @@ function system_admin_paths() {
     'admin/reports/status/php' => FALSE,
   );
   return $paths;
+}
+
+/**
+ * Implements hook_path_update().
+ */
+function system_path_update() {
+  \Drupal::service('path.alias_manager.cached')->cacheClear();
+}
+
+/**
+ * Implements hook_path_insert().
+ */
+function system_path_insert() {
+  \Drupal::service('path.alias_manager.cached')->cacheClear();
+}
+
+/**
+ * Implements hook_path_delete().
+ */
+function system_path_delete($path) {
+  \Drupal::service('path.alias_manager.cached')->cacheClear();
 }

@@ -13,6 +13,7 @@ use Drupal\Core\CoreServiceProvider;
 use Drupal\Core\DependencyInjection\ContainerBuilder;
 use Drupal\Core\DependencyInjection\ServiceProviderInterface;
 use Drupal\Core\DependencyInjection\YamlFileLoader;
+use Drupal\Core\Language\Language;
 use Symfony\Component\Config\Loader\LoaderInterface;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBag;
 use Symfony\Component\DependencyInjection\Dumper\PhpDumper;
@@ -334,20 +335,13 @@ class DrupalKernel implements DrupalKernelInterface, TerminableInterface {
   }
 
   /**
-   * Returns the classname based on environment and testing prefix.
+   * Returns the classname based on environment.
    *
    * @return string
    *   The class name.
    */
   protected function getClassName() {
     $parts = array('service_container', $this->environment);
-    // Make sure to use a testing-specific container even in the parent site.
-    if (!empty($GLOBALS['drupal_test_info']['test_run_id'])) {
-      $parts[] = $GLOBALS['drupal_test_info']['test_run_id'];
-    }
-    elseif ($prefix = drupal_valid_test_ua()) {
-      $parts[] = $prefix;
-    }
     return implode('_', $parts);
   }
 
@@ -416,7 +410,7 @@ class DrupalKernel implements DrupalKernelInterface, TerminableInterface {
 
       // If 'container.modules' is wrong, the container must be rebuilt.
       if (!isset($this->moduleList)) {
-        $this->moduleList = $this->container->get('config.factory')->get('system.module')->load()->get('enabled');
+        $this->moduleList = $this->container->get('config.factory')->get('system.module')->get('enabled');
       }
       if (array_keys($this->moduleList) !== array_keys($container_modules)) {
         $persist = $this->getServicesToPersist();
@@ -509,12 +503,24 @@ class DrupalKernel implements DrupalKernelInterface, TerminableInterface {
     foreach (array('Core', 'Component') as $parent_directory) {
       $path = DRUPAL_ROOT . '/core/lib/Drupal/' . $parent_directory;
       foreach (new \DirectoryIterator($path) as $component) {
-        if (!$component->isDot() && is_dir($component->getPathname() . '/Plugin')) {
+        if (!$component->isDot() && $component->isDir() && is_dir($component->getPathname() . '/Plugin')) {
           $namespaces['Drupal\\' . $parent_directory . '\\' . $component->getFilename()] = DRUPAL_ROOT . '/core/lib';
         }
       }
     }
     $container->setParameter('container.namespaces', $namespaces);
+
+    // Store the default language values on the container. This is so that the
+    // default language can be configured using the configuration factory. This
+    // avoids the circular dependencies that would created by
+    // \Drupal\language\LanguageServiceProvider::alter() and allows the default
+    // language to not be English in the installer.
+    $system = BootstrapConfigStorageFactory::get()->read('system.site');
+    $default_language_values = Language::$defaultValues;
+    if ($default_language_values['id'] != $system['langcode']) {
+      $default_language_values = array('id' => $system['langcode'], 'default' => TRUE);
+    }
+    $container->setParameter('language.default_values', $default_language_values);
 
     // Register synthetic services.
     $container->register('class_loader')->setSynthetic(TRUE);

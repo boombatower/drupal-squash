@@ -5,11 +5,14 @@
  * Adds bindings for client-side "text editors" to text formats.
  */
 
+use Drupal\Component\Utility\Html;
 use Drupal\Core\Entity\ContentEntityInterface;
 use Drupal\editor\Entity\Editor;
 use Drupal\Component\Utility\NestedArray;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\field\Field;
+use Drupal\filter\FilterFormatInterface;
+use Drupal\filter\Plugin\FilterInterface;
 
 /**
  * Implements hook_help().
@@ -44,6 +47,14 @@ function editor_help($path, $arg) {
 function editor_menu_alter(&$items) {
   $items['admin/config/content/formats']['title'] = 'Text formats and editors';
   $items['admin/config/content/formats']['description'] = 'Configure how user-contributed content is filtered and formatted, as well as the text editor user interface (WYSIWYGs or toolbars).';
+}
+
+/**
+ * Implements hook_menu_link_defaults_alter().
+ */
+function editor_menu_link_defaults_alter(array &$links) {
+  $links['filter.admin.formats']['link_title'] = 'Text formats and editors';
+  $links['filter.admin.formats']['description'] = 'Configure how user-contributed content is filtered and formatted, as well as the text editor user interface (WYSIWYGs or toolbars).';
 }
 
 /**
@@ -93,6 +104,7 @@ function editor_library_info() {
       array('system', 'drupal'),
       array('system', 'drupalSettings'),
       array('system', 'jquery.once'),
+      array('system', 'drupal.dialog'),
     ),
   );
 
@@ -159,12 +171,11 @@ function editor_form_filter_format_form_alter(&$form, &$form_state) {
   if (!isset($form_state['editor'])) {
     $format_id = $form_state['controller']->getEntity()->id();
     $form_state['editor'] = editor_load($format_id);
-    $form_state['editor_manager'] = \Drupal::service('plugin.manager.editor');
   }
   $editor = $form_state['editor'];
-  $manager = $form_state['editor_manager'];
 
   // Associate a text editor with this text format.
+  $manager = \Drupal::service('plugin.manager.editor');
   $editor_options = $manager->listOptions();
   $form['editor'] = array(
     // Position the editor selection before the filter settings (weight of 0),
@@ -369,7 +380,99 @@ function editor_pre_render_format($element) {
   $manager = \Drupal::service('plugin.manager.editor');
   $element['#attached'] = NestedArray::mergeDeep($element['#attached'], $manager->getAttachments($format_ids));
 
+  // Apply XSS filters when editing content if necessary. Some types of text
+  // editors cannot guarantee that the end user won't become a victim of XSS.
+  if (!empty($element['value']['#value'])) {
+    $original = $element['value']['#value'];
+    $format = entity_load('filter_format', $element['format']['format']['#value']);
+
+    // Ensure XSS-safety for the current text format/editor.
+    $filtered = editor_filter_xss($original, $format);
+    if ($filtered !== FALSE) {
+      $element['value']['#value'] = $filtered;
+    }
+
+    // Only when the user has access to multiple text formats, we must add data-
+    // attributes for the original value and change tracking, because they are
+    // only necessary when the end user can switch between text formats/editors.
+    if ($element['format']['format']['#access']) {
+      $element['value']['#attributes']['data-editor-value-is-changed'] = 'false';
+      $element['value']['#attributes']['data-editor-value-original'] = $original;
+    }
+  }
+
   return $element;
+}
+
+/**
+ * Applies text editor XSS filtering.
+ *
+ * @param string $html
+ *   The HTML string that will be passed to the text editor.
+ * @param \Drupal\filter\FilterFormatInterface $format
+ *   The text format whose text editor will be used.
+ * @param \Drupal\filter\FilterFormatInterface $original_format|null
+ *   (optional) The original text format (i.e. when switching text formats,
+ *   $format is the text format that is going to be used, $original_format is
+ *   the one that was being used initially, the one that is stored in the
+ *   database when editing).
+ *
+ * @return string|false
+ *   FALSE when no XSS filtering needs to be applied (either because no text
+ *   editor is associated with the text format, or because the text editor is
+ *   safe from XSS attacks, or because the text format does not use any XSS
+ *   protection filters), otherwise the XSS filtered string.
+ *
+ * @see https://drupal.org/node/2099741
+ */
+function editor_filter_xss($html, FilterFormatInterface $format, FilterFormatInterface $original_format = NULL) {
+  $editor = editor_load($format->id());
+
+  // If no text editor is associated with this text format, then we don't need
+  // text editor XSS filtering either.
+  if (!isset($editor)) {
+    return FALSE;
+  }
+
+  // If the text editor associated with this text format guarantees security,
+  // then we also don't need text editor XSS filtering.
+  $definition = \Drupal::service('plugin.manager.editor')->getDefinition($editor->editor);
+  if ($definition['is_xss_safe'] === TRUE) {
+    return FALSE;
+  }
+
+  // If there is no filter preventing XSS attacks in the text format being used,
+  // then no text editor XSS filtering is needed either. (Because then the
+  // editing user can already be attacked by merely viewing the content.)
+  // e.g.: an admin user creates content in Full HTML and then edits it, no text
+  // format switching happens; in this case, no text editor XSS filtering is
+  // desirable, because it would strip style attributes, amongst others.
+  $current_filter_types = $format->getFilterTypes();
+  if (!in_array(FilterInterface::TYPE_HTML_RESTRICTOR, $current_filter_types, TRUE)) {
+    if ($original_format === NULL) {
+      return FALSE;
+    }
+    // Unless we are switching from another text format, in which case we must
+    // first check whether a filter preventing XSS attacks is used in that text
+    // format, and if so, we must still apply XSS filtering.
+    // e.g.: an anonymous user creates content in Restricted HTML, an admin user
+    // edits it (then no XSS filtering is applied because no text editor is
+    // used), and switches to Full HTML (for which a text editor is used). Then
+    // we must apply XSS filtering to protect the admin user.
+    else {
+      $original_filter_types = $original_format->getFilterTypes();
+      if (!in_array(FilterInterface::TYPE_HTML_RESTRICTOR, $original_filter_types, TRUE)) {
+        return FALSE;
+      }
+    }
+  }
+
+  // Otherwise, apply the text editor XSS filter. We use the default one unless
+  // a module tells us to use a different one.
+  $editor_xss_filter_class = '\Drupal\editor\EditorXssFilter\Standard';
+  \Drupal::moduleHandler()->alter('editor_xss_filter', $editor_xss_filter_class, $format, $original_format);
+
+  return call_user_func($editor_xss_filter_class . '::filterXss', $html, $format, $original_format);
 }
 
 /**
@@ -471,7 +574,7 @@ function _editor_record_file_usage(array $uuids, EntityInterface $entity) {
       $file->status = FILE_STATUS_PERMANENT;
       $file->save();
     }
-    \Drupal::service('file.usage')->add($file, 'editor', $entity->entityType(), $entity->id());
+    \Drupal::service('file.usage')->add($file, 'editor', $entity->getEntityTypeId(), $entity->id());
   }
 }
 
@@ -491,7 +594,7 @@ function _editor_record_file_usage(array $uuids, EntityInterface $entity) {
 function _editor_delete_file_usage(array $uuids, EntityInterface $entity, $count) {
   foreach ($uuids as $uuid) {
     $file = entity_load_by_uuid('file', $uuid);
-    \Drupal::service('file.usage')->delete($file, 'editor', $entity->entityType(), $entity->id(), $count);
+    \Drupal::service('file.usage')->delete($file, 'editor', $entity->getEntityTypeId(), $entity->id(), $count);
   }
 }
 
@@ -542,7 +645,7 @@ function _editor_get_processed_text_fields(ContentEntityInterface $entity) {
   // Only return fields that have text processing enabled.
   return array_filter($configurable_fields, function ($field) use ($entity) {
     $settings = Field::fieldInfo()
-      ->getInstance($entity->entityType(), $entity->bundle(), $field)
+      ->getInstance($entity->getEntityTypeId(), $entity->bundle(), $field)
       ->getSettings();
     return isset($settings['text_processing']) && $settings['text_processing'] === TRUE;
   });
@@ -559,7 +662,7 @@ function _editor_get_processed_text_fields(ContentEntityInterface $entity) {
  *   An array of all found UUIDs.
  */
 function _editor_parse_file_uuids($text) {
-  $dom = filter_dom_load($text);
+  $dom = Html::load($text);
   $xpath = new \DOMXPath($dom);
   $uuids = array();
   foreach ($xpath->query('//*[@data-editor-file-uuid]') as $node) {

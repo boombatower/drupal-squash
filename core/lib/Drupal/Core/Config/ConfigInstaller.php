@@ -8,7 +8,6 @@
 namespace Drupal\Core\Config;
 
 use Drupal\Component\Utility\Unicode;
-use Drupal\Core\Entity\EntityManagerInterface;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 
 class ConfigInstaller implements ConfigInstallerInterface {
@@ -16,7 +15,7 @@ class ConfigInstaller implements ConfigInstallerInterface {
   /**
    * The configuration factory.
    *
-   * @var \Drupal\Core\Config\ConfigFactory
+   * @var \Drupal\Core\Config\ConfigFactoryInterface
    */
   protected $configFactory;
 
@@ -35,11 +34,11 @@ class ConfigInstaller implements ConfigInstallerInterface {
   protected $typedConfig;
 
   /**
-   * The entity manager.
+   * The configuration manager.
    *
-   * @var \Drupal\Core\Entity\EntityManagerInterface
+   * @var \Drupal\Core\Config\ConfigManagerInterface
    */
-  protected $entityManager;
+  protected $configManager;
 
   /**
    * The event dispatcher.
@@ -51,22 +50,22 @@ class ConfigInstaller implements ConfigInstallerInterface {
   /**
    * Constructs the configuration installer.
    *
-   * @param \Drupal\Core\Config\ConfigFactory $config_factory
+   * @param \Drupal\Core\Config\ConfigFactoryInterface $config_factory
    *   The configuration factory.
    * @param \Drupal\Core\Config\StorageInterface $active_storage
    *   The active configuration storage.
    * @param \Drupal\Core\Config\TypedConfigManagerInterface $typed_config
    *   The typed configuration manager.
-   * @param \Drupal\Core\Entity\EntityManagerInterface $entity_manager
-   *   The entity manager.
+   * @param \Drupal\Core\Config\ConfigManagerInterface $config_manager
+   *   The configuration manager.
    * @param \Symfony\Component\EventDispatcher\EventDispatcherInterface $event_dispatcher
    *   The event dispatcher.
    */
-  public function __construct(ConfigFactory $config_factory, StorageInterface $active_storage, TypedConfigManagerInterface $typed_config, EntityManagerInterface $entity_manager, EventDispatcherInterface $event_dispatcher) {
+  public function __construct(ConfigFactoryInterface $config_factory, StorageInterface $active_storage, TypedConfigManagerInterface $typed_config, ConfigManagerInterface $config_manager, EventDispatcherInterface $event_dispatcher) {
     $this->configFactory = $config_factory;
     $this->activeStorage = $active_storage;
     $this->typedConfig = $typed_config;
-    $this->entityManager = $entity_manager;
+    $this->configManager = $config_manager;
     $this->eventDispatcher = $event_dispatcher;
   }
 
@@ -75,13 +74,18 @@ class ConfigInstaller implements ConfigInstallerInterface {
    */
   public function installDefaultConfig($type, $name) {
     // Get all default configuration owned by this extension.
-    $source_storage = new ExtensionInstallStorage();
+    $source_storage = new ExtensionInstallStorage($this->activeStorage);
     $config_to_install = $source_storage->listAll($name . '.');
 
     // Work out if this extension provides default configuration for any other
     // enabled extensions.
     $config_dir = drupal_get_path($type, $name) . '/config';
     if (is_dir($config_dir)) {
+      if (is_dir($config_dir . '/schema')) {
+        // Refresh the schema cache if installing default configuration and the
+        // extension has a configuration schema directory.
+        $this->typedConfig->clearCachedDefinitions();
+      }
       $default_storage = new FileStorage($config_dir);
       $other_module_config = array_filter($default_storage->listAll(), function ($value) use ($name) {
         return !preg_match('/^' . $name . '\./', $value);
@@ -101,7 +105,8 @@ class ConfigInstaller implements ConfigInstallerInterface {
     }
 
     if (!empty($config_to_install)) {
-      $this->configFactory->disableOverrides();
+      $old_state = $this->configFactory->getOverrideState();
+      $this->configFactory->setOverrideState(FALSE);
       foreach ($config_to_install as $name) {
         // Only import new config.
         if ($this->activeStorage->exists($name)) {
@@ -113,8 +118,9 @@ class ConfigInstaller implements ConfigInstallerInterface {
         if ($data !== FALSE) {
           $new_config->setData($data);
         }
-        if ($entity_type = config_get_entity_type_by_name($name)) {
-          $this->entityManager
+        if ($entity_type = $this->configManager->getEntityTypeIdByName($name)) {
+          $this->configManager
+            ->getEntityManager()
             ->getStorageController($entity_type)
             ->create($new_config->get())
             ->save();
@@ -123,7 +129,7 @@ class ConfigInstaller implements ConfigInstallerInterface {
           $new_config->save();
         }
       }
-      $this->configFactory->enableOverrides();
+      $this->configFactory->setOverrideState($old_state);
     }
   }
 

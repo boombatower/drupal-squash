@@ -172,6 +172,7 @@ class CommentAdminOverview extends FormBase {
      ->pager(50)
      ->execute();
 
+    /** @var $comments \Drupal\comment\CommentInterface[] */
     $comments = $this->commentStorage->loadMultiple($cids);
 
     // Build a table listing the appropriate comments.
@@ -182,7 +183,7 @@ class CommentAdminOverview extends FormBase {
     $commented_entities = array();
 
     foreach ($comments as $comment) {
-      $commented_entity_ids[$comment->entity_type->value][] = $comment->entity_id->value;
+      $commented_entity_ids[$comment->getCommentedEntityTypeId()][] = $comment->getCommentedEntityId();
     }
 
     foreach ($commented_entity_ids as $entity_type => $ids) {
@@ -190,8 +191,9 @@ class CommentAdminOverview extends FormBase {
     }
 
     foreach ($comments as $comment) {
-      $commented_entity = $commented_entities[$comment->entity_type->value][$comment->entity_id->value];
-      $commented_entity_uri = $commented_entity->uri();
+      /** @var $commented_entity \Drupal\Core\Entity\EntityInterface */
+      $commented_entity = $commented_entities[$comment->getCommentedEntityTypeId()][$comment->getCommentedEntityId()];
+      $commented_entity_uri = $commented_entity->urlInfo();
       $username = array(
         '#theme' => 'username',
         '#account' => comment_prepare_author($comment),
@@ -202,12 +204,13 @@ class CommentAdminOverview extends FormBase {
       }
       $comment_permalink = $comment->permalink();
       $options[$comment->id()] = array(
-        'title' => array('data' => array('#title' => $comment->subject->value ?: $comment->id())),
+        'title' => array('data' => array('#title' => $comment->getSubject() ?: $comment->id())),
         'subject' => array(
           'data' => array(
             '#type' => 'link',
-            '#title' => $comment->subject->value,
-            '#href' => $comment_permalink['path'],
+            '#title' => $comment->getSubject(),
+            '#route_name' => $comment_permalink['route_name'],
+            '#route_parameters' => $comment_permalink['route_parameters'],
             '#options' => $comment_permalink['options'] + array(
               'attributes' => array(
                 'title' => Unicode::truncate($body, 128),
@@ -220,14 +223,15 @@ class CommentAdminOverview extends FormBase {
           'data' => array(
             '#type' => 'link',
             '#title' => $commented_entity->label(),
-            '#href' => $commented_entity_uri['path'],
+            '#route_name' => $commented_entity_uri['route_name'],
+            '#route_parameters' => $commented_entity_uri['route_parameters'],
             '#options' => $commented_entity_uri['options'],
             '#access' => $commented_entity->access('view'),
           ),
         ),
-        'changed' => $this->date->format($comment->changed->value, 'short'),
+        'changed' => $this->date->format($comment->getChangedTime(), 'short'),
       );
-      $comment_uri = $comment->uri();
+      $comment_uri = $comment->urlInfo();
       $links = array();
       $links['edit'] = array(
         'title' => $this->t('edit'),
@@ -286,12 +290,12 @@ class CommentAdminOverview extends FormBase {
       // see \Drupal\comment\Controller\AdminController::adminPage().
       if ($operation == 'unpublish') {
         $comment = $this->commentStorage->load($cid);
-        $comment->status->value = CommentInterface::NOT_PUBLISHED;
+        $comment->setPublished(FALSE);
         $comment->save();
       }
       elseif ($operation == 'publish') {
         $comment = $this->commentStorage->load($cid);
-        $comment->status->value = CommentInterface::PUBLISHED;
+        $comment->setPublished(TRUE);
         $comment->save();
       }
     }

@@ -6,7 +6,7 @@
  */
 
 use Drupal\Core\Entity\EntityInterface;
-use Drupal\Component\Plugin\Exception\UnknownPluginException;
+use Drupal\Component\Plugin\Exception\PluginNotFoundException;
 use Drupal\field\Entity\Field;
 use Drupal\field\Entity\FieldInstance;
 use Drupal\file\Entity\File;
@@ -76,7 +76,7 @@ function image_help($path, $arg) {
       try {
         $effect = entity_load('image_style', $arg[5])->getEffect($arg[7]);
       }
-      catch (UnknownPluginException $e) {
+      catch (PluginNotFoundException $e) {
         return NULL;
       }
       $effect_definition = $effect->getPluginDefinition();
@@ -120,6 +120,20 @@ function image_menu() {
 }
 
 /**
+ * Implements hook_menu_link_defaults().
+ */
+function image_menu_link_defaults() {
+  $links['image.admin.media.image-styles'] = array(
+    'link_title' => 'Image styles',
+    'description' => 'Configure styles that can be used for resizing or adjusting images on display.',
+    'parent' => 'system.admin.config.media',
+    'route_name' => 'image.style_list',
+  );
+
+  return $links;
+}
+
+/**
  * Implements hook_theme().
  */
 function image_theme() {
@@ -129,10 +143,10 @@ function image_theme() {
       // HTML 4 and XHTML 1.0 always require an alt attribute. The HTML 5 draft
       // allows the alt attribute to be omitted in some cases. Therefore,
       // default the alt attribute to an empty string, but allow code calling
-      // theme('image_style') to pass explicit NULL for it to be omitted.
+      // _theme('image_style') to pass explicit NULL for it to be omitted.
       // Usually, neither omission nor an empty string satisfies accessibility
       // requirements, so it is strongly encouraged for code calling
-      // theme('image_style') to pass a meaningful value for the alt variable.
+      // _theme('image_style') to pass a meaningful value for the alt variable.
       // - http://www.w3.org/TR/REC-html40/struct/objects.html#h-13.8
       // - http://www.w3.org/TR/xhtml1/dtds.html
       // - http://dev.w3.org/html5/spec/Overview.html#alt
@@ -185,7 +199,7 @@ function image_theme() {
       'file' => 'image.field.inc',
     ),
     'image_formatter' => array(
-      'variables' => array('item' => NULL, 'path' => NULL, 'image_style' => NULL),
+      'variables' => array('item' => NULL, 'item_attributes' => NULL, 'path' => NULL, 'image_style' => NULL),
       'file' => 'image.field.inc',
     ),
   );
@@ -335,7 +349,7 @@ function image_style_options($include_empty = TRUE) {
  *     to an empty string, but can be set to NULL for the attribute to be
  *     omitted. Usually, neither omission nor an empty string satisfies
  *     accessibility requirements, so it is strongly encouraged for code calling
- *     theme('image_style') to pass a meaningful value for this variable.
+ *     _theme('image_style') to pass a meaningful value for this variable.
  *     - http://www.w3.org/TR/REC-html40/struct/objects.html#h-13.8
  *     - http://www.w3.org/TR/xhtml1/dtds.html
  *     - http://dev.w3.org/html5/spec/Overview.html#alt
@@ -407,7 +421,7 @@ function image_filter_keyword($value, $current_pixels, $new_pixels) {
  *
  * Transforms default image of image field from array into single value at save.
  */
-function image_entity_presave(EntityInterface $entity, $type) {
+function image_entity_presave(EntityInterface $entity) {
   $field = FALSE;
   if ($entity instanceof FieldInstance) {
     $field = $entity->getField();

@@ -161,6 +161,8 @@ class BlockTest extends BlockTestBase {
     theme_enable(array('bartik', 'seven'));
     $theme_settings = $this->container->get('config.factory')->get('system.theme');
     foreach (array('bartik', 'stark', 'seven') as $theme) {
+      $this->drupalGet('admin/structure/block/list/' . $theme);
+      $this->assertTitle(t('Block layout') . ' | Drupal');
       // Select the 'Powered by Drupal' block to be placed.
       $block = array();
       $block['id'] = strtolower($this->randomName());
@@ -251,7 +253,7 @@ class BlockTest extends BlockTestBase {
    */
   function testBlockRehash() {
     \Drupal::moduleHandler()->install(array('block_test'));
-    $this->assertTrue(module_exists('block_test'), 'Test block module enabled.');
+    $this->assertTrue(\Drupal::moduleHandler()->moduleExists('block_test'), 'Test block module enabled.');
 
     // Clear the block cache to load the block_test module's block definitions.
     $this->container->get('plugin.manager.block')->clearCachedDefinitions();

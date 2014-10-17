@@ -61,6 +61,25 @@ interface FieldItemListInterface extends ListInterface, AccessibleInterface {
   public function getFieldDefinition();
 
   /**
+   * Returns the array of field settings.
+   *
+   * @return array
+   *   An array of key/value pairs.
+   */
+  public function getSettings();
+
+  /**
+   * Returns the value of a given field setting.
+   *
+   * @param string $setting_name
+   *   The setting name.
+   *
+   * @return mixed
+   *   The setting value.
+   */
+  public function getSetting($setting_name);
+
+  /**
    * Contains the default access logic of this field.
    *
    * See \Drupal\Core\Entity\EntityAccessControllerInterface::fieldAccess() for
@@ -74,14 +93,7 @@ interface FieldItemListInterface extends ListInterface, AccessibleInterface {
   /**
    * Filters out empty field items and re-numbers the item deltas.
    */
-  public function filterEmptyValues();
-
-  /**
-   * Gets a property object from the first field item.
-   *
-   * @see \Drupal\Core\Field\FieldItemInterface::get()
-   */
-  public function get($property_name);
+  public function filterEmptyItems();
 
   /**
    * Magic method: Gets a property value of to the first field item.

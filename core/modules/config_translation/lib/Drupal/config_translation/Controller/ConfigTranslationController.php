@@ -10,22 +10,21 @@ namespace Drupal\config_translation\Controller;
 use Drupal\config_translation\ConfigMapperManagerInterface;
 use Drupal\Core\Access\AccessManager;
 use Drupal\Core\Controller\ControllerBase;
-use Drupal\Core\DependencyInjection\ContainerInjectionInterface;
 use Drupal\Core\Language\Language;
 use Drupal\Core\Language\LanguageManagerInterface;
+use Drupal\Core\ParamConverter\ParamNotConvertedException;
 use Drupal\Core\PathProcessor\InboundPathProcessorInterface;
 use Drupal\Core\Session\AccountInterface;
 use Symfony\Cmf\Component\Routing\RouteObjectInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\Exception\ResourceNotFoundException;
 use Symfony\Component\Routing\Matcher\RequestMatcherInterface;
 
 /**
  * Provides page callbacks for the configuration translation interface.
  */
-class ConfigTranslationController extends ControllerBase implements ContainerInjectionInterface {
+class ConfigTranslationController extends ControllerBase {
 
   /**
    * The configuration mapper manager.
@@ -252,7 +251,7 @@ class ConfigTranslationController extends ControllerBase implements ContainerInj
       $route_request->attributes->add($this->router->matchRequest($route_request));
       return $route_request;
     }
-    catch (NotFoundHttpException $e) {
+    catch (ParamNotConvertedException $e) {
       return NULL;
     }
     catch (ResourceNotFoundException $e) {

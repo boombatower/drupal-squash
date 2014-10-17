@@ -13,16 +13,16 @@ use Drupal\Core\Field\FieldDefinition;
 use Drupal\Core\Language\Language;
 use Drupal\Core\Session\AccountInterface;
 use Drupal\node\NodeInterface;
+use Drupal\user\UserInterface;
 
 /**
  * Defines the node entity class.
  *
- * @EntityType(
+ * @ContentEntityType(
  *   id = "node",
  *   label = @Translation("Content"),
  *   bundle_label = @Translation("Content type"),
  *   controllers = {
- *     "storage" = "Drupal\Core\Entity\FieldableDatabaseStorageController",
  *     "view_builder" = "Drupal\node\NodeViewBuilder",
  *     "access" = "Drupal\node\NodeAccessController",
  *     "form" = {
@@ -48,13 +48,11 @@ use Drupal\node\NodeInterface;
  *     "label" = "title",
  *     "uuid" = "uuid"
  *   },
- *   bundle_keys = {
- *     "bundle" = "type"
- *   },
  *   bundle_entity_type = "node_type",
  *   permission_granularity = "bundle",
  *   links = {
  *     "canonical" = "node.view",
+ *     "delete-form" = "node.delete_confirm",
  *     "edit-form" = "node.page_edit",
  *     "version-history" = "node.revision_overview",
  *     "admin-form" = "node.type_edit"
@@ -184,7 +182,7 @@ class Node extends ContentEntityBase implements NodeInterface {
     }
 
     return \Drupal::entityManager()
-      ->getAccessController($this->entityType)
+      ->getAccessController($this->entityTypeId)
       ->access($this, $operation, $this->prepareLangcode(), $account);
   }
 
@@ -294,22 +292,30 @@ class Node extends ContentEntityBase implements NodeInterface {
   /**
    * {@inheritdoc}
    */
-  public function getAuthor() {
+  public function getOwner() {
     return $this->get('uid')->entity;
   }
 
   /**
    * {@inheritdoc}
    */
-  public function getAuthorId() {
+  public function getOwnerId() {
     return $this->get('uid')->target_id;
   }
 
   /**
    * {@inheritdoc}
    */
-  public function setAuthorId($uid) {
+  public function setOwnerId($uid) {
     $this->set('uid', $uid);
+    return $this;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function setOwner(UserInterface $account) {
+    $this->set('uid', $account->id());
     return $this;
   }
 

@@ -46,7 +46,7 @@ class ThemeHandlerTest extends UnitTestCase {
   /**
    * The mocked config factory.
    *
-   * @var \Drupal\Core\Config\ConfigFactory|\PHPUnit_Framework_MockObject_MockObject
+   * @var \Drupal\Core\Config\ConfigFactoryInterface|\PHPUnit_Framework_MockObject_MockObject
    */
   protected $configFactory;
 
@@ -105,6 +105,8 @@ class ThemeHandlerTest extends UnitTestCase {
       ->disableOriginalConstructor()
       ->getMock();
     $this->themeHandler = new TestThemeHandler($this->configFactory, $this->moduleHandler, $this->cacheBackend, $this->infoParser, $this->configInstaller, $this->routeBuilder, $this->systemListingInfo);
+
+    $this->getContainerWithCacheBins($this->cacheBackend);
   }
 
   /**

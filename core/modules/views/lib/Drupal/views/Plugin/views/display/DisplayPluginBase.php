@@ -1019,7 +1019,7 @@ abstract class DisplayPluginBase extends PluginBase {
       $title = $text;
     }
 
-    return l($text, 'admin/structure/views/nojs/display/' . $this->view->storage->id() . '/' . $this->display['id'] . '/' . $section, array('attributes' => array('class' => 'views-ajax-link ' . $class, 'title' => $title, 'id' => drupal_html_id('views-' . $this->display['id'] . '-' . $section)), 'html' => TRUE));
+    return l($text, 'admin/structure/views/nojs/display/' . $this->view->storage->id() . '/' . $this->display['id'] . '/' . $section, array('attributes' => array('class' => array('views-ajax-link', $class), 'title' => $title, 'id' => drupal_html_id('views-' . $this->display['id'] . '-' . $section)), 'html' => TRUE));
   }
 
   /**
@@ -1042,7 +1042,7 @@ abstract class DisplayPluginBase extends PluginBase {
       }
        // Use strip tags as there should never be HTML in the path.
        // However, we need to preserve special characters like " that
-       // were removed by check_plain().
+       // were removed by String::checkPlain().
       $tokens["!$count"] = isset($this->view->args[$count - 1]) ? strip_tags(decode_entities($this->view->args[$count - 1])) : '';
     }
 
@@ -1103,12 +1103,12 @@ abstract class DisplayPluginBase extends PluginBase {
       $options['display_id'] = array(
         'category' => 'other',
         'title' => t('Machine Name'),
-        'value' => !empty($this->display['new_id']) ? check_plain($this->display['new_id']) : check_plain($this->display['id']),
+        'value' => !empty($this->display['new_id']) ? String::checkPlain($this->display['new_id']) : String::checkPlain($this->display['id']),
         'desc' => t('Change the machine name of this display.'),
       );
     }
 
-    $display_comment = check_plain(drupal_substr($this->getOption('display_comment'), 0, 10));
+    $display_comment = String::checkPlain(drupal_substr($this->getOption('display_comment'), 0, 10));
     $options['display_comment'] = array(
       'category' => 'other',
       'title' => t('Administrative comment'),
@@ -1349,7 +1349,7 @@ abstract class DisplayPluginBase extends PluginBase {
       $options['exposed_form']['links']['exposed_form_options'] = t('Exposed form settings for this exposed form style.');
     }
 
-    $css_class = check_plain(trim($this->getOption('css_class')));
+    $css_class = String::checkPlain(trim($this->getOption('css_class')));
     if (!$css_class) {
       $css_class = t('None');
     }
@@ -1381,7 +1381,7 @@ abstract class DisplayPluginBase extends PluginBase {
     if ($this->defaultableSections($form_state['section'])) {
       views_ui_standard_display_dropdown($form, $form_state, $form_state['section']);
     }
-    $form['#title'] = check_plain($this->display['display_title']) . ': ';
+    $form['#title'] = String::checkPlain($this->display['display_title']) . ': ';
 
     // Set the 'section' to hilite on the form.
     // If it's the item we're looking at is pulling from the default display,
@@ -1608,8 +1608,8 @@ abstract class DisplayPluginBase extends PluginBase {
         $form['#title'] .= t('Field Language');
 
         $translatable_entity_tables = array();
-        foreach (\Drupal::entityManager()->getDefinitions() as $entity_info) {
-          if ($entity_info->isTranslatable() && $base_table = $entity_info->getBaseTable()) {
+        foreach (\Drupal::entityManager()->getDefinitions() as $entity_type) {
+          if ($entity_type->isTranslatable() && $base_table = $entity_type->getBaseTable()) {
             $translatable_entity_tables[] = $base_table;
           }
         }
@@ -1904,7 +1904,7 @@ abstract class DisplayPluginBase extends PluginBase {
         }
         else {
           $output .= '<p>' . t('This is the default theme template used for this display.') . '</p>';
-          $output .= '<pre>' . check_plain(file_get_contents('./' . $this->definition['theme_path'] . '/' . strtr($this->definition['theme'], '_', '-') . '.tpl.php')) . '</pre>';
+          $output .= '<pre>' . String::checkPlain(file_get_contents('./' . $this->definition['theme_path'] . '/' . strtr($this->definition['theme'], '_', '-') . '.tpl.php')) . '</pre>';
         }
 
         $form['analysis'] = array(
@@ -1924,7 +1924,7 @@ abstract class DisplayPluginBase extends PluginBase {
         }
         else {
           $output .= '<p>' . t('This is the default theme template used for this style.') . '</p>';
-          $output .= '<pre>' . check_plain(file_get_contents('./' . $plugin->definition['theme_path'] . '/' . strtr($plugin->definition['theme'], '_', '-') . '.tpl.php')) . '</pre>';
+          $output .= '<pre>' . String::checkPlain(file_get_contents('./' . $plugin->definition['theme_path'] . '/' . strtr($plugin->definition['theme'], '_', '-') . '.tpl.php')) . '</pre>';
         }
 
         $form['analysis'] = array(
@@ -1944,7 +1944,7 @@ abstract class DisplayPluginBase extends PluginBase {
         }
         else {
           $output .= '<p>' . t('This is the default theme template used for this row style.') . '</p>';
-          $output .= '<pre>' . check_plain(file_get_contents('./' . $plugin->definition['theme_path'] . '/' . strtr($plugin->definition['theme'], '_', '-') . '.tpl.php')) . '</pre>';
+          $output .= '<pre>' . String::checkPlain(file_get_contents('./' . $plugin->definition['theme_path'] . '/' . strtr($plugin->definition['theme'], '_', '-') . '.tpl.php')) . '</pre>';
         }
 
         $form['analysis'] = array(
@@ -1961,7 +1961,7 @@ abstract class DisplayPluginBase extends PluginBase {
 
         // Field templates aren't registered the normal way...and they're always
         // this one, anyhow.
-        $output .= '<pre>' . check_plain(file_get_contents(drupal_get_path('module', 'views') . '/templates/views-view-field.tpl.php')) . '</pre>';
+        $output .= '<pre>' . String::checkPlain(file_get_contents(drupal_get_path('module', 'views') . '/templates/views-view-field.tpl.php')) . '</pre>';
 
         $form['analysis'] = array(
           '#markup' => '<div class="form-item">' . $output . '</div>',
@@ -2364,6 +2364,21 @@ abstract class DisplayPluginBase extends PluginBase {
         );
       }
     }
+  }
+
+  /**
+   * Creates menu links, if this display provides some.
+   *
+   * @param array $existing_links
+   *   An array of already existing menu items provided by drupal.
+   *
+   * @return array
+   *   The menu links registers for this display.
+   *
+   * @see hook_menu_link_defaults()
+   */
+  public function executeHookMenuLinkDefaults(array &$existing_links) {
+    return array();
   }
 
   /**

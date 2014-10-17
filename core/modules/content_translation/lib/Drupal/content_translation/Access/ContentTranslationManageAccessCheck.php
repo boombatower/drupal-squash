@@ -40,7 +40,8 @@ class ContentTranslationManageAccessCheck implements AccessInterface {
    * {@inheritdoc}
    */
   public function access(Route $route, Request $request, AccountInterface $account) {
-    $entity_type = $request->attributes->get('_entity_type');
+    $entity_type = $request->attributes->get('_entity_type_id');
+    /** @var $entity \Drupal\Core\Entity\EntityInterface */
     if ($entity = $request->attributes->get($entity_type)) {
       $route_requirements = $route->getRequirements();
       $operation = $route_requirements['_access_content_translation_manage'];

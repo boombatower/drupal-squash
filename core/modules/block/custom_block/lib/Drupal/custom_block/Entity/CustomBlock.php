@@ -15,12 +15,11 @@ use Drupal\custom_block\CustomBlockInterface;
 /**
  * Defines the custom block entity class.
  *
- * @EntityType(
+ * @ContentEntityType(
  *   id = "custom_block",
  *   label = @Translation("Custom Block"),
  *   bundle_label = @Translation("Custom Block type"),
  *   controllers = {
- *     "storage" = "Drupal\Core\Entity\FieldableDatabaseStorageController",
  *     "access" = "Drupal\custom_block\CustomBlockAccessController",
  *     "list" = "Drupal\custom_block\CustomBlockListController",
  *     "view_builder" = "Drupal\custom_block\CustomBlockViewBuilder",
@@ -37,6 +36,7 @@ use Drupal\custom_block\CustomBlockInterface;
  *   revision_table = "custom_block_revision",
  *   links = {
  *     "canonical" = "custom_block.edit",
+ *     "delete-form" = "custom_block.delete",
  *     "edit-form" = "custom_block.edit",
  *     "admin-form" = "custom_block.type_edit"
  *   },
@@ -48,9 +48,6 @@ use Drupal\custom_block\CustomBlockInterface;
  *     "bundle" = "type",
  *     "label" = "info",
  *     "uuid" = "uuid"
- *   },
- *   bundle_keys = {
- *     "bundle" = "type"
  *   },
  *   bundle_entity_type = "custom_block_type"
  * )
@@ -190,9 +187,10 @@ class CustomBlock extends ContentEntityBase implements CustomBlockInterface {
       ->setLabel(t('Subject'))
       ->setDescription(t('The custom block name.'));
 
-    $fields['type'] = FieldDefinition::create('string')
+    $fields['type'] = FieldDefinition::create('entity_reference')
       ->setLabel(t('Block type'))
-      ->setDescription(t('The block type.'));
+      ->setDescription(t('The block type.'))
+      ->setSetting('target_type', 'custom_block_type');
 
     $fields['log'] = FieldDefinition::create('string')
       ->setLabel(t('Revision log message'))

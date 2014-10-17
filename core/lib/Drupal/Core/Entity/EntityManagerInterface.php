@@ -27,7 +27,7 @@ interface EntityManagerInterface extends PluginManagerInterface {
    *
    * If a bundle is passed, fields specific to this bundle are included.
    *
-   * @param string $entity_type
+   * @param string $entity_type_id
    *   The entity type to get field definitions for. Only entity types that
    *   implement \Drupal\Core\Entity\ContentEntityInterface are supported.
    * @param string $bundle
@@ -40,7 +40,7 @@ interface EntityManagerInterface extends PluginManagerInterface {
    * @see \Drupal\Core\TypedData\TypedDataManager::create()
    * @see \Drupal\Core\Entity\EntityManager::getFieldDefinitionsByConstraints()
    */
-  public function getFieldDefinitions($entity_type, $bundle = NULL);
+  public function getFieldDefinitions($entity_type_id, $bundle = NULL);
 
   /**
    * Creates a new access controller instance.
@@ -56,7 +56,7 @@ interface EntityManagerInterface extends PluginManagerInterface {
   /**
    * Returns the route information for an entity type's bundle.
    *
-   * @param string $entity_type
+   * @param string $entity_type_id
    *   The entity type.
    * @param string $bundle
    *   The name of the bundle.
@@ -67,7 +67,7 @@ interface EntityManagerInterface extends PluginManagerInterface {
    *   - route_parameters: (optional) An associative array of parameter names
    *     and values.
    */
-  public function getAdminRouteInfo($entity_type, $bundle);
+  public function getAdminRouteInfo($entity_type_id, $bundle);
 
   /**
    * Gets an array of entity field definitions based on validation constraints.
@@ -184,30 +184,6 @@ interface EntityManagerInterface extends PluginManagerInterface {
    * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
    */
   public function getController($entity_type, $controller_type);
-
-  /**
-   * Returns the built and processed entity form for the given entity.
-   *
-   * @param \Drupal\Core\Entity\EntityInterface $entity
-   *   The entity to be created or edited.
-   * @param string $operation
-   *   (optional) The operation identifying the form variation to be returned.
-   *   Defaults to 'default'.
-   * @param array $form_state
-   *   (optional) An associative array containing the current state of the form.
-   *   Use this to pass additional information to the form, such as the
-   *   langcode. Defaults to an empty array.
-   *
-   * @code
-   *   $form_state['langcode'] = $langcode;
-   *   $manager = \Drupal::entityManager();
-   *   $form = $manager->getForm($entity, 'default', $form_state);
-   * @endcode
-   *
-   * @return array
-   *   The processed form for the given entity and operation.
-   */
-  public function getForm(EntityInterface $entity, $operation = 'default', array $form_state = array());
 
   /**
    * Get the bundle info of an entity type.

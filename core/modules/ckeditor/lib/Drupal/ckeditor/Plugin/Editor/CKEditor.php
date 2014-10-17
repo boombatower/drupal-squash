@@ -23,7 +23,9 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  * @Editor(
  *   id = "ckeditor",
  *   label = @Translation("CKEditor"),
- *   supports_inline_editing = TRUE
+ *   supports_content_filtering = TRUE,
+ *   supports_inline_editing = TRUE,
+ *   is_xss_safe = FALSE
  * )
  */
 class CKEditor extends EditorBase implements ContainerFactoryPluginInterface {

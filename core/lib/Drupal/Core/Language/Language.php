@@ -21,9 +21,6 @@ class Language {
   /**
    * The values to use to instantiate the default language.
    *
-   * @todo Remove once the default language is converted to config. See
-   *   https://drupal.org/node/2108599.
-   *
    * @var array
    */
   public static $defaultValues = array(
@@ -200,18 +197,6 @@ class Language {
           $this->direction = $predefined[$this->id][2];
         }
       }
-    }
-  }
-
-  /**
-   * Extend $this with properties from the given object.
-   *
-   * @todo Remove this function once $GLOBALS['language'] is gone.
-   */
-  public function extend($obj) {
-    $variables = get_object_vars($obj);
-    foreach ($variables as $variable => $value) {
-      $this->$variable = $value;
     }
   }
 

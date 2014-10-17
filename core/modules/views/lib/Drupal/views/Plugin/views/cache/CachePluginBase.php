@@ -9,7 +9,6 @@ namespace Drupal\views\Plugin\views\cache;
 
 use Drupal\Core\Cache\Cache;
 use Drupal\Core\Language\Language;
-use Drupal\Core\Cache\CacheBackendInterface;
 use Drupal\views\Plugin\views\PluginBase;
 use Drupal\Core\Database\Query\Select;
 
@@ -107,7 +106,7 @@ abstract class CachePluginBase extends PluginBase {
     *   The cache type, either 'query', 'result' or 'output'.
     */
   protected function cacheSetExpire($type) {
-    return CacheBackendInterface::CACHE_PERMANENT;
+    return Cache::PERMANENT;
   }
 
   /**
@@ -349,13 +348,13 @@ abstract class CachePluginBase extends PluginBase {
       // Collect entity IDs if there are view results.
       if (!empty($this->view->result)) {
         foreach ($this->view->result as $result) {
-          $type = $result->_entity->entityType();
+          $type = $result->_entity->getEntityTypeId();
 
           $tags[$type][] = $result->_entity->id();
           $tags[$type . '_view_' . $result->_entity->bundle()] = TRUE;
 
           foreach ($result->_relationship_entities as $entity) {
-            $type = $entity->entityType();
+            $type = $entity->getEntityTypeId();
 
             $tags[$type][] = $entity->id();
             $tags[$type . '_view_' . $entity->bundle()] = TRUE;

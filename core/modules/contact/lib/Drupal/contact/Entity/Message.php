@@ -14,7 +14,7 @@ use Drupal\Core\Field\FieldDefinition;
 /**
  * Defines the contact message entity.
  *
- * @EntityType(
+ * @ContentEntityType(
  *   id = "contact_message",
  *   label = @Translation("Contact message"),
  *   controllers = {
@@ -29,9 +29,6 @@ use Drupal\Core\Field\FieldDefinition;
  *   },
  *   bundle_entity_type = "contact_category",
  *   fieldable = TRUE,
- *   bundle_keys = {
- *     "bundle" = "id"
- *   },
  *   links = {
  *     "admin-form" = "contact.category_edit"
  *   }

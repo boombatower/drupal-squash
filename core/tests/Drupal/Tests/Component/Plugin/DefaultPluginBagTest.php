@@ -59,7 +59,8 @@ class DefaultPluginBagTest extends PluginBagTestBase {
   /**
    * Tests the get method with an non existing plugin ID.
    *
-   * @expectedException \Drupal\Component\Plugin\Exception\PluginException
+   * @expectedException \Drupal\Component\Plugin\Exception\PluginNotFoundException
+   * @expectedExceptionMessage Plugin ID 'pear' was not found.
    */
   public function testGetNotExistingPlugin() {
     $this->setupPluginBag();
@@ -144,7 +145,7 @@ class DefaultPluginBagTest extends PluginBagTestBase {
    * @see \Drupal\Component\Plugin\DefaultPluginBag::setConfiguration()
    */
   public function testSetConfiguration() {
-    $this->setupPluginBag($this->exactly(4));
+    $this->setupPluginBag($this->exactly(3));
     $expected = array(
       'id' => 'cherry',
       'key' => 'value',

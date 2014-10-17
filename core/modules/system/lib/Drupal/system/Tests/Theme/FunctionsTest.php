@@ -2,12 +2,15 @@
 
 /**
  * @file
- * Definition of Drupal\system\Tests\Theme\FunctionsTest.
+ * Contains \Drupal\system\Tests\Theme\FunctionsTest.
  */
 
 namespace Drupal\system\Tests\Theme;
 
+use Drupal\Core\Session\UserSession;
 use Drupal\simpletest\WebTestBase;
+use Symfony\Cmf\Component\Routing\RouteObjectInterface;
+use Symfony\Component\HttpFoundation\Request;
 
 /**
  * Tests for common theme functions.
@@ -56,6 +59,14 @@ class FunctionsTest extends WebTestBase {
     $variables['empty'] = 'No items found.';
     $expected = '<div class="item-list"><h3>Some title</h3>No items found.</div>';
     $this->assertThemeOutput('item_list', $variables, $expected, 'Empty %callback generates empty string with title.');
+
+    // Verify that empty text is not displayed when there are list items.
+    $variables = array();
+    $variables['title'] = 'Some title';
+    $variables['empty'] = 'No items found.';
+    $variables['items'] = array('Un', 'Deux', 'Trois');
+    $expected = '<div class="item-list"><h3>Some title</h3><ul><li>Un</li><li>Deux</li><li>Trois</li></ul></div>';
+    $this->assertThemeOutput('item_list', $variables, $expected, '%callback does not print empty text when there are list items.');
 
     // Verify nested item lists.
     $variables = array();
@@ -146,9 +157,13 @@ class FunctionsTest extends WebTestBase {
   }
 
   /**
-   * Tests theme_links().
+   * Tests links.html.twig.
    */
   function testLinks() {
+    // Turn off the query for the l() function to compare the active
+    // link correctly.
+    $original_query = \Drupal::request()->query->all();
+    \Drupal::request()->query->replace(array());
     // Verify that empty variables produce no output.
     $variables = array();
     $expected = '';
@@ -158,12 +173,6 @@ class FunctionsTest extends WebTestBase {
     $variables['heading'] = 'Some title';
     $expected = '';
     $this->assertThemeOutput('links', $variables, $expected, 'Empty %callback with heading generates no output.');
-
-    // Set the current path to the front page path.
-    // Required to verify the "active" class in expected links below, and
-    // because the current path is different when running tests manually via
-    // simpletest.module ('batch') and via the testing framework ('').
-    _current_path(\Drupal::config('system.site')->get('page.front'));
 
     // Verify that a list of links is properly rendered.
     $variables = array();
@@ -191,7 +200,7 @@ class FunctionsTest extends WebTestBase {
     $expected_links .= '<ul id="somelinks">';
     $expected_links .= '<li class="a-link"><a href="' . url('a/link') . '">' . check_plain('A <link>') . '</a></li>';
     $expected_links .= '<li class="plain-text">' . check_plain('Plain "text"') . '</li>';
-    $expected_links .= '<li class="front-page active"><a href="' . url('<front>') . '" class="active">' . check_plain('Front page') . '</a></li>';
+    $expected_links .= '<li class="front-page"><a href="' . url('<front>') . '">' . check_plain('Front page') . '</a></li>';
     $expected_links .= '<li class="router-test"><a href="' . \Drupal::urlGenerator()->generate('router_test.1') . '">' . check_plain('Test route') . '</a></li>';
     $expected_links .= '</ul>';
 
@@ -200,6 +209,9 @@ class FunctionsTest extends WebTestBase {
     $expected_heading = '<h2>Links heading</h2>';
     $expected = $expected_heading . $expected_links;
     $this->assertThemeOutput('links', $variables, $expected);
+
+    // Restore the original request's query.
+    \Drupal::request()->query->replace($original_query);
 
     // Verify that passing an array as heading works (core support).
     $variables['heading'] = array('text' => 'Links heading', 'level' => 'h3', 'class' => 'heading');
@@ -224,8 +236,21 @@ class FunctionsTest extends WebTestBase {
     $expected_links .= '<ul id="somelinks">';
     $expected_links .= '<li class="a-link"><a href="' . url('a/link') . '" class="a/class">' . check_plain('A <link>') . '</a></li>';
     $expected_links .= '<li class="plain-text"><span class="a/class">' . check_plain('Plain "text"') . '</span></li>';
-    $expected_links .= '<li class="front-page active"><a href="' . url('<front>') . '" class="active">' . check_plain('Front page') . '</a></li>';
+    $expected_links .= '<li class="front-page"><a href="' . url('<front>') . '">' . check_plain('Front page') . '</a></li>';
     $expected_links .= '<li class="router-test"><a href="' . \Drupal::urlGenerator()->generate('router_test.1') . '">' . check_plain('Test route') . '</a></li>';
+    $expected_links .= '</ul>';
+    $expected = $expected_heading . $expected_links;
+    $this->assertThemeOutput('links', $variables, $expected);
+
+    // Verify the data- attributes for setting the "active" class on links.
+    $this->container->set('current_user', new UserSession(array('uid' => 1)));
+    $variables['set_active_class'] = TRUE;
+    $expected_links = '';
+    $expected_links .= '<ul id="somelinks">';
+    $expected_links .= '<li class="a-link" data-drupal-link-system-path="a/link"><a href="' . url('a/link') . '" class="a/class" data-drupal-link-system-path="a/link">' . check_plain('A <link>') . '</a></li>';
+    $expected_links .= '<li class="plain-text"><span class="a/class">' . check_plain('Plain "text"') . '</span></li>';
+    $expected_links .= '<li class="front-page" data-drupal-link-system-path="&lt;front&gt;"><a href="' . url('<front>') . '" data-drupal-link-system-path="&lt;front&gt;">' . check_plain('Front page') . '</a></li>';
+    $expected_links .= '<li class="router-test" data-drupal-link-system-path="router_test/test1"><a href="' . \Drupal::urlGenerator()->generate('router_test.1') . '" data-drupal-link-system-path="router_test/test1">' . check_plain('Test route') . '</a></li>';
     $expected_links .= '</ul>';
     $expected = $expected_heading . $expected_links;
     $this->assertThemeOutput('links', $variables, $expected);

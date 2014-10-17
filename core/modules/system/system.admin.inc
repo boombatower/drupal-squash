@@ -5,6 +5,7 @@
  * Admin page callbacks for the system module.
  */
 
+use Drupal\Core\Cache\Cache;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
@@ -32,12 +33,10 @@ function system_theme_default() {
       // Rebuild the menu. This duplicates the menu_router_rebuild() in
       // theme_enable(). However, modules must know the current default theme in
       // order to use this information in hook_menu() or hook_menu_alter()
-      // implementations, and doing the variable_set() before the theme_enable()
+      // implementations, and saving the configuration before the theme_enable()
       // could result in a race condition where the theme is default but not
       // enabled.
-      \Drupal::service('router.builder')->rebuild();
-      menu_router_rebuild();
-      \Drupal::cache('cache')->deleteTags(array('local_task' => 1));
+      \Drupal::service('router.builder')->setRebuildNeeded();
 
       // The status message depends on whether an admin theme is currently in use:
       // a value of 0 means the admin theme is set to be the default theme.
@@ -148,7 +147,7 @@ function theme_admin_block_content($variables) {
     }
     $output .= '<dl class="' . $class . '">';
     foreach ($content as $item) {
-      $output .= '<dt>' . l($item['title'], $item['href'], $item['localized_options']) . '</dt>';
+      $output .= '<dt>' . l($item['title'], $item['link_path'], $item['localized_options']) . '</dt>';
       if (!$compact && isset($item['description'])) {
         $output .= '<dd>' . filter_xss_admin($item['description']) . '</dd>';
       }
@@ -267,7 +266,9 @@ function theme_system_admin_index($variables) {
 }
 
 /**
- * Returns HTML for the status report.
+ * Prepares variables for status report template.
+ *
+ * Default template: status-report.html.twig.
  *
  * This theme function is dependent on install.inc being loaded, because
  * that's where the constants are defined.
@@ -287,8 +288,7 @@ function theme_system_admin_index($variables) {
  *
  * @ingroup themeable
  */
-function theme_status_report($variables) {
-  $requirements = $variables['requirements'];
+function template_preprocess_status_report(&$variables) {
   $severities = array(
     REQUIREMENT_INFO => array(
       'title' => t('Info'),
@@ -307,11 +307,8 @@ function theme_status_report($variables) {
       'class' => 'error',
     ),
   );
-  $output = '<table class="system-status-report"><thead><tr class="visually-hidden">';
-  $output .= '<th>' . t('Status') . '</th><th>' . t('Component') . '</th><th>' . t('Details') . '</th>';
-  $output .= '</tr></thead><tbody>';
 
-  foreach ($requirements as $requirement) {
+  foreach ($variables['requirements'] as $i => $requirement) {
     // Always use the explicit requirement severity, if defined. Otherwise,
     // default to REQUIREMENT_OK in the installer to visually confirm that
     // installation requirements are met. And default to REQUIREMENT_INFO to
@@ -325,29 +322,9 @@ function theme_status_report($variables) {
     else {
       $severity = $severities[REQUIREMENT_INFO];
     }
-    // hook_requirements does not require value to be set. Set to null if not:
-    if (isset($requirement['value'])) {
-      $value = $requirement['value'];
-    }
-    else {
-      $value = NULL;
-    }
-
-    $severity['icon'] = '<div title="' . $severity['title'] . '"><span class="visually-hidden">' . $severity['title'] . '</span></div>';
-
-    // Output table rows.
-    $output .= '<tr class="' . $severity['class'] . '">';
-    $output .= '<td class="status-icon">' . $severity['icon'] . '</td>';
-    $output .= '<td class="status-title">' . $requirement['title'] . '</td>';
-    $output .= '<td class="status-value">' . $value;
-    if (!empty($requirement['description'])) {
-      $output .= '<div class="description">' . $requirement['description'] . '</div>';
-    }
-    $output .= '</td></tr>';
+    $variables['requirements'][$i]['severity_class'] = $severity['class'];
+    $variables['requirements'][$i]['severity_title'] = $severity['title'];
   }
-
-  $output .= '</tbody></table>';
-  return $output;
 }
 
 /**
@@ -581,3 +558,4 @@ function theme_system_themes_page($variables) {
 
   return $output;
 }
+

@@ -38,8 +38,6 @@ class DatabaseStorageController extends EntityStorageControllerBase {
   /**
    * Whether this entity type should use the static cache.
    *
-   * Set by entity info.
-   *
    * @var boolean
    */
   protected $cache;
@@ -61,9 +59,9 @@ class DatabaseStorageController extends EntityStorageControllerBase {
   /**
    * {@inheritdoc}
    */
-  public static function createInstance(ContainerInterface $container, EntityTypeInterface $entity_info) {
+  public static function createInstance(ContainerInterface $container, EntityTypeInterface $entity_type) {
     return new static(
-      $entity_info,
+      $entity_type,
       $container->get('database'),
       $container->get('uuid')
     );
@@ -72,24 +70,24 @@ class DatabaseStorageController extends EntityStorageControllerBase {
   /**
    * Constructs a DatabaseStorageController object.
    *
-   * @param \Drupal\Core\Entity\EntityTypeInterface $entity_info
-   *   The entity info for the entity type.
+   * @param \Drupal\Core\Entity\EntityTypeInterface $entity_type
+   *   The entity type definition.
    * @param \Drupal\Core\Database\Connection $database
    *   The database connection to be used.
    * @param \Drupal\Component\Uuid\UuidInterface $uuid_service
    *   The UUID service.
    */
-  public function __construct(EntityTypeInterface $entity_info, Connection $database, UuidInterface $uuid_service) {
-    parent::__construct($entity_info);
+  public function __construct(EntityTypeInterface $entity_type, Connection $database, UuidInterface $uuid_service) {
+    parent::__construct($entity_type);
 
     $this->database = $database;
     $this->uuidService = $uuid_service;
 
     // Check if the entity type supports IDs.
-    $this->idKey = $this->entityInfo->getKey('id');
+    $this->idKey = $this->entityType->getKey('id');
 
     // Check if the entity type supports UUIDs.
-    $this->uuidKey = $this->entityInfo->getKey('uuid');
+    $this->uuidKey = $this->entityType->getKey('uuid');
   }
 
   /**
@@ -121,11 +119,11 @@ class DatabaseStorageController extends EntityStorageControllerBase {
       // Build and execute the query.
       $query_result = $this->buildQuery($ids)->execute();
 
-      if ($class = $this->entityInfo->getClass()) {
+      if ($class = $this->entityType->getClass()) {
         // We provide the necessary arguments for PDO to create objects of the
         // specified entity class.
         // @see \Drupal\Core\Entity\EntityInterface::__construct()
-        $query_result->setFetchMode(\PDO::FETCH_CLASS, $class, array(array(), $this->entityType));
+        $query_result->setFetchMode(\PDO::FETCH_CLASS, $class, array(array(), $this->entityTypeId));
       }
       $queried_entities = $query_result->fetchAllAssoc($this->idKey);
     }
@@ -186,7 +184,7 @@ class DatabaseStorageController extends EntityStorageControllerBase {
    */
   public function loadByProperties(array $values = array()) {
     // Build a query to fetch the entity IDs.
-    $entity_query = \Drupal::entityQuery($this->entityType);
+    $entity_query = \Drupal::entityQuery($this->entityTypeId);
     $this->buildPropertyQuery($entity_query, $values);
     $result = $entity_query->execute();
     return $result ? $this->loadMultiple($result) : array();
@@ -217,12 +215,12 @@ class DatabaseStorageController extends EntityStorageControllerBase {
    *   A SelectQuery object for loading the entity.
    */
   protected function buildQuery($ids, $revision_id = FALSE) {
-    $query = $this->database->select($this->entityInfo->getBaseTable(), 'base');
+    $query = $this->database->select($this->entityType->getBaseTable(), 'base');
 
-    $query->addTag($this->entityType . '_load_multiple');
+    $query->addTag($this->entityTypeId . '_load_multiple');
 
     // Add fields from the {entity} table.
-    $entity_fields = drupal_schema_fields_sql($this->entityInfo->getBaseTable());
+    $entity_fields = drupal_schema_fields_sql($this->entityType->getBaseTable());
     $query->fields('base', $entity_fields);
 
     if ($ids) {
@@ -235,11 +233,11 @@ class DatabaseStorageController extends EntityStorageControllerBase {
   /**
    * {@inheritdoc}
    */
-  public function create(array $values) {
-    $entity_class = $this->entityInfo->getClass();
+  public function create(array $values = array()) {
+    $entity_class = $this->entityType->getClass();
     $entity_class::preCreate($this, $values);
 
-    $entity = new $entity_class($values, $this->entityType);
+    $entity = new $entity_class($values, $this->entityTypeId);
 
     // Assign a new UUID if there is none yet.
     if ($this->uuidKey && !isset($entity->{$this->uuidKey})) {
@@ -265,14 +263,14 @@ class DatabaseStorageController extends EntityStorageControllerBase {
     $transaction = $this->database->startTransaction();
 
     try {
-      $entity_class = $this->entityInfo->getClass();
+      $entity_class = $this->entityType->getClass();
       $entity_class::preDelete($this, $entities);
       foreach ($entities as $entity) {
         $this->invokeHook('predelete', $entity);
       }
       $ids = array_keys($entities);
 
-      $this->database->delete($this->entityInfo->getBaseTable())
+      $this->database->delete($this->entityType->getBaseTable())
         ->condition($this->idKey, $ids, 'IN')
         ->execute();
 
@@ -288,7 +286,7 @@ class DatabaseStorageController extends EntityStorageControllerBase {
     }
     catch (\Exception $e) {
       $transaction->rollback();
-      watchdog_exception($this->entityType, $e);
+      watchdog_exception($this->entityTypeId, $e);
       throw new EntityStorageException($e->getMessage(), $e->getCode(), $e);
     }
   }
@@ -301,20 +299,20 @@ class DatabaseStorageController extends EntityStorageControllerBase {
     try {
       // Load the stored entity, if any.
       if (!$entity->isNew() && !isset($entity->original)) {
-        $entity->original = entity_load_unchanged($this->entityType, $entity->id());
+        $entity->original = entity_load_unchanged($this->entityTypeId, $entity->id());
       }
 
       $entity->preSave($this);
       $this->invokeHook('presave', $entity);
 
       if (!$entity->isNew()) {
-        $return = drupal_write_record($this->entityInfo->getBaseTable(), $entity, $this->idKey);
+        $return = drupal_write_record($this->entityType->getBaseTable(), $entity, $this->idKey);
         $this->resetCache(array($entity->id()));
         $entity->postSave($this, TRUE);
         $this->invokeHook('update', $entity);
       }
       else {
-        $return = drupal_write_record($this->entityInfo->getBaseTable(), $entity);
+        $return = drupal_write_record($this->entityType->getBaseTable(), $entity);
         // Reset general caches, but keep caches specific to certain entities.
         $this->resetCache(array());
 
@@ -331,7 +329,7 @@ class DatabaseStorageController extends EntityStorageControllerBase {
     }
     catch (\Exception $e) {
       $transaction->rollback();
-      watchdog_exception($this->entityType, $e);
+      watchdog_exception($this->entityTypeId, $e);
       throw new EntityStorageException($e->getMessage(), $e->getCode(), $e);
     }
   }

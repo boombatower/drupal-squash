@@ -8,21 +8,12 @@
 namespace Drupal\common_test\Controller;
 
 use Drupal\Component\Utility\String;
-use Drupal\Core\DependencyInjection\ContainerInjectionInterface;
-use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Controller routines for common_test routes.
  */
-class CommonTestController implements ContainerInjectionInterface {
-
-  /**
-   * {@inheritdoc}
-   */
-  public static function create(ContainerInterface $container) {
-    return new static();
-  }
+class CommonTestController {
 
   /**
    * Returns links to the current page, with and without query strings.
@@ -35,6 +26,9 @@ class CommonTestController implements ContainerInjectionInterface {
         '#type' => 'link',
         '#title' => t('Link with no query string'),
         '#href' => current_path(),
+        '#options' => array(
+          'set_active_class' => TRUE,
+        ),
       ),
       'with_query' => array(
         '#type' => 'link',
@@ -45,6 +39,7 @@ class CommonTestController implements ContainerInjectionInterface {
             'foo' => 'bar',
             'one' => 'two',
           ),
+          'set_active_class' => TRUE,
         ),
       ),
       'with_query_reversed' => array(
@@ -56,6 +51,7 @@ class CommonTestController implements ContainerInjectionInterface {
             'one' => 'two',
             'foo' => 'bar',
           ),
+          'set_active_class' => TRUE,
         ),
       ),
     );

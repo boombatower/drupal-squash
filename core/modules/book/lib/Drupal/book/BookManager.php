@@ -6,14 +6,14 @@
 
 namespace Drupal\book;
 
-use Drupal\Core\Cache\CacheBackendInterface;
+use Drupal\Core\Cache\Cache;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Entity\EntityManagerInterface;
 use Drupal\Core\Language\Language;
 use Drupal\Core\Session\AccountInterface;
 use Drupal\Core\StringTranslation\TranslationInterface;
-use Drupal\Core\Config\ConfigFactory;
+use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\node\NodeInterface;
 
 /**
@@ -45,7 +45,7 @@ class BookManager {
   /**
    * Config Factory Service Object.
    *
-   * @var \Drupal\Core\Config\ConfigFactory
+   * @var \Drupal\Core\Config\ConfigFactoryInterface
    */
   protected $configFactory;
 
@@ -59,7 +59,7 @@ class BookManager {
   /**
    * Constructs a BookManager object.
    */
-  public function __construct(Connection $connection, EntityManagerInterface $entity_manager, TranslationInterface $translation, ConfigFactory $config_factory) {
+  public function __construct(Connection $connection, EntityManagerInterface $entity_manager, TranslationInterface $translation, ConfigFactoryInterface $config_factory) {
     $this->connection = $connection;
     $this->entityManager = $entity_manager;
     $this->translation =  $translation;
@@ -131,7 +131,7 @@ class BookManager {
       'menu_name' => '',
       'nid' => $nid,
       'bid' => 0,
-      'router_path' => 'node/%',
+      'link_path' => 'node/%',
       'plid' => 0,
       'mlid' => 0,
       'has_children' => 0,
@@ -211,7 +211,7 @@ class BookManager {
       ),
       '#tree' => TRUE,
     );
-    foreach (array('menu_name', 'mlid', 'nid', 'router_path', 'has_children', 'options', 'module', 'original_bid', 'parent_depth_limit') as $key) {
+    foreach (array('menu_name', 'mlid', 'nid', 'link_path', 'has_children', 'options', 'module', 'original_bid', 'parent_depth_limit') as $key) {
       $form['book'][$key] = array(
         '#type' => 'value',
         '#value' => $node->book[$key],
@@ -589,7 +589,7 @@ class BookManager {
         }
 
         // Cache the tree building parameters using the page-specific cid.
-        cache('menu')->set($cid, $tree_parameters, CacheBackendInterface::CACHE_PERMANENT, array('menu' => $menu_name));
+        cache('menu')->set($cid, $tree_parameters, Cache::PERMANENT, array('menu' => $menu_name));
       }
 
       // Build the tree using the parameters; the resulting tree will be cached
@@ -660,7 +660,7 @@ class BookManager {
       $element['#theme'] = 'menu_link__' . strtr($data['link']['menu_name'], '-', '_');
       $element['#attributes']['class'] = $class;
       $element['#title'] = $data['link']['title'];
-      $element['#href'] = $data['link']['href'];
+      $element['#href'] = $data['link']['link_path'];
       $element['#localized_options'] = !empty($data['link']['localized_options']) ? $data['link']['localized_options'] : array();
       $element['#below'] = $data['below'] ? $this->bookTreeOutput($data['below']) : $data['below'];
       $element['#original_link'] = $data['link'];
@@ -776,7 +776,7 @@ class BookManager {
       $this->bookTreeCollectNodeLinks($data['tree'], $data['node_links']);
 
       // Cache the data, if it is not already in the cache.
-      cache('menu')->set($tree_cid, $data, CacheBackendInterface::CACHE_PERMANENT, array('menu' => $menu_name));
+      cache('menu')->set($tree_cid, $data, Cache::PERMANENT, array('menu' => $menu_name));
       $trees[$tree_cid] = $data;
     }
 

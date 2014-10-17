@@ -15,11 +15,10 @@ use Drupal\Core\Entity\EntityStorageControllerInterface;
 /**
  * Defines a Block configuration entity class.
  *
- * @EntityType(
+ * @ConfigEntityType(
  *   id = "block",
  *   label = @Translation("Block"),
  *   controllers = {
- *     "storage" = "Drupal\Core\Config\Entity\ConfigStorageController",
  *     "access" = "Drupal\block\BlockAccessController",
  *     "view_builder" = "Drupal\block\BlockViewBuilder",
  *     "list" = "Drupal\block\BlockListController",
@@ -29,6 +28,7 @@ use Drupal\Core\Entity\EntityStorageControllerInterface;
  *     }
  *   },
  *   config_prefix = "block.block",
+ *   admin_permission = "administer blocks",
  *   fieldable = FALSE,
  *   entity_keys = {
  *     "id" = "id",
@@ -36,6 +36,7 @@ use Drupal\Core\Entity\EntityStorageControllerInterface;
  *     "uuid" = "uuid"
  *   },
  *   links = {
+ *     "delete-form" = "block.admin_block_delete",
  *     "edit-form" = "block.admin_edit"
  *   }
  * )

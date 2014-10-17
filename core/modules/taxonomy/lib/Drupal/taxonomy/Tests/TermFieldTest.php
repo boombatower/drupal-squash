@@ -80,14 +80,14 @@ class TermFieldTest extends TaxonomyTestBase {
   function testTaxonomyTermFieldValidation() {
     // Test validation with a valid value.
     $term = $this->createTerm($this->vocabulary);
-    $entity = entity_create('entity_test', array());
+    $entity = entity_create('entity_test');
     $entity->{$this->field_name}->target_id = $term->id();
     $violations = $entity->{$this->field_name}->validate();
     $this->assertEqual(count($violations) , 0, 'Correct term does not cause validation error.');
 
     // Test validation with an invalid valid value (wrong vocabulary).
     $bad_term = $this->createTerm($this->createVocabulary());
-    $entity = entity_create('entity_test', array());
+    $entity = entity_create('entity_test');
     $entity->{$this->field_name}->target_id = $bad_term->id();
     $violations = $entity->{$this->field_name}->validate();
     $this->assertEqual(count($violations) , 1, 'Wrong term causes validation error.');
@@ -117,11 +117,9 @@ class TermFieldTest extends TaxonomyTestBase {
 
     // Display the object.
     $entity = entity_load('entity_test', $id);
-    $entities = array($id => $entity);
-    $display = entity_get_display($entity->entityType(), $entity->bundle(), 'full');
-    field_attach_prepare_view('entity_test', $entities, array($entity->bundle() => $display));
-    $entity->content = field_attach_view($entity, $display);
-    $this->content = drupal_render($entity->content);
+    $display = entity_get_display($entity->getEntityTypeId(), $entity->bundle(), 'full');
+    $content = $display->build($entity);
+    $this->drupalSetContent(drupal_render($content));
     $this->assertText($term->label(), 'Term label is displayed.');
 
     // Delete the vocabulary and verify that the widget is gone.

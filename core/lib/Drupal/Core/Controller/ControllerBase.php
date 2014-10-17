@@ -7,6 +7,8 @@
 
 namespace Drupal\Core\Controller;
 
+use Drupal\Core\DependencyInjection\ContainerInjectionInterface;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 
 /**
@@ -28,7 +30,7 @@ use Symfony\Component\HttpFoundation\RedirectResponse;
  *
  * @see \Drupal\Core\DependencyInjection\ContainerInjectionInterface
  */
-abstract class ControllerBase {
+abstract class ControllerBase implements ContainerInjectionInterface {
 
   /**
    * The entity manager.
@@ -36,6 +38,13 @@ abstract class ControllerBase {
    * @var \Drupal\Core\Entity\EntityManagerInterface
    */
   protected $entityManager;
+
+  /**
+   * The entity form builder.
+   *
+   * @var \Drupal\Core\Entity\EntityFormBuilderInterface
+   */
+  protected $entityFormBuilder;
 
   /**
    * The language manager.
@@ -94,6 +103,20 @@ abstract class ControllerBase {
   protected $moduleHandler;
 
   /**
+   * The form builder.
+   *
+   * @var \Drupal\Core\Form\FormBuilderInterface
+   */
+  protected $formBuilder;
+
+  /**
+   * {@inheritdoc}
+   */
+  public static function create(ContainerInterface $container) {
+    return new static();
+  }
+
+  /**
    * Retrieves the entity manager service.
    *
    * @return \Drupal\Core\Entity\EntityManagerInterface
@@ -104,6 +127,19 @@ abstract class ControllerBase {
       $this->entityManager = $this->container()->get('entity.manager');
     }
     return $this->entityManager;
+  }
+
+  /**
+   * Retrieves the entity form builder.
+   *
+   * @return \Drupal\Core\Entity\EntityFormBuilderInterface
+   *   The entity form builder.
+   */
+  protected function entityFormBuilder() {
+    if (!$this->entityFormBuilder) {
+      $this->entityFormBuilder = $this->container()->get('entity.form_builder');
+    }
+    return $this->entityFormBuilder;
   }
 
   /**
@@ -186,6 +222,18 @@ abstract class ControllerBase {
       $this->moduleHandler = $this->container()->get('module_handler');
     }
     return $this->moduleHandler;
+  }
+
+  /**
+   * Returns the form builder service.
+   *
+   * @return \Drupal\Core\Form\FormBuilderInterface
+   */
+  protected function formBuilder() {
+    if (!$this->formBuilder) {
+      $this->formBuilder = $this->container()->get('form_builder');
+    }
+    return $this->formBuilder;
   }
 
   /**

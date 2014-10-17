@@ -38,9 +38,8 @@ class ContentTranslationDeleteForm extends ConfirmFormBase {
   /**
    * {@inheritdoc}
    */
-  public function buildForm(array $form, array &$form_state, $_entity_type = NULL, $language = NULL) {
-    $this->entity = $this->getRequest()->attributes->get($_entity_type);
-    $uri = $this->entity->uri('drupal:content-translation-overview');
+  public function buildForm(array $form, array &$form_state, $_entity_type_id = NULL, $language = NULL) {
+    $this->entity = $this->getRequest()->attributes->get($_entity_type_id);
     $this->language = language_load($language);
     return parent::buildForm($form, $form_state);
   }
@@ -64,9 +63,9 @@ class ContentTranslationDeleteForm extends ConfirmFormBase {
    */
   public function getCancelRoute() {
     return array(
-      'route_name' => $this->entity->entityInfo()->getLinkTemplate('drupal:content-translation-overview'),
+      'route_name' => $this->entity->getEntityType()->getLinkTemplate('drupal:content-translation-overview'),
       'route_parameters' => array(
-        $this->entity->entityType() => $this->entity->id(),
+        $this->entity->getEntityTypeId() => $this->entity->id(),
       ),
     );
   }
@@ -82,8 +81,8 @@ class ContentTranslationDeleteForm extends ConfirmFormBase {
     // Remove any existing path alias for the removed translation.
     // @todo This should be taken care of by the Path module.
     if (\Drupal::moduleHandler()->moduleExists('path')) {
-      $uri = $this->entity->uri();
-      $conditions = array('source' => $uri['path'], 'langcode' => $this->language->id);
+      $path = $this->entity->getSystemPath();
+      $conditions = array('source' => $path, 'langcode' => $this->language->id);
       \Drupal::service('path.crud')->delete($conditions);
     }
 

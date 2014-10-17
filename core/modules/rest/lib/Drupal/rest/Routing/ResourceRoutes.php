@@ -7,7 +7,7 @@
 
 namespace Drupal\rest\Routing;
 
-use Drupal\Core\Config\ConfigFactory;
+use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\DependencyInjection\ContainerInjectionInterface;
 use Drupal\rest\Plugin\Type\ResourcePluginManager;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -27,7 +27,7 @@ class ResourceRoutes implements ContainerInjectionInterface {
   /**
    * The Drupal configuration factory.
    *
-   * @var \Drupal\Core\Config\ConfigFactory
+   * @var \Drupal\Core\Config\ConfigFactoryInterface
    */
   protected $config;
 
@@ -36,10 +36,10 @@ class ResourceRoutes implements ContainerInjectionInterface {
    *
    * @param \Drupal\rest\Plugin\Type\ResourcePluginManager $manager
    *   The resource plugin manager.
-   * @param \Drupal\Core\Config\ConfigFactory $config
+   * @param \Drupal\Core\Config\ConfigFactoryInterface $config
    *   The configuration factory holding resource settings.
    */
-  public function __construct(ResourcePluginManager $manager, ConfigFactory $config) {
+  public function __construct(ResourcePluginManager $manager, ConfigFactoryInterface $config) {
     $this->manager = $manager;
     $this->config = $config;
   }
@@ -62,7 +62,7 @@ class ResourceRoutes implements ContainerInjectionInterface {
    */
   public function routes() {
     $routes = array();
-    $enabled_resources = $this->config->get('rest.settings')->load()->get('resources');
+    $enabled_resources = $this->config->get('rest.settings')->get('resources') ?: array();
 
     // Iterate over all enabled resource plugins.
     foreach ($enabled_resources as $id => $enabled_methods) {

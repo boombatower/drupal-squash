@@ -63,8 +63,6 @@ class FieldableDatabaseStorageController extends FieldableEntityStorageControlle
   /**
    * Whether this entity type should use the static cache.
    *
-   * Set by entity info.
-   *
    * @var boolean
    */
   protected $cache;
@@ -86,9 +84,9 @@ class FieldableDatabaseStorageController extends FieldableEntityStorageControlle
   /**
    * {@inheritdoc}
    */
-  public static function createInstance(ContainerInterface $container, EntityTypeInterface $entity_info) {
+  public static function createInstance(ContainerInterface $container, EntityTypeInterface $entity_type) {
     return new static(
-      $entity_info,
+      $entity_type,
       $container->get('database'),
       $container->get('field.info')
     );
@@ -97,39 +95,39 @@ class FieldableDatabaseStorageController extends FieldableEntityStorageControlle
   /**
    * Constructs a DatabaseStorageController object.
    *
-   * @param \Drupal\Core\Entity\EntityTypeInterface $entity_info
-   *   The entity info for the entity type.
+   * @param \Drupal\Core\Entity\EntityTypeInterface $entity_type
+   *   The entity type definition.
    * @param \Drupal\Core\Database\Connection $database
    *   The database connection to be used.
    * @param \Drupal\field\FieldInfo $field_info
    *   The field info service.
    */
-  public function __construct(EntityTypeInterface $entity_info, Connection $database, FieldInfo $field_info) {
-    parent::__construct($entity_info);
+  public function __construct(EntityTypeInterface $entity_type, Connection $database, FieldInfo $field_info) {
+    parent::__construct($entity_type);
 
     $this->database = $database;
     $this->fieldInfo = $field_info;
 
     // Check if the entity type supports IDs.
-    if ($this->entityInfo->hasKey('id')) {
-      $this->idKey = $this->entityInfo->getKey('id');
+    if ($this->entityType->hasKey('id')) {
+      $this->idKey = $this->entityType->getKey('id');
     }
 
     // Check if the entity type supports UUIDs.
-    $this->uuidKey = $this->entityInfo->getKey('uuid');
+    $this->uuidKey = $this->entityType->getKey('uuid');
 
     // Check if the entity type supports revisions.
-    if ($this->entityInfo->hasKey('revision')) {
-      $this->revisionKey = $this->entityInfo->getKey('revision');
-      $this->revisionTable = $this->entityInfo->getRevisionTable();
+    if ($this->entityType->hasKey('revision')) {
+      $this->revisionKey = $this->entityType->getKey('revision');
+      $this->revisionTable = $this->entityType->getRevisionTable();
     }
 
     // Check if the entity type has a dedicated table for fields.
-    if ($data_table = $this->entityInfo->getDataTable()) {
+    if ($data_table = $this->entityType->getDataTable()) {
       $this->dataTable = $data_table;
       // Entity types having both revision and translation support should always
       // define a revision data table.
-      if ($this->revisionTable && $revision_data_table = $this->entityInfo->getRevisionDataTable()) {
+      if ($this->revisionTable && $revision_data_table = $this->entityType->getRevisionDataTable()) {
         $this->revisionDataTable = $revision_data_table;
       }
     }
@@ -237,7 +235,7 @@ class FieldableDatabaseStorageController extends FieldableEntityStorageControlle
       if (!$this->dataTable) {
         $bundle = $this->bundleKey ? $record->{$this->bundleKey} : FALSE;
         // Turn the record into an entity class.
-        $entities[$id] = new $this->entityClass($entities[$id], $this->entityType, $bundle);
+        $entities[$id] = new $this->entityClass($entities[$id], $this->entityTypeId, $bundle);
       }
     }
     $this->attachPropertyData($entities);
@@ -270,13 +268,13 @@ class FieldableDatabaseStorageController extends FieldableEntityStorageControlle
       }
 
       $data = $query->execute();
-      $field_definitions = \Drupal::entityManager()->getFieldDefinitions($this->entityType);
+      $field_definitions = \Drupal::entityManager()->getFieldDefinitions($this->entityTypeId);
       $translations = array();
       if ($this->revisionDataTable) {
-        $data_column_names = array_flip(array_diff(drupal_schema_fields_sql($this->entityInfo->getRevisionDataTable()), drupal_schema_fields_sql($this->entityInfo->getBaseTable())));
+        $data_column_names = array_flip(array_diff(drupal_schema_fields_sql($this->entityType->getRevisionDataTable()), drupal_schema_fields_sql($this->entityType->getBaseTable())));
       }
       else {
-        $data_column_names = array_flip(drupal_schema_fields_sql($this->entityInfo->getDataTable()));
+        $data_column_names = array_flip(drupal_schema_fields_sql($this->entityType->getDataTable()));
       }
 
       foreach ($data as $values) {
@@ -312,7 +310,7 @@ class FieldableDatabaseStorageController extends FieldableEntityStorageControlle
       foreach ($entities as $id => $values) {
         $bundle = $this->bundleKey ? $values[$this->bundleKey][Language::LANGCODE_DEFAULT] : FALSE;
         // Turn the record into an entity class.
-        $entities[$id] = new $this->entityClass($values, $this->entityType, $bundle, array_keys($translations[$id]));
+        $entities[$id] = new $this->entityClass($values, $this->entityTypeId, $bundle, array_keys($translations[$id]));
       }
     }
   }
@@ -396,9 +394,9 @@ class FieldableDatabaseStorageController extends FieldableEntityStorageControlle
    *   A SelectQuery object for loading the entity.
    */
   protected function buildQuery($ids, $revision_id = FALSE) {
-    $query = $this->database->select($this->entityInfo->getBaseTable(), 'base');
+    $query = $this->database->select($this->entityType->getBaseTable(), 'base');
 
-    $query->addTag($this->entityType . '_load_multiple');
+    $query->addTag($this->entityTypeId . '_load_multiple');
 
     if ($revision_id) {
       $query->join($this->revisionTable, 'revision', "revision.{$this->idKey} = base.{$this->idKey} AND revision.{$this->revisionKey} = :revisionId", array(':revisionId' => $revision_id));
@@ -408,11 +406,11 @@ class FieldableDatabaseStorageController extends FieldableEntityStorageControlle
     }
 
     // Add fields from the {entity} table.
-    $entity_fields = drupal_schema_fields_sql($this->entityInfo->getBaseTable());
+    $entity_fields = drupal_schema_fields_sql($this->entityType->getBaseTable());
 
     if ($this->revisionTable) {
       // Add all fields from the {entity_revision} table.
-      $entity_revision_fields = drupal_map_assoc(drupal_schema_fields_sql($this->entityInfo->getRevisionTable()));
+      $entity_revision_fields = drupal_map_assoc(drupal_schema_fields_sql($this->entityType->getRevisionTable()));
       // The ID field is provided by entity, so remove it.
       unset($entity_revision_fields[$this->idKey]);
 
@@ -459,7 +457,7 @@ class FieldableDatabaseStorageController extends FieldableEntityStorageControlle
     $queried_entities = $this->mapFromStorageRecords($queried_entities);
 
     // Attach field values.
-    if ($this->entityInfo->isFieldable()) {
+    if ($this->entityType->isFieldable()) {
       $this->loadFieldItems($queried_entities);
     }
 
@@ -485,7 +483,7 @@ class FieldableDatabaseStorageController extends FieldableEntityStorageControlle
       }
       $ids = array_keys($entities);
 
-      $this->database->delete($this->entityInfo->getBaseTable())
+      $this->database->delete($this->entityType->getBaseTable())
         ->condition($this->idKey, $ids)
         ->execute();
 
@@ -524,7 +522,7 @@ class FieldableDatabaseStorageController extends FieldableEntityStorageControlle
     }
     catch (\Exception $e) {
       $transaction->rollback();
-      watchdog_exception($this->entityType, $e);
+      watchdog_exception($this->entityTypeId, $e);
       throw new EntityStorageException($e->getMessage(), $e->getCode(), $e);
     }
   }
@@ -540,7 +538,7 @@ class FieldableDatabaseStorageController extends FieldableEntityStorageControlle
 
       // Load the stored entity, if any.
       if (!$entity->isNew() && !isset($entity->original)) {
-        $entity->original = entity_load_unchanged($this->entityType, $entity->id());
+        $entity->original = entity_load_unchanged($this->entityTypeId, $entity->id());
       }
 
       $entity->preSave($this);
@@ -552,7 +550,7 @@ class FieldableDatabaseStorageController extends FieldableEntityStorageControlle
 
       if (!$entity->isNew()) {
         if ($entity->isDefaultRevision()) {
-          $return = drupal_write_record($this->entityInfo->getBaseTable(), $record, $this->idKey);
+          $return = drupal_write_record($this->entityType->getBaseTable(), $record, $this->idKey);
         }
         else {
           // @todo, should a different value be returned when saving an entity
@@ -582,7 +580,7 @@ class FieldableDatabaseStorageController extends FieldableEntityStorageControlle
         // Ensure the entity is still seen as new after assigning it an id,
         // while storing its data.
         $entity->enforceIsNew();
-        $return = drupal_write_record($this->entityInfo->getBaseTable(), $record);
+        $return = drupal_write_record($this->entityType->getBaseTable(), $record);
         $entity->{$this->idKey}->value = (string) $record->{$this->idKey};
         if ($this->revisionTable) {
           $entity->setNewRevision();
@@ -613,7 +611,7 @@ class FieldableDatabaseStorageController extends FieldableEntityStorageControlle
     }
     catch (\Exception $e) {
       $transaction->rollback();
-      watchdog_exception($this->entityType, $e);
+      watchdog_exception($this->entityTypeId, $e);
       throw new EntityStorageException($e->getMessage(), $e->getCode(), $e);
     }
   }
@@ -628,7 +626,7 @@ class FieldableDatabaseStorageController extends FieldableEntityStorageControlle
    *   'data_table'.
    */
   protected function savePropertyData(EntityInterface $entity, $table_key = 'data_table') {
-    $table_name = $this->entityInfo->get($table_key);
+    $table_name = $this->entityType->get($table_key);
     $revision = $table_key != 'data_table';
 
     if (!$revision || !$entity->isNewRevision()) {
@@ -670,11 +668,11 @@ class FieldableDatabaseStorageController extends FieldableEntityStorageControlle
     $record = new \stdClass();
     $values = array();
     $definitions = $entity->getPropertyDefinitions();
-    $schema = drupal_get_schema($this->entityInfo->get($table_key));
+    $schema = drupal_get_schema($this->entityType->get($table_key));
     $is_new = $entity->isNew();
 
     $multi_column_fields = array();
-    foreach (drupal_schema_fields_sql($this->entityInfo->get($table_key)) as $name) {
+    foreach (drupal_schema_fields_sql($this->entityType->get($table_key)) as $name) {
       // Check for fields which store data in multiple columns and process them
       // separately.
       if ($field = strstr($name, '__', TRUE)) {
@@ -689,11 +687,9 @@ class FieldableDatabaseStorageController extends FieldableEntityStorageControlle
     foreach (array_keys($multi_column_fields) as $field_name) {
       $field_items = $entity->get($field_name);
       $field_value = $field_items->getValue();
-      // @todo Reconsider the usage of getPropertyDefinitions() after
-      // https://drupal.org/node/2144327.
-      foreach (array_keys($field_items[0]->getPropertyDefinitions()) as $property_name) {
-        if (isset($schema['fields'][$field_name . '__' . $property_name])) {
-          $values[$field_name . '__' . $property_name] = isset($field_value[0][$property_name]) ? $field_value[0][$property_name] : NULL;
+      foreach (array_keys($field_items->getFieldDefinition()->getColumns()) as $field_schema_column) {
+        if (isset($schema['fields'][$field_name . '__' . $field_schema_column])) {
+          $values[$field_name . '__' . $field_schema_column] = isset($field_value[0][$field_schema_column]) ? $field_value[0][$field_schema_column] : NULL;
         }
       }
     }
@@ -751,7 +747,7 @@ class FieldableDatabaseStorageController extends FieldableEntityStorageControlle
     if ($entity->isNewRevision()) {
       drupal_write_record($this->revisionTable, $record);
       if ($entity->isDefaultRevision()) {
-        $this->database->update($this->entityInfo->getBaseTable())
+        $this->database->update($this->entityType->getBaseTable())
           ->fields(array($this->revisionKey => $record->{$this->revisionKey}))
           ->condition($this->idKey, $record->{$this->idKey})
           ->execute();
@@ -793,7 +789,7 @@ class FieldableDatabaseStorageController extends FieldableEntityStorageControlle
     // Collect impacted fields.
     $fields = array();
     foreach ($bundles as $bundle => $v) {
-      foreach ($this->fieldInfo->getBundleInstances($this->entityType, $bundle) as $field_name => $instance) {
+      foreach ($this->fieldInfo->getBundleInstances($this->entityTypeId, $bundle) as $field_name => $instance) {
         $fields[$field_name] = $instance->getField();
       }
     }
@@ -850,7 +846,7 @@ class FieldableDatabaseStorageController extends FieldableEntityStorageControlle
     $vid = $entity->getRevisionId();
     $id = $entity->id();
     $bundle = $entity->bundle();
-    $entity_type = $entity->entityType();
+    $entity_type = $entity->getEntityTypeId();
     $default_langcode = $entity->getUntranslated()->language()->id;
     $translation_langcodes = array_keys($entity->getTranslationLanguages());
 
@@ -891,7 +887,7 @@ class FieldableDatabaseStorageController extends FieldableEntityStorageControlle
       foreach ($langcodes as $langcode) {
         $delta_count = 0;
         $items = $entity->getTranslation($langcode)->get($field_name);
-        $items->filterEmptyValues();
+        $items->filterEmptyItems();
         foreach ($items as $delta => $item) {
           // We now know we have someting to insert.
           $do_insert = TRUE;
@@ -932,7 +928,7 @@ class FieldableDatabaseStorageController extends FieldableEntityStorageControlle
    * {@inheritdoc}
    */
   protected function doDeleteFieldItems(EntityInterface $entity) {
-    foreach ($this->fieldInfo->getBundleInstances($entity->entityType(), $entity->bundle()) as $instance) {
+    foreach ($this->fieldInfo->getBundleInstances($entity->getEntityTypeId(), $entity->bundle()) as $instance) {
       $field = $instance->getField();
       $table_name = static::_fieldTableName($field);
       $revision_name = static::_fieldRevisionTableName($field);
@@ -951,7 +947,7 @@ class FieldableDatabaseStorageController extends FieldableEntityStorageControlle
   protected function doDeleteFieldItemsRevision(EntityInterface $entity) {
     $vid = $entity->getRevisionId();
     if (isset($vid)) {
-      foreach ($this->fieldInfo->getBundleInstances($entity->entityType(), $entity->bundle()) as $instance) {
+      foreach ($this->fieldInfo->getBundleInstances($entity->getEntityTypeId(), $entity->bundle()) as $instance) {
         $revision_name = static::_fieldRevisionTableName($instance->getField());
         $this->database->delete($revision_name)
           ->condition('entity_id', $entity->id())
@@ -1103,7 +1099,7 @@ class FieldableDatabaseStorageController extends FieldableEntityStorageControlle
     // We need to account for deleted fields and instances. The method runs
     // before the instance definitions are updated, so we need to fetch them
     // using the old bundle name.
-    $instances = entity_load_multiple_by_properties('field_instance', array('entity_type' => $this->entityType, 'bundle' => $bundle, 'include_deleted' => TRUE));
+    $instances = entity_load_multiple_by_properties('field_instance', array('entity_type' => $this->entityTypeId, 'bundle' => $bundle, 'include_deleted' => TRUE));
     foreach ($instances as $instance) {
       $field = $instance->getField();
       $table_name = static::_fieldTableName($field);
@@ -1187,13 +1183,13 @@ class FieldableDatabaseStorageController extends FieldableEntityStorageControlle
       $description_revision = "Revision archive storage for {$field->entity_type} field {$field->getName()}.";
     }
 
-    $entity_type = $field->entity_type;
+    $entity_type_id = $field->entity_type;
     $entity_manager = \Drupal::entityManager();
-    $info = $entity_manager->getDefinition($entity_type);
-    $definitions = $entity_manager->getFieldDefinitions($entity_type);
+    $entity_type = $entity_manager->getDefinition($entity_type_id);
+    $definitions = $entity_manager->getFieldDefinitions($entity_type_id);
 
     // Define the entity ID schema based on the field definitions.
-    $id_definition = $definitions[$info->getKey('id')];
+    $id_definition = $definitions[$entity_type->getKey('id')];
     if ($id_definition->getType() == 'integer') {
       $id_schema = array(
         'type' => 'int',
@@ -1213,7 +1209,7 @@ class FieldableDatabaseStorageController extends FieldableEntityStorageControlle
 
     // Define the revision ID schema, default to integer if there is no revision
     // ID.
-    $revision_id_definition = $info->hasKey('revision_id') ? $definitions[$info->getKey('revision_id')] : NULL;
+    $revision_id_definition = $entity_type->hasKey('revision_id') ? $definitions[$entity_type->getKey('revision_id')] : NULL;
     if (!$revision_id_definition || $revision_id_definition->getType() == 'integer') {
       $revision_id_schema = array(
         'type' => 'int',

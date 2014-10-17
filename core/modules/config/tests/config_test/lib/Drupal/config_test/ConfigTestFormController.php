@@ -47,7 +47,7 @@ class ConfigTestFormController extends EntityFormController {
       '#default_value' => $entity->get('style'),
       '#access' => FALSE,
     );
-    if (module_exists('image')) {
+    if ($this->moduleHandler->moduleExists('image')) {
       $form['style']['#access'] = TRUE;
       $form['style']['#options'] = image_style_options();
     }
@@ -80,18 +80,6 @@ class ConfigTestFormController extends EntityFormController {
     }
 
     $form_state['redirect_route']['route_name'] = 'config_test.list_page';
-  }
-
-  /**
-   * Overrides Drupal\Core\Entity\EntityFormController::delete().
-   */
-  public function delete(array $form, array &$form_state) {
-    $form_state['redirect_route'] = array(
-      'route_name' => 'config_test.entity_delete',
-      'route_parameters' => array(
-        'config_test' => $this->entity->id(),
-      ),
-    );
   }
 
 }

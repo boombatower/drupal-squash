@@ -31,10 +31,10 @@ class ViewListController extends ConfigEntityListController implements EntityCon
   /**
    * {@inheritdoc}
    */
-  public static function createInstance(ContainerInterface $container, EntityTypeInterface $entity_info) {
+  public static function createInstance(ContainerInterface $container, EntityTypeInterface $entity_type) {
     return new static(
-      $entity_info,
-      $container->get('entity.manager')->getStorageController($entity_info->id()),
+      $entity_type,
+      $container->get('entity.manager')->getStorageController($entity_type->id()),
       $container->get('plugin.manager.views.display')
     );
   }
@@ -42,15 +42,15 @@ class ViewListController extends ConfigEntityListController implements EntityCon
   /**
    * Constructs a new EntityListController object.
    *
-   * @param \Drupal\Core\Entity\EntityTypeInterface $entity_info
-   *   An array of entity info for this entity type.
+   * @param \Drupal\Core\Entity\EntityTypeInterface $entity_type
+   *   The entity type definition.
    * @param \Drupal\Core\Entity\EntityStorageControllerInterface $storage.
    *   The entity storage controller class.
    * @param \Drupal\Component\Plugin\PluginManagerInterface $display_manager
    *   The views display plugin manager to use.
    */
-  public function __construct(EntityTypeInterface $entity_info, EntityStorageControllerInterface $storage, PluginManagerInterface $display_manager) {
-    parent::__construct($entity_info, $storage);
+  public function __construct(EntityTypeInterface $entity_type, EntityStorageControllerInterface $storage, PluginManagerInterface $display_manager) {
+    parent::__construct($entity_type, $storage);
 
     $this->displayManager = $display_manager;
   }
@@ -136,22 +136,19 @@ class ViewListController extends ConfigEntityListController implements EntityCon
    */
   public function getOperations(EntityInterface $entity) {
     $operations = parent::getOperations($entity);
-    $uri = $entity->uri();
 
-    $operations['clone'] = array(
-      'title' => $this->t('Clone'),
-      'href' => $uri['path'] . '/clone',
-      'options' => $uri['options'],
-      'weight' => 15,
-    );
+    if ($entity->hasLinkTemplate('clone')) {
+      $operations['clone'] = array(
+        'title' => $this->t('Clone'),
+        'weight' => 15,
+      ) + $entity->urlInfo('clone');
+    }
 
     // Add AJAX functionality to enable/disable operations.
     foreach (array('enable', 'disable') as $op) {
       if (isset($operations[$op])) {
-        $operations[$op]['route_name'] = 'views_ui.operation';
-        $operations[$op]['route_parameters'] = array('view' => $entity->id(), 'op' => $op);
-        // @todo Remove this when entity links use route_names.
-        unset($operations[$op]['href']);
+        $operations[$op]['route_name'] = "views_ui.$op";
+        $operations[$op]['route_parameters'] = array('view' => $entity->id());
 
         // Enable and disable operations should use AJAX.
         $operations[$op]['attributes']['class'][] = 'use-ajax';

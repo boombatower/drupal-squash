@@ -5,7 +5,7 @@
  * Administration toolbar for quick access to top level administration items.
  */
 
-use Drupal\Core\Cache\CacheBackendInterface;
+use Drupal\Core\Cache\Cache;
 use Drupal\Core\Language\Language;
 use Drupal\Core\Template\Attribute;
 use Drupal\Component\Utility\Crypt;
@@ -488,7 +488,7 @@ function toolbar_get_rendered_subtrees() {
         $subtree = '';
       }
 
-      $id = str_replace(array('/', '<', '>'), array('-', '', ''), $item['href']);
+      $id = str_replace(array('/', '<', '>'), array('-', '', ''), $item['link_path']);
       $subtrees[$id] = $subtree;
     }
   }
@@ -585,7 +585,7 @@ function _toolbar_get_subtrees_hash() {
     // caches later, based on the user's ID regardless of language.
     // Clear the cache when the 'locale' tag is deleted. This ensures a fresh
     // subtrees rendering when string translations are made.
-    cache('toolbar')->set($cid, $hash, CacheBackendInterface::CACHE_PERMANENT, array('user' => array($uid), 'locale' => TRUE,));
+    cache('toolbar')->set($cid, $hash, Cache::PERMANENT, array('user' => array($uid), 'locale' => TRUE,));
   }
   return $hash;
 }
@@ -652,7 +652,7 @@ function _toolbar_clear_user_cache($uid = NULL) {
     // Clear by the 'user' tag in order to delete all caches, in any language,
     // associated with this user.
     if (isset($uid)) {
-      $cache->deleteTags(array('user' => array($uid)));
+      Cache::deleteTags(array('user' => array($uid)));
     } else {
       $cache->deleteAll();
     }

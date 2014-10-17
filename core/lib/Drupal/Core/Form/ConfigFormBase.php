@@ -7,7 +7,7 @@
 
 namespace Drupal\Core\Form;
 
-use Drupal\Core\Config\ConfigFactory;
+use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Form\FormBase;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
@@ -19,17 +19,17 @@ abstract class ConfigFormBase extends FormBase {
   /**
    * Stores the configuration factory.
    *
-   * @var \Drupal\Core\Config\ConfigFactory
+   * @var \Drupal\Core\Config\ConfigFactoryInterface
    */
   protected $configFactory;
 
   /**
    * Constructs a \Drupal\system\ConfigFormBase object.
    *
-   * @param \Drupal\Core\Config\ConfigFactory $config_factory
+   * @param \Drupal\Core\Config\ConfigFactoryInterface $config_factory
    *   The factory for configuration objects.
    */
-  public function __construct(ConfigFactory $config_factory) {
+  public function __construct(ConfigFactoryInterface $config_factory) {
     $this->configFactory = $config_factory;
   }
 
@@ -74,9 +74,10 @@ abstract class ConfigFormBase extends FormBase {
    * configuration.
    */
   protected function config($name) {
-    $this->configFactory->disableOverrides();
+    $old_state = $this->configFactory->getOverrideState();
+    $this->configFactory->setOverrideState(FALSE);
     $config = $this->configFactory->get($name);
-    $this->configFactory->enableOverrides();
+    $this->configFactory->setOverrideState($old_state);
     return $config;
   }
 }

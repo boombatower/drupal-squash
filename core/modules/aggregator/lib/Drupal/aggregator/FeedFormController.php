@@ -45,14 +45,14 @@ class FeedFormController extends ContentEntityFormController {
     $form['url'] = array(
       '#type' => 'url',
       '#title' => $this->t('URL'),
-      '#default_value' => $feed->url->value,
+      '#default_value' => $feed->getUrl(),
       '#maxlength' => NULL,
       '#description' => $this->t('The fully-qualified URL of the feed.'),
       '#required' => TRUE,
     );
     $form['refresh'] = array('#type' => 'select',
       '#title' => $this->t('Update interval'),
-      '#default_value' => $feed->refresh->value,
+      '#default_value' => $feed->getRefreshRate(),
       '#options' => $period,
       '#description' => $this->t('The length of time between feed updates. Requires a correctly configured <a href="@cron">cron maintenance task</a>.', array('@cron' => url('admin/reports/status'))),
     );
@@ -72,8 +72,8 @@ class FeedFormController extends ContentEntityFormController {
       if (strcasecmp($item->title, $feed->label()) == 0) {
         $this->setFormError('title', $form_state, $this->t('A feed named %feed already exists. Enter a unique title.', array('%feed' => $feed->label())));
       }
-      if (strcasecmp($item->url, $feed->url->value) == 0) {
-        $this->setFormError('url', $form_state, $this->t('A feed with this URL %url already exists. Enter a unique URL.', array('%url' => $feed->url->value)));
+      if (strcasecmp($item->url, $feed->getUrl()) == 0) {
+        $this->setFormError('url', $form_state, $this->t('A feed with this URL %url already exists. Enter a unique URL.', array('%url' => $feed->getUrl())));
       }
     }
     parent::validate($form, $form_state);
@@ -92,26 +92,13 @@ class FeedFormController extends ContentEntityFormController {
         $form_state['redirect_route']['route_name'] = 'aggregator.admin_overview';
       }
       else {
-        $form_state['redirect_route'] = array(
-          'route_name' => 'aggregator.feed_view',
-          'route_parameters' => array('aggregator_feed' => $feed->id()),
-        );
+        $form_state['redirect_route'] = $feed->urlInfo('canonical');
       }
     }
     else {
       watchdog('aggregator', 'Feed %feed added.', array('%feed' => $feed->label()), WATCHDOG_NOTICE, l($this->t('view'), 'admin/config/services/aggregator'));
       drupal_set_message($this->t('The feed %feed has been added.', array('%feed' => $feed->label())));
     }
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  public function delete(array $form, array &$form_state) {
-    $form_state['redirect_route'] = array(
-      'route_name' => 'aggregator.feed_delete',
-      'route_parameters' => array('aggregator_feed' => $this->entity->id()),
-    );
   }
 
 }

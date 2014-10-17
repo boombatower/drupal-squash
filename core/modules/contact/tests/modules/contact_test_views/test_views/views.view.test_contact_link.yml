@@ -11,10 +11,7 @@ display:
     position: 1
     display_options:
       access:
-        type: perm
-        options:
-          perm: 'access content'
-        perm: 'access user profiles'
+        type: none
       cache:
         type: none
         options: {  }
@@ -44,7 +41,7 @@ display:
           id: 0
           total_pages: ''
           expose:
-            items_per_page: 0
+            items_per_page: false
             items_per_page_label: 'Items per page'
             items_per_page_options: 5, 10, 20, 40, 60
             items_per_page_options_all: false

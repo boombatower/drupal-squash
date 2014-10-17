@@ -25,41 +25,41 @@ class EntityListController extends EntityControllerBase implements EntityListCon
   protected $storage;
 
   /**
-   * The entity type name.
+   * The entity type ID.
    *
    * @var string
+   */
+  protected $entityTypeId;
+
+  /**
+   * Information about the entity type.
+   *
+   * @var \Drupal\Core\Entity\EntityTypeInterface
    */
   protected $entityType;
 
   /**
-   * The entity info array.
-   *
-   * @var \Drupal\Core\Entity\EntityTypeInterface
-   */
-  protected $entityInfo;
-
-  /**
    * {@inheritdoc}
    */
-  public static function createInstance(ContainerInterface $container, EntityTypeInterface $entity_info) {
+  public static function createInstance(ContainerInterface $container, EntityTypeInterface $entity_type) {
     return new static(
-      $entity_info,
-      $container->get('entity.manager')->getStorageController($entity_info->id())
+      $entity_type,
+      $container->get('entity.manager')->getStorageController($entity_type->id())
     );
   }
 
   /**
    * Constructs a new EntityListController object.
    *
-   * @param \Drupal\Core\Entity\EntityTypeInterface $entity_info
-   *   The entity info for the entity type.
+   * @param \Drupal\Core\Entity\EntityTypeInterface $entity_type
+   *   The entity type definition.
    * @param \Drupal\Core\Entity\EntityStorageControllerInterface $storage
    *   The entity storage controller class.
    */
-  public function __construct(EntityTypeInterface $entity_info, EntityStorageControllerInterface $storage) {
-    $this->entityType = $entity_info->id();
+  public function __construct(EntityTypeInterface $entity_type, EntityStorageControllerInterface $storage) {
+    $this->entityTypeId = $entity_type->id();
     $this->storage = $storage;
-    $this->entityInfo = $entity_info;
+    $this->entityType = $entity_type;
   }
 
   /**
@@ -93,24 +93,18 @@ class EntityListController extends EntityControllerBase implements EntityListCon
    * {@inheritdoc}
    */
   public function getOperations(EntityInterface $entity) {
-    $uri = $entity->uri();
-
     $operations = array();
-    if ($entity->access('update')) {
+    if ($entity->access('update') && $entity->hasLinkTemplate('edit-form')) {
       $operations['edit'] = array(
         'title' => $this->t('Edit'),
-        'href' => $uri['path'] . '/edit',
-        'options' => $uri['options'],
         'weight' => 10,
-      );
+      ) + $entity->urlInfo('edit-form');
     }
-    if ($entity->access('delete')) {
+    if ($entity->access('delete') && $entity->hasLinkTemplate('delete-form')) {
       $operations['delete'] = array(
         'title' => $this->t('Delete'),
-        'href' => $uri['path'] . '/delete',
-        'options' => $uri['options'],
         'weight' => 100,
-      );
+      ) + $entity->urlInfo('delete-form');
     }
 
     return $operations;
@@ -160,7 +154,7 @@ class EntityListController extends EntityControllerBase implements EntityListCon
     // Retrieve and sort operations.
     $operations = $this->getOperations($entity);
     $this->moduleHandler()->alter('entity_operation', $operations, $entity);
-    uasort($operations, 'drupal_sort_weight');
+    uasort($operations, array('Drupal\Component\Utility\SortArray', 'sortByWeightElement'));
     $build = array(
       '#type' => 'operations',
       '#links' => $operations,
@@ -181,7 +175,7 @@ class EntityListController extends EntityControllerBase implements EntityListCon
       '#header' => $this->buildHeader(),
       '#title' => $this->getTitle(),
       '#rows' => array(),
-      '#empty' => $this->t('There is no @label yet.', array('@label' => $this->entityInfo->getLabel())),
+      '#empty' => $this->t('There is no @label yet.', array('@label' => $this->entityType->getLabel())),
     );
     foreach ($this->load() as $entity) {
       if ($row = $this->buildRow($entity)) {

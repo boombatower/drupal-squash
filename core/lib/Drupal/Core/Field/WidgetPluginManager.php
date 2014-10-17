@@ -21,7 +21,7 @@ class WidgetPluginManager extends DefaultPluginManager {
   /**
    * The field type manager to define field.
    *
-   * @var \Drupal\Core\Field\FieldTypePluginManager
+   * @var \Drupal\Core\Field\FieldTypePluginManagerInterface
    */
   protected $fieldTypeManager;
 
@@ -44,10 +44,10 @@ class WidgetPluginManager extends DefaultPluginManager {
    *   The module handler.
    * @param \Drupal\Core\Language\LanguageManager $language_manager
    *   The language manager.
-   * @param \Drupal\Core\Field\FieldTypePluginManager $field_type_manager
+   * @param \Drupal\Core\Field\FieldTypePluginManagerInterface $field_type_manager
    *   The 'field type' plugin manager.
    */
-  public function __construct(\Traversable $namespaces, CacheBackendInterface $cache_backend, ModuleHandlerInterface $module_handler, LanguageManager $language_manager, FieldTypePluginManager $field_type_manager) {
+  public function __construct(\Traversable $namespaces, CacheBackendInterface $cache_backend, ModuleHandlerInterface $module_handler, LanguageManager $language_manager, FieldTypePluginManagerInterface $field_type_manager) {
     parent::__construct('Plugin/Field/FieldWidget', $namespaces, 'Drupal\Core\Field\Annotation\FieldWidget');
 
     $this->setCacheBackend($cache_backend, $language_manager, 'field_widget_types_plugins');
@@ -171,7 +171,7 @@ class WidgetPluginManager extends DefaultPluginManager {
       $options = array();
       $field_types = $this->fieldTypeManager->getDefinitions();
       $widget_types = $this->getDefinitions();
-      uasort($widget_types, 'drupal_sort_weight');
+      uasort($widget_types, array('Drupal\Component\Utility\SortArray', 'sortByWeightElement'));
       foreach ($widget_types as $name => $widget_type) {
         foreach ($widget_type['field_types'] as $widget_field_type) {
           // Check that the field type exists.

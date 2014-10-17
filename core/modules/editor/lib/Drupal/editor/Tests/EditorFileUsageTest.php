@@ -59,7 +59,7 @@ class EditorFileUsageTest extends EntityUnitTestBase {
    * Tests the configurable text editor manager.
    */
   public function testEditorEntityHooks() {
-    $image = entity_create('file', array());
+    $image = entity_create('file');
     $image->setFileUri('core/misc/druplicon.png');
     $image->setFilename(drupal_basename($image->getFileUri()));
     $image->save();
@@ -90,7 +90,7 @@ class EditorFileUsageTest extends EntityUnitTestBase {
 
     // Test hook_entity_update(): decrement, by modifying the last revision:
     // remove the data- attribute from the body field.
-    $body = $node->get('body')->offsetGet(0)->get('value');
+    $body = $node->get('body')->first()->get('value');
     $original_value = $body->getValue();
     $new_value = str_replace('data-editor-file-uuid', 'data-editor-file-uuid-modified', $original_value);
     $body->setValue($new_value);
@@ -99,7 +99,7 @@ class EditorFileUsageTest extends EntityUnitTestBase {
 
     // Test hook_entity_update(): increment, by modifying the last revision:
     // readd the data- attribute to the body field.
-    $node->get('body')->offsetGet(0)->get('value')->setValue($original_value);
+    $node->get('body')->first()->get('value')->setValue($original_value);
     $node->save();
     $this->assertIdentical(array('editor' => array('node' => array(1 => '3'))), $file_usage->listUsage($image), 'The image has 3 usages.');
 

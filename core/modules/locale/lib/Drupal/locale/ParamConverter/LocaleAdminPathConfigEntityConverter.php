@@ -9,7 +9,7 @@ namespace Drupal\locale\ParamConverter;
 
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Route;
-use Drupal\Core\Config\ConfigFactory;
+use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Entity\EntityManagerInterface;
 use Drupal\Core\ParamConverter\EntityConverter;
 use Drupal\Core\ParamConverter\ParamConverterInterface;
@@ -33,7 +33,7 @@ class LocaleAdminPathConfigEntityConverter extends EntityConverter {
   /**
    * The config factory.
    *
-   * @var \Drupal\Core\Config\ConfigFactory
+   * @var \Drupal\Core\Config\ConfigFactoryInterface
    */
   protected $configFactory;
 
@@ -43,7 +43,7 @@ class LocaleAdminPathConfigEntityConverter extends EntityConverter {
    * @param \Drupal\Core\Entity\EntityManagerInterface $entityManager
    *   The entity manager.
    */
-  public function __construct(EntityManagerInterface $entity_manager, ConfigFactory $config_factory) {
+  public function __construct(EntityManagerInterface $entity_manager, ConfigFactoryInterface $config_factory) {
     $this->configFactory = $config_factory;
     parent::__construct($entity_manager);
   }
@@ -55,9 +55,10 @@ class LocaleAdminPathConfigEntityConverter extends EntityConverter {
     $entity_type = substr($definition['type'], strlen('entity:'));
     if ($storage = $this->entityManager->getStorageController($entity_type)) {
       // Make sure no overrides are loaded.
-      $this->configFactory->disableOverrides();
+      $old_state = $this->configFactory->getOverrideState();
+      $this->configFactory->setOverrideState(FALSE);
       $entity = $storage->load($value);
-      $this->configFactory->enableOverrides();
+      $this->configFactory->setOverrideState($old_state);
       return $entity;
     }
   }
@@ -69,9 +70,9 @@ class LocaleAdminPathConfigEntityConverter extends EntityConverter {
     if (parent::applies($definition, $name, $route)) {
       // As we only want to override EntityConverter for ConfigEntities, find
       // out whether the current entity is a ConfigEntity.
-      $entity_type = substr($definition['type'], strlen('entity:'));
-      $info = $this->entityManager->getDefinition($entity_type);
-      if ($info->isSubclassOf('\Drupal\Core\Config\Entity\ConfigEntityInterface')) {
+      $entity_type_id = substr($definition['type'], strlen('entity:'));
+      $entity_type = $this->entityManager->getDefinition($entity_type_id);
+      if ($entity_type->isSubclassOf('\Drupal\Core\Config\Entity\ConfigEntityInterface')) {
         // path_is_admin() needs the path without the leading slash.
         $path = ltrim($route->getPath(), '/');
         return path_is_admin($path);

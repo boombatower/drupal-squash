@@ -10,6 +10,7 @@ namespace Drupal\Core\Entity\Query\Sql;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Database\Query\SelectInterface;
 use Drupal\Core\Entity\EntityManagerInterface;
+use Drupal\Core\Entity\EntityTypeInterface;
 use Drupal\Core\Entity\Query\QueryBase;
 use Drupal\Core\Entity\Query\QueryException;
 use Drupal\Core\Entity\Query\QueryInterface;
@@ -18,13 +19,6 @@ use Drupal\Core\Entity\Query\QueryInterface;
  * The SQL storage entity query class.
  */
 class Query extends QueryBase implements QueryInterface {
-
-  /**
-   * Contains the entity info for the entity type of that query.
-   *
-   * @var \Drupal\Core\Entity\EntityTypeInterface
-   */
-  protected $entityInfo;
 
   /**
    * The build sql select query.
@@ -68,19 +62,18 @@ class Query extends QueryBase implements QueryInterface {
   /**
    * Constructs a query object.
    *
-   * @param string $entity_type
-   *   The entity type.
-   * @param \Drupal\Core\Entity\EntityManagerInterface $entity_manager
-   *   The entity manager storing the entity info.
+   * @param \Drupal\Core\Entity\EntityTypeInterface $entity_type
+   *   The entity type definition.
    * @param string $conjunction
    *   - AND: all of the conditions on the query need to match.
    *   - OR: at least one of the conditions on the query need to match.
    * @param \Drupal\Core\Database\Connection $connection
    *   The database connection to run the query against.
+   * @param array $namespaces
+   *   List of potential namespaces of the classes belonging to this query.
    */
-  public function __construct($entity_type, EntityManagerInterface $entity_manager, $conjunction, Connection $connection, array $namespaces) {
+  public function __construct(EntityTypeInterface $entity_type, $conjunction, Connection $connection, array $namespaces) {
     parent::__construct($entity_type, $conjunction, $namespaces);
-    $this->entityManager = $entity_manager;
     $this->connection = $connection;
   }
 
@@ -107,20 +100,18 @@ class Query extends QueryBase implements QueryInterface {
    *   Returns the called object.
    */
   protected function prepare() {
-    $entity_type = $this->entityType;
-    $this->entityInfo = $this->entityManager->getDefinition($entity_type);
-    if (!$base_table = $this->entityInfo->getBaseTable()) {
+    if (!$base_table = $this->entityType->getBaseTable()) {
       throw new QueryException("No base table, invalid query.");
     }
     $simple_query = TRUE;
-    if ($this->entityInfo->getDataTable()) {
+    if ($this->entityType->getDataTable()) {
       $simple_query = FALSE;
     }
     $this->sqlQuery = $this->connection->select($base_table, 'base_table', array('conjunction' => $this->conjunction));
-    $this->sqlQuery->addMetaData('entity_type', $entity_type);
-    $id_field = $this->entityInfo->getKey('id');
+    $this->sqlQuery->addMetaData('entity_type', $this->entityTypeId);
+    $id_field = $this->entityType->getKey('id');
     // Add the key field for fetchAllKeyed().
-    if (!$revision_field = $this->entityInfo->getKey('revision')) {
+    if (!$revision_field = $this->entityType->getKey('revision')) {
       // When there is no revision support, the key field is the entity key.
       $this->sqlFields["base_table.$id_field"] = array('base_table', $id_field);
       // Now add the value column for fetchAllKeyed(). This is always the
@@ -135,10 +126,10 @@ class Query extends QueryBase implements QueryInterface {
       $this->sqlFields["base_table.$id_field"] = array('base_table', $id_field);
     }
     if ($this->accessCheck) {
-      $this->sqlQuery->addTag($entity_type . '_access');
+      $this->sqlQuery->addTag($this->entityTypeId . '_access');
     }
     $this->sqlQuery->addTag('entity_query');
-    $this->sqlQuery->addTag('entity_query_' . $this->entityType);
+    $this->sqlQuery->addTag('entity_query_' . $this->entityTypeId);
 
     // Add further tags added.
     if (isset($this->alterTags)) {
@@ -222,8 +213,8 @@ class Query extends QueryBase implements QueryInterface {
         // if the direction is descending.
         $function = $direction == 'ASC' ? 'min' : 'max';
         $expression = "$function($sql_alias)";
-        $this->sqlQuery->addExpression($expression);
-        $this->sqlQuery->orderBy($expression, $direction);
+        $expression_alias = $this->sqlQuery->addExpression($expression);
+        $this->sqlQuery->orderBy($expression_alias, $direction);
       }
     }
     return $this;

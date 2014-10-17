@@ -17,7 +17,7 @@ use Drupal\search\SearchPageInterface;
 /**
  * Defines a configured search page.
  *
- * @EntityType(
+ * @ConfigEntityType(
  *   id = "search_page",
  *   label = @Translation("Search page"),
  *   controllers = {
@@ -33,7 +33,11 @@ use Drupal\search\SearchPageInterface;
  *   },
  *   admin_permission = "administer search",
  *   links = {
- *     "edit-form" = "search.edit"
+ *     "edit-form" = "search.edit",
+ *     "delete-form" = "search.delete",
+ *     "enable" = "search.enable",
+ *     "disable" = "search.disable",
+ *     "set-default" = "search.set_default"
  *   },
  *   config_prefix = "search.page",
  *   entity_keys = {
@@ -205,11 +209,7 @@ class SearchPage extends ConfigEntityBase implements SearchPageInterface {
    */
   public function postSave(EntityStorageControllerInterface $storage_controller, $update = TRUE) {
     parent::postSave($storage_controller, $update);
-
-    $this->state()->set('menu_rebuild_needed', TRUE);
-    // @todo The above call should be sufficient, but it is not until
-    //   https://drupal.org/node/2167323 is fixed.
-    \Drupal::service('router.builder')->rebuild();
+    $this->routeBuilder()->setRebuildNeeded();
   }
 
   /**
@@ -239,19 +239,19 @@ class SearchPage extends ConfigEntityBase implements SearchPageInterface {
   }
 
   /**
-   * Wraps the state storage.
+   * Wraps the route builder.
    *
-   * @return \Drupal\Core\KeyValueStore\StateInterface
+   * @return \Drupal\Core\Routing\RouteBuilderInterface
    *   An object for state storage.
    */
-  protected function state() {
-    return \Drupal::state();
+  protected function routeBuilder() {
+    return \Drupal::service('router.builder');
   }
 
   /**
    * Wraps the config factory.
    *
-   * @return \Drupal\Core\Config\ConfigFactory
+   * @return \Drupal\Core\Config\ConfigFactoryInterface
    *   A config factory object.
    */
   protected function configFactory() {

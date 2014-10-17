@@ -9,6 +9,7 @@ namespace Drupal\user;
 
 use Drupal\Core\Entity\ContentEntityFormController;
 use Drupal\Core\Entity\EntityManagerInterface;
+use Drupal\Core\Entity\Query\QueryFactory;
 use Drupal\Core\Language\Language;
 use Drupal\Core\Language\LanguageManagerInterface;
 use Drupal\language\ConfigurableLanguageManagerInterface;
@@ -29,16 +30,26 @@ abstract class AccountFormController extends ContentEntityFormController {
   protected $languageManager;
 
   /**
+   * The entity query factory service.
+   *
+   * @var \Drupal\Core\Entity\Query\QueryFactory
+   */
+  protected $entityQuery;
+
+  /**
    * Constructs a new EntityFormController object.
    *
    * @param \Drupal\Core\Entity\EntityManagerInterface $entity_manager
    *   The entity manager.
    * @param \Drupal\Core\Language\LanguageManagerInterface $language_manager
    *   The language manager.
+   * @param \Drupal\Core\Entity\Query\QueryFactory
+   *   The entity query factory.
    */
-  public function __construct(EntityManagerInterface $entity_manager, LanguageManagerInterface $language_manager) {
+  public function __construct(EntityManagerInterface $entity_manager, LanguageManagerInterface $language_manager, QueryFactory $entity_query) {
     parent::__construct($entity_manager);
     $this->languageManager = $language_manager;
+    $this->entityQuery = $entity_query;
   }
 
   /**
@@ -47,7 +58,8 @@ abstract class AccountFormController extends ContentEntityFormController {
   public static function create(ContainerInterface $container) {
     return new static(
       $container->get('entity.manager'),
-      $container->get('language_manager')
+      $container->get('language_manager'),
+      $container->get('entity.query')
     );
   }
 
@@ -55,13 +67,14 @@ abstract class AccountFormController extends ContentEntityFormController {
    * {@inheritdoc}
    */
   public function form(array $form, array &$form_state) {
+    /** @var \Drupal\user\UserInterface $account */
     $account = $this->entity;
     $user = $this->currentUser();
     $config = \Drupal::config('user.settings');
 
     $language_interface = language(Language::TYPE_INTERFACE);
     $register = $account->isAnonymous();
-    $admin = user_access('administer users');
+    $admin = $user->hasPermission('administer users');
 
     // Account information.
     $form['account'] = array(
@@ -79,7 +92,7 @@ abstract class AccountFormController extends ContentEntityFormController {
       '#attributes' => array('class' => array('username'), 'autocorrect' => 'off', 'autocomplete' => 'off', 'autocapitalize' => 'off',
       'spellcheck' => 'false'),
       '#default_value' => (!$register ? $account->getUsername() : ''),
-      '#access' => ($register || ($user->id() == $account->id() && user_access('change own username')) || $admin),
+      '#access' => ($register || ($user->id() == $account->id() && $user->hasPermission('change own username')) || $admin),
       '#weight' => -10,
     );
 
@@ -90,7 +103,7 @@ abstract class AccountFormController extends ContentEntityFormController {
       '#type' => 'email',
       '#title' => $this->t('E-mail address'),
       '#description' => $this->t('A valid e-mail address. All e-mails from the system will be sent to this address. The e-mail address is not made public and will only be used if you wish to receive a new password or wish to receive certain news or notifications by e-mail.'),
-      '#required' => !(!$account->getEmail() && user_access('administer users')),
+      '#required' => !(!$account->getEmail() && $user->hasPermission('administer users')),
       '#default_value' => (!$register ? $account->getEmail() : ''),
       '#attributes' => array('autocomplete' => 'off'),
     );
@@ -187,7 +200,7 @@ abstract class AccountFormController extends ContentEntityFormController {
       '#title' => $this->t('Roles'),
       '#default_value' => (!$register ? $account->getRoles() : array()),
       '#options' => $roles,
-      '#access' => $roles && user_access('administer permissions'),
+      '#access' => $roles && $user->hasPermission('administer permissions'),
       DRUPAL_AUTHENTICATED_RID => $checkbox_authenticated,
     );
 
@@ -204,14 +217,20 @@ abstract class AccountFormController extends ContentEntityFormController {
       '#weight' => 1,
       '#access' => (!$register && $config->get('signatures')),
     );
-
-    $form['signature_settings']['signature'] = array(
-      '#type' => 'text_format',
-      '#title' => $this->t('Signature'),
-      '#default_value' => $account->getSignature(),
-      '#description' => $this->t('Your signature will be publicly displayed at the end of your comments.'),
-      '#format' => $account->getSignatureFormat(),
-    );
+    // While the details group will simply not be rendered if empty, the actual
+    // signature element cannot use #access, since #type 'text_format' is not
+    // available when Filter module is not installed. If the user account has an
+    // existing signature value and format, then the existing field values will
+    // just be re-saved to the database in case of an entity update.
+    if ($this->moduleHandler->moduleExists('filter')) {
+      $form['signature_settings']['signature'] = array(
+        '#type' => 'text_format',
+        '#title' => $this->t('Signature'),
+        '#default_value' => $account->getSignature(),
+        '#description' => $this->t('Your signature will be publicly displayed at the end of your comments.'),
+        '#format' => $account->getSignatureFormat(),
+      );
+    }
 
     $user_preferred_langcode = $register ? $language_interface->id : $account->getPreferredLangcode();
 
@@ -228,7 +247,7 @@ abstract class AccountFormController extends ContentEntityFormController {
       '#title' => $this->t('Language settings'),
       // Display language selector when either creating a user on the admin
       // interface or editing a user account.
-      '#access' => !$register || user_access('administer users'),
+      '#access' => !$register || $user->hasPermission('administer users'),
     );
 
     $form['language']['preferred_langcode'] = array(
@@ -289,7 +308,7 @@ abstract class AccountFormController extends ContentEntityFormController {
   }
 
   /**
-   * Overrides Drupal\Core\Entity\EntityFormController::submit().
+   * {@inheritdoc}
    */
   public function validate(array $form, array &$form_state) {
     parent::validate($form, $form_state);
@@ -303,13 +322,12 @@ abstract class AccountFormController extends ContentEntityFormController {
       // Cast the user ID as an integer. It might have been set to NULL, which
       // could lead to unexpected results.
       else {
-        $name_taken = (bool) db_select('users')
-        ->fields('users', array('uid'))
-        ->condition('uid', (int) $account->id(), '<>')
-        ->condition('name', db_like($form_state['values']['name']), 'LIKE')
-        ->range(0, 1)
-        ->execute()
-        ->fetchField();
+        $name_taken = (bool) $this->entityQuery->get('user')
+          ->condition('uid', (int) $account->id(), '<>')
+          ->condition('name', $form_state['values']['name'])
+          ->range(0, 1)
+          ->count()
+          ->execute();
 
         if ($name_taken) {
           $this->setFormError('name', $form_state, $this->t('The name %name is already taken.', array('%name' => $form_state['values']['name'])));
@@ -320,13 +338,12 @@ abstract class AccountFormController extends ContentEntityFormController {
     $mail = $form_state['values']['mail'];
 
     if (!empty($mail)) {
-      $mail_taken = (bool) db_select('users')
-      ->fields('users', array('uid'))
-      ->condition('uid', (int) $account->id(), '<>')
-      ->condition('mail', db_like($mail), 'LIKE')
-      ->range(0, 1)
-      ->execute()
-      ->fetchField();
+      $mail_taken = (bool) $this->entityQuery->get('user')
+        ->condition('uid', (int) $account->id(), '<>')
+        ->condition('mail', $mail)
+        ->range(0, 1)
+        ->count()
+        ->execute();
 
       if ($mail_taken) {
         // Format error message dependent on whether the user is logged in or not.
@@ -354,4 +371,17 @@ abstract class AccountFormController extends ContentEntityFormController {
     }
   }
 
+  /**
+   * {@inheritdoc}
+   */
+  public function submit(array $form, array &$form_state) {
+    parent::submit($form, $form_state);
+
+    $user = $this->getEntity($form_state);
+    // If there's a session set to the users id, remove the password reset tag
+    // since a new password was saved.
+    if (isset($_SESSION['pass_reset_'. $user->id()])) {
+      unset($_SESSION['pass_reset_'. $user->id()]);
+    }
+  }
 }

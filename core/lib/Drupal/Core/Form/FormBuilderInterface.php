@@ -15,12 +15,10 @@ use Symfony\Component\HttpFoundation\Request;
 interface FormBuilderInterface extends FormErrorInterface {
 
   /**
-   * Determines the form ID.
+   * Determines the ID of a form.
    *
    * @param \Drupal\Core\Form\FormInterface|string $form_arg
-   *   A form object to use to build the form, or the unique string identifying
-   *   the desired form. If $form_arg is a string and a function with that
-   *   name exists, it is called to build the form array.
+   *   The value is identical to that of self::getForm()'s $form_arg argument.
    * @param array $form_state
    *   An associative array containing the current state of the form.
    *
@@ -30,20 +28,17 @@ interface FormBuilderInterface extends FormErrorInterface {
   public function getFormId($form_arg, &$form_state);
 
   /**
-   * Returns a renderable form array for a given form ID.
+   * Gets a renderable form array.
    *
    * This function should be used instead of self::buildForm() when $form_state
    * is not needed (i.e., when initially rendering the form) and is often
    * used as a menu callback.
    *
    * @param \Drupal\Core\Form\FormInterface|string $form_arg
-   *   A form object to use to build the form, or the unique string identifying
-   *   the desired form. If $form_arg is a string and a function with that
-   *   name exists, it is called to build the form array. Modules that need to
-   *   generate the same form (or very similar forms) using different $form_ids
-   *   can implement hook_forms(), which maps different $form_id values to the
-   *   proper form constructor function. Examples may be found in node_forms(),
-   *   and search_forms().
+   *   The value must be one of the following:
+   *   - The name of a class that implements \Drupal\Core\Form\FormInterface.
+   *   - An instance of a class that implements \Drupal\Core\Form\FormInterface.
+   *   - The name of a function that builds the form.
    * @param ...
    *   Any additional arguments are passed on to the functions called by
    *   drupal_get_form(), including the unique form constructor function. For
@@ -67,12 +62,7 @@ interface FormBuilderInterface extends FormErrorInterface {
    * and submission if there is proper input.
    *
    * @param $form_id
-   *   The unique string identifying the desired form. If a function with that
-   *   name exists, it is called to build the form array. Modules that need to
-   *   generate the same form (or very similar forms) using different $form_ids
-   *   can implement hook_forms(), which maps different $form_id values to the
-   *   proper form constructor function. Examples may be found in node_forms(),
-   *   and search_forms().
+   *   The unique string identifying the desired form.
    * @param array $form_state
    *   An array which stores information about the form. This is passed as a
    *   reference so that the caller can use it to examine what in the form
@@ -85,8 +75,8 @@ interface FormBuilderInterface extends FormErrorInterface {
    *     Form API that is necessary to build and rebuild the form from cache
    *     when the original context may no longer be available:
    *     - callback: The actual callback to be used to retrieve the form array.
-   *       If none is provided $form_id is used instead. Can be any callable
-   *       type.
+   *       Can be any callable. If none is provided $form_id is used as the name
+   *       of a function to call instead.
    *     - args: A list of arguments to pass to the form constructor.
    *     - files: An optional array defining include files that need to be
    *       loaded for building the form. Each array entry may be the path to a
@@ -97,8 +87,8 @@ interface FormBuilderInterface extends FormErrorInterface {
    *       Use form_load_include() to add include files from a form constructor.
    *     - form_id: Identification of the primary form being constructed and
    *       processed.
-   *     - base_form_id: Identification for a base form, as declared in a
-   *       hook_forms() implementation.
+   *     - base_form_id: Identification for a base form, as declared in the form
+  *       class's \Drupal\Core\Form\BaseFormIdInterface::getBaseFormId() method.
    *   - rebuild_info: Internal. Similar to 'build_info', but pertaining to
    *     self::rebuildForm().
    *   - rebuild: Normally, after the entire form processing is completed and
@@ -213,14 +203,6 @@ interface FormBuilderInterface extends FormErrorInterface {
    *     need to or should not be cached during the whole form workflow; e.g.,
    *     data that needs to be accessed during the current form build process
    *     only. There is no use-case for this functionality in Drupal core.
-   *   - wrapper_callback: Modules that wish to pre-populate certain forms with
-   *     common elements, such as back/next/save buttons in multi-step form
-   *     wizards, may define a form builder function name that returns a form
-   *     structure, which is passed on to the actual form builder function.
-   *     Such implementations may either define the 'wrapper_callback' via
-   *     hook_forms() or have to invoke self::buildForm() (instead of
-   *     self::getForm()) on their own in a custom menu callback to prepare
-   *     $form_state accordingly.
    *   Information on how certain $form_state properties control redirection
    *   behavior after form submission may be found in self::redirectForm().
    *
@@ -255,11 +237,7 @@ interface FormBuilderInterface extends FormErrorInterface {
    *
    * @param string $form_id
    *   The unique string identifying the desired form. If a function with that
-   *   name exists, it is called to build the form array. Modules that need to
-   *   generate the same form (or very similar forms) using different $form_ids
-   *   can implement hook_forms(), which maps different $form_id values to the
-   *   proper form constructor function. Examples may be found in node_forms()
-   *   and search_forms().
+   *   name exists, it is called to build the form array.
    * @param array $form_state
    *   A keyed array containing the current state of the form.
    * @param array|null $old_form
@@ -302,11 +280,7 @@ interface FormBuilderInterface extends FormErrorInterface {
    * @param \Drupal\Core\Form\FormInterface|string $form_arg
    *   A form object to use to build the form, or the unique string identifying
    *   the desired form. If $form_arg is a string and a function with that
-   *   name exists, it is called to build the form array. Modules that need to
-   *   generate the same form (or very similar forms) using different $form_ids
-   *   can implement hook_forms(), which maps different $form_id values to the
-   *   proper form constructor function. Examples may be found in node_forms()
-   *   and search_forms().
+   *   name exists, it is called to build the form array.
    * @param $form_state
    *   A keyed array containing the current state of the form. Most important is
    *   the $form_state['values'] collection, a tree of data used to simulate the
@@ -354,9 +328,6 @@ interface FormBuilderInterface extends FormErrorInterface {
    * @param string $form_id
    *   The unique string identifying the desired form. If a function
    *   with that name exists, it is called to build the form array.
-   *   Modules that need to generate the same form (or very similar forms)
-   *   using different $form_ids can implement hook_forms(), which maps
-   *   different $form_id values to the proper form constructor function.
    * @param array $form_state
    *   A keyed array containing the current state of the form, including the
    *   additional arguments to self::getForm() or self::submitForm() in the
@@ -525,7 +496,7 @@ interface FormBuilderInterface extends FormErrorInterface {
    * rendering each element). Each of these three pipelines provides ample
    * opportunity for modules to customize what happens. For example, during this
    * function's life cycle, the following functions get called for each element:
-   * - $element['#value_callback']: A function that implements how user input is
+   * - $element['#value_callback']: A callable that implements how user input is
    *   mapped to an element's #value property. This defaults to a function named
    *   'form_type_TYPE_value' where TYPE is $element['#type'].
    * - $element['#process']: An array of functions called after user input has

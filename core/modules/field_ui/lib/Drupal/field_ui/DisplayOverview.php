@@ -42,12 +42,12 @@ class DisplayOverview extends DisplayOverviewBase {
   /**
    * {@inheritdoc}
    */
-  public function buildForm(array $form, array &$form_state, $entity_type = NULL, $bundle = NULL) {
+  public function buildForm(array $form, array &$form_state, $entity_type_id = NULL, $bundle = NULL) {
     if ($this->getRequest()->attributes->has('view_mode_name')) {
       $this->mode = $this->getRequest()->attributes->get('view_mode_name');
     }
 
-    return parent::buildForm($form, $form_state, $entity_type, $bundle);
+    return parent::buildForm($form, $form_state, $entity_type_id, $bundle);
   }
 
   /**
@@ -86,7 +86,7 @@ class DisplayOverview extends DisplayOverviewBase {
   /**
    * {@inheritdoc}
    */
-  protected function buildExtraFieldRow($field_id, $extra_field, $entity_display) {
+  protected function buildExtraFieldRow($field_id, $extra_field, EntityDisplayInterface $entity_display) {
     $extra_field_row = parent::buildExtraFieldRow($field_id, $extra_field, $entity_display);
 
     // Insert an empty placeholder for the label column.
@@ -150,11 +150,11 @@ class DisplayOverview extends DisplayOverviewBase {
    * {@inheritdoc}
    */
   protected function getDisplayType() {
-    return 'entity_display';
+    return 'entity_view_display';
   }
 
   /**
-   * {@inheritdoc
+   * {@inheritdoc}
    */
   protected function getTableHeader() {
     return array(

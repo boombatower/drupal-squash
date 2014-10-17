@@ -433,14 +433,10 @@ function _drupal_rewrite_settings_dump_one(\stdClass $variable, $prefix = '', $s
 /**
  * Creates the config directory and ensures it is operational.
  *
- * @param int $mode
- *   Octal value for the permissions. Consult PHP chmod() documentation for
- *   more information.
- *
  * @see install_settings_form_submit()
  * @see update_prepare_d8_bootstrap()
  */
-function drupal_install_config_directories($mode = NULL) {
+function drupal_install_config_directories() {
   global $config_directories;
 
   // Add a randomized config directory name to settings.php, unless it was
@@ -469,7 +465,7 @@ function drupal_install_config_directories($mode = NULL) {
     // public files directory, which has already been verified to be writable
     // itself. But if it somehow fails anyway, the installation cannot proceed.
     // Bail out using a similar error message as in system_requirements().
-    if (!install_ensure_config_directory($config_type, $mode)) {
+    if (!install_ensure_config_directory($config_type)) {
       throw new Exception(t('The directory %directory could not be created or could not be made writable. To proceed with the installation, either create the directory and modify its permissions manually or ensure that the installer has the permissions to create it automatically. For more information, see the <a href="@handbook_url">online handbook</a>.', array(
         '%directory' => config_get_config_directory($config_type),
         '@handbook_url' => 'http://drupal.org/server-permissions',
@@ -535,14 +531,10 @@ function install_verify_config_directory($type) {
  *   Type of config directory to return. Drupal core provides 'active' and
  *   'staging'.
  *
- * @param int $mode
- *   Octal value for the permissions. Consult PHP chmod() documentation for
- *   more information.
- *
  * @return bool
  *   TRUE if the config directory exists and is writable.
  */
-function install_ensure_config_directory($type, $mode = NULL) {
+function install_ensure_config_directory($type) {
   // The config directory must be defined in settings.php.
   global $config_directories;
   if (!isset($config_directories[$type])) {
@@ -552,7 +544,7 @@ function install_ensure_config_directory($type, $mode = NULL) {
   // directories that the installer creates.
   else {
     $config_directory = config_get_config_directory($type);
-    return file_prepare_directory($config_directory, FILE_CREATE_DIRECTORY | FILE_MODIFY_PERMISSIONS, $mode);
+    return file_prepare_directory($config_directory, FILE_CREATE_DIRECTORY | FILE_MODIFY_PERMISSIONS);
   }
 }
 
@@ -612,12 +604,16 @@ function drupal_verify_profile($install_state) {
  *
  * Separated from the installation of other modules so core system
  * functions can be made available while other modules are installed.
+ *
+ * @param array $install_state
+ *   An array of information about the current installation state. This is used
+ *   to set the default language.
  */
-function drupal_install_system() {
+function drupal_install_system($install_state) {
   // Create tables.
   drupal_install_schema('system');
 
-  if (!\Drupal::getContainer()->has('kernel')) {
+  if (!\Drupal::hasService('kernel')) {
     // Immediately boot a kernel to have real services ready. If there's already
     // an initialized request object in the pre-kernel container, persist it in
     // the post-kernel container.
@@ -634,8 +630,14 @@ function drupal_install_system() {
 
   $system_path = drupal_get_path('module', 'system');
   require_once DRUPAL_ROOT . '/' . $system_path . '/system.install';
+
+  // Set the schema version to the number of the last update provided by the
+  // module, or the minimum core schema version.
+  $system_version = \Drupal::CORE_MINIMUM_SCHEMA_VERSION;
   $system_versions = drupal_get_schema_versions('system');
-  $system_version = $system_versions ? max($system_versions) : SCHEMA_INSTALLED;
+  if ($system_versions) {
+    $system_version = max(max($system_versions), $system_version);
+  }
   \Drupal::keyValue('system.schema')->set('system', $system_version);
 
   // System module needs to be enabled and the system/module lists need to be
@@ -651,7 +653,14 @@ function drupal_install_system() {
 
   \Drupal::service('config.installer')->installDefaultConfig('module', 'system');
 
-  module_invoke('system', 'install');
+  // Ensure default language is saved.
+  if (isset($install_state['parameters']['langcode'])) {
+    \Drupal::config('system.site')
+      ->set('langcode', $install_state['parameters']['langcode'])
+      ->save();
+  }
+
+  \Drupal::moduleHandler()->invoke('system', 'install');
 }
 
 /**
@@ -1003,7 +1012,7 @@ function drupal_requirements_severity(&$requirements) {
 function drupal_check_module($module) {
   module_load_install($module);
   // Check requirements
-  $requirements = module_invoke($module, 'requirements', 'install');
+  $requirements = \Drupal::moduleHandler()->invoke($module, 'requirements', array('install'));
   if (is_array($requirements) && drupal_requirements_severity($requirements) == REQUIREMENT_ERROR) {
     // Print any error messages
     foreach ($requirements as $requirement) {

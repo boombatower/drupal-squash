@@ -11,7 +11,7 @@ use Drupal\Component\Plugin\PluginManagerBase;
 use Drupal\Core\Entity\Display\EntityDisplayInterface;
 use Drupal\Core\Entity\EntityManagerInterface;
 use Drupal\Core\Field\FieldDefinitionInterface;
-use Drupal\Core\Field\FieldTypePluginManager;
+use Drupal\Core\Field\FieldTypePluginManagerInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
@@ -45,12 +45,12 @@ abstract class DisplayOverviewBase extends OverviewBase {
    *
    * @param \Drupal\Core\Entity\EntityManagerInterface $entity_manager
    *   The entity manager.
-   * @param \Drupal\Core\Field\FieldTypePluginManager $field_type_manager
+   * @param \Drupal\Core\Field\FieldTypePluginManagerInterface $field_type_manager
    *   The field type manager.
    * @param \Drupal\Component\Plugin\PluginManagerBase $plugin_manager
    *   The widget or formatter plugin manager.
    */
-  public function __construct(EntityManagerInterface $entity_manager, FieldTypePluginManager $field_type_manager, PluginManagerBase $plugin_manager) {
+  public function __construct(EntityManagerInterface $entity_manager, FieldTypePluginManagerInterface $field_type_manager, PluginManagerBase $plugin_manager) {
     parent::__construct($entity_manager);
 
     $this->fieldTypes = $field_type_manager->getConfigurableDefinitions();
@@ -110,8 +110,8 @@ abstract class DisplayOverviewBase extends OverviewBase {
   /**
    * {@inheritdoc}
    */
-  public function buildForm(array $form, array &$form_state, $entity_type = NULL, $bundle = NULL) {
-    parent::buildForm($form, $form_state, $entity_type, $bundle);
+  public function buildForm(array $form, array &$form_state, $entity_type_id = NULL, $bundle = NULL) {
+    parent::buildForm($form, $form_state, $entity_type_id, $bundle);
 
     if (empty($this->mode)) {
       $this->mode = 'default';
@@ -430,7 +430,7 @@ abstract class DisplayOverviewBase extends OverviewBase {
    * @return array
    *   A table row array.
    */
-  protected function buildExtraFieldRow($field_id, $extra_field, $entity_display) {
+  protected function buildExtraFieldRow($field_id, $extra_field, EntityDisplayInterface $entity_display) {
     $display_options = $entity_display->getComponent($field_id);
 
     $extra_field_row = array(
@@ -560,7 +560,7 @@ abstract class DisplayOverviewBase extends OverviewBase {
           // If no display exists for the newly enabled view mode, initialize
           // it with those from the 'default' view mode, which were used so
           // far.
-          if (!entity_load($this->getEntityDisplay('default')->entityType(), $this->entity_type . '.' . $this->bundle . '.' . $mode)) {
+          if (!entity_load($this->getEntityDisplay('default')->getEntityTypeId(), $this->entity_type . '.' . $this->bundle . '.' . $mode)) {
             $display = $this->getEntityDisplay('default')->createCopy($mode);
             $display->save();
           }
@@ -769,8 +769,8 @@ abstract class DisplayOverviewBase extends OverviewBase {
   protected function getDisplays() {
     $load_ids = array();
     $display_entity_type = $this->getDisplayType();
-    $entity_info = $this->entityManager->getDefinition($display_entity_type);
-    $config_prefix = $entity_info->getConfigPrefix();
+    $entity_type = $this->entityManager->getDefinition($display_entity_type);
+    $config_prefix = $entity_type->getConfigPrefix();
     $ids = config_get_storage_names_with_prefix($config_prefix . '.' . $this->entity_type . '.' . $this->bundle . '.');
     foreach ($ids as $id) {
       $config_id = str_replace($config_prefix . '.', '', $id);

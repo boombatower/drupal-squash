@@ -8,7 +8,7 @@
 namespace Drupal\block;
 
 use Drupal\Core\Cache\Cache;
-use Drupal\Core\Config\ConfigFactory;
+use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Entity\EntityFormController;
 use Drupal\Core\Entity\EntityManagerInterface;
 use Drupal\Core\Entity\Query\QueryFactory;
@@ -53,7 +53,7 @@ class BlockFormController extends EntityFormController {
   /**
    * The config factory.
    *
-   * @var \Drupal\Core\Config\ConfigFactory
+   * @var \Drupal\Core\Config\ConfigFactoryInterface
    */
   protected $configFactory;
 
@@ -66,10 +66,10 @@ class BlockFormController extends EntityFormController {
    *   The entity query factory.
    * @param \Drupal\Core\Language\LanguageManagerInterface $language_manager
    *   The language manager.
-   * @param \Drupal\Core\Config\ConfigFactory $config_factory
+   * @param \Drupal\Core\Config\ConfigFactoryInterface $config_factory
    *   The config factory.
    */
-  public function __construct(EntityManagerInterface $entity_manager, QueryFactory $entity_query_factory, LanguageManagerInterface $language_manager, ConfigFactory $config_factory) {
+  public function __construct(EntityManagerInterface $entity_manager, QueryFactory $entity_query_factory, LanguageManagerInterface $language_manager, ConfigFactoryInterface $config_factory) {
     $this->storageController = $entity_manager->getStorageController('block');
     $this->entityQueryFactory = $entity_query_factory;
     $this->languageManager = $language_manager;
@@ -319,6 +319,7 @@ class BlockFormController extends EntityFormController {
       'values' => &$form_state['values']['settings'],
       'errors' => $form_state['errors'],
     );
+
     // Call the plugin submit handler.
     $entity->getPlugin()->submitConfigurationForm($form, $settings);
 
@@ -343,19 +344,16 @@ class BlockFormController extends EntityFormController {
   /**
    * {@inheritdoc}
    */
-  public function delete(array $form, array &$form_state) {
-    parent::delete($form, $form_state);
-    $form_state['redirect_route'] = array(
-      'route_name' => 'block.admin_block_delete',
-      'route_parameters' => array(
-        'block' => $this->entity->id(),
-      ),
-    );
-    $query = $this->getRequest()->query;
-    if ($query->has('destination')) {
-      $form_state['redirect_route']['options']['query']['destination'] = $query->get('destination');
-      $query->remove('destination');
-    }
+  public function buildEntity(array $form, array &$form_state) {
+    $entity = parent::buildEntity($form, $form_state);
+
+    // visibility__active_tab is Form API state and not configuration.
+    // @todo Fix vertical tabs.
+    $visibility = $entity->get('visibility');
+    unset($visibility['visibility__active_tab']);
+    $entity->set('visibility', $visibility);
+
+    return $entity;
   }
 
   /**

@@ -7,6 +7,7 @@
 
 namespace Drupal\editor\Tests;
 
+use Drupal\Component\Utility\Json;
 use Drupal\Core\Language\Language;
 use Drupal\edit\EditorSelector;
 use Drupal\edit\MetadataGenerator;
@@ -127,7 +128,7 @@ class EditIntegrationTest extends EditTestBase {
     $this->editorSelector = new EditorSelector($this->editorManager, $this->container->get('plugin.manager.field.formatter'));
 
     // Create an entity with values for this text field.
-    $this->entity = entity_create('entity_test', array());
+    $this->entity = entity_create('entity_test');
     $this->entity->{$this->field_name}->value = 'Hello, world!';
     $this->entity->{$this->field_name}->format = 'filtered_html';
     $this->entity->save();
@@ -156,7 +157,7 @@ class EditIntegrationTest extends EditTestBase {
     $this->metadataGenerator = new MetadataGenerator($this->accessChecker, $this->editorSelector, $this->editorManager);
 
     // Create an entity with values for the field.
-    $this->entity = entity_create('entity_test', array());
+    $this->entity = entity_create('entity_test');
     $this->entity->{$this->field_name}->value = 'Test';
     $this->entity->{$this->field_name}->format = 'full_html';
     $this->entity->save();
@@ -183,7 +184,7 @@ class EditIntegrationTest extends EditTestBase {
    */
   public function testGetUntransformedTextCommand() {
     // Create an entity with values for the field.
-    $this->entity = entity_create('entity_test', array());
+    $this->entity = entity_create('entity_test');
     $this->entity->{$this->field_name}->value = 'Test';
     $this->entity->{$this->field_name}->format = 'full_html';
     $this->entity->save();
@@ -199,7 +200,7 @@ class EditIntegrationTest extends EditTestBase {
         'data' => 'Test',
       )
     );
-    $this->assertEqual(drupal_json_encode($expected), $response->prepare($request)->getContent(), 'The GetUntransformedTextCommand AJAX command works correctly.');
+    $this->assertEqual(Json::encode($expected), $response->prepare($request)->getContent(), 'The GetUntransformedTextCommand AJAX command works correctly.');
   }
 
 }

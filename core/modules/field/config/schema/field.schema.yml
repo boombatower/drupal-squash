@@ -79,6 +79,9 @@ field.instance.*.*.*:
     field_name:
       type: string
       label: 'Field name'
+    entity_type:
+      type: string
+      label: 'Entity type'
     bundle:
       type: string
       label: 'Bundle'
@@ -101,3 +104,14 @@ field.instance.*.*.*:
     field_type:
       type: string
       label: 'Field type'
+
+entity_form_display.field.hidden:
+  type: entity_field_form_display_base
+  label: '- Hidden - format settings'
+  mapping:
+    settings:
+      type: sequence
+      label: 'Settings'
+      sequence:
+        - type: string
+

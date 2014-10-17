@@ -8,7 +8,6 @@
 namespace Drupal\search\Controller;
 
 use Drupal\Core\Controller\ControllerBase;
-use Drupal\Core\DependencyInjection\ContainerInjectionInterface;
 use Drupal\search\SearchPageInterface;
 use Drupal\search\SearchPageRepositoryInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -17,7 +16,7 @@ use Symfony\Component\HttpFoundation\Request;
 /**
  * Route controller for search.
  */
-class SearchController extends ControllerBase implements ContainerInjectionInterface {
+class SearchController extends ControllerBase {
 
   /**
    * The search page repository.
@@ -69,8 +68,7 @@ class SearchController extends ControllerBase implements ContainerInjectionInter
 
     $plugin = $entity->getPlugin();
     $plugin->setSearch($keys, $request->query->all(), $request->attributes->all());
-    // Default results output is an empty string.
-    $results = array('#markup' => '');
+    $results = array();
 
     // Process the search form. Note that if there is
     // \Drupal::request()->request data, search_form_submit() will cause a
@@ -88,8 +86,33 @@ class SearchController extends ControllerBase implements ContainerInjectionInter
       }
     }
     // The form may be altered based on whether the search was run.
-    $build['search_form'] = $this->entityManager()->getForm($entity, 'search');
-    $build['search_results'] = $results;
+    $build['search_form'] = $this->entityFormBuilder()->getForm($entity, 'search');
+    if (count($results)) {
+      $build['search_results_title'] = array(
+        '#markup' => '<h2>' . $this->t('Search results') . '</h2>',
+      );
+    }
+
+    $build['search_results'] = array(
+      '#theme' => array('item_list__search_results__' . $plugin->getPluginId(), 'item_list__search_results'),
+      '#items' => $results,
+      '#empty' => array(
+        // @todo Revisit where this help text is added.
+        '#markup' => '<h3>' . $this->t('Your search yielded no results.') . '</h3>' . search_help('search#noresults', drupal_help_arg()),
+      ),
+      '#list_type' => 'ol',
+      '#attributes' => array(
+        'class' => array(
+          'search-results',
+          $plugin->getPluginId() . '-results',
+        ),
+      ),
+    );
+
+    $build['pager'] = array(
+      '#theme' => 'pager',
+    );
+
     return $build;
   }
 

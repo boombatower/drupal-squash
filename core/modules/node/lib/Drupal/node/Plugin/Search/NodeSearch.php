@@ -10,7 +10,6 @@ namespace Drupal\node\Plugin\Search;
 use Drupal\Core\Config\Config;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Database\Query\SelectExtender;
-use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Entity\EntityManagerInterface;
 use Drupal\Core\Extension\ModuleHandlerInterface;
 use Drupal\Core\KeyValueStore\StateInterface;
@@ -18,6 +17,7 @@ use Drupal\Core\Language\Language;
 use Drupal\Core\Session\AccountInterface;
 use Drupal\Core\Access\AccessibleInterface;
 use Drupal\Core\Database\Query\Condition;
+use Drupal\node\NodeInterface;
 use Drupal\search\Plugin\ConfigurableSearchPluginBase;
 use Drupal\search\Plugin\SearchIndexingInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -224,6 +224,10 @@ class NodeSearch extends ConfigurableSearchPluginBase implements AccessibleInter
       // Add the language code of the indexed item to the result of the query,
       // since the node will be rendered using the respective language.
       ->fields('i', array('langcode'))
+      // And since SearchQuery makes these into GROUP BY queries, if we add
+      // a field, for PostgreSQL we also need to make it an aggregate or a
+      // GROUP BY. In this case, we want GROUP BY.
+      ->groupBy('i.langcode')
       ->limit(10)
       ->execute();
 
@@ -232,6 +236,7 @@ class NodeSearch extends ConfigurableSearchPluginBase implements AccessibleInter
 
     foreach ($find as $item) {
       // Render the node.
+      /** @var \Drupal\node\NodeInterface $node */
       $node = $node_storage->load($item->sid)->getTranslation($item->langcode);
       $build = $node_render->view($node, 'search_result', $item->langcode);
       unset($build['#theme']);
@@ -243,13 +248,12 @@ class NodeSearch extends ConfigurableSearchPluginBase implements AccessibleInter
       $extra = $this->moduleHandler->invokeAll('node_search_result', array($node, $item->langcode));
 
       $language = language_load($item->langcode);
-      $uri = $node->uri();
       $username = array(
         '#theme' => 'username',
-        '#account' => $node->getAuthor(),
+        '#account' => $node->getOwner(),
       );
       $results[] = array(
-        'link' => url($uri['path'], array_merge($uri['options'], array('absolute' => TRUE, 'language' => $language))),
+        'link' => $node->url('canonical', array('absolute' => TRUE, 'language' => $language)),
         'type' => check_plain($this->entityManager->getStorageController('node_type')->load($node->bundle())->label()),
         'title' => $node->label(),
         'user' => drupal_render($username),
@@ -316,10 +320,10 @@ class NodeSearch extends ConfigurableSearchPluginBase implements AccessibleInter
   /**
    * Indexes a single node.
    *
-   * @param \Drupal\Core\Entity\EntityInterface $node
+   * @param \Drupal\node\NodeInterface $node
    *   The node to index.
    */
-  protected function indexNode(EntityInterface $node) {
+  protected function indexNode(NodeInterface $node) {
     // Save the changed time of the most recent indexed node, for the search
     // results half-life calculation.
     $this->state->set('node.cron_last', $node->getChangedTime());
@@ -555,7 +559,7 @@ class NodeSearch extends ConfigurableSearchPluginBase implements AccessibleInter
     );
     $form['content_ranking']['#theme'] = 'node_search_admin';
     $form['content_ranking']['info'] = array(
-      '#value' => '<em>' . $this->t('Influence is a numeric multiplier used in ordering search results. A higher number means the corresponding factor has more influence on search results; zero means the factor is ignored. Changing these numbers does not require the search index to be rebuilt. Changes take effect immediately.') . '</em>'
+      '#markup' => '<p><em>' . $this->t('Influence is a numeric multiplier used in ordering search results. A higher number means the corresponding factor has more influence on search results; zero means the factor is ignored. Changing these numbers does not require the search index to be rebuilt. Changes take effect immediately.') . '</em></p>'
     );
 
     // Note: reversed to reflect that higher number = higher ranking.

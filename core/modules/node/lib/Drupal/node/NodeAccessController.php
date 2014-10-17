@@ -34,22 +34,22 @@ class NodeAccessController extends EntityAccessController implements NodeAccessC
   /**
    * Constructs a NodeAccessController object.
    *
-   * @param \Drupal\Core\Entity\EntityTypeInterface $entity_info
-   *   The entity info for the entity type.
+   * @param \Drupal\Core\Entity\EntityTypeInterface $entity_type
+   *   The entity type definition.
    * @param \Drupal\node\NodeGrantDatabaseStorageInterface $grant_storage
    *   The node grant storage.
    */
-  public function __construct(EntityTypeInterface $entity_info, NodeGrantDatabaseStorageInterface $grant_storage) {
-    parent::__construct($entity_info);
+  public function __construct(EntityTypeInterface $entity_type, NodeGrantDatabaseStorageInterface $grant_storage) {
+    parent::__construct($entity_type);
     $this->grantStorage = $grant_storage;
   }
 
   /**
    * {@inheritdoc}
    */
-  public static function createInstance(ContainerInterface $container, EntityTypeInterface $entity_info) {
+  public static function createInstance(ContainerInterface $container, EntityTypeInterface $entity_type) {
     return new static(
-      $entity_info,
+      $entity_type,
       $container->get('node.grant_storage')
     );
   }
@@ -88,9 +88,12 @@ class NodeAccessController extends EntityAccessController implements NodeAccessC
    * {@inheritdoc}
    */
   protected function checkAccess(EntityInterface $node, $operation, $langcode, AccountInterface $account) {
+    /** @var \Drupal\node\NodeInterface $node */
+    /** @var \Drupal\node\NodeInterface $translation */
+    $translation = $node->getTranslation($langcode);
     // Fetch information from the node object if possible.
-    $status = $node->getTranslation($langcode)->isPublished();
-    $uid = $node->getTranslation($langcode)->getAuthorId();
+    $status = $translation->isPublished();
+    $uid = $translation->getOwnerId();
 
     // Check if authors can view their own unpublished nodes.
     if ($operation === 'view' && !$status && user_access('view own unpublished content', $account)) {

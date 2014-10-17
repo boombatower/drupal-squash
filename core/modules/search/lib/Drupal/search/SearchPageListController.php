@@ -8,7 +8,7 @@
 namespace Drupal\search;
 
 use Drupal\Component\Utility\MapArray;
-use Drupal\Core\Config\ConfigFactory;
+use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Config\Entity\DraggableListController;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Entity\EntityStorageControllerInterface;
@@ -31,7 +31,7 @@ class SearchPageListController extends DraggableListController implements FormIn
   /**
    * Stores the configuration factory.
    *
-   * @var \Drupal\Core\Config\ConfigFactory
+   * @var \Drupal\Core\Config\ConfigFactoryInterface
    */
   protected $configFactory;
 
@@ -45,17 +45,17 @@ class SearchPageListController extends DraggableListController implements FormIn
   /**
    * Constructs a new SearchPageListController object.
    *
-   * @param \Drupal\Core\Entity\EntityTypeInterface $entity_info
-   *   The entity info for the entity type.
+   * @param \Drupal\Core\Entity\EntityTypeInterface $entity_type
+   *   The entity type definition.
    * @param \Drupal\Core\Entity\EntityStorageControllerInterface $storage
    *   The entity storage controller class.
    * @param \Drupal\search\SearchPluginManager $search_manager
    *   The search plugin manager.
-   * @param \Drupal\Core\Config\ConfigFactory $config_factory
+   * @param \Drupal\Core\Config\ConfigFactoryInterface $config_factory
    *   The factory for configuration objects.
    */
-  public function __construct(EntityTypeInterface $entity_info, EntityStorageControllerInterface $storage, SearchPluginManager $search_manager, ConfigFactory $config_factory) {
-    parent::__construct($entity_info, $storage);
+  public function __construct(EntityTypeInterface $entity_type, EntityStorageControllerInterface $storage, SearchPluginManager $search_manager, ConfigFactoryInterface $config_factory) {
+    parent::__construct($entity_type, $storage);
     $this->configFactory = $config_factory;
     $this->searchManager = $search_manager;
   }
@@ -63,10 +63,10 @@ class SearchPageListController extends DraggableListController implements FormIn
   /**
    * {@inheritdoc}
    */
-  public static function createInstance(ContainerInterface $container, EntityTypeInterface $entity_info) {
+  public static function createInstance(ContainerInterface $container, EntityTypeInterface $entity_type) {
     return new static(
-      $entity_info,
-      $container->get('entity.manager')->getStorageController($entity_info->id()),
+      $entity_type,
+      $container->get('entity.manager')->getStorageController($entity_type->id()),
       $container->get('plugin.manager.search'),
       $container->get('config.factory')
     );
@@ -138,8 +138,9 @@ class SearchPageListController extends DraggableListController implements FormIn
    */
   public function buildForm(array $form, array &$form_state) {
     $form = parent::buildForm($form, $form_state);
-    $search_settings = $this->configFactory->disableOverrides()->get('search.settings');
-    $this->configFactory->enableOverrides();
+    $old_state = $this->configFactory->getOverrideState();
+    $search_settings = $this->configFactory->setOverrideState(FALSE)->get('search.settings');
+    $this->configFactory->setOverrideState($old_state);
     // Collect some stats.
     $remaining = 0;
     $total = 0;
