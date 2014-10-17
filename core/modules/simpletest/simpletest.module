@@ -159,7 +159,7 @@ function simpletest_run_tests($test_list, $reporter = 'drupal') {
   );
   batch_set($batch);
 
-  module_invoke_all('test_group_started');
+  Drupal::moduleHandler()->invokeAll('test_group_started');
 
   return $test_id;
 }
@@ -305,7 +305,7 @@ function _simpletest_batch_operation($test_list_init, $test_id, &$context) {
   $size = count($test_list);
   $info = $test->getInfo();
 
-  module_invoke_all('test_finished', $test->results);
+  Drupal::moduleHandler()->invokeAll('test_finished', array($test->results));
 
   // Gather results and compose the report.
   $test_results[$test_class] = $test->results;
@@ -319,7 +319,11 @@ function _simpletest_batch_operation($test_list_init, $test_id, &$context) {
   }
   $context['message'] = t('Processed test @num of @max - %test.', array('%test' => $info['name'], '@num' => $max - $size, '@max' => $max));
   $context['message'] .= '<div class="simpletest-' . ($test_results['#fail'] + $test_results['#exception'] ? 'fail' : 'pass') . '">Overall results: ' . _simpletest_format_summary_line($test_results) . '</div>';
-  $context['message'] .= theme('item_list', array('items' => $items));
+  $item_list = array(
+    '#theme' => 'item_list',
+    '#items' => $items,
+  );
+  $context['message'] .= drupal_render($item_list);
 
   // Save working values for the next iteration.
   $context['sandbox']['tests'] = $test_list;
@@ -348,7 +352,7 @@ function _simpletest_batch_finished($success, $results, $operations, $elapsed) {
     drupal_set_message(t('The test run did not successfully finish.'), 'error');
     drupal_set_message(t('Use the <em>Clean environment</em> button to clean-up temporary files and tables.'), 'warning');
   }
-  module_invoke_all('test_group_finished');
+  Drupal::moduleHandler()->invokeAll('test_group_finished');
 }
 
 /**
@@ -516,27 +520,21 @@ function simpletest_classloader_register() {
     'theme' => array('dir' => 'themes', 'extension' => 'info'),
     'profile' => array('dir' => 'profiles', 'extension' => 'profile'),
   );
+
+  $classloader = drupal_classloader();
+
   foreach ($types as $type => $info) {
     $matches = drupal_system_listing('/^' . DRUPAL_PHP_FUNCTION_PATTERN . '\.' . $info['extension'] . '$/', $info['dir']);
     foreach ($matches as $name => $file) {
       drupal_classloader_register($name, dirname($file->uri));
-      drupal_classloader()->addPrefix('Drupal\\' . $name . '\\Tests', DRUPAL_ROOT . '/' . dirname($file->uri) . '/tests');
+      $classloader->add('Drupal\\' . $name . '\\Tests', DRUPAL_ROOT . '/' . dirname($file->uri) . '/tests');
       // While being there, prime drupal_get_filename().
       drupal_get_filename($type, $name, $file->uri);
     }
   }
 
-  // Register the core test directory so we can find Drupal\UnitTestCase.
-  drupal_classloader()->addPrefix('Drupal\\Tests', DRUPAL_ROOT . '/core/tests');
-
-  // Manually register phpunit prefixes because they use a classmap instead of a
-  // prefix. This can be safely removed if we move to using composer's
-  // autoloader with a classmap.
-  drupal_classloader()->addPrefixes(array(
-    'PHPUnit' => DRUPAL_ROOT . '/core/vendor/phpunit/phpunit',
-    'File_Iterator' => DRUPAL_ROOT . '/core/vendor/phpunit/php-file-iterator/',
-    'PHP_Timer' => DRUPAL_ROOT . '/core/vendor/phpunit/php-timer/',
-  ));
+  // Register the core test directory so we can find \Drupal\UnitTestCase.
+  $classloader->add('Drupal\\Tests', DRUPAL_ROOT . '/core/tests');
 }
 
 /**
@@ -561,7 +559,8 @@ function simpletest_generate_file($filename, $width, $lines, $type = 'binary-tex
         break;
     }
   }
-  $text = wordwrap($text, $width - 1, "\n", TRUE) . "\n"; // Add \n for symmetrical file.
+  // Add \n for symmetrical file.
+  $text = wordwrap($text, $width - 1, "\n", TRUE) . "\n";
 
   // Create filename.
   file_put_contents('public://' . $filename . '.txt', $text);
@@ -574,7 +573,7 @@ function simpletest_generate_file($filename, $width, $lines, $type = 'binary-tex
 function simpletest_clean_environment() {
   simpletest_clean_database();
   simpletest_clean_temporary_directories();
-  if (config('simpletest.settings')->get('clear_results')) {
+  if (Drupal::config('simpletest.settings')->get('clear_results')) {
     $count = simpletest_clean_results_table();
     drupal_set_message(format_plural($count, 'Removed 1 test result.', 'Removed @count test results.'));
   }
@@ -584,11 +583,11 @@ function simpletest_clean_environment() {
 
   // Detect test classes that have been added, renamed or deleted.
   cache()->delete('simpletest');
+  cache()->delete('simpletest_phpunit');
 }
 
 /**
- * Removed prefixed tables from the database that are left over from crashed
- * tests.
+ * Remove prefixed tables from the database from crashed tests.
  */
 function simpletest_clean_database() {
   $tables = db_find_tables(Database::getConnection()->prefixTables('{simpletest}') . '%');
@@ -644,7 +643,7 @@ function simpletest_clean_temporary_directories() {
  *   The number of results removed.
  */
 function simpletest_clean_results_table($test_id = NULL) {
-  if (config('simpletest.settings')->get('clear_results')) {
+  if (Drupal::config('simpletest.settings')->get('clear_results')) {
     if ($test_id) {
       $count = db_query('SELECT COUNT(test_id) FROM {simpletest_test_id} WHERE test_id = :test_id', array(':test_id' => $test_id))->fetchField();
 
@@ -714,18 +713,35 @@ function simpletest_library_info() {
  *  If TRUE, returns a flat array of class names only.
  */
 function simpletest_phpunit_get_available_tests() {
-  // Load the PHPUnit configuration file, which tells us where to find the
-  // tests.
-  $phpunit_config = simpletest_phpunit_configuration_filepath();
-  $configuration = PHPUnit_Util_Configuration::getInstance($phpunit_config);
-  // Find all the tests and get a list of unique class names.
-  $test_suite = $configuration->getTestSuiteConfiguration(NULL);
-  $test_classes = array();
-  foreach ($test_suite AS $test) {
-    $name = get_class($test);
-    if (!array_key_exists($name, $test_classes)) {
-      $test_classes[$name] =  $test->getInfo();
+  // Try to load the class names array from cache.
+  if ($cache = \Drupal::cache()->get('simpletest_phpunit')) {
+    $test_classes = $cache->data;
+  }
+  else {
+    // If there was no cached data available we have to find the tests.
+    // Load the PHPUnit configuration file, which tells us where to find the
+    // tests.
+    $phpunit_config = simpletest_phpunit_configuration_filepath();
+    $configuration = PHPUnit_Util_Configuration::getInstance($phpunit_config);
+    // Find all the tests and get a list of unique class names.
+    $test_suite = $configuration->getTestSuiteConfiguration(NULL);
+    $test_classes = array();
+    foreach ($test_suite as $test) {
+      // PHPUnit returns a warning message if something is wrong with a test,
+      // throw an exception to avoid an error when trying to call getInfo() on
+      // this.
+      if ($test instanceof PHPUnit_Framework_Warning) {
+        throw new RuntimeException($test->getMessage());
+      }
+
+      $name = get_class($test);
+      if (!array_key_exists($name, $test_classes)) {
+        $test_classes[$name] = $test->getInfo();
+      }
     }
+
+    // Since we have recalculated, we now need to store the new data into cache.
+    \Drupal::cache()->set('simpletest_phpunit', $test_classes);
   }
 
   return $test_classes;

@@ -24,6 +24,12 @@ class BlockCacheTest extends WebTestBase {
   protected $admin_user;
   protected $normal_user;
   protected $normal_user_alt;
+
+  /**
+   * The block used by this test.
+   *
+   * @var \Drupal\block\BlockInterface
+   */
   protected $block;
 
   public static function getInfo() {
@@ -46,7 +52,7 @@ class BlockCacheTest extends WebTestBase {
     $this->normal_user_alt = $this->drupalCreateUser();
     // Sync the roles, since drupalCreateUser() creates separate roles for
     // the same permission sets.
-    $this->normal_user_alt->roles = $this->normal_user->roles;
+    $this->normal_user_alt->roles = $this->normal_user->getRoles();
     $this->normal_user_alt->save();
 
     // Enable our test block.
@@ -192,7 +198,7 @@ class BlockCacheTest extends WebTestBase {
    * Private helper method to set the test block's cache mode.
    */
   private function setCacheMode($cache_mode) {
-    $this->block->getPlugin()->setConfig('cache', $cache_mode);
+    $this->block->getPlugin()->setConfigurationValue('cache', $cache_mode);
     $this->block->save();
   }
 

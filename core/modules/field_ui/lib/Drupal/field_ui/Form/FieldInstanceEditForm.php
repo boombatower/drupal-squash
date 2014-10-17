@@ -7,13 +7,51 @@
 
 namespace Drupal\field_ui\Form;
 
+use Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Entity\EntityManager;
+use Drupal\Core\Entity\EntityNG;
+use Drupal\Core\Form\FormBase;
 use Drupal\field\FieldInstanceInterface;
-use Drupal\Core\Language\Language;
+use Drupal\field_ui\FieldUI;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
  * Provides a form for the field instance settings form.
  */
-class FieldInstanceEditForm extends FieldInstanceFormBase {
+class FieldInstanceEditForm extends FormBase {
+
+  /**
+   * The field instance being edited.
+   *
+   * @var \Drupal\field\FieldInstanceInterface
+   */
+  protected $instance;
+
+  /**
+   * The entity manager.
+   *
+   * @var \Drupal\Core\Entity\EntityManager
+   */
+  protected $entityManager;
+
+  /**
+   * Constructs a new field instance form.
+   *
+   * @param \Drupal\Core\Entity\EntityManager $entity_manager
+   *   The entity manager.
+   */
+  public function __construct(EntityManager $entity_manager) {
+    $this->entityManager = $entity_manager;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public static function create(ContainerInterface $container) {
+    return new static(
+      $container->get('entity.manager')
+    );
+  }
 
   /**
    * {@inheritdoc}
@@ -26,29 +64,27 @@ class FieldInstanceEditForm extends FieldInstanceFormBase {
    * {@inheritdoc}
    */
   public function buildForm(array $form, array &$form_state, FieldInstanceInterface $field_instance = NULL) {
-    parent::buildForm($form, $form_state, $field_instance);
+    $this->instance = $form_state['instance'] = $field_instance;
 
     $bundle = $this->instance['bundle'];
     $entity_type = $this->instance['entity_type'];
     $field = $this->instance->getField();
-    $entity_form_display = entity_get_form_display($entity_type, $bundle, 'default');
     $bundles = entity_get_bundles();
 
-    drupal_set_title(t('%instance settings for %bundle', array(
+    drupal_set_title($this->t('%instance settings for %bundle', array(
       '%instance' => $this->instance->label(),
       '%bundle' => $bundles[$entity_type][$bundle]['label'],
     )), PASS_THROUGH);
 
     $form['#field'] = $field;
-    $form['#entity_form_display'] = $entity_form_display;
     // Create an arbitrary entity object (used by the 'default value' widget).
     $ids = (object) array('entity_type' => $this->instance['entity_type'], 'bundle' => $this->instance['bundle'], 'entity_id' => NULL);
     $form['#entity'] = _field_create_entity_from_ids($ids);
-    $form['#entity']->field_ui_default_value = TRUE;
+    $items = $this->getFieldItems($form['#entity'], $this->instance['field_name']);
 
     if (!empty($field['locked'])) {
       $form['locked'] = array(
-        '#markup' => t('The field %field is locked and cannot be edited.', array('%field' => $this->instance->label())),
+        '#markup' => $this->t('The field %field is locked and cannot be edited.', array('%field' => $this->instance->label())),
       );
       return $form;
     }
@@ -75,7 +111,7 @@ class FieldInstanceEditForm extends FieldInstanceFormBase {
     // Build the configurable instance values.
     $form['instance']['label'] = array(
       '#type' => 'textfield',
-      '#title' => t('Label'),
+      '#title' => $this->t('Label'),
       '#default_value' => $this->instance->label() ?: $field['field_name'],
       '#required' => TRUE,
       '#weight' => -20,
@@ -83,45 +119,42 @@ class FieldInstanceEditForm extends FieldInstanceFormBase {
 
     $form['instance']['description'] = array(
       '#type' => 'textarea',
-      '#title' => t('Help text'),
+      '#title' => $this->t('Help text'),
       '#default_value' => !empty($this->instance['description']) ? $this->instance['description'] : '',
       '#rows' => 5,
-      '#description' => t('Instructions to present to the user below this field on the editing form.<br />Allowed HTML tags: @tags', array('@tags' => _field_filter_xss_display_allowed_tags())) . '<br />' . t('This field supports tokens.'),
+      '#description' => $this->t('Instructions to present to the user below this field on the editing form.<br />Allowed HTML tags: @tags', array('@tags' => _field_filter_xss_display_allowed_tags())) . '<br />' . $this->t('This field supports tokens.'),
       '#weight' => -10,
     );
 
     $form['instance']['required'] = array(
       '#type' => 'checkbox',
-      '#title' => t('Required field'),
+      '#title' => $this->t('Required field'),
       '#default_value' => !empty($this->instance['required']),
       '#weight' => -5,
     );
 
-    // Add additional field instance settings from the field module.
-    $additions = \Drupal::moduleHandler()->invoke($field['module'], 'field_instance_settings_form', array($field, $this->instance, $form_state));
-    if (is_array($additions)) {
-      $form['instance']['settings'] = $additions;
-      $form['instance']['settings']['#weight'] = 10;
-    }
+    // Add instance settings for the field type.
+    $form['instance']['settings'] = $items[0]->instanceSettingsForm($form, $form_state);
+    $form['instance']['settings']['#weight'] = 10;
 
-    // Add widget settings for the widget type.
-    $additions = $entity_form_display->getWidget($this->instance->getField()->id)->settingsForm($form, $form_state);
-    $form['instance']['widget']['settings'] = $additions ?: array('#type' => 'value', '#value' => array());
-    $form['instance']['widget']['#weight'] = 20;
-
-    // Add handling for default value if not provided by any other module.
-    if (field_behaviors_widget('default_value', $this->instance) == FIELD_BEHAVIOR_DEFAULT && empty($this->instance['default_value_function'])) {
-      $form['instance']['default_value_widget'] = $this->getDefaultValueWidget($field, $form, $form_state);
+    // Add handling for default value.
+    if ($element = $items->defaultValuesForm($form, $form_state)) {
+      $element += array(
+        '#type' => 'details',
+        '#title' => $this->t('Default value'),
+        '#description' => $this->t('The default value for this field, used when creating new content.'),
+      );
+      $form['instance']['default_value'] = $element;
     }
 
     $form['actions'] = array('#type' => 'actions');
     $form['actions']['submit'] = array(
       '#type' => 'submit',
-      '#value' => t('Save settings')
+      '#value' => $this->t('Save settings')
     );
     $form['actions']['delete'] = array(
       '#type' => 'submit',
-      '#value' => t('Delete field'),
+      '#value' => $this->t('Delete field'),
       '#submit' => array(array($this, 'delete')),
     );
     return $form;
@@ -131,39 +164,9 @@ class FieldInstanceEditForm extends FieldInstanceFormBase {
    * {@inheritdoc}
    */
   public function validateForm(array &$form, array &$form_state) {
-    // Take the incoming values as the $this->instance definition, so that the 'default
-    // value' gets validated using the instance settings being submitted.
-    $field_name = $this->instance['field_name'];
-    $entity = $form['#entity'];
-    $entity_form_display = $form['#entity_form_display'];
-    $field = $this->instance->getField();
-
-    if (isset($form['instance']['default_value_widget'])) {
-      $element = $form['instance']['default_value_widget'];
-
-      // Extract the 'default value'.
-      $items = array();
-      $entity_form_display->getWidget($this->instance->getField()->id)->extractFormValues($entity, Language::LANGCODE_NOT_SPECIFIED, $items, $element, $form_state);
-
-      // Get the field state.
-      $field_state = field_form_get_state($element['#parents'], $field_name, Language::LANGCODE_NOT_SPECIFIED, $form_state);
-
-      // Validate the value.
-      $errors = array();
-      $function = $field['module'] . '_field_validate';
-      if (function_exists($function)) {
-        $function(NULL, $field, $this->instance, Language::LANGCODE_NOT_SPECIFIED, $items, $errors);
-      }
-
-      // Report errors.
-      if (isset($errors[$field_name][Language::LANGCODE_NOT_SPECIFIED])) {
-        // Store reported errors in $form_state.
-        $field_state['errors'] = $errors[$field_name][Language::LANGCODE_NOT_SPECIFIED];
-        field_form_set_state($element['#parents'], $field_name, Language::LANGCODE_NOT_SPECIFIED, $form_state, $field_state);
-
-        // Assign reported errors to the correct form element.
-        $entity_form_display->getWidget($this->instance->getField()->id)->flagErrors($entity, Language::LANGCODE_NOT_SPECIFIED, $items, $element, $form_state);
-      }
+    if (isset($form['instance']['default_value'])) {
+      $items = $this->getFieldItems($form['#entity'], $this->instance['field_name']);
+      $items->defaultValuesFormValidate($form['instance']['default_value'], $form, $form_state);
     }
   }
 
@@ -171,25 +174,13 @@ class FieldInstanceEditForm extends FieldInstanceFormBase {
    * {@inheritdoc}
    */
   public function submitForm(array &$form, array &$form_state) {
-    $entity = $form['#entity'];
-    $entity_form_display = $form['#entity_form_display'];
-
     // Handle the default value.
-    if (isset($form['instance']['default_value_widget'])) {
-      $element = $form['instance']['default_value_widget'];
-
-      // Extract field values.
-      $items = array();
-      $entity_form_display->getWidget($this->instance->getField()->id)->extractFormValues($entity, Language::LANGCODE_NOT_SPECIFIED, $items, $element, $form_state);
-
-      $this->instance['default_value'] = $items ? $items : NULL;
+    $default_value = array();
+    if (isset($form['instance']['default_value'])) {
+      $items = $this->getFieldItems($form['#entity'], $this->instance['field_name']);
+      $default_value = $items->defaultValuesFormSubmit($form['instance']['default_value'], $form, $form_state);
     }
-
-    // Handle widget settings.
-    $options = $entity_form_display->getComponent($this->instance->getField()->id);
-    $options['settings'] = $form_state['values']['instance']['widget']['settings'];
-    $entity_form_display->setComponent($this->instance->getField()->id, $options)->save();
-    unset($form_state['values']['instance']['widget']);
+    $this->instance['default_value'] = $default_value;
 
     // Merge incoming values into the instance.
     foreach ($form_state['values']['instance'] as $key => $value) {
@@ -197,11 +188,7 @@ class FieldInstanceEditForm extends FieldInstanceFormBase {
     }
     $this->instance->save();
 
-    drupal_set_message(t('Saved %label configuration.', array('%label' => $this->instance->label())));
-
-    if ($this->instance['required'] && empty($this->instance['default_value']) && empty($this->instance['default_value_function']) && $this->instance['widget']['type'] == 'field_hidden') {
-      drupal_set_message(t('Field %label is required and uses the "hidden" widget. You might want to configure a default value.', array('%label' => $this->instance['label'])), 'warning');
-    }
+    drupal_set_message($this->t('Saved %label configuration.', array('%label' => $this->instance->label())));
 
     $form_state['redirect'] = $this->getNextDestination();
   }
@@ -219,50 +206,39 @@ class FieldInstanceEditForm extends FieldInstanceFormBase {
   }
 
   /**
-   * Builds the default value widget for a given field instance.
+   * Returns a Field object for an entity.
+   *
+   * @param \Drupal\Core\Entity\EntityInterface $entity
+   *   An entity.
+   * @param string $field_name
+   *   The field name.
+   *
+   * @return \Drupal\field\Plugin\Type\FieldType\ConfigFieldInterface
+   *   The field object.
    */
-  protected function getDefaultValueWidget($field, array &$form, &$form_state) {
-    $entity = $form['#entity'];
-    $entity_form_display = $form['#entity_form_display'];
-
-    $element = array(
-      '#type' => 'details',
-      '#title' => t('Default value'),
-      '#tree' => TRUE,
-      '#description' => t('The default value for this field, used when creating new content.'),
-      // Stick to an empty 'parents' on this form in order not to breaks widgets
-      // that do not use field_widget_[field|instance]() and still access
-      // $form_state['field'] directly.
-      '#parents' => array(),
-    );
-
-    // Adjust the instance definition used for the form element. We want a
-    // non-required input and no description.
-    $this->instance['required'] = FALSE;
-    $this->instance['description'] = '';
-
-    // Adjust the instance definition to use the default widget of this field type
-    // instead of the hidden widget.
-    if ($this->instance['widget']['type'] == 'field_hidden') {
-      $field_type = field_info_field_types($field['type']);
-      $default_widget = $this->widgetManager->getDefinition($field_type['default_widget']);
-
-      $this->instance['widget'] = array(
-        'type' => $default_widget['id'],
-        'settings' => $default_widget['settings'],
-        'weight' => 0,
-      );
+  protected function getFieldItems(EntityInterface $entity, $field_name) {
+    if ($entity instanceof EntityNG) {
+      $item = $entity->get($field_name);
     }
-
-    // Insert the widget. Since we do not use the "official" instance definition,
-    // the whole flow cannot use field_invoke_method().
-    $items = array();
-    if (!empty($this->instance['default_value'])) {
-      $items = (array) $this->instance['default_value'];
+    else {
+      $definitions = \Drupal::entityManager()->getFieldDefinitions($entity->entityType(), $entity->bundle());
+      $item = \Drupal::typedData()->create($definitions[$field_name], $this->instance->default_value, $field_name, $entity);
     }
-    $element += $entity_form_display->getWidget($this->instance->getField()->id)->form($entity, Language::LANGCODE_NOT_SPECIFIED, $items, $element, $form_state);
+    return $item;
+  }
 
-    return $element;
+  /**
+   * Returns the next redirect path in a multipage sequence.
+   *
+   * @return string|array
+   *   Either the next path, or an array of redirect paths.
+   */
+  protected function getNextDestination() {
+    $next_destination = FieldUI::getNextDestination();
+    if (empty($next_destination)) {
+      $next_destination = $this->entityManager->getAdminPath($this->instance->entity_type, $this->instance->bundle) . '/fields';
+    }
+    return $next_destination;
   }
 
 }

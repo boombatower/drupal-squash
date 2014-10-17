@@ -60,7 +60,10 @@ Drupal.behaviors.editor = {
         if (event.isDefaultPrevented()) {
           return;
         }
-        Drupal.editorDetach(field, settings.editor.formats[activeFormatID], 'serialize');
+        // Detach the current editor (if any).
+        if (settings.editor.formats[activeFormatID]) {
+          Drupal.editorDetach(field, settings.editor.formats[activeFormatID], 'serialize');
+        }
       });
     });
   },
@@ -106,7 +109,14 @@ Drupal.editorAttach = function (field, format) {
       field.removeAttribute('required');
     }
 
+    // Attach the text editor.
     Drupal.editors[format.editor].attach(field, format);
+
+    // Ensures form.js' 'formUpdated' event is triggered even for changes that
+    // happen within the text editor.
+    Drupal.editors[format.editor].onChange(field, function () {
+      $(field).trigger('formUpdated');
+    });
   }
 };
 

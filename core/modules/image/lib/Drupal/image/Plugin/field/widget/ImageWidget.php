@@ -7,18 +7,17 @@
 
 namespace Drupal\image\Plugin\field\widget;
 
-use Drupal\Component\Annotation\Plugin;
+use Drupal\field\Annotation\FieldWidget;
 use Drupal\Core\Annotation\Translation;
-use Drupal\field\Plugin\Type\Widget\WidgetBase;
 use Drupal\file\Plugin\field\widget\FileWidget;
 use Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Entity\Field\FieldInterface;
 
 /**
  * Plugin implementation of the 'image_image' widget.
  *
- * @Plugin(
+ * @FieldWidget(
  *   id = "image_image",
- *   module = "image",
  *   label = @Translation("Image"),
  *   field_types = {
  *     "image"
@@ -26,14 +25,13 @@ use Drupal\Core\Entity\EntityInterface;
  *   settings = {
  *     "progress_indicator" = "throbber",
  *     "preview_image_style" = "thumbnail",
- *   },
- *   default_value = FALSE
+ *   }
  * )
  */
 class ImageWidget extends FileWidget {
 
   /**
-   * Overrides \Drupal\file\Plugin\field\widget\FileWidget::settingsForm().
+   * {@inheritdoc}
    */
   public function settingsForm(array $form, array &$form_state) {
     $element = parent::settingsForm($form, $form_state);
@@ -53,21 +51,51 @@ class ImageWidget extends FileWidget {
 
   /**
    * {@inheritdoc}
+   */
+  public function settingsSummary() {
+    $summary = parent::settingsSummary();
+
+    $image_styles = image_style_options(FALSE);
+    // Unset possible 'No defined styles' option.
+    unset($image_styles['']);
+    // Styles could be lost because of enabled/disabled modules that defines
+    // their styles in code.
+    $image_style_setting = $this->getSetting('preview_image_style');
+    if (isset($image_styles[$image_style_setting])) {
+      $preview_image_style = t('Preview image style: @style', array('@style' => $image_styles[$image_style_setting]));
+    }
+    else {
+      $preview_image_style = t('Original image');
+    }
+
+    array_unshift($summary, $preview_image_style);
+
+    return $summary;
+  }
+
+  /**
+   * Overrides \Drupal\file\Plugin\field\widget\FileWidget::formMultipleElements().
    *
    * Special handling for draggable multiple widgets and 'add more' button.
    */
-  protected function formMultipleElements(EntityInterface $entity, array $items, $langcode, array &$form, array &$form_state) {
+  protected function formMultipleElements(EntityInterface $entity, FieldInterface $items, $langcode, array &$form, array &$form_state) {
     $elements = parent::formMultipleElements($entity, $items, $langcode, $form, $form_state);
 
     $cardinality = $this->fieldDefinition->getFieldCardinality();
+    $file_upload_help = array(
+      '#theme' => 'file_upload_help',
+      '#upload_validators' => $elements[0]['#upload_validators'],
+      '#cardinality' => $cardinality,
+    );
     if ($cardinality == 1) {
       // If there's only one field, return it as delta 0.
       if (empty($elements[0]['#default_value']['fids'])) {
-        $elements[0]['#description'] = theme('file_upload_help', array('description' => $this->fieldDefinition->getFieldDescription(), 'upload_validators' => $elements[0]['#upload_validators'], 'cardinality' => $cardinality));
+        $file_upload_help['#description'] = $this->fieldDefinition->getFieldDescription();
+        $elements[0]['#description'] = drupal_render($file_upload_help);
       }
     }
     else {
-      $elements['#file_upload_description'] = theme('file_upload_help', array('upload_validators' => $elements[0]['#upload_validators'], 'cardinality' => $cardinality));
+      $elements['#file_upload_description'] = drupal_render($file_upload_help);
     }
 
     return $elements;
@@ -76,7 +104,7 @@ class ImageWidget extends FileWidget {
   /**
    * {@inheritdoc}
    */
-  public function formElement(array $items, $delta, array $element, $langcode, array &$form, array &$form_state) {
+  public function formElement(FieldInterface $items, $delta, array $element, $langcode, array &$form, array &$form_state) {
     $element = parent::formElement($items, $delta, $element, $langcode, $form, $form_state);
 
     $field_settings = $this->getFieldSettings();

@@ -64,7 +64,7 @@ class NodeCreationTest extends NodeTestBase {
   function testFailedPageCreation() {
     // Create a node.
     $edit = array(
-      'uid'      => $this->loggedInUser->uid,
+      'uid'      => $this->loggedInUser->id(),
       'name'     => $this->loggedInUser->name,
       'type'     => 'page',
       'langcode' => Language::LANGCODE_NOT_SPECIFIED,
@@ -104,10 +104,10 @@ class NodeCreationTest extends NodeTestBase {
    */
   function testUnpublishedNodeCreation() {
     // Set the front page to the test page.
-    config('system.site')->set('page.front', 'test-page')->save();
+    \Drupal::config('system.site')->set('page.front', 'test-page')->save();
 
     // Set "Basic page" content type to be unpublished by default.
-    variable_set('node_options_page', array());
+    \Drupal::config('node.type.page')->set('settings.node.options', array())->save();
 
     // Create a node.
     $edit = array();
@@ -121,6 +121,28 @@ class NodeCreationTest extends NodeTestBase {
 
     // Confirm that the node was created.
     $this->assertRaw(t('!post %title has been created.', array('!post' => 'Basic page', '%title' => $edit["title"])));
+  }
+
+  /**
+   * Tests the author autocompletion textfield.
+   */
+  public function testAuthorAutocomplete() {
+    $admin_user = $this->drupalCreateUser(array('administer nodes', 'create page content'));
+    $this->drupalLogin($admin_user);
+
+    $this->drupalGet('node/add/page');
+
+    $result = $this->xpath('//input[@id = "edit-name-autocomplete"]');
+    $this->assertEqual(count($result), 0, 'No autocompletion without access user profiles.');
+
+    $admin_user = $this->drupalCreateUser(array('administer nodes', 'create page content', 'access user profiles'));
+    $this->drupalLogin($admin_user);
+
+    $this->drupalGet('node/add/page');
+
+    $result = $this->xpath('//input[@id = "edit-name-autocomplete"]');
+    $this->assertEqual((string) $result[0]['value'], url('user/autocomplete'));
+    $this->assertEqual(count($result), 1, 'Ensure that the user does have access to the autocompletion');
   }
 
 }

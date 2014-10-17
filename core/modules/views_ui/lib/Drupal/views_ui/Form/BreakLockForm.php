@@ -8,16 +8,14 @@
 namespace Drupal\views_ui\Form;
 
 use Drupal\Core\Entity\EntityConfirmFormBase;
-use Drupal\Core\Entity\EntityControllerInterface;
 use Drupal\Core\Entity\EntityManager;
 use Drupal\user\TempStoreFactory;
 use Symfony\Component\DependencyInjection\ContainerInterface;
-use Symfony\Component\HttpFoundation\Request;
 
 /**
  * Builds the form to break the lock of an edited view.
  */
-class BreakLockForm extends EntityConfirmFormBase implements EntityControllerInterface {
+class BreakLockForm extends EntityConfirmFormBase {
 
   /**
    * Stores the Entity manager.
@@ -49,9 +47,9 @@ class BreakLockForm extends EntityConfirmFormBase implements EntityControllerInt
   /**
    * {@inheritdoc}
    */
-  public static function createInstance(ContainerInterface $container, $entity_type, array $entity_info) {
+  public static function create(ContainerInterface $container) {
     return new static(
-      $container->get('plugin.manager.entity'),
+      $container->get('entity.manager'),
       $container->get('user.tempstore')
     );
   }
@@ -67,7 +65,7 @@ class BreakLockForm extends EntityConfirmFormBase implements EntityControllerInt
    * {@inheritdoc}
    */
   public function getQuestion() {
-    return t('Do you want to break the lock on view %name?', array('%name' => $this->entity->id()));
+    return $this->t('Do you want to break the lock on view %name?', array('%name' => $this->entity->id()));
   }
 
   /**
@@ -75,8 +73,12 @@ class BreakLockForm extends EntityConfirmFormBase implements EntityControllerInt
    */
   public function getDescription() {
     $locked = $this->tempStore->getMetadata($this->entity->id());
-    $accounts = $this->entityManager->getStorageController('user')->load(array($locked->owner));
-    return t('By breaking this lock, any unsaved changes made by !user will be lost.', array('!user' => theme('username', array('account' => reset($accounts)))));
+    $account = $this->entityManager->getStorageController('user')->load($locked->owner);
+    $username = array(
+      '#theme' => 'username',
+      '#account' => $account,
+    );
+    return $this->t('By breaking this lock, any unsaved changes made by !user will be lost.', array('!user' => drupal_render($username)));
   }
 
   /**
@@ -90,18 +92,18 @@ class BreakLockForm extends EntityConfirmFormBase implements EntityControllerInt
    * {@inheritdoc}
    */
   public function getConfirmText() {
-    return t('Break lock');
+    return $this->t('Break lock');
   }
 
   /**
    * {@inheritdoc}
    */
-  public function buildForm(array $form, array &$form_state, Request $request = NULL) {
+  public function buildForm(array $form, array &$form_state) {
     if (!$this->tempStore->getMetadata($this->entity->id())) {
-      $form['message']['#markup'] = t('There is no lock on view %name to break.', array('%name' => $this->entity->id()));
+      $form['message']['#markup'] = $this->t('There is no lock on view %name to break.', array('%name' => $this->entity->id()));
       return $form;
     }
-    return parent::buildForm($form, $form_state, $request);
+    return parent::buildForm($form, $form_state);
   }
 
   /**
@@ -110,7 +112,7 @@ class BreakLockForm extends EntityConfirmFormBase implements EntityControllerInt
   public function submit(array $form, array &$form_state) {
     $this->tempStore->delete($this->entity->id());
     $form_state['redirect'] = 'admin/structure/views/view/' . $this->entity->id();
-    drupal_set_message(t('The lock has been broken and you may now edit this view.'));
+    drupal_set_message($this->t('The lock has been broken and you may now edit this view.'));
   }
 
 }

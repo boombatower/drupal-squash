@@ -7,15 +7,15 @@
 
 namespace Drupal\options\Plugin\field\widget;
 
-use Drupal\Component\Annotation\Plugin;
+use Drupal\field\Annotation\FieldWidget;
 use Drupal\Core\Annotation\Translation;
+use Drupal\Core\Entity\Field\FieldInterface;
 
 /**
  * Plugin implementation of the 'options_buttons' widget.
  *
- * @Plugin(
+ * @FieldWidget(
  *   id = "options_buttons",
- *   module = "options",
  *   label = @Translation("Check boxes/radio buttons"),
  *   field_types = {
  *     "list_integer",
@@ -31,10 +31,10 @@ class ButtonsWidget extends OptionsWidgetBase {
   /**
    * {@inheritdoc}
    */
-  public function formElement(array $items, $delta, array $element, $langcode, array &$form, array &$form_state) {
+  public function formElement(FieldInterface $items, $delta, array $element, $langcode, array &$form, array &$form_state) {
     $element = parent::formElement($items, $delta, $element, $langcode, $form, $form_state);
 
-    $options = $this->getOptions();
+    $options = $this->getOptions($items[$delta]);
     $selected = $this->getSelectedOptions($items);
 
     // If required and there is one single option, preselect it.

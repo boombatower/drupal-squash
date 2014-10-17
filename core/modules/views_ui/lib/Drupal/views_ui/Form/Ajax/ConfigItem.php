@@ -25,14 +25,14 @@ class ConfigItem extends ViewsFormBase {
   }
 
   /**
-   * Implements \Drupal\views_ui\Form\Ajax\ViewsFormInterface::getFormKey().
+   * {@inheritdoc}
    */
   public function getFormKey() {
     return 'config-item';
   }
 
   /**
-   * Overrides \Drupal\views_ui\Form\Ajax\ViewsFormBase::getForm().
+   * {@inheritdoc}
    */
   public function getForm(ViewStorageInterface $view, $display_id, $js, $type = NULL, $id = NULL) {
     $this->setType($type);
@@ -41,14 +41,14 @@ class ConfigItem extends ViewsFormBase {
   }
 
   /**
-   * Implements \Drupal\Core\Form\FormInterface::getFormID().
+   * {@inheritdoc}
    */
   public function getFormID() {
     return 'views_ui_config_item_form';
   }
 
   /**
-   * Implements \Drupal\Core\Form\FormInterface::buildForm().
+   * {@inheritdoc}
    */
   public function buildForm(array $form, array &$form_state) {
     $view = &$form_state['view'];
@@ -63,17 +63,15 @@ class ConfigItem extends ViewsFormBase {
         '#attributes' => array('class' => array('scroll')),
       ),
     );
-    $executable = $view->get('executable');
+    $executable = $view->getExecutable();
     $save_ui_cache = FALSE;
-    if (!$executable->setDisplay($display_id)) {
-      views_ajax_error(t('Invalid display id @display', array('@display' => $display_id)));
-    }
+    $executable->setDisplay($display_id);
     $item = $executable->getItem($display_id, $type, $id);
 
     if ($item) {
       $handler = $executable->display_handler->getHandler($type, $id);
       if (empty($handler)) {
-        $form['markup'] = array('#markup' => t("Error: handler for @table > @field doesn't exist!", array('@table' => $item['table'], '@field' => $item['field'])));
+        $form['markup'] = array('#markup' => $this->t("Error: handler for @table > @field doesn't exist!", array('@table' => $item['table'], '@field' => $item['field'])));
       }
       else {
         $types = ViewExecutable::viewsHandlerTypes();
@@ -117,7 +115,7 @@ class ConfigItem extends ViewsFormBase {
           // it to none.
           $base_fields = Views::viewsDataHelper()->fetchFields($view->get('base_table'), $form_state['type'], $executable->display_handler->useGroupBy());
           if (isset($base_fields[$item['table'] . '.' . $item['field']])) {
-            $relationship_options = array_merge(array('none' => t('Do not use a relationship')), $relationship_options);
+            $relationship_options = array_merge(array('none' => $this->t('Do not use a relationship')), $relationship_options);
           }
           $rel = empty($item['relationship']) ? 'none' : $item['relationship'];
           if (empty($relationship_options[$rel])) {
@@ -131,7 +129,7 @@ class ConfigItem extends ViewsFormBase {
 
           $form['options']['relationship'] = array(
             '#type' => 'select',
-            '#title' => t('Relationship'),
+            '#title' => $this->t('Relationship'),
             '#options' => $relationship_options,
             '#default_value' => $rel,
             '#weight' => -500,
@@ -144,7 +142,7 @@ class ConfigItem extends ViewsFormBase {
           );
         }
 
-        $form['#title'] = t('Configure @type: @item', array('@type' => $types[$type]['lstitle'], '@item' => $handler->adminLabel()));
+        $form['#title'] = $this->t('Configure @type: @item', array('@type' => $types[$type]['lstitle'], '@item' => $handler->adminLabel()));
 
         if (!empty($handler->definition['help'])) {
           $form['options']['form_description'] = array(
@@ -171,7 +169,7 @@ class ConfigItem extends ViewsFormBase {
       // Add a 'remove' button.
       $form['buttons']['remove'] = array(
         '#type' => 'submit',
-        '#value' => t('Remove'),
+        '#value' => $this->t('Remove'),
         '#submit' => array(array($this, 'remove')),
         '#limit_validation_errors' => array(array('override')),
       );
@@ -185,7 +183,7 @@ class ConfigItem extends ViewsFormBase {
   }
 
   /**
-   * Overrides \Drupal\views_ui\Form\Ajax\ViewsFormBase::validateForm().
+   * {@inheritdoc}
    */
   public function validateForm(array &$form, array &$form_state) {
     $form_state['handler']->validateOptionsForm($form['options'], $form_state);
@@ -196,7 +194,7 @@ class ConfigItem extends ViewsFormBase {
   }
 
   /**
-   * Overrides \Drupal\views_ui\Form\Ajax\ViewsFormBase::submitForm().
+   * {@inheritdoc}
    */
   public function submitForm(array &$form, array &$form_state) {
     // Run it through the handler's submit function.
@@ -212,7 +210,7 @@ class ConfigItem extends ViewsFormBase {
     }
 
     $override = NULL;
-    $executable = $form_state['view']->get('executable');
+    $executable = $form_state['view']->getExecutable();
     if ($executable->display_handler->useGroupBy() && !empty($item['group_type'])) {
       if (empty($executable->query)) {
         $executable->initQuery();
@@ -254,7 +252,7 @@ class ConfigItem extends ViewsFormBase {
   public function remove(&$form, &$form_state) {
     // Store the item back on the view
     list($was_defaulted, $is_defaulted) = $form_state['view']->getOverrideValues($form, $form_state);
-    $executable = $form_state['view']->get('executable');
+    $executable = $form_state['view']->getExecutable();
     // If the display selection was changed toggle the override value.
     if ($was_defaulted != $is_defaulted) {
       $display = &$executable->displayHandlers->get($form_state['display_id']);

@@ -7,23 +7,23 @@
 
 namespace Drupal\taxonomy\Plugin\field\widget;
 
-use Drupal\Component\Annotation\Plugin;
+use Drupal\field\Annotation\FieldWidget;
 use Drupal\Core\Annotation\Translation;
+use Drupal\Core\Entity\Field\FieldInterface;
 use Drupal\field\Plugin\Type\Widget\WidgetBase;
 
 /**
  * Plugin implementation of the 'taxonomy_autocomplete' widget.
  *
- * @Plugin(
+ * @FieldWidget(
  *   id = "taxonomy_autocomplete",
- *   module = "taxonomy",
  *   label = @Translation("Autocomplete term widget (tagging)"),
  *   field_types = {
  *     "taxonomy_term_reference"
  *   },
  *   settings = {
  *     "size" = "60",
- *     "autocomplete_path" = "taxonomy/autocomplete",
+ *     "autocomplete_route_name" = "taxonomy_autocomplete",
  *     "placeholder" = ""
  *   },
  *   multiple_values = TRUE
@@ -47,15 +47,37 @@ class TaxonomyAutocompleteWidget extends WidgetBase {
   /**
    * {@inheritdoc}
    */
-  public function formElement(array $items, $delta, array $element, $langcode, array &$form, array &$form_state) {
+  public function settingsSummary() {
+    $summary = array();
+
+    $summary[] = t('Textfield size: !size', array('!size' => $this->getSetting('size')));
+    $placeholder = $this->getSetting('placeholder');
+    if (!empty($placeholder)) {
+      $summary[] = t('Placeholder: @placeholder', array('@placeholder' => $placeholder));
+    }
+    else {
+      $summary[] = t('No placeholder');
+    }
+
+    return $summary;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function formElement(FieldInterface $items, $delta, array $element, $langcode, array &$form, array &$form_state) {
     $tags = array();
     foreach ($items as $item) {
-      $tags[$item['target_id']] = isset($item['taxonomy_term']) ? $item['taxonomy_term'] : taxonomy_term_load($item['target_id']);
+      $tags[$item->target_id] = isset($item->taxonomy_term) ? $item->taxonomy_term : entity_load('taxonomy_term', $item->target_id);
     }
     $element += array(
       '#type' => 'textfield',
       '#default_value' => taxonomy_implode_tags($tags),
-      '#autocomplete_path' => $this->getSetting('autocomplete_path') . '/' . $this->fieldDefinition->getFieldName(),
+      '#autocomplete_route_name' => $this->getSetting('autocomplete_route_name'),
+      '#autocomplete_route_parameters' => array(
+        'entity_type' => $items->getParent()->entityType(),
+        'field_name' => $this->fieldDefinition->getFieldName(),
+      ),
       '#size' => $this->getSetting('size'),
       '#placeholder' => $this->getSetting('placeholder'),
       '#maxlength' => 1024,

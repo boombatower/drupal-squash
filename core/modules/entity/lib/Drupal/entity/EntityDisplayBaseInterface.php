@@ -2,7 +2,7 @@
 
 /**
  * @file
- * Contains \Drupal\entity\Plugin\Core\Entity\EntityDisplayBaseInterface.
+ * Contains \Drupal\entity\EntityDisplayBaseInterface.
  */
 
 namespace Drupal\entity;
@@ -23,7 +23,7 @@ interface EntityDisplayBaseInterface extends ConfigEntityInterface {
    * @param $view_mode
    *   The view mode for the new object.
    *
-   * @return \Drupal\entity\Plugin\Core\Entity\EntityDisplay
+   * @return \Drupal\entity\Entity\EntityDisplay
    *   The new object.
    */
   public function createCopy($view_mode);
@@ -56,7 +56,7 @@ interface EntityDisplayBaseInterface extends ConfigEntityInterface {
    * @param array $options
    *   The display options.
    *
-   * @return \Drupal\entity\Plugin\Core\Entity\EntityDisplay
+   * @return \Drupal\entity\Entity\EntityDisplay
    *   The EntityDisplay object.
    */
   public function setComponent($name, array $options = array());
@@ -67,7 +67,7 @@ interface EntityDisplayBaseInterface extends ConfigEntityInterface {
    * @param string $name
    *   The name of the component.
    *
-   * @return \Drupal\entity\Plugin\Core\Entity\EntityDisplay
+   * @return \Drupal\entity\Entity\EntityDisplay
    *   The EntityDisplay object.
    */
   public function removeComponent($name);
@@ -80,5 +80,16 @@ interface EntityDisplayBaseInterface extends ConfigEntityInterface {
    *   display is empty.
    */
   public function getHighestWeight();
+
+  /**
+   * Returns the renderer plugin for a field (e.g. widget, formatter).
+   *
+   * @param string $field_name
+   *   The field name.
+   *
+   * @return \Drupal\field\Plugin\PluginSettingsInterface|null
+   *   A widget or formatter plugin or NULL if the field does not exist.
+   */
+  public function getRenderer($field_name);
 
 }

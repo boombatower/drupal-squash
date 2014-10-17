@@ -7,16 +7,15 @@
 
 namespace Drupal\action;
 
-use Drupal\Core\Entity\EntityControllerInterface;
 use Drupal\Core\Entity\EntityFormController;
-use Drupal\Core\Action\ConfigurableActionInterface;
 use Drupal\Core\Entity\EntityStorageControllerInterface;
+use Drupal\Core\Plugin\PluginFormInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
  * Provides a base form controller for action forms.
  */
-abstract class ActionFormControllerBase extends EntityFormController implements EntityControllerInterface {
+abstract class ActionFormControllerBase extends EntityFormController {
 
   /**
    * The action plugin being configured.
@@ -39,17 +38,15 @@ abstract class ActionFormControllerBase extends EntityFormController implements 
    *   The action storage controller.
    */
   public function __construct(EntityStorageControllerInterface $storage_controller) {
-    parent::__construct();
-
     $this->storageController = $storage_controller;
   }
 
   /**
    * {@inheritdoc}
    */
-  public static function createInstance(ContainerInterface $container, $entity_type, array $entity_info) {
+  public static function create(ContainerInterface $container) {
     return new static(
-      $container->get('plugin.manager.entity')->getStorageController($entity_type)
+      $container->get('entity.manager')->getStorageController('action')
     );
   }
 
@@ -67,19 +64,19 @@ abstract class ActionFormControllerBase extends EntityFormController implements 
   public function form(array $form, array &$form_state) {
     $form['label'] = array(
       '#type' => 'textfield',
-      '#title' => t('Label'),
+      '#title' => $this->t('Label'),
       '#default_value' => $this->entity->label(),
       '#maxlength' => '255',
-      '#description' => t('A unique label for this advanced action. This label will be displayed in the interface of modules that integrate with actions.'),
+      '#description' => $this->t('A unique label for this advanced action. This label will be displayed in the interface of modules that integrate with actions.'),
     );
 
     $form['id'] = array(
       '#type' => 'machine_name',
-      '#title' => t('Machine name'),
+      '#title' => $this->t('Machine name'),
       '#default_value' => $this->entity->id(),
       '#disabled' => !$this->entity->isNew(),
       '#maxlength' => 64,
-      '#description' => t('A unique name for this action. It must only contain lowercase letters, numbers and underscores.'),
+      '#description' => $this->t('A unique name for this action. It must only contain lowercase letters, numbers and underscores.'),
       '#machine_name' => array(
         'exists' => array($this, 'exists'),
       ),
@@ -93,8 +90,8 @@ abstract class ActionFormControllerBase extends EntityFormController implements 
       '#value' => $this->entity->getType(),
     );
 
-    if ($this->plugin instanceof ConfigurableActionInterface) {
-      $form += $this->plugin->form($form, $form_state);
+    if ($this->plugin instanceof PluginFormInterface) {
+      $form += $this->plugin->buildConfigurationForm($form, $form_state);
     }
 
     return parent::form($form, $form_state);
@@ -110,8 +107,8 @@ abstract class ActionFormControllerBase extends EntityFormController implements 
    *   TRUE if the action exists, FALSE otherwise.
    */
   public function exists($id) {
-    $actions = $this->storageController->load(array($id));
-    return isset($actions[$id]);
+    $action = $this->storageController->load($id);
+    return !empty($action);
   }
 
   /**
@@ -129,8 +126,8 @@ abstract class ActionFormControllerBase extends EntityFormController implements 
   public function validate(array $form, array &$form_state) {
     parent::validate($form, $form_state);
 
-    if ($this->plugin instanceof ConfigurableActionInterface) {
-      $this->plugin->validate($form, $form_state);
+    if ($this->plugin instanceof PluginFormInterface) {
+      $this->plugin->validateConfigurationForm($form, $form_state);
     }
   }
 
@@ -140,8 +137,8 @@ abstract class ActionFormControllerBase extends EntityFormController implements 
   public function submit(array $form, array &$form_state) {
     parent::submit($form, $form_state);
 
-    if ($this->plugin instanceof ConfigurableActionInterface) {
-      $this->plugin->submit($form, $form_state);
+    if ($this->plugin instanceof PluginFormInterface) {
+      $this->plugin->submitConfigurationForm($form, $form_state);
     }
     return $this->entity;
   }
@@ -151,7 +148,7 @@ abstract class ActionFormControllerBase extends EntityFormController implements 
    */
   public function save(array $form, array &$form_state) {
     $this->entity->save();
-    drupal_set_message(t('The action has been successfully saved.'));
+    drupal_set_message($this->t('The action has been successfully saved.'));
 
     $form_state['redirect'] = 'admin/config/system/actions';
   }

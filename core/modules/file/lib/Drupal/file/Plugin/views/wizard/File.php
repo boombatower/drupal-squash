@@ -8,13 +8,13 @@
 namespace Drupal\file\Plugin\views\wizard;
 
 use Drupal\views\Plugin\views\wizard\WizardPluginBase;
-use Drupal\Component\Annotation\Plugin;
+use Drupal\views\Annotation\ViewsWizard;
 use Drupal\Core\Annotation\Translation;
 
 /**
  * Tests creating managed files views with the wizard.
  *
- * @Plugin(
+ * @ViewsWizard(
  *   id = "file_managed",
  *   module = "file",
  *   base_table = "file_managed",
@@ -55,6 +55,7 @@ class File extends WizardPluginBase {
     $display_options['fields']['filename']['id'] = 'filename';
     $display_options['fields']['filename']['table'] = 'file_managed';
     $display_options['fields']['filename']['field'] = 'filename';
+    $display_options['fields']['filename']['provider'] = 'file';
     $display_options['fields']['filename']['label'] = '';
     $display_options['fields']['filename']['alter']['alter_text'] = 0;
     $display_options['fields']['filename']['alter']['make_link'] = 0;

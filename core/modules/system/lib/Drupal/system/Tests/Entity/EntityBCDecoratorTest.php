@@ -31,8 +31,8 @@ class EntityBCDecoratorTest extends EntityUnitTestBase  {
 
   public function setUp() {
     parent::setUp();
-    $this->installSchema('user', array('users_roles', 'users_data', 'role_permission'));
-    $this->installSchema('node', array('node', 'node_field_data', 'node_field_revision', 'node_type', 'node_access'));
+    $this->installSchema('user', array('users_roles', 'users_data'));
+    $this->installSchema('node', array('node', 'node_field_data', 'node_field_revision', 'node_access'));
     $this->installSchema('comment', array('comment', 'node_comment_statistics'));
   }
 
@@ -50,7 +50,7 @@ class EntityBCDecoratorTest extends EntityUnitTestBase  {
     ));
     $node->save();
     $comment = entity_create('comment', array(
-      'nid' => $node->nid,
+      'nid' => $node->id(),
       'subject' => 'old-value',
     ));
     $comment->save();

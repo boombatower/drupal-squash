@@ -70,7 +70,7 @@ class TextProcessed extends TypedData {
     $instance = field_info_instance($entity->entityType(), $field->getName(), $entity->bundle());
 
     if (!empty($instance['settings']['text_processing']) && $this->format->getValue()) {
-      return check_markup($this->text->getValue(), $this->format->getValue(), $entity->language()->langcode);
+      return check_markup($this->text->getValue(), $this->format->getValue(), $entity->language()->id);
     }
     else {
       // If no format is available, still make sure to sanitize the text.
@@ -83,7 +83,10 @@ class TextProcessed extends TypedData {
    */
   public function setValue($value, $notify = TRUE) {
     if (isset($value)) {
-      throw new ReadOnlyException('Unable to set a computed property.');
+      // @todo This is triggered from DatabaseStorageController::invokeFieldMethod()
+      // in the case of case of non-NG entity types.
+      // throw new ReadOnlyException('Unable to set a computed property.');
     }
   }
+
 }

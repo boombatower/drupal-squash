@@ -7,16 +7,15 @@
 
 namespace Drupal\simpletest\Form;
 
-use Drupal\Core\Controller\ControllerInterface;
 use Drupal\Core\Database\Connection;
-use Drupal\Core\Form\FormInterface;
+use Drupal\Core\Form\FormBase;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 
 /**
  * Test results form for $test_id.
  */
-class SimpletestResultsForm implements FormInterface, ControllerInterface {
+class SimpletestResultsForm extends FormBase {
 
   /**
    * Associative array of themed result images keyed by status.
@@ -48,31 +47,39 @@ class SimpletestResultsForm implements FormInterface, ControllerInterface {
   public function __construct(Connection $database) {
     $this->database = $database;
     // Initialize image mapping property.
+    $image_pass = array(
+      '#theme' => 'image',
+      '#uri' => 'core/misc/watchdog-ok.png',
+      '#width' => 18,
+      '#height' => 18,
+      '#alt' => $this->t('Pass'),
+    );
+    $image_fail = array(
+      '#theme' => 'image',
+      '#uri' => 'core/misc/watchdog-error.png',
+      '#width' => 18,
+      '#height' => 18,
+      '#alt' => $this->t('Fail'),
+    );
+    $image_exception = array(
+      '#theme' => 'image',
+      '#uri' => 'core/misc/watchdog-warning.png',
+      '#width' => 18,
+      '#height' => 18,
+      '#alt' => $this->t('Exception'),
+    );
+    $image_debug = array(
+      '#theme' => 'image',
+      '#uri' => 'core/misc/watchdog-warning.png',
+      '#width' => 18,
+      '#height' => 18,
+      '#alt' => $this->t('Debug'),
+    );
     $this->statusImageMap = array(
-      'pass' => theme('image', array(
-        'uri' => 'core/misc/watchdog-ok.png',
-        'width' => 18,
-        'height' => 18,
-        'alt' => t('Pass')
-      )),
-      'fail' => theme('image', array(
-        'uri' => 'core/misc/watchdog-error.png',
-        'width' => 18,
-        'height' => 18,
-        'alt' => t('Fail')
-      )),
-      'exception' => theme('image', array(
-        'uri' => 'core/misc/watchdog-warning.png',
-        'width' => 18,
-        'height' => 18,
-        'alt' => t('Exception')
-      )),
-      'debug' => theme('image', array(
-        'uri' => 'core/misc/watchdog-warning.png',
-        'width' => 18,
-        'height' => 18,
-        'alt' => t('Debug')
-      )),
+      'pass' => drupal_render($image_pass),
+      'fail' => drupal_render($image_fail),
+      'exception' => drupal_render($image_exception),
+      'debug' => drupal_render($image_debug),
     );
   }
 
@@ -87,11 +94,12 @@ class SimpletestResultsForm implements FormInterface, ControllerInterface {
    * {@inheritdoc}
    */
   public function buildForm(array $form, array &$form_state, $test_id = NULL) {
-    // Make sure there are test results to display and a re-run is not being performed.
+    // Make sure there are test results to display and a re-run is not being
+    // performed.
     $results = array();
 
     if (is_numeric($test_id) && !$results = $this->getResults($test_id)) {
-      drupal_set_message(t('No test results to display.'), 'error');
+      drupal_set_message($this->t('No test results to display.'), 'error');
       return new RedirectResponse(url('admin/config/development/testing', array('absolute' => TRUE)));
     }
 
@@ -107,7 +115,7 @@ class SimpletestResultsForm implements FormInterface, ControllerInterface {
     // Summary result widget.
     $form['result'] = array(
       '#type' => 'fieldset',
-      '#title' => t('Results'),
+      '#title' => $this->t('Results'),
     );
     $form['result']['summary'] = $summary = array(
       '#theme' => 'simpletest_result_summary',
@@ -121,12 +129,12 @@ class SimpletestResultsForm implements FormInterface, ControllerInterface {
 
     // Cycle through each test group.
     $header = array(
-      t('Message'),
-      t('Group'),
-      t('Filename'),
-      t('Line'),
-      t('Function'),
-      array('colspan' => 2, 'data' => t('Status'))
+      $this->t('Message'),
+      $this->t('Group'),
+      $this->t('Filename'),
+      $this->t('Line'),
+      $this->t('Function'),
+      array('colspan' => 2, 'data' => $this->t('Status'))
     );
     $form['result']['results'] = array();
     foreach ($results as $group => $assertions) {
@@ -174,14 +182,14 @@ class SimpletestResultsForm implements FormInterface, ControllerInterface {
       $filter[$group_summary['#ok'] ? 'pass' : 'fail'][] = $group;
     }
 
-    // Overal summary status.
+    // Overall summary status.
     $form['result']['summary']['#ok'] = $form['result']['summary']['#fail'] + $form['result']['summary']['#exception'] == 0;
 
     // Actions.
     $form['#action'] = url('admin/config/development/testing/results/re-run');
     $form['action'] = array(
       '#type' => 'fieldset',
-      '#title' => t('Actions'),
+      '#title' => $this->t('Actions'),
       '#attributes' => array('class' => array('container-inline')),
       '#weight' => -11,
     );
@@ -190,9 +198,9 @@ class SimpletestResultsForm implements FormInterface, ControllerInterface {
       '#type' => 'select',
       '#title' => 'Filter',
       '#options' => array(
-        'all' => t('All (@count)', array('@count' => count($filter['pass']) + count($filter['fail']))),
-        'pass' => t('Pass (@count)', array('@count' => count($filter['pass']))),
-        'fail' => t('Fail (@count)', array('@count' => count($filter['fail']))),
+        'all' => $this->t('All (@count)', array('@count' => count($filter['pass']) + count($filter['fail']))),
+        'pass' => $this->t('Pass (@count)', array('@count' => count($filter['pass']))),
+        'fail' => $this->t('Fail (@count)', array('@count' => count($filter['fail']))),
       ),
     );
     $form['action']['filter']['#default_value'] = ($filter['fail'] ? 'fail' : 'all');
@@ -209,12 +217,12 @@ class SimpletestResultsForm implements FormInterface, ControllerInterface {
 
     $form['action']['op'] = array(
       '#type' => 'submit',
-      '#value' => t('Run tests'),
+      '#value' => $this->t('Run tests'),
     );
 
     $form['action']['return'] = array(
       '#type' => 'link',
-      '#title' => t('Return to list'),
+      '#title' => $this->t('Return to list'),
       '#href' => 'admin/config/development/testing',
     );
 
@@ -223,12 +231,6 @@ class SimpletestResultsForm implements FormInterface, ControllerInterface {
     }
 
     return $form;
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  public function validateForm(array &$form, array &$form_state) {
   }
 
   /**

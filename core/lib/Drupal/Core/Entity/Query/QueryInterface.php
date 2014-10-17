@@ -136,10 +136,9 @@ interface QueryInterface extends AlterableInterface {
    * Enables sortable tables for this query.
    *
    * @param $headers
-   *   An array of headers of the same struucture as described in
-   *   theme_table(). Use a 'specifier' in place of a 'field' to specify what
-   *   to sort on. This can be an entity or a field as described in
-   *   condition().
+   *   An array of headers of the same structure as described in theme_table().
+   *   Use a 'specifier' in place of a 'field' to specify what to sort on.
+   *   This can be an entity or a field as described in condition().
    * @return \Drupal\Core\Entity\Query\QueryInterface
    *   The called object.
    */
@@ -176,20 +175,6 @@ interface QueryInterface extends AlterableInterface {
    *   entity supports revision and entity ids if not.
    */
   public function execute();
-
-  /**
-   * Creates an object holding a group of conditions.
-   *
-   * See andConditionGroup() and orConditionGroup() for more.
-   *
-   * @param $conjunction
-   *   - AND (default): this is the equivalent of andConditionGroup().
-   *   - OR: this is the equivalent of andConditionGroup().
-   *
-   * return ConditionInterface
-   *   An object holding a group of conditions.
-   */
-  public function conditionGroupFactory($conjunction = 'AND');
 
   /**
    * Creates a new group of conditions ANDed together.

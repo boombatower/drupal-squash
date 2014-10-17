@@ -42,7 +42,8 @@ class ManageFieldsTest extends FieldUiTestBase {
     $vocabulary->save();
 
     $field = array(
-      'field_name' => 'field_' . $vocabulary->id(),
+      'name' => 'field_' . $vocabulary->id(),
+      'entity_type' => 'node',
       'type' => 'taxonomy_term_reference',
     );
     entity_create('field_entity', $field)->save();
@@ -72,6 +73,7 @@ class ManageFieldsTest extends FieldUiTestBase {
     $this->updateField();
     $this->addExistingField();
     $this->cardinalitySettings();
+    $this->fieldListAdminPage();
   }
 
   /**
@@ -88,7 +90,6 @@ class ManageFieldsTest extends FieldUiTestBase {
       t('Label'),
       t('Machine name'),
       t('Field type'),
-      t('Widget'),
       t('Operations'),
     );
     foreach ($table_headers as $table_header) {
@@ -116,13 +117,6 @@ class ManageFieldsTest extends FieldUiTestBase {
       'fields[_add_new_field][field_name]' => $this->field_name_input,
     );
     $this->fieldUIAddNewField('admin/structure/types/manage/' . $this->type, $edit);
-
-    // Assert the field appears in the "re-use existing field" section for
-    // different entity types; e.g. if a field was added in a node entity, it
-    // should also appear in the 'taxonomy term' entity.
-    $vocabulary = taxonomy_vocabulary_load('tags');
-    $this->drupalGet('admin/structure/taxonomy/manage/' . $vocabulary->id() . '/fields');
-    $this->assertTrue($this->xpath('//select[@name="fields[_add_existing_field][field_name]"]//option[@value="' . $this->field_name . '"]'), 'Existing field was found in taxonomy term fields.');
   }
 
   /**
@@ -144,7 +138,6 @@ class ManageFieldsTest extends FieldUiTestBase {
     $this->drupalGet('admin/structure/types/manage/' . $this->type . '/fields/' . $instance_id);
     $edit = array(
       'instance[settings][test_instance_setting]' => $string,
-      'instance[widget][settings][test_widget_setting]' => $string,
     );
     $this->drupalPost(NULL, $edit, t('Save settings'));
 
@@ -163,9 +156,8 @@ class ManageFieldsTest extends FieldUiTestBase {
     $this->drupalGet('admin/structure/types/manage/page/fields');
     $this->assertRaw(t('Re-use existing field'), '"Re-use existing field" was found.');
 
-    // Check that the list of options respects entity type restrictions on
-    // fields. The 'comment' field is restricted to the 'comment' entity type
-    // and should not appear in the list.
+    // Check that fields of other entity types (here, the 'comment_body' field)
+    // do not show up in the "Re-use existing field" list.
     $this->assertFalse($this->xpath('//select[@id="edit-add-existing-field-field-name"]//option[@value="comment"]'), 'The list of options respects entity type restrictions.');
 
     // Add a new field based on an existing field.
@@ -232,16 +224,12 @@ class ManageFieldsTest extends FieldUiTestBase {
     // Reset the fields info.
     field_info_cache_clear();
     // Assert field settings.
-    $field = field_info_field($field_name);
+    $field = field_info_field($entity_type, $field_name);
     $this->assertTrue($field['settings']['test_field_setting'] == $string, 'Field settings were found.');
 
-    // Assert instance and widget settings.
+    // Assert instance settings.
     $instance = field_info_instance($entity_type, $field_name, $bundle);
     $this->assertTrue($instance['settings']['test_instance_setting'] == $string, 'Field instance settings were found.');
-
-    // Assert widget settings.
-    $widget_configuration = entity_get_form_display($entity_type, $bundle, 'default')->getComponent($field_name);
-    $this->assertTrue($widget_configuration['settings']['test_widget_setting'] == $string, 'Field widget settings were found.');
   }
 
   /**
@@ -281,7 +269,8 @@ class ManageFieldsTest extends FieldUiTestBase {
     // Create a test field and instance.
     $field_name = 'test';
     entity_create('field_entity', array(
-      'field_name' => $field_name,
+      'name' => $field_name,
+      'entity_type' => 'node',
       'type' => 'test_field'
     ))->save();
     $instance = entity_create('field_instance', array(
@@ -297,8 +286,8 @@ class ManageFieldsTest extends FieldUiTestBase {
 
     $langcode = Language::LANGCODE_NOT_SPECIFIED;
     $admin_path = 'admin/structure/types/manage/' . $this->type . '/fields/' . $instance->id();
-    $element_id = "edit-$field_name-$langcode-0-value";
-    $element_name = "{$field_name}[$langcode][0][value]";
+    $element_id = "edit-default-value-input-$field_name-$langcode-0-value";
+    $element_name = "default_value_input[{$field_name}][$langcode][0][value]";
     $this->drupalGet($admin_path);
     $this->assertFieldById($element_id, '', 'The default value widget was empty.');
 
@@ -327,15 +316,11 @@ class ManageFieldsTest extends FieldUiTestBase {
     $instance = field_info_instance('node', $field_name, $this->type);
     $this->assertEqual($instance['default_value'], NULL, 'The default value was correctly saved.');
 
-    // Change the widget to TestFieldWidgetNoDefault.
+    // Check that the default widget is used when the field is hidden.
     entity_get_form_display($instance['entity_type'], $instance['bundle'], 'default')
-      ->setComponent($field_name, array(
-        'type' => 'test_field_widget_no_default',
-      ))
-      ->save();
-
+      ->removeComponent($field_name)->save();
     $this->drupalGet($admin_path);
-    $this->assertNoFieldById($element_id, '', t('No default value was possible for widget that disables default value.'));
+    $this->assertFieldById($element_id, '', 'The default value widget was displayed when field is hidden.');
   }
 
   /**
@@ -371,7 +356,7 @@ class ManageFieldsTest extends FieldUiTestBase {
     // Check that the field instance was deleted.
     $this->assertNull(field_info_instance('node', $this->field_name, $this->type), 'Field instance was deleted.');
     // Check that the field was not deleted
-    $this->assertNotNull(field_info_field($this->field_name), 'Field was not deleted.');
+    $this->assertNotNull(field_info_field('node', $this->field_name), 'Field was not deleted.');
 
     // Delete the second instance.
     $this->fieldUIDeleteField($bundle_path2, "node.$type_name2.$this->field_name", $this->field_label, $type_name2);
@@ -381,7 +366,7 @@ class ManageFieldsTest extends FieldUiTestBase {
     // Check that the field instance was deleted.
     $this->assertNull(field_info_instance('node', $this->field_name, $type_name2), 'Field instance was deleted.');
     // Check that the field was deleted too.
-    $this->assertNull(field_info_field($this->field_name), 'Field was deleted.');
+    $this->assertNull(field_info_field('node', $this->field_name), 'Field was deleted.');
   }
 
   /**
@@ -391,7 +376,8 @@ class ManageFieldsTest extends FieldUiTestBase {
     // Create a locked field and attach it to a bundle. We need to do this
     // programatically as there's no way to create a locked field through UI.
     $field = entity_create('field_entity', array(
-      'field_name' => strtolower($this->randomName(8)),
+      'name' => strtolower($this->randomName(8)),
+      'entity_type' => 'node',
       'type' => 'test_field',
       'cardinality' => 1,
       'locked' => TRUE
@@ -410,16 +396,16 @@ class ManageFieldsTest extends FieldUiTestBase {
 
     // Check that the links for edit and delete are not present.
     $this->drupalGet('admin/structure/types/manage/' . $this->type . '/fields');
-    $locked = $this->xpath('//tr[@id=:field_name]/td[7]', array(':field_name' => $field->id()));
+    $locked = $this->xpath('//tr[@id=:field_name]/td[4]', array(':field_name' => $field->name));
     $this->assertTrue(in_array('Locked', $locked), 'Field is marked as Locked in the UI');
-    $edit_link = $this->xpath('//tr[@id=:field_name]/td[7]', array(':field_name' => $field->id()));
+    $edit_link = $this->xpath('//tr[@id=:field_name]/td[4]', array(':field_name' => $field->name));
     $this->assertFalse(in_array('edit', $edit_link), 'Edit option for locked field is not present the UI');
-    $delete_link = $this->xpath('//tr[@id=:field_name]/td[8]', array(':field_name' => $field->id()));
+    $delete_link = $this->xpath('//tr[@id=:field_name]/td[4]', array(':field_name' => $field->name));
     $this->assertFalse(in_array('delete', $delete_link), 'Delete option for locked field is not present the UI');
   }
 
   /**
-   * Tests that Field UI respects the 'no_ui' option in hook_field_info().
+   * Tests that Field UI respects the 'no_ui' flag in the field type definition.
    */
   function testHiddenFields() {
     $bundle_path = 'admin/structure/types/manage/' . $this->type . '/fields/';
@@ -430,7 +416,11 @@ class ManageFieldsTest extends FieldUiTestBase {
 
     // Create a field and an instance programmatically.
     $field_name = 'hidden_test_field';
-    entity_create('field_entity', array('field_name' => $field_name, 'type' => $field_name))->save();
+    entity_create('field_entity', array(
+      'name' => $field_name,
+      'entity_type' => 'node',
+      'type' => $field_name,
+    ))->save();
     $instance = array(
       'field_name' => $field_name,
       'bundle' => $this->type,
@@ -453,15 +443,6 @@ class ManageFieldsTest extends FieldUiTestBase {
     $bundle_path = 'admin/structure/types/manage/article/fields/';
     $this->drupalGet($bundle_path);
     $this->assertFalse($this->xpath('//select[@id="edit-add-existing-field-field-name"]//option[@value=:field_name]', array(':field_name' => $field_name)), "The 're-use existing field' select respects field types 'no_ui' property.");
-
-    // Remove the form display component to check the fallback label.
-    entity_get_form_display('node', $this->type, 'default')
-      ->removeComponent($field_name)
-      ->save();
-
-    $this->drupalGet('admin/structure/types/manage/' . $this->type . '/fields/');
-    $this->assertLinkByHref(url('admin/structure/types/manage/' . $this->type . '/fields/node.' . $this->type . '.'  . $field_name . '/widget-type'));
-    $this->assertLink('- Hidden -');
   }
 
   /**
@@ -487,56 +468,12 @@ class ManageFieldsTest extends FieldUiTestBase {
       'fields[_add_new_field][field_name]' => 'tags',
       'fields[_add_new_field][label]' => $this->randomName(),
       'fields[_add_new_field][type]' => 'taxonomy_term_reference',
-      'fields[_add_new_field][widget_type]' => 'options_select',
     );
     $url = 'admin/structure/types/manage/' . $this->type . '/fields';
     $this->drupalPost($url, $edit, t('Save'));
 
     $this->assertText(t('The machine-readable name is already in use. It must be unique.'));
     $this->assertUrl($url, array(), 'Stayed on the same page.');
-  }
-
-  /**
-   * Tests changing the widget used by a field.
-   */
-  function testWidgetChange() {
-    $url_fields = 'admin/structure/types/manage/article/fields';
-    $url_tags_widget = $url_fields . '/node.article.field_tags/widget-type';
-
-    // Check that the field_tags field currently uses the 'options_select'
-    // widget.
-    $entity_form_display = entity_get_form_display('node', 'article', 'default')->getComponent('field_tags');
-    $this->assertEqual($entity_form_display['type'], 'options_select');
-
-    // Check that the "Manage fields" page shows the correct widget type.
-    $this->drupalGet($url_fields);
-    $link = current($this->xpath('//a[contains(@href, :href)]', array(':href' => $url_tags_widget)));
-    $this->assertEqual((string) $link, 'Select list');
-
-    // Go to the 'Widget type' form and check that the correct widget is
-    // selected.
-    $this->drupalGet($url_tags_widget);
-    $this->assertFieldByXPath("//select[@name='widget_type']", 'options_select');
-
-    // Change the widget type.
-    $edit = array(
-      'widget_type' => 'options_buttons',
-    );
-    $this->drupalPost(NULL, $edit, t('Continue'));
-
-    // Check that the "Manage fields" page shows the correct widget type.
-    $link = current($this->xpath('//a[contains(@href, :href)]', array(':href' => $url_tags_widget)));
-    $this->assertEqual((string) $link, 'Check boxes/radio buttons');
-
-    // Check that the field uses the newly set widget.
-    field_cache_clear();
-    $widget_configuration = entity_get_form_display('node', 'article', 'default')->getComponent('field_tags');
-    $this->assertEqual($widget_configuration['type'], 'options_buttons');
-
-    // Go to the 'Widget type' form and check that the correct widget is
-    // selected.
-    $this->drupalGet($url_tags_widget);
-    $this->assertFieldByXPath("//select[@name='widget_type']", 'options_buttons');
   }
 
   /**
@@ -559,7 +496,7 @@ class ManageFieldsTest extends FieldUiTestBase {
     // Check that the field instance was deleted.
     $this->assertNull(field_info_instance('taxonomy_term', $this->field_name, 'tags'), 'Field instance was deleted.');
     // Check that the field was deleted too.
-    $this->assertNull(field_info_field($this->field_name), 'Field was deleted.');
+    $this->assertNull(field_info_field('taxonomy_term', $this->field_name), 'Field was deleted.');
   }
 
   /**
@@ -568,7 +505,8 @@ class ManageFieldsTest extends FieldUiTestBase {
   function testHelpDescriptions() {
     // Create an image field
     entity_create('field_entity', array(
-      'field_name' => 'field_image',
+      'name' => 'field_image',
+      'entity_type' => 'node',
       'type' => 'image',
     ))->save();
 
@@ -594,5 +532,14 @@ class ManageFieldsTest extends FieldUiTestBase {
     $this->drupalGet('node/add/article');
     $this->assertRaw('<strong>Test with an upload field.</strong>');
     $this->assertRaw('<em>Test with a non upload field.</em>');
+  }
+
+  /**
+   * Tests that the field list administration page operates correctly.
+   */
+  function fieldListAdminPage() {
+    $this->drupalGet('admin/reports/fields');
+    $this->assertText($this->field_name, 'Field name is displayed in field list.');
+    $this->assertTrue($this->assertLinkByHref('admin/structure/types/manage/' . $this->type . '/fields'), 'Link to content type using field is displayed in field list.');
   }
 }

@@ -41,6 +41,10 @@ class UpdateModuleHandler extends ModuleHandler {
         return array('system');
       // This is called during rebuild to find testing themes.
       case 'system_theme_info':
+      // Those are needed by user_access() to check access on update.php.
+      case 'entity_info':
+      case 'entity_load':
+      case 'user_role_load':
         return array();
       // t() in system_stream_wrappers() needs this. Other schema calls aren't
       // supported.
@@ -71,13 +75,13 @@ class UpdateModuleHandler extends ModuleHandler {
         }
       }
       // Enable the module with a weight of 0.
-      $module_config = config('system.module');
+      $module_config = \Drupal::config('system.module');
       $module_config
         ->set("enabled.$module", 0)
         ->set('enabled', module_config_sort($module_config->get('enabled')))
         ->save();
       // Ensure the module is not contained in disabled modules.
-      config('system.module.disabled')
+      \Drupal::config('system.module.disabled')
         ->clear($module)
         ->save();
 

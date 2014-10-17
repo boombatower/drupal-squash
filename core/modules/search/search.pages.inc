@@ -97,10 +97,7 @@ function template_preprocess_search_results(&$variables) {
       '#module' => $variables['module'],
     );
   }
-  $variables['pager'] = array(
-    '#theme' => 'pager',
-    '#tags' => NULL,
-  );
+  $variables['pager'] = array('#theme' => 'pager');
   // @todo Revisit where this help text is added, see also
   //   http://drupal.org/node/1918856.
   $variables['help'] = search_help('search#noresults', drupal_help_arg());
@@ -130,7 +127,7 @@ function template_preprocess_search_result(&$variables) {
   $result = $variables['result'];
   $variables['url'] = check_url($result['link']);
   $variables['title'] = check_plain($result['title']);
-  if (isset($result['language']) && $result['language'] != $language_interface->langcode && $result['language'] != Language::LANGCODE_NOT_SPECIFIED) {
+  if (isset($result['language']) && $result['language'] != $language_interface->id && $result['language'] != Language::LANGCODE_NOT_SPECIFIED) {
     $variables['title_attributes']['lang'] = $result['language'];
     $variables['content_attributes']['lang'] = $result['language'];
   }

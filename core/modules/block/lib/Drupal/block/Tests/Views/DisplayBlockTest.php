@@ -66,7 +66,7 @@ class DisplayBlockTest extends ViewTestBase {
     $this->assertBlockAppears($block_3);
     $this->assertBlockAppears($block_4);
 
-    $block_storage_controller = $this->container->get('plugin.manager.entity')->getStorageController('block');
+    $block_storage_controller = $this->container->get('entity.manager')->getStorageController('block');
 
     // Remove the block display, so both block entities from the first view
     // should both dissapear.
@@ -75,10 +75,10 @@ class DisplayBlockTest extends ViewTestBase {
     $view->displayHandlers->remove('block_1');
     $view->storage->save();
 
-    $this->assertFalse($block_storage_controller->load(array($block_1->id())), 'The block for this display was removed.');
-    $this->assertFalse($block_storage_controller->load(array($block_2->id())), 'The block for this display was removed.');
-    $this->assertTrue($block_storage_controller->load(array($block_3->id())), 'A block from another view was unaffected.');
-    $this->assertTrue($block_storage_controller->load(array($block_4->id())), 'A block from another view was unaffected.');
+    $this->assertFalse($block_storage_controller->load($block_1->id()), 'The block for this display was removed.');
+    $this->assertFalse($block_storage_controller->load($block_2->id()), 'The block for this display was removed.');
+    $this->assertTrue($block_storage_controller->load($block_3->id()), 'A block from another view was unaffected.');
+    $this->assertTrue($block_storage_controller->load($block_4->id()), 'A block from another view was unaffected.');
     $this->drupalGet('test-page');
     $this->assertNoBlockAppears($block_1);
     $this->assertNoBlockAppears($block_2);
@@ -92,8 +92,8 @@ class DisplayBlockTest extends ViewTestBase {
     $view->displayHandlers->remove('block_1');
     $view->storage->save();
 
-    $this->assertFalse($block_storage_controller->load(array($block_3->id())), 'The block for this display was removed.');
-    $this->assertTrue($block_storage_controller->load(array($block_4->id())), 'A block from another display on the same view was unaffected.');
+    $this->assertFalse($block_storage_controller->load($block_3->id()), 'The block for this display was removed.');
+    $this->assertTrue($block_storage_controller->load($block_4->id()), 'A block from another display on the same view was unaffected.');
     $this->drupalGet('test-page');
     $this->assertNoBlockAppears($block_3);
     $this->assertBlockAppears($block_4);
@@ -104,7 +104,7 @@ class DisplayBlockTest extends ViewTestBase {
    */
   public function testViewsBlockForm() {
     $this->drupalLogin($this->drupalCreateUser(array('administer blocks')));
-    $default_theme = config('system.theme')->get('default');
+    $default_theme = \Drupal::config('system.theme')->get('default');
     $this->drupalGet('admin/structure/block/add/views_block:test_view_block-block_1/' . $default_theme);
     $elements = $this->xpath('//input[@name="label"]');
     $this->assertTrue(empty($elements), 'The label field is not found for Views blocks.');
@@ -113,20 +113,39 @@ class DisplayBlockTest extends ViewTestBase {
     $this->assertNoFieldById('edit-machine-name', 'stark.views_block__test_view_block_1', 'The machine name is hidden on the views block form.');
     // Save the block.
     $this->drupalPost(NULL, array(), t('Save block'));
-    $storage = $this->container->get('plugin.manager.entity')->getStorageController('block');
-    $blocks = $storage->load(array('stark.views_block__test_view_block_block_1'));
+    $storage = $this->container->get('entity.manager')->getStorageController('block');
+    $block = $storage->load('stark.views_block__test_view_block_block_1');
     // This will only return a result if our new block has been created with the
     // expected machine name.
-    $this->assertTrue(!empty($blocks), 'The expected block was loaded.');
+    $this->assertTrue(!empty($block), 'The expected block was loaded.');
 
     for ($i = 2; $i <= 3; $i++) {
       // Place the same block again and make sure we have a new ID.
       $this->drupalPost('admin/structure/block/add/views_block:test_view_block-block_1/' . $default_theme, array(), t('Save block'));
-      $blocks = $storage->load(array('stark.views_block__test_view_block_block_1_' . $i));
+      $block = $storage->load('stark.views_block__test_view_block_block_1_' . $i);
       // This will only return a result if our new block has been created with the
       // expected machine name.
-      $this->assertTrue(!empty($blocks), 'The expected block was loaded.');
+      $this->assertTrue(!empty($block), 'The expected block was loaded.');
     }
+
+    // Tests the override capability of items per page.
+    $this->drupalGet('admin/structure/block/add/views_block:test_view_block-block_1/' . $default_theme);
+    $edit = array();
+    $edit['settings[override][items_per_page]'] = 10;
+
+    $this->drupalPost('admin/structure/block/add/views_block:test_view_block-block_1/' . $default_theme, $edit, t('Save block'));
+
+    $block = $storage->load('stark.views_block__test_view_block_block_1_4');
+    $config = $block->getPlugin()->getConfiguration();
+    $this->assertEqual(10, $config['items_per_page'], "'Items per page' is properly saved.");
+
+    $edit['settings[override][items_per_page]'] = 5;
+    $this->drupalPost('admin/structure/block/manage/stark.views_block__test_view_block_block_1_4', $edit, t('Save block'));
+
+    $block = $storage->load('stark.views_block__test_view_block_block_1_4');
+
+    $config = $block->getPlugin()->getConfiguration();
+    $this->assertEqual(5, $config['items_per_page'], "'Items per page' is properly saved.");
   }
 
   /**

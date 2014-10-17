@@ -8,19 +8,19 @@
 namespace Drupal\system\Tests\Common;
 
 use Drupal\Core\Language\Language;
-use Drupal\simpletest\WebTestBase;
+use Drupal\simpletest\DrupalUnitTestBase;
 
 /**
  * Tests the Drupal CSS system.
  */
-class CascadingStylesheetsTest extends WebTestBase {
+class CascadingStylesheetsTest extends DrupalUnitTestBase {
 
   /**
    * Modules to enable.
    *
    * @var array
    */
-  public static $modules = array('language', 'common_test');
+  public static $modules = array('language', 'system');
 
   public static function getInfo() {
     return array(
@@ -79,7 +79,7 @@ class CascadingStylesheetsTest extends WebTestBase {
     $this->assertTrue(strpos($styles, $css) > 0, 'Rendered CSS includes the added stylesheet.');
     // Verify that newlines are properly added inside style tags.
     $query_string = variable_get('css_js_query_string', '0');
-    $css_processed = "<style media=\"all\">\n@import url(\"" . check_plain(file_create_url($css)) . "?" . $query_string ."\");\n</style>";
+    $css_processed = '<link rel="stylesheet" href="' . check_plain(file_create_url($css)) . "?" . $query_string . '" media="all" />';
     $this->assertEqual(trim($styles), $css_processed, 'Rendered CSS includes newlines inside style tags for JavaScript use.');
   }
 
@@ -99,8 +99,12 @@ class CascadingStylesheetsTest extends WebTestBase {
    * Tests rendering inline stylesheets with preprocessing on.
    */
   function testRenderInlinePreprocess() {
+    // Turn on CSS aggregation to allow for preprocessing.
+    $config = $this->container->get('config.factory')->get('system.performance');
+    $config->set('css.preprocess', 1);
+
     $css = 'body { padding: 0px; }';
-    $css_preprocessed = '<style media="all">' . "\n/* <![CDATA[ */\n" . drupal_load_stylesheet_content($css, TRUE) . "\n/* ]]> */\n" . '</style>';
+    $css_preprocessed = '<style media="all">' . "\n/* <![CDATA[ */\n" . "body{padding:0px;}\n" . "\n/* ]]> */\n" . '</style>';
     drupal_add_css($css, array('type' => 'inline'));
     $styles = drupal_get_css();
     $this->assertEqual(trim($styles), $css_preprocessed, 'Rendering preprocessed inline CSS adds it to the page.');
@@ -114,39 +118,6 @@ class CascadingStylesheetsTest extends WebTestBase {
     drupal_add_css($css, array('type' => 'inline', 'preprocess' => FALSE));
     $styles = drupal_get_css();
     $this->assertTrue(strpos($styles, $css) > 0, 'Rendering non-preprocessed inline CSS adds it to the page.');
-  }
-
-  /**
-   * Tests rendering inline stylesheets through a full page request.
-   */
-  function testRenderInlineFullPage() {
-    module_enable(array('php'));
-
-    $css = 'body { font-size: 254px; }';
-    // Inline CSS is minified unless 'preprocess' => FALSE is passed as a
-    // drupal_add_css() option.
-    $expected = 'body{font-size:254px;}';
-
-    // Create Basic page node type.
-    $this->drupalCreateContentType(array('type' => 'page', 'name' => 'Basic page'));
-
-    // Create a node, using the PHP filter that tests drupal_add_css().
-    $php_format_id = 'php_code';
-    $settings = array(
-      'type' => 'page',
-      'body' => array(
-        array(
-          'value' => t('This tests the inline CSS!') . "<?php drupal_add_css('$css', 'inline'); ?>",
-          'format' => $php_format_id,
-        ),
-      ),
-      'promote' => 1,
-    );
-    $node = $this->drupalCreateNode($settings);
-
-    // Fetch the page.
-    $this->drupalGet('node/' . $node->nid);
-    $this->assertRaw($expected, 'Inline stylesheets appear in the full page rendering.');
   }
 
   /**
@@ -204,30 +175,17 @@ class CascadingStylesheetsTest extends WebTestBase {
   }
 
   /**
-   * Tests Locale module's CSS Alter to include RTL overrides.
-   */
-  function testAlter() {
-    // Switch the language to a right to left language and add system.module.css.
-    $language_interface = language(Language::TYPE_INTERFACE);
-    $language_interface->direction = Language::DIRECTION_RTL;
-    $path = drupal_get_path('module', 'system');
-    drupal_add_css($path . '/css/system.module.css');
-
-    // Check to see if system.module-rtl.css was also added.
-    $styles = drupal_get_css();
-    $this->assert(strpos($styles, $path . '/css/system.module-rtl.css') !== FALSE, 'CSS is alterable as right to left overrides are added.');
-
-    // Change the language back to left to right.
-    $language_interface->direction = Language::DIRECTION_LTR;
-  }
-
-  /**
    * Tests that CSS query string remains intact when added to file.
    */
   function testAddCssFileWithQueryString() {
-    $this->drupalGet('common-test/query-string');
+    $css_without_query_string = drupal_get_path('module', 'node') . '/css/node.admin.css';
+    $css_with_query_string = '/' . drupal_get_path('module', 'node') . '/node-fake.css?arg1=value1&arg2=value2';
+    drupal_add_css($css_without_query_string);
+    drupal_add_css($css_with_query_string);
+
+    $styles = drupal_get_css();
     $query_string = variable_get('css_js_query_string', '0');
-    $this->assertRaw(drupal_get_path('module', 'node') . '/css/node.admin.css?' . $query_string, 'Query string was appended correctly to css.');
-    $this->assertRaw(drupal_get_path('module', 'node') . '/node-fake.css?arg1=value1&amp;arg2=value2', 'Query string not escaped on a URI.');
+    $this->assertTrue(strpos($styles, $css_without_query_string . '?' . $query_string), 'Query string was appended correctly to css.');
+    $this->assertTrue(strpos($styles, str_replace('&', '&amp;', $css_with_query_string)), 'Query string not escaped on a URI.');
   }
 }

@@ -7,7 +7,7 @@
 
 namespace Drupal\node\Plugin\views\row;
 
-use Drupal\Component\Annotation\Plugin;
+use Drupal\views\Annotation\ViewsRow;
 use Drupal\Core\Annotation\Translation;
 use Drupal\views\Plugin\views\row\RowPluginBase;
 
@@ -15,11 +15,12 @@ use Drupal\views\Plugin\views\row\RowPluginBase;
  * Plugin which performs a node_view on the resulting object
  * and formats it as an RSS item.
  *
- * @Plugin(
+ * @ViewsRow(
  *   id = "node_rss",
  *   title = @Translation("Content"),
  *   help = @Translation("Display the content with standard node view."),
  *   theme = "views_view_row_rss",
+ *   register_theme = FALSE,
  *   base = {"node"},
  *   display_types = {"feed"},
  *   module = "node"
@@ -89,7 +90,7 @@ class Rss extends RowPluginBase {
     }
   }
 
-  function render($row) {
+  public function render($row) {
     // For the most part, this code is taken from node_feed() in node.module
     global $base_url;
 
@@ -100,7 +101,7 @@ class Rss extends RowPluginBase {
 
     $display_mode = $this->options['item_length'];
     if ($display_mode == 'default') {
-      $display_mode = config('system.rss')->get('items.view_mode');
+      $display_mode = \Drupal::config('system.rss')->get('items.view_mode');
     }
 
     // Load the specified node:
@@ -117,15 +118,15 @@ class Rss extends RowPluginBase {
     $node->rss_elements = array(
       array(
         'key' => 'pubDate',
-        'value' => gmdate('r', $node->created),
+        'value' => gmdate('r', $node->getCreatedTime()),
       ),
       array(
         'key' => 'dc:creator',
-        'value' => $node->name,
+        'value' => $node->getAuthor()->getUsername(),
       ),
       array(
         'key' => 'guid',
-        'value' => $node->nid . ' at ' . $base_url,
+        'value' => $node->id() . ' at ' . $base_url,
         'attributes' => array('isPermaLink' => 'false'),
       ),
     );
@@ -167,7 +168,7 @@ class Rss extends RowPluginBase {
     $item->title = $node->label();
     $item->link = $node->link;
     $item->elements = $node->rss_elements;
-    $item->nid = $node->nid;
+    $item->nid = $node->id();
     $theme_function = array(
       '#theme' => $this->themeFunctions(),
       '#view' => $this->view,

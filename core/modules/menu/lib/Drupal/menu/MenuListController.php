@@ -18,13 +18,12 @@ class MenuListController extends ConfigEntityListController {
    * Overrides \Drupal\Core\Entity\EntityListController::buildHeader().
    */
   public function buildHeader() {
-    $row['title'] = t('Title');
-    $row['description'] = array(
+    $header['title'] = t('Title');
+    $header['description'] = array(
       'data' => t('Description'),
       'class' => array(RESPONSIVE_PRIORITY_MEDIUM),
     );
-    $row['operations'] = t('Operations');
-    return $row;
+    return $header + parent::buildHeader();
   }
 
   /**
@@ -32,34 +31,30 @@ class MenuListController extends ConfigEntityListController {
    */
   public function buildRow(EntityInterface $entity) {
     $row['title'] = array(
-      'data' => check_plain($entity->label()),
+      'data' => $this->getLabel($entity),
       'class' => array('menu-label'),
     );
     $row['description'] = filter_xss_admin($entity->description);
-    $row['operations']['data'] = $this->buildOperations($entity);
-    return $row;
+    return $row + parent::buildRow($entity);
   }
 
   /**
-   * Overrides \Drupal\Core\Entity\EntityListController::getOperations();
+   * {@inheritdoc}
    */
   public function getOperations(EntityInterface $entity) {
     $operations = parent::getOperations($entity);
     $uri = $entity->uri();
 
-    $operations['edit']['title'] = t('Edit menu');
-    $operations['add'] = array(
-      'title' => t('Add link'),
-      'href' => $uri['path'] . '/add',
-      'options' => $uri['options'],
-      'weight' => 20,
-    );
-    // System menus could not be deleted.
-    $system_menus = menu_list_system_menus();
-    if (isset($system_menus[$entity->id()])) {
-      unset($operations['delete']);
+    if (isset($operations['edit'])) {
+      $operations['edit']['title'] = t('Edit menu');
+      $operations['add'] = array(
+        'title' => t('Add link'),
+        'href' => $uri['path'] . '/add',
+        'options' => $uri['options'],
+        'weight' => 20,
+      );
     }
-    else {
+    if (isset($operations['delete'])) {
       $operations['delete']['title'] = t('Delete menu');
     }
     return $operations;

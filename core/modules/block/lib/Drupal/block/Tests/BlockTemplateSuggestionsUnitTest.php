@@ -40,12 +40,12 @@ class BlockTemplateSuggestionsUnitTest extends WebTestBase {
     $block = entity_create('block', array(
       'plugin' => 'system_menu_block:menu-admin',
       'region' => 'footer',
-      'id' => config('system.theme')->get('default') . '.machinename',
+      'id' => \Drupal::config('system.theme')->get('default') . '.machinename',
     ));
 
     $variables = array();
     $variables['elements']['#block'] = $block;
-    $variables['elements']['#configuration'] = $block->getPlugin()->getConfig();
+    $variables['elements']['#configuration'] = $block->getPlugin()->getConfiguration();
     $variables['elements']['#plugin_id'] = $block->get('plugin');
     $variables['elements']['content'] = array();
     // Test adding a class to the block content.

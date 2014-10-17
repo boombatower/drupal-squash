@@ -34,7 +34,8 @@ class ArbitraryRebuildTest extends WebTestBase {
 
     // Auto-create a field for testing.
     entity_create('field_entity', array(
-      'field_name' => 'test_multiple',
+      'name' => 'test_multiple',
+      'entity_type' => 'user',
       'type' => 'text',
       'cardinality' => -1,
       'translatable' => FALSE,
@@ -44,11 +45,8 @@ class ArbitraryRebuildTest extends WebTestBase {
       'field_name' => 'test_multiple',
       'bundle' => 'user',
       'label' => 'Test a multiple valued field',
-      'settings' => array(
-        'user_register_form' => TRUE,
-      ),
     ))->save();
-    entity_get_form_display('user', 'user', 'default')
+    entity_get_form_display('user', 'user', 'register')
       ->setComponent('test_multiple', array(
         'type' => 'text_textfield',
         'weight' => 0,

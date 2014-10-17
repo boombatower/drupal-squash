@@ -8,13 +8,13 @@
 namespace Drupal\custom_block\Controller;
 
 use Drupal\Component\Plugin\PluginManagerInterface;
-use Drupal\Core\Controller\ControllerInterface;
+use Drupal\Core\DependencyInjection\ContainerInjectionInterface;
 use Drupal\Core\Entity\EntityStorageControllerInterface;
 use Drupal\custom_block\CustomBlockTypeInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\Request;
 
-class CustomBlockController implements ControllerInterface {
+class CustomBlockController implements ContainerInjectionInterface {
 
   /**
    * The entity manager.
@@ -41,7 +41,7 @@ class CustomBlockController implements ControllerInterface {
    * {@inheritdoc}
    */
   public static function create(ContainerInterface $container) {
-    $entity_manager = $container->get('plugin.manager.entity');
+    $entity_manager = $container->get('entity.manager');
     return new static(
       $entity_manager,
       $entity_manager->getStorageController('custom_block'),
@@ -68,16 +68,19 @@ class CustomBlockController implements ControllerInterface {
   /**
    * Displays add custom block links for available types.
    *
+   * @param \Symfony\Component\HttpFoundation\Request $request
+   *   The current request object.
+   *
    * @return array
    *   A render array for a list of the custom block types that can be added or
    *   if there is only one custom block type defined for the site, the function
    *   returns the custom block add page for that custom block type.
    */
-  public function add() {
-    $types = $this->customBlockTypeStorage->load();
+  public function add(Request $request) {
+    $types = $this->customBlockTypeStorage->loadMultiple();
     if ($types && count($types) == 1) {
       $type = reset($types);
-      return $this->addForm($type);
+      return $this->addForm($type, $request);
     }
 
     return array('#theme' => 'custom_block_add_list', '#content' => $types);

@@ -14,7 +14,7 @@ use Drupal\Core\Database\Database;
 use Drupal\Core\TypedData\TypedDataInterface;
 use Drupal\Core\Session\AccountInterface;
 use Drupal\views\Plugin\views\query\Sql;
-use Drupal\views\Plugin\Core\Entity\View;
+use Drupal\views\Entity\View;
 use Drupal\views\ViewStorageInterface;
 
 /**
@@ -100,7 +100,7 @@ class ViewUI implements ViewStorageInterface {
   /**
    * The View storage object.
    *
-   * @var \Drupal\views\Plugin\Core\Entity\View
+   * @var \Drupal\views\Entity\View
    */
   protected $storage;
 
@@ -519,7 +519,7 @@ class ViewUI implements ViewStorageInterface {
     $old_q = current_path();
 
     // Determine where the query and performance statistics should be output.
-    $config = config('views.settings');
+    $config = \Drupal::config('views.settings');
     $show_query = $config->get('ui.show.sql_query.enabled');
     $show_info = $config->get('ui.show.preview_information');
     $show_location = $config->get('ui.show.sql_query.where');
@@ -541,17 +541,17 @@ class ViewUI implements ViewStorageInterface {
       $this->executable->live_preview = TRUE;
       $this->views_ui_context = TRUE;
 
-      // AJAX happens via $_POST but everything expects exposed data to
+      // AJAX happens via HTTP POST but everything expects exposed data to
       // be in GET. Copy stuff but remove ajax-framework specific keys.
       // If we're clicking on links in a preview, though, we could actually
-      // still have some in $_GET, so we use $_REQUEST to ensure we get it all.
-      $exposed_input = \Drupal::request()->request->all();
+      // have some input in the query parameters, so we merge request() and
+      // query() to ensure we get it all.
+      $exposed_input = array_merge(\Drupal::request()->request->all(), \Drupal::request()->query->all());
       foreach (array('view_name', 'view_display_id', 'view_args', 'view_path', 'view_dom_id', 'pager_element', 'view_base_path', 'ajax_html_ids', 'ajax_page_state', 'form_id', 'form_build_id', 'form_token') as $key) {
         if (isset($exposed_input[$key])) {
           unset($exposed_input[$key]);
         }
       }
-
       $this->executable->setExposedInput($exposed_input);
 
       if (!$this->executable->setDisplay($display_id)) {
@@ -684,30 +684,28 @@ class ViewUI implements ViewStorageInterface {
 
     // Assemble the preview, the query info, and the query statistics in the
     // requested order.
-    if ($show_location === 'above') {
+    $table = array(
+      '#theme' => 'table',
+      '#prefix' => '<div class="views-query-info">',
+      '#suffix' => '</div>',
+    );
+    if ($show_location === 'above' || $show_location === 'below') {
       if ($combined) {
-        $output .= '<div class="views-query-info">' . theme('table', array('rows' => array_merge($rows['query'], $rows['statistics']))) . '</div>';
+        $table['#rows'] = array_merge($rows['query'], $rows['statistics']);
       }
       else {
-        $output .= '<div class="views-query-info">' . theme('table', array('rows' => $rows['query'])) . '</div>';
+        $table['#rows'] = $rows['query'];
       }
     }
-    elseif ($show_stats === 'above') {
-      $output .= '<div class="views-query-info">' . theme('table', array('rows' => $rows['statistics'])) . '</div>';
+    elseif ($show_stats === 'above' || $show_stats === 'below') {
+      $table['#rows'] = $rows['statistics'];
     }
 
-    $output .= $preview;
-
-    if ($show_location === 'below') {
-      if ($combined) {
-        $output .= '<div class="views-query-info">' . theme('table', array('rows' => array_merge($rows['query'], $rows['statistics']))) . '</div>';
-      }
-      else {
-        $output .= '<div class="views-query-info">' . theme('table', array('rows' => $rows['query'])) . '</div>';
-      }
+    if ($show_location === 'above' || $show_stats === 'above') {
+      $output .= drupal_render($table) . $preview;
     }
-    elseif ($show_stats === 'below') {
-      $output .= '<div class="views-query-info">' . theme('table', array('rows' => $rows['statistics'])) . '</div>';
+    elseif ($show_location === 'below' || $show_stats === 'below') {
+      $output .= $preview . drupal_render($table);
     }
 
     _current_path($old_q);
@@ -755,7 +753,7 @@ class ViewUI implements ViewStorageInterface {
     // Let any future object know that this view has changed.
     $this->changed = TRUE;
 
-    $executable = $this->get('executable');
+    $executable = $this->getExecutable();
     if (isset($executable->current_display)) {
       // Add the knowledge of the changed display, too.
       $this->changed_display[$executable->current_display] = TRUE;
@@ -777,7 +775,7 @@ class ViewUI implements ViewStorageInterface {
    *   TRUE if the view is locked, FALSE otherwise.
    */
   public function isLocked() {
-    return is_object($this->lock) && ($this->lock->owner != $GLOBALS['user']->uid);
+    return is_object($this->lock) && ($this->lock->owner != $GLOBALS['user']->id());
   }
 
   /**
@@ -923,8 +921,9 @@ class ViewUI implements ViewStorageInterface {
   /**
    * Implements \Drupal\Core\TypedData\TranslatableInterface::getTranslation().
    */
-  public function getTranslation($langcode, $strict = TRUE) {
-    return $this->storage->getTranslation($langcode, $strict);
+  public function getTranslation($langcode) {
+    // @todo Revisit this once config entities are converted to NG.
+    return $this;
   }
 
   /**
@@ -1047,10 +1046,38 @@ class ViewUI implements ViewStorageInterface {
   }
 
   /**
-   * Implements \Drupal\Core\TypedData\TypedDataInterface::getType().
+   * {@inheritdoc}
    */
-  public function getType() {
-    return $this->storage->getType();
+  public function getUntranslated() {
+    return $this->storage->getUntranslated();
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function hasTranslation($langcode) {
+    return $this->storage->hasTranslation($langcode);
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function addTranslation($langcode, array $values = array()) {
+    return $this->storage->addTranslation($langcode, $values);
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function removeTranslation($langcode) {
+    $this->storage->removeTranslation($langcode);
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function initTranslation($langcode) {
+    $this->storage->initTranslation($langcode);
   }
 
   /**
@@ -1208,5 +1235,15 @@ class ViewUI implements ViewStorageInterface {
    */
   public function uriRelationships() {
     return $this->storage->uriRelationships();
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public static function baseFieldDefinitions($entity_type) {
+    // @todo: This class is not directly defined as an entity type and does
+    //   not have base definitions but has to implement this method. Remove in
+    //   https://drupal.org/node/2004244.
+    return array();
   }
 }

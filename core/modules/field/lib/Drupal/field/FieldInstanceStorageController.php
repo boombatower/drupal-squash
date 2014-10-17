@@ -9,6 +9,7 @@ namespace Drupal\field;
 
 use Drupal\Core\Config\Config;
 use Drupal\Core\Config\Entity\ConfigStorageController;
+use Drupal\Core\Entity\Query\QueryFactory;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Drupal\Core\Config\ConfigFactory;
 use Drupal\Core\Config\StorageInterface;
@@ -65,8 +66,8 @@ class FieldInstanceStorageController extends ConfigStorageController {
    * @param \Drupal\Core\KeyValueStore\KeyValueStoreInterface $state
    *   The state key value store.
    */
-  public function __construct($entity_type, array $entity_info, ConfigFactory $config_factory, StorageInterface $config_storage, EntityManager $entity_manager, ModuleHandler $module_handler, KeyValueStoreInterface $state) {
-    parent::__construct($entity_type, $entity_info, $config_factory, $config_storage);
+  public function __construct($entity_type, array $entity_info, ConfigFactory $config_factory, StorageInterface $config_storage, QueryFactory $entity_query_factory, EntityManager $entity_manager, ModuleHandler $module_handler, KeyValueStoreInterface $state) {
+    parent::__construct($entity_type, $entity_info, $config_factory, $config_storage, $entity_query_factory);
     $this->entityManager = $entity_manager;
     $this->moduleHandler = $module_handler;
     $this->state = $state;
@@ -81,7 +82,8 @@ class FieldInstanceStorageController extends ConfigStorageController {
       $entity_info,
       $container->get('config.factory'),
       $container->get('config.storage'),
-      $container->get('plugin.manager.entity'),
+      $container->get('entity.query'),
+      $container->get('entity.manager'),
       $container->get('module_handler'),
       $container->get('state')
     );
@@ -115,11 +117,12 @@ class FieldInstanceStorageController extends ConfigStorageController {
     // Get instances stored in configuration.
     if (isset($conditions['entity_type']) && isset($conditions['bundle']) && isset($conditions['field_name'])) {
       // Optimize for the most frequent case where we do have a specific ID.
-      $instances = $this->entityManager->getStorageController($this->entityType)->load(array($conditions['entity_type'] . '.' . $conditions['bundle'] . '.' . $conditions['field_name']));
+      $id = $conditions['entity_type'] . '.' . $conditions['bundle'] . '.' . $conditions['field_name'];
+      $instances = $this->entityManager->getStorageController($this->entityType)->loadMultiple(array($id));
     }
     else {
       // No specific ID, we need to examine all existing instances.
-      $instances = $this->entityManager->getStorageController($this->entityType)->load();
+      $instances = $this->entityManager->getStorageController($this->entityType)->loadMultiple();
     }
 
     // Merge deleted instances (stored in state) if needed.
@@ -133,7 +136,6 @@ class FieldInstanceStorageController extends ConfigStorageController {
     // Translate "do not include inactive fields" into actual conditions.
     if (!$include_inactive) {
       $conditions['field.active'] = TRUE;
-      $conditions['field.storage.active'] = TRUE;
     }
 
     // Collect matching instances.
@@ -152,15 +154,11 @@ class FieldInstanceStorageController extends ConfigStorageController {
         // Extract the actual value against which the condition is checked.
         switch ($key) {
           case 'field_name':
-            $checked_value = $field->id;
+            $checked_value = $field->name;
             break;
 
           case 'field.active':
             $checked_value = $field->active;
-            break;
-
-          case 'field.storage.active':
-            $checked_value = $field->storage['active'];
             break;
 
           case 'field_id':

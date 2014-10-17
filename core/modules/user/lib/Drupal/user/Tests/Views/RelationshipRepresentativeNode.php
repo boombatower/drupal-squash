@@ -36,12 +36,12 @@ class RelationshipRepresentativeNode extends UserTestBase {
     $map = array('node_users_nid' => 'nid', 'uid' => 'uid');
     $expected_result = array(
       array(
-        'uid' => $this->users[1]->uid,
-        'nid' => $this->nodes[1]->nid,
+        'uid' => $this->users[1]->id(),
+        'nid' => $this->nodes[1]->id(),
       ),
       array(
-        'uid' => $this->users[0]->uid,
-        'nid' => $this->nodes[0]->nid,
+        'uid' => $this->users[0]->id(),
+        'nid' => $this->nodes[0]->id(),
       ),
     );
     $this->assertIdenticalResultset($view, $expected_result, $map);

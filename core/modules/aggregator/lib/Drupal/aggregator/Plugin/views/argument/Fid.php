@@ -50,7 +50,7 @@ class Fid extends Numeric {
    * {@inheritdoc}
    */
   public static function create(ContainerInterface $container, array $configuration, $plugin_id, array $plugin_definition) {
-    return new static($configuration, $plugin_id, $plugin_definition, $container->get('plugin.manager.entity'));
+    return new static($configuration, $plugin_id, $plugin_definition, $container->get('entity.manager'));
   }
 
   /**
@@ -59,7 +59,7 @@ class Fid extends Numeric {
   function titleQuery() {
     $titles = array();
 
-    $feeds = $this->entityManager->getStorageController('aggregator_feed')->load($this->value);
+    $feeds = $this->entityManager->getStorageController('aggregator_feed')->loadMultiple($this->value);
     foreach ($feeds as $feed) {
       $titles[] = String::checkPlain($feed->label());
     }

@@ -40,7 +40,7 @@ class DisplayApiTest extends FieldUnitTestBase {
   protected $display_options;
 
   /**
-   * The field display options to use in this test.
+   * The test entity.
    *
    * @var \Drupal\Core\Entity\EntityInterface
    */
@@ -70,14 +70,15 @@ class DisplayApiTest extends FieldUnitTestBase {
     $this->cardinality = 4;
 
     $field = array(
-      'field_name' => $this->field_name,
+      'name' => $this->field_name,
+      'entity_type' => 'entity_test',
       'type' => 'test_field',
       'cardinality' => $this->cardinality,
     );
     $instance = array(
       'field_name' => $this->field_name,
-      'entity_type' => 'test_entity',
-      'bundle' => 'test_bundle',
+      'entity_type' => 'entity_test',
+      'bundle' => 'entity_test',
       'label' => $this->label,
     );
 
@@ -109,10 +110,9 @@ class DisplayApiTest extends FieldUnitTestBase {
 
     // Create an entity with values.
     $this->values = $this->_generateTestFieldValues($this->cardinality);
-    $this->entity = field_test_create_entity();
-    $this->is_new = TRUE;
-    $this->entity->{$this->field_name}[Language::LANGCODE_NOT_SPECIFIED] = $this->values;
-    field_test_entity_save($this->entity);
+    $this->entity = entity_create('entity_test', array());
+    $this->entity->{$this->field_name}->setValue($this->values);
+    $this->entity->save();
   }
 
   /**
@@ -122,7 +122,7 @@ class DisplayApiTest extends FieldUnitTestBase {
     // No display settings: check that default display settings are used.
     $output = field_view_field($this->entity, $this->field_name);
     $this->content = drupal_render($output);
-    $settings = field_info_formatter_settings('field_test_default');
+    $settings = \Drupal::service('plugin.manager.field.formatter')->getDefaultSettings('field_test_default');
     $setting = $settings['test_formatter_setting'];
     $this->assertText($this->label, 'Label was displayed.');
     foreach ($this->values as $delta => $value) {
@@ -194,10 +194,10 @@ class DisplayApiTest extends FieldUnitTestBase {
    */
   function testFieldViewValue() {
     // No display settings: check that default display settings are used.
-    $settings = field_info_formatter_settings('field_test_default');
+    $settings = \Drupal::service('plugin.manager.field.formatter')->getDefaultSettings('field_test_default');
     $setting = $settings['test_formatter_setting'];
     foreach ($this->values as $delta => $value) {
-      $item = $this->entity->{$this->field_name}[Language::LANGCODE_NOT_SPECIFIED][$delta];
+      $item = $this->entity->{$this->field_name}[$delta]->getValue();
       $output = field_view_value($this->entity, $this->field_name, $item);
       $this->content = drupal_render($output);
       $this->assertText($setting . '|' . $value['value'], format_string('Value @delta was displayed with expected setting.', array('@delta' => $delta)));
@@ -213,7 +213,7 @@ class DisplayApiTest extends FieldUnitTestBase {
     $setting = $display['settings']['test_formatter_setting_multiple'];
     $array = array();
     foreach ($this->values as $delta => $value) {
-      $item = $this->entity->{$this->field_name}[Language::LANGCODE_NOT_SPECIFIED][$delta];
+      $item = $this->entity->{$this->field_name}[$delta]->getValue();
       $output = field_view_value($this->entity, $this->field_name, $item, $display);
       $this->content = drupal_render($output);
       $this->assertText($setting . '|0:' . $value['value'], format_string('Value @delta was displayed with expected setting.', array('@delta' => $delta)));
@@ -229,7 +229,7 @@ class DisplayApiTest extends FieldUnitTestBase {
     $setting = $display['settings']['test_formatter_setting_additional'];
     $array = array();
     foreach ($this->values as $delta => $value) {
-      $item = $this->entity->{$this->field_name}[Language::LANGCODE_NOT_SPECIFIED][$delta];
+      $item = $this->entity->{$this->field_name}[$delta]->getValue();
       $output = field_view_value($this->entity, $this->field_name, $item, $display);
       $this->content = drupal_render($output);
       $this->assertText($setting . '|' . $value['value'] . '|' . ($value['value'] + 1), format_string('Value @delta was displayed with expected setting.', array('@delta' => $delta)));
@@ -239,7 +239,7 @@ class DisplayApiTest extends FieldUnitTestBase {
     // used.
     $setting = $this->display_options['teaser']['settings']['test_formatter_setting'];
     foreach ($this->values as $delta => $value) {
-      $item = $this->entity->{$this->field_name}[Language::LANGCODE_NOT_SPECIFIED][$delta];
+      $item = $this->entity->{$this->field_name}[$delta]->getValue();
       $output = field_view_value($this->entity, $this->field_name, $item, 'teaser');
       $this->content = drupal_render($output);
       $this->assertText($setting . '|' . $value['value'], format_string('Value @delta was displayed with expected setting.', array('@delta' => $delta)));
@@ -249,7 +249,7 @@ class DisplayApiTest extends FieldUnitTestBase {
     // are used.
     $setting = $this->display_options['default']['settings']['test_formatter_setting'];
     foreach ($this->values as $delta => $value) {
-      $item = $this->entity->{$this->field_name}[Language::LANGCODE_NOT_SPECIFIED][$delta];
+      $item = $this->entity->{$this->field_name}[$delta]->getValue();
       $output = field_view_value($this->entity, $this->field_name, $item, 'unknown_view_mode');
       $this->content = drupal_render($output);
       $this->assertText($setting . '|' . $value['value'], format_string('Value @delta was displayed with expected setting.', array('@delta' => $delta)));
@@ -278,8 +278,8 @@ class DisplayApiTest extends FieldUnitTestBase {
     $this->assertNoText($display['settings']['test_empty_string']);
 
     // Now remove the values from the test field and retest.
-    $this->entity->{$this->field_name}[Language::LANGCODE_NOT_SPECIFIED] = array();
-    field_test_entity_save($this->entity);
+    $this->entity->{$this->field_name} = array();
+    $this->entity->save();
     $output = field_view_field($this->entity, $this->field_name, $display);
     $view = drupal_render($output);
     $this->content = $view;

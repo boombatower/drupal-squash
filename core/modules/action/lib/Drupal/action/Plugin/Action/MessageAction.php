@@ -11,6 +11,7 @@ use Drupal\Component\Utility\Xss;
 use Drupal\Core\Annotation\Action;
 use Drupal\Core\Annotation\Translation;
 use Drupal\Core\Action\ConfigurableActionBase;
+use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Utility\Token;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
@@ -23,7 +24,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  *   type = "system"
  * )
  */
-class MessageAction extends ConfigurableActionBase {
+class MessageAction extends ConfigurableActionBase implements ContainerFactoryPluginInterface {
 
   /**
    * @var \Drupal\Core\Utility\Token
@@ -69,7 +70,7 @@ class MessageAction extends ConfigurableActionBase {
   /**
    * {@inheritdoc}
    */
-  public function form(array $form, array &$form_state) {
+  public function buildConfigurationForm(array $form, array &$form_state) {
     $form['message'] = array(
       '#type' => 'textarea',
       '#title' => t('Message'),
@@ -84,7 +85,7 @@ class MessageAction extends ConfigurableActionBase {
   /**
    * {@inheritdoc}
    */
-  public function submit(array &$form, array &$form_state) {
+  public function submitConfigurationForm(array &$form, array &$form_state) {
     $this->configuration['message'] = $form_state['values']['message'];
     unset($this->configuration['node']);
   }

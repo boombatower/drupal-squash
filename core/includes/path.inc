@@ -22,7 +22,7 @@ function drupal_is_front_page() {
   $is_front_page = &$drupal_static_fast['is_front_page'];
 
   if (!isset($is_front_page)) {
-    $is_front_page = (current_path() == config('system.site')->get('page.front'));
+    $is_front_page = (current_path() == Drupal::config('system.site')->get('page.front'));
   }
 
   return $is_front_page;
@@ -53,7 +53,7 @@ function drupal_match_path($path, $patterns) {
     $replacements = array(
       '|',
       '.*',
-      '\1' . preg_quote(config('system.site')->get('page.front'), '/') . '\2'
+      '\1' . preg_quote(Drupal::config('system.site')->get('page.front'), '/') . '\2'
     );
     $patterns_quoted = preg_quote($patterns, '/');
     $regexps[$patterns] = '/^(' . preg_replace($to_replace, $replacements, $patterns_quoted) . ')$/';
@@ -83,7 +83,7 @@ function current_path() {
   // fallback code below, once the path alias logic has been figured out in
   // http://drupal.org/node/1269742.
   if (drupal_container()->isScopeActive('request')) {
-    $path = drupal_container()->get('request')->attributes->get('system_path');
+    $path = drupal_container()->get('request')->attributes->get('_system_path');
     if ($path !== NULL) {
       return $path;
     }
@@ -158,7 +158,7 @@ function path_is_admin($path) {
 function path_get_admin_paths() {
   $patterns = &drupal_static(__FUNCTION__);
   if (!isset($patterns)) {
-    $paths = module_invoke_all('admin_paths');
+    $paths = Drupal::moduleHandler()->invokeAll('admin_paths');
     drupal_alter('admin_paths', $paths);
     // Combine all admin paths into one array, and likewise for non-admin paths,
     // for easier handling.
@@ -207,44 +207,16 @@ function drupal_valid_path($path, $dynamic_allowed = FALSE) {
       $item['options'] = '';
       _menu_link_translate($item);
     }
-    if (empty($item['access'])) {
-      // Nothing was found in the old routing system, so try the new one.
-      $item = _drupal_valid_path_new_router($path);
-    }
   }
   else {
     $item = menu_get_item($path);
-    if (empty($item['access'])) {
-      // Nothing was found in the old routing system, so try the new one.
-      $item = _drupal_valid_path_new_router($path);
-    }
+  }
+  // Check the new routing system.
+  if (!empty($item['route_name'])) {
+    $map = array();
+    $route = Drupal::service('router.route_provider')->getRouteByName($item['route_name']);
+    $item['access'] = menu_item_route_access($route, $path, $map);
   }
   $menu_admin = FALSE;
   return $item && $item['access'];
-}
-
-/**
- * Temporary helper function to check a path in the new routing system.
- *
- * @param string $path
- *   The path string as expected by drupal_valid_path().
- *
- * @return array|NULL
- *   An array containing 'access' => TRUE or NULL for paths that were not found
- *   or the user has no access to.
- */
-function _drupal_valid_path_new_router($path) {
-  $request = Request::create('/' . $path);
-  $request->attributes->set('system_path', $path);
-  try {
-    $dc = drupal_container();
-    $route = $dc->get('router.dynamic')->matchRequest($request);
-    if (!empty($route)) {
-      $dc->get('access_manager')->check($route['_route_object'], $request);
-    }
-    return array('access' => TRUE);
-  }
-  catch (Exception $e) {
-    drupal_set_message($e->getMessage(), 'menu', WATCHDOG_ERROR);
-  }
 }

@@ -6,12 +6,13 @@
 
 namespace Drupal\datetime\Plugin\field\widget;
 
-use Drupal\Component\Annotation\Plugin;
+use Drupal\field\Annotation\FieldWidget;
 use Drupal\Core\Annotation\Translation;
 use Drupal\field\Plugin\Type\Widget\WidgetBase;
 use Drupal\Component\Plugin\Discovery\DiscoveryInterface;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Entity\Field\FieldDefinitionInterface;
+use Drupal\Core\Entity\Field\FieldInterface;
 use Drupal\field\Plugin\PluginSettingsBase;
 use Drupal\field\FieldInstanceInterface;
 use Drupal\Core\Datetime\DrupalDateTime;
@@ -20,9 +21,8 @@ use Drupal\datetime\DateHelper;
 /**
  * Plugin implementation of the 'datetime_datelist' widget.
  *
- * @Plugin(
+ * @FieldWidget(
  *   id = "datetime_datelist",
- *   module = "datetime",
  *   label = @Translation("Select list"),
  *   field_types = {
  *     "datetime"
@@ -62,7 +62,7 @@ class DateTimeDatelistWidget extends WidgetBase {
   /**
    * {@inheritdoc}
    */
-  public function formElement(array $items, $delta, array $element, $langcode, array &$form, array &$form_state) {
+  public function formElement(FieldInterface $items, $delta, array $element, $langcode, array &$form, array &$form_state) {
     $date_order = $this->getSetting('date_order');
     $time_type = $this->getSetting('time_type');
     $increment = $this->getSetting('increment');
@@ -130,8 +130,8 @@ class DateTimeDatelistWidget extends WidgetBase {
     // validator will not have access to the field definition.
     $element['value']['#date_storage_format'] = $storage_format;
 
-    if (!empty($items[$delta]['date'])) {
-      $date = $items[$delta]['date'];
+    if (!empty($items[$delta]->date)) {
+      $date = $items[$delta]->date;
       // The date was created and verified during field_load(), so it is safe to
       // use without further inspection.
       $date->setTimezone( new \DateTimeZone($element['value']['#date_timezone']));
@@ -186,6 +186,21 @@ class DateTimeDatelistWidget extends WidgetBase {
     );
 
     return $element;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function settingsSummary() {
+    $summary = array();
+
+    $summary[] = t('Date part order: !order', array('!order' => $this->getSetting('date_order')));
+    if ($this->getFieldSetting('datetime_type') == 'datetime') {
+      $summary[] = t('Time type: !time_type', array('!time_type' => $this->getSetting('time_type')));
+    }
+    $summary[] = t('Time increments: !increment', array('!increment' => $this->getSetting('increment')));
+
+    return $summary;
   }
 
 }

@@ -14,7 +14,7 @@ use Drupal\Core\Session\AccountInterface;
 /**
  * Defines an access controller for the vocabulary entity.
  *
- * @see \Drupal\taxonomy\Plugin\Core\Entity\Vocabulary.
+ * @see \Drupal\taxonomy\Entity\Vocabulary.
  */
 class VocabularyAccessController extends EntityAccessController {
 
@@ -22,7 +22,14 @@ class VocabularyAccessController extends EntityAccessController {
    * {@inheritdoc}
    */
   protected function checkAccess(EntityInterface $entity, $operation, $langcode, AccountInterface $account) {
-    return user_access('administer taxonomy', $account);
+    return $account->hasPermission('administer taxonomy');
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  protected function checkCreateAccess(AccountInterface $account, array $context, $entity_bundle = NULL) {
+    return $account->hasPermission('administer taxonomy');
   }
 
 }

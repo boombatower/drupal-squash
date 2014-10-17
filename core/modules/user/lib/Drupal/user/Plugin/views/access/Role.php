@@ -7,8 +7,8 @@
 
 namespace Drupal\user\Plugin\views\access;
 
-use Drupal\Component\Annotation\Plugin;
 use Drupal\views\Plugin\views\access\AccessPluginBase;
+use Drupal\views\Annotation\ViewsAccess;
 use Drupal\Core\Annotation\Translation;
 use Symfony\Component\Routing\Route;
 use Drupal\Core\Session\AccountInterface;
@@ -18,7 +18,7 @@ use Drupal\Core\Session\AccountInterface;
  *
  * @ingroup views_access_plugins
  *
- * @Plugin(
+ * @ViewsAccess(
  *   id = "role",
  *   title = @Translation("Role"),
  *   help = @Translation("Access will be granted to users with any of the specified roles.")
@@ -35,7 +35,7 @@ class Role extends AccessPluginBase {
    * {@inheritdoc}
    */
   public function access(AccountInterface $account) {
-    return user_access('access all views', $account) || array_intersect(array_filter($this->options['role']), $account->roles);
+    return user_access('access all views', $account) || array_intersect(array_filter($this->options['role']), $account->getRoles());
   }
 
   /**

@@ -57,8 +57,10 @@ abstract class FileFieldTestBase extends WebTestBase {
    *
    * @param $name
    *   The name of the new field (all lowercase), exclude the "field_" prefix.
-   * @param $type_name
-   *   The node type that this field will be added to.
+   * @param $entity_type
+   *   The entity type.
+   * @param $bundle
+   *   The bundle that this field will be added to.
    * @param $field_settings
    *   A list of field settings that will be added to the defaults.
    * @param $instance_settings
@@ -66,9 +68,10 @@ abstract class FileFieldTestBase extends WebTestBase {
    * @param $widget_settings
    *   A list of widget settings that will be added to the widget defaults.
    */
-  function createFileField($name, $type_name, $field_settings = array(), $instance_settings = array(), $widget_settings = array()) {
+  function createFileField($name, $entity_type, $bundle, $field_settings = array(), $instance_settings = array(), $widget_settings = array()) {
     $field_definition = array(
-      'field_name' => $name,
+      'entity_type' => $entity_type,
+      'name' => $name,
       'type' => 'file',
       'settings' => array(),
       'cardinality' => !empty($field_settings['cardinality']) ? $field_settings['cardinality'] : 1,
@@ -77,7 +80,7 @@ abstract class FileFieldTestBase extends WebTestBase {
     $field = entity_create('field_entity', $field_definition);
     $field->save();
 
-    $this->attachFileField($name, 'node', $type_name, $instance_settings, $widget_settings);
+    $this->attachFileField($name, $entity_type, $bundle, $instance_settings, $widget_settings);
     return $field;
   }
 
@@ -150,16 +153,16 @@ abstract class FileFieldTestBase extends WebTestBase {
       // Add a new node.
       $extras['type'] = $nid_or_type;
       $node = $this->drupalCreateNode($extras);
-      $nid = $node->nid;
+      $nid = $node->id();
       // Save at least one revision to better simulate a real site.
       $node->setNewRevision();
       $node->save();
       $node = node_load($nid, TRUE);
-      $this->assertNotEqual($nid, $node->vid, t('Node revision exists.'));
+      $this->assertNotEqual($nid, $node->getRevisionId(), 'Node revision exists.');
     }
 
     // Attach a file to the node.
-    $field = field_info_field($field_name);
+    $field = field_info_field('node', $field_name);
     $name = 'files[' . $field_name . '_' . $langcode . '_0]';
     if ($field['cardinality'] != 1) {
       $name .= '[]';
@@ -201,7 +204,7 @@ abstract class FileFieldTestBase extends WebTestBase {
    * Asserts that a file exists physically on disk.
    */
   function assertFileExists($file, $message = NULL) {
-    $message = isset($message) ? $message : t('File %file exists on the disk.', array('%file' => $file->getFileUri()));
+    $message = isset($message) ? $message : format_string('File %file exists on the disk.', array('%file' => $file->getFileUri()));
     $this->assertTrue(is_file($file->getFileUri()), $message);
   }
 
@@ -209,9 +212,9 @@ abstract class FileFieldTestBase extends WebTestBase {
    * Asserts that a file exists in the database.
    */
   function assertFileEntryExists($file, $message = NULL) {
-    $this->container->get('plugin.manager.entity')->getStorageController('file')->resetCache();
+    $this->container->get('entity.manager')->getStorageController('file')->resetCache();
     $db_file = file_load($file->id());
-    $message = isset($message) ? $message : t('File %file exists in database at the correct path.', array('%file' => $file->getFileUri()));
+    $message = isset($message) ? $message : format_string('File %file exists in database at the correct path.', array('%file' => $file->getFileUri()));
     $this->assertEqual($db_file->getFileUri(), $file->getFileUri(), $message);
   }
 
@@ -219,7 +222,7 @@ abstract class FileFieldTestBase extends WebTestBase {
    * Asserts that a file does not exist on disk.
    */
   function assertFileNotExists($file, $message = NULL) {
-    $message = isset($message) ? $message : t('File %file exists on the disk.', array('%file' => $file->getFileUri()));
+    $message = isset($message) ? $message : format_string('File %file exists on the disk.', array('%file' => $file->getFileUri()));
     $this->assertFalse(is_file($file->getFileUri()), $message);
   }
 
@@ -227,8 +230,8 @@ abstract class FileFieldTestBase extends WebTestBase {
    * Asserts that a file does not exist in the database.
    */
   function assertFileEntryNotExists($file, $message) {
-    $this->container->get('plugin.manager.entity')->getStorageController('file')->resetCache();
-    $message = isset($message) ? $message : t('File %file exists in database at the correct path.', array('%file' => $file->getFileUri()));
+    $this->container->get('entity.manager')->getStorageController('file')->resetCache();
+    $message = isset($message) ? $message : format_string('File %file exists in database at the correct path.', array('%file' => $file->getFileUri()));
     $this->assertFalse(file_load($file->id()), $message);
   }
 
@@ -236,7 +239,7 @@ abstract class FileFieldTestBase extends WebTestBase {
    * Asserts that a file's status is set to permanent in the database.
    */
   function assertFileIsPermanent(FileInterface $file, $message = NULL) {
-    $message = isset($message) ? $message : t('File %file is permanent.', array('%file' => $file->getFileUri()));
+    $message = isset($message) ? $message : format_string('File %file is permanent.', array('%file' => $file->getFileUri()));
     $this->assertTrue($file->isPermanent(), $message);
   }
 

@@ -64,7 +64,7 @@ class UpdateScriptTest extends WebTestBase {
     $user1 = user_load(1);
     $user1->pass_raw = user_password();
     $user1->pass = drupal_container()->get('password')->hash(trim($user1->pass_raw));
-    db_query("UPDATE {users} SET pass = :pass WHERE uid = :uid", array(':pass' => $user1->pass, ':uid' => $user1->uid));
+    db_query("UPDATE {users} SET pass = :pass WHERE uid = :uid", array(':pass' => $user1->getPassword(), ':uid' => $user1->id()));
     $this->drupalLogin($user1);
     $this->drupalGet($this->update_url, array('external' => TRUE));
     $this->assertResponse(200);
@@ -74,7 +74,7 @@ class UpdateScriptTest extends WebTestBase {
    * Tests that requirements warnings and errors are correctly displayed.
    */
   function testRequirements() {
-    $update_script_test_config = config('update_script_test.settings');
+    $update_script_test_config = \Drupal::config('update_script_test.settings');
     $this->drupalLogin($this->update_user);
 
     // If there are no requirements warnings or errors, we expect to be able to
@@ -130,10 +130,10 @@ class UpdateScriptTest extends WebTestBase {
     // Since visiting update.php triggers a rebuild of the theme system from an
     // unusual maintenance mode environment, we check that this rebuild did not
     // put any incorrect information about the themes into the database.
-    $original_theme_data = config('system.theme')->get('enabled');
+    $original_theme_data = \Drupal::config('system.theme')->get('enabled');
     $this->drupalLogin($this->update_user);
     $this->drupalGet($this->update_url, array('external' => TRUE));
-    $final_theme_data = config('system.theme')->get('enabled');
+    $final_theme_data = \Drupal::config('system.theme')->get('enabled');
     $this->assertEqual($original_theme_data, $final_theme_data, 'Visiting update.php does not alter the information about themes stored in the database.');
   }
 
@@ -146,6 +146,7 @@ class UpdateScriptTest extends WebTestBase {
     $this->drupalPost($this->update_url, array(), t('Continue'), array('external' => TRUE));
     $this->assertText(t('No pending updates.'));
     $this->assertNoLink('Administration pages');
+    $this->assertNoLinkByHref('update.php', 0);
     $this->clickLink('Front page');
     $this->assertResponse(200);
 
@@ -154,6 +155,8 @@ class UpdateScriptTest extends WebTestBase {
     $this->drupalLogin($admin_user);
     $this->drupalPost($this->update_url, array(), t('Continue'), array('external' => TRUE));
     $this->assertText(t('No pending updates.'));
+    $this->assertLink('Administration pages');
+    $this->assertNoLinkByHref('update.php', 1);
     $this->clickLink('Administration pages');
     $this->assertResponse(200);
   }
@@ -170,6 +173,7 @@ class UpdateScriptTest extends WebTestBase {
     $this->assertText('Updates were attempted.');
     $this->assertLink('site');
     $this->assertNoLink('Administration pages');
+    $this->assertNoLinkByHref('update.php', 0);
     $this->assertNoLink('logged');
     $this->clickLink('Front page');
     $this->assertResponse(200);
@@ -183,6 +187,8 @@ class UpdateScriptTest extends WebTestBase {
     $this->drupalPost(NULL, array(), t('Apply pending updates'));
     $this->assertText('Updates were attempted.');
     $this->assertLink('logged');
+    $this->assertLink('Administration pages');
+    $this->assertNoLinkByHref('update.php', 1);
     $this->clickLink('Administration pages');
     $this->assertResponse(200);
   }

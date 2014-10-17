@@ -7,17 +7,15 @@
 
 namespace Drupal\node\Plugin\entity_reference\selection;
 
-use Drupal\Component\Annotation\Plugin;
 use Drupal\Core\Annotation\Translation;
-use Drupal\Core\Database\Query\SelectInterface;
+use Drupal\entity_reference\Annotation\EntityReferenceSelection;
 use Drupal\entity_reference\Plugin\entity_reference\selection\SelectionBase;
 
 /**
  * Provides specific access control for the node entity type.
  *
- * @Plugin(
+ * @EntityReferenceSelection(
  *   id = "node_default",
- *   module = "node",
  *   label = @Translation("Node selection"),
  *   entity_types = {"node"},
  *   group = "default",
@@ -27,7 +25,7 @@ use Drupal\entity_reference\Plugin\entity_reference\selection\SelectionBase;
 class NodeSelection extends SelectionBase {
 
   /**
-   * Overrides SelectionBase::buildEntityQuery().
+   * {@inheritdoc}
    */
   public function buildEntityQuery($match = NULL, $match_operator = 'CONTAINS') {
     $query = parent::buildEntityQuery($match, $match_operator);
@@ -36,7 +34,7 @@ class NodeSelection extends SelectionBase {
     // 'unpublished'. We need to do that as long as there are no access control
     // modules in use on the site. As long as one access control module is there,
     // it is supposed to handle this check.
-    if (!user_access('bypass node access') && !count(module_implements('node_grants'))) {
+    if (!user_access('bypass node access') && !count(\Drupal::moduleHandler()->getImplementations('node_grants'))) {
       $query->condition('status', NODE_PUBLISHED);
     }
     return $query;

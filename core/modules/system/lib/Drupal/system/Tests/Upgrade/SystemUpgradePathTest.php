@@ -170,7 +170,7 @@ class SystemUpgradePathTest extends UpgradePathTestBase {
     );
 
     foreach ($expected_config as $file => $values) {
-      $config = config($file);
+      $config = \Drupal::config($file);
       $this->verbose(print_r($config->get(), TRUE));
       foreach ($values as $name => $value) {
         $stored = $config->get($name);
@@ -189,8 +189,7 @@ class SystemUpgradePathTest extends UpgradePathTestBase {
     $this->assertTrue($this->performUpgrade(), 'The upgrade was completed successfully.');
 
     $this->assertTrue($this->container->get('module_handler')->moduleExists('views'), 'Views is enabled after the upgrade.');
-    $views = $this->container->get('plugin.manager.entity')->getStorageController('view')->load(array('frontpage'));
-    $view = reset($views);
+    $view = $this->container->get('entity.manager')->getStorageController('view')->load('frontpage');
     $this->assertTrue($view->status(), 'The frontpage view is enabled after the upgrade.');
   }
 

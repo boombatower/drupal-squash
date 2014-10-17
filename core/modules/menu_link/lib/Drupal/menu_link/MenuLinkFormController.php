@@ -9,14 +9,22 @@ namespace Drupal\menu_link;
 
 use Drupal\Core\Entity\EntityFormController;
 use Drupal\Core\Language\Language;
-use Drupal\Core\Entity\EntityControllerInterface;
 use Drupal\Core\Path\AliasManagerInterface;
+use Drupal\Core\Routing\UrlGenerator;
+use Drupal\menu_link\MenuLinkStorageControllerInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
  * Form controller for the node edit forms.
  */
-class MenuLinkFormController extends EntityFormController implements EntityControllerInterface {
+class MenuLinkFormController extends EntityFormController {
+
+  /**
+   * The menu link storage controller.
+   *
+   * @var \Drupal\menu_link\MenuLinkStorageControllerInterface
+   */
+  protected $menuLinkStorageController;
 
   /**
    * The path alias manager.
@@ -26,26 +34,36 @@ class MenuLinkFormController extends EntityFormController implements EntityContr
   protected $pathAliasManager;
 
   /**
+   * The URL generator.
+   *
+   * @var \Drupal\Core\Routing\UrlGenerator
+   */
+  protected $urlGenerator;
+
+  /**
    * Constructs a new MenuLinkFormController object.
    *
-   * @param string $operation
-   *   The name of the current operation.
+   * @param \Drupal\menu_link\MenuLinkStorageControllerInterface $menu_link_storage_controller
+   *   The menu link storage.
    * @param \Drupal\Core\Path\AliasManagerInterface $path_alias_manager
    *   The path alias manager.
+   * @param \Drupal\Core\Routing\UrlGenerator $url_generator
+   *   The URL generator.
    */
-  public function __construct($operation, AliasManagerInterface $path_alias_manager) {
-    parent::__construct($operation);
-
+  public function __construct(MenuLinkStorageControllerInterface $menu_link_storage_controller, AliasManagerInterface $path_alias_manager, UrlGenerator $url_generator) {
+    $this->menuLinkStorageController = $menu_link_storage_controller;
     $this->pathAliasManager = $path_alias_manager;
+    $this->urlGenerator = $url_generator;
   }
 
   /**
    * {@inheritdoc}
    */
-  public static function createInstance(ContainerInterface $container, $entity_type, array $entity_info, $operation = NULL) {
+  public static function create(ContainerInterface $container) {
     return new static(
-      $operation,
-      $container->get('path.alias_manager.cached')
+      $container->get('entity.manager')->getStorageController('menu_link'),
+      $container->get('path.alias_manager.cached'),
+      $container->get('url_generator')
     );
   }
 
@@ -86,7 +104,7 @@ class MenuLinkFormController extends EntityFormController implements EntityContr
     // $base_path.
     $path = $menu_link->link_path;
     if (isset($menu_link->options['query'])) {
-      $path .= '?' . drupal_http_build_query($menu_link->options['query']);
+      $path .= '?' . $this->urlGenerator->httpBuildQuery($menu_link->options['query']);
     }
     if (isset($menu_link->options['fragment'])) {
       $path .= '#' . $menu_link->options['fragment'];
@@ -145,8 +163,7 @@ class MenuLinkFormController extends EntityFormController implements EntityContr
     );
 
     // Get number of items in menu so the weight selector is sized appropriately.
-    $delta = \Drupal::entityManager()
-      ->getStorageController('menu_link')->countMenuLinks($menu_link->menu_name);
+    $delta = $this->menuLinkStorageController->countMenuLinks($menu_link->menu_name);
     $form['weight'] = array(
       '#type' => 'weight',
       '#title' => t('Weight'),
@@ -156,11 +173,28 @@ class MenuLinkFormController extends EntityFormController implements EntityContr
       '#description' => t('Optional. In the menu, the heavier links will sink and the lighter links will be positioned nearer the top.'),
     );
 
+    // Language module allows to configure the menu link language independently
+    // of the menu language. It also allows to optionally show the language
+    // selector on the menu link form so that the language of each menu link can
+    // be configured individually.
+    if ($this->moduleHandler->moduleExists('language')) {
+      $language_configuration = language_get_default_configuration('menu_link', $menu_link->bundle());
+      $default_langcode = ($menu_link->isNew() ? $language_configuration['langcode'] : $menu_link->langcode);
+      $language_show = $language_configuration['language_show'];
+    }
+    // Without Language module menu links inherit the menu language and no
+    // language selector is shown.
+    else {
+      $default_langcode = ($menu_link->isNew() ? entity_load('menu', $menu_link->menu_name)->langcode : $menu_link->langcode);
+      $language_show = FALSE;
+    }
+
     $form['langcode'] = array(
       '#type' => 'language_select',
       '#title' => t('Language'),
       '#languages' => Language::STATE_ALL,
-      '#default_value' => $menu_link->langcode,
+      '#default_value' => $default_langcode,
+      '#access' => $language_show,
     );
 
     return parent::form($form, $form_state, $menu_link);
@@ -172,7 +206,7 @@ class MenuLinkFormController extends EntityFormController implements EntityContr
   protected function actions(array $form, array &$form_state) {
     $element = parent::actions($form, $form_state);
     $element['submit']['#button_type'] = 'primary';
-    $element['delete']['#access'] = $this->entity->module == 'menu';
+    $element['delete']['#access'] = $this->entity->access('delete');
 
     return $element;
   }
@@ -187,11 +221,13 @@ class MenuLinkFormController extends EntityFormController implements EntityContr
     if ($menu_link->link_path != $normal_path) {
       drupal_set_message(t('The menu system stores system paths only, but will use the URL alias for display. %link_path has been stored as %normal_path', array('%link_path' => $menu_link->link_path, '%normal_path' => $normal_path)));
       $menu_link->link_path = $normal_path;
+      $form_state['values']['link_path'] = $normal_path;
     }
     if (!url_is_external($menu_link->link_path)) {
       $parsed_link = parse_url($menu_link->link_path);
       if (isset($parsed_link['query'])) {
-        $menu_link->options['query'] = drupal_get_query_array($parsed_link['query']);
+        $menu_link->options['query'] = array();
+        parse_str($parsed_link['query'], $menu_link->options['query']);
       }
       else {
         // Use unset() rather than setting to empty string

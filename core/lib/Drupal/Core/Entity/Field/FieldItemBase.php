@@ -8,7 +8,7 @@
 namespace Drupal\Core\Entity\Field;
 
 use Drupal\Core\Entity\EntityInterface;
-use Drupal\Core\TypedData\Type\Map;
+use Drupal\Core\TypedData\Plugin\DataType\Map;
 use Drupal\Core\TypedData\TypedDataInterface;
 use Drupal\user;
 
@@ -37,6 +37,36 @@ abstract class FieldItemBase extends Map implements FieldItemInterface {
   }
 
   /**
+   * {@inheritdoc}
+   */
+  public function getFieldDefinition() {
+    return $this->getParent()->getFieldDefinition();
+  }
+
+  /**
+   * Returns the array of field settings.
+   *
+   * @return array
+   *   The array of settings.
+   */
+  protected function getFieldSettings() {
+    return $this->getFieldDefinition()->getFieldSettings();
+  }
+
+  /**
+   * Returns the value of a field setting.
+   *
+   * @param string $setting_name
+   *   The setting name.
+   *
+   * @return mixed
+   *   The setting value.
+   */
+  protected function getFieldSetting($setting_name) {
+    return $this->getFieldDefinition()->getFieldSetting($setting_name);
+  }
+
+  /**
    * Overrides \Drupal\Core\TypedData\TypedData::setValue().
    *
    * @param array|null $values
@@ -49,10 +79,6 @@ abstract class FieldItemBase extends Map implements FieldItemInterface {
       $keys = array_keys($this->getPropertyDefinitions());
       $values = array($keys[0] => $values);
     }
-    // Notify the parent of any changes to be made.
-    if ($notify && isset($this->parent)) {
-      $this->parent->onChange($this->name);
-    }
     $this->values = $values;
     // Update any existing property objects.
     foreach ($this->properties as $name => $property) {
@@ -62,6 +88,10 @@ abstract class FieldItemBase extends Map implements FieldItemInterface {
       }
       $property->setValue($value, FALSE);
       unset($this->values[$name]);
+    }
+    // Notify the parent of any changes.
+    if ($notify && isset($this->parent)) {
+      $this->parent->onChange($this->name);
     }
   }
 
@@ -80,13 +110,9 @@ abstract class FieldItemBase extends Map implements FieldItemInterface {
   }
 
   /**
-   * Overrides \Drupal\Core\TypedData\Type\Map::set().
+   * {@inheritdoc}
    */
   public function set($property_name, $value, $notify = TRUE) {
-    // Notify the parent of any changes to be made.
-    if ($notify && isset($this->parent)) {
-      $this->parent->onChange($this->name);
-    }
     // For defined properties there is either a property object or a plain
     // value that needs to be updated.
     if (isset($this->properties[$property_name])) {
@@ -96,6 +122,10 @@ abstract class FieldItemBase extends Map implements FieldItemInterface {
     // Allow setting plain values for not-defined properties also.
     else {
       $this->values[$property_name] = $value;
+    }
+    // Directly notify ourselves.
+    if ($notify) {
+      $this->onChange($property_name);
     }
   }
 
@@ -123,6 +153,7 @@ abstract class FieldItemBase extends Map implements FieldItemInterface {
    */
   public function __unset($name) {
     $this->set($name, NULL);
+    unset($this->values[$name]);
   }
 
   /**
@@ -135,7 +166,9 @@ abstract class FieldItemBase extends Map implements FieldItemInterface {
     }
     // Remove the plain value, such that any further __get() calls go via the
     // updated property object.
-    unset($this->values[$property_name]);
+    if (isset($this->properties[$property_name])) {
+      unset($this->values[$property_name]);
+    }
   }
 
   /**
@@ -151,5 +184,30 @@ abstract class FieldItemBase extends Map implements FieldItemInterface {
     }
     return $constraints;
   }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function preSave() { }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function insert() { }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function update() { }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function delete() { }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function deleteRevision() { }
 
 }

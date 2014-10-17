@@ -11,6 +11,7 @@
 
 use Drupal\Core\Entity\EntityInterface;
 use Symfony\Component\HttpFoundation\RedirectResponse;
+use Drupal\node\NodeInterface;
 
 /**
  * Page callback: Displays add content links for available content types.
@@ -53,7 +54,6 @@ function node_add_page() {
  */
 function theme_node_add_list($variables) {
   $content = $variables['content'];
-  $output = '';
 
   if ($content) {
     $output = '<dl class="node-type-list">';
@@ -87,11 +87,11 @@ function node_add($node_type) {
   $type = $node_type->type;
   $langcode = module_invoke('language', 'get_default_langcode', 'node', $type);
   $node = entity_create('node', array(
-    'uid' => $user->uid,
-    'name' => (isset($user->name) ? $user->name : ''),
+    'uid' => $user->id(),
+    'name' => $user->getUsername(),
     'type' => $type,
-    'langcode' => $langcode ? $langcode : language_default()->langcode,
-  ))->getBCEntity();
+    'langcode' => $langcode ? $langcode : language_default()->id,
+  ));
   drupal_set_title(t('Create @name', array('@name' => $node_type->name)), PASS_THROUGH);
   return Drupal::entityManager()->getForm($node);
 }
@@ -107,24 +107,8 @@ function node_add($node_type) {
  *
  * @see node_form_build_preview()
  */
-function node_preview(EntityInterface $node) {
+function node_preview(NodeInterface $node) {
   if (node_access('create', $node) || node_access('update', $node)) {
-    _field_invoke_multiple('load', 'node', array($node->nid => $node));
-    // Load the user's name when needed.
-    if (isset($node->name)) {
-      // The use of isset() is mandatory in the context of user IDs, because
-      // user ID 0 denotes the anonymous user.
-      if ($user = user_load_by_name($node->name)) {
-        $node->uid = $user->uid;
-      }
-      else {
-        $node->uid = 0; // anonymous user
-      }
-    }
-    elseif ($node->uid) {
-      $user = user_load($node->uid);
-      $node->name = $user->name;
-    }
 
     $node->changed = REQUEST_TIME;
 
@@ -182,44 +166,6 @@ function theme_node_preview($variables) {
 }
 
 /**
- * Page callback: Form constructor for node deletion confirmation form.
- *
- * @param object $node
- *   A node object.
- *
- * @return array
- *   A form array.
- *
- * @see node_delete_confirm_submit()
- * @see node_menu()
- */
-function node_delete_confirm($form, &$form_state, $node) {
-  // Always provide entity id in the same form key as in the entity edit form.
-  $form['nid'] = array('#type' => 'value', '#value' => $node->nid);
-  return confirm_form($form,
-    t('Are you sure you want to delete %title?', array('%title' => $node->label())),
-    'node/' . $node->nid,
-    t('This action cannot be undone.'),
-    t('Delete'),
-    t('Cancel')
-  );
-}
-
-/**
- * Form submission handler for node_delete_confirm().
- */
-function node_delete_confirm_submit($form, &$form_state) {
-  if ($form_state['values']['confirm']) {
-    $node = node_load($form_state['values']['nid']);
-    $node->delete();
-    watchdog('content', '@type: deleted %title.', array('@type' => $node->type, '%title' => $node->label()));
-    drupal_set_message(t('@type %title has been deleted.', array('@type' => node_get_type_label($node), '%title' => $node->label())));
-  }
-
-  $form_state['redirect'] = '<front>';
-}
-
-/**
  * Page callback: Generates an overview table of older revisions of a node.
  *
  * @param object $node
@@ -238,7 +184,7 @@ function node_revision_overview($node) {
   $revisions = node_revision_list($node);
 
   $rows = array();
-  $type = $node->type;
+  $type = $node->getType();
 
   $revert_permission = FALSE;
   if ((user_access("revert $type revisions") || user_access('revert all revisions') || user_access('administer nodes')) && node_access('update', $node)) {
@@ -250,13 +196,12 @@ function node_revision_overview($node) {
   }
   foreach ($revisions as $revision) {
     $row = array();
-    $type = $node->type;
     if ($revision->current_vid > 0) {
       $username = array(
         '#theme' => 'username',
-        '#account' => $revision,
+        '#account' => user_load($revision->uid),
       );
-      $row[] = array('data' => t('!date by !username', array('!date' => l(format_date($revision->revision_timestamp, 'short'), "node/$node->nid"), '!username' => drupal_render($username)))
+      $row[] = array('data' => t('!date by !username', array('!date' => l(format_date($revision->revision_timestamp, 'short'), 'node/' . $node->id()), '!username' => drupal_render($username)))
                                . (($revision->log != '') ? '<p class="revision-log">' . filter_xss($revision->log) . '</p>' : ''),
                      'class' => array('revision-current'));
       $row[] = array('data' => drupal_placeholder(t('current revision')), 'class' => array('revision-current'));
@@ -264,20 +209,20 @@ function node_revision_overview($node) {
     else {
       $username = array(
         '#theme' => 'username',
-        '#account' => $revision,
+        '#account' => user_load($revision->uid),
       );
-      $row[] = t('!date by !username', array('!date' => l(format_date($revision->revision_timestamp, 'short'), "node/$node->nid/revisions/$revision->vid/view"), '!username' => drupal_render($username)))
+      $row[] = t('!date by !username', array('!date' => l(format_date($revision->revision_timestamp, 'short'), "node/" . $node->id() . "/revisions/" . $revision->vid . "/view"), '!username' => drupal_render($username)))
                . (($revision->log != '') ? '<p class="revision-log">' . filter_xss($revision->log) . '</p>' : '');
       if ($revert_permission) {
         $links['revert'] = array(
           'title' => t('Revert'),
-          'href' => "node/$node->nid/revisions/$revision->vid/revert",
+          'href' => "node/" . $node->id() . "/revisions/" . $revision->vid . "/revert",
         );
       }
       if ($delete_permission) {
         $links['delete'] = array(
           'title' => t('Delete'),
-          'href' => "node/$node->nid/revisions/$revision->vid/delete",
+          'href' => "node/" . $node->id() . "/revisions/" . $revision->vid . "/delete",
         );
       }
       $row[] = array(
@@ -300,81 +245,4 @@ function node_revision_overview($node) {
   );
 
   return $build;
-}
-
-/**
- * Page callback: Form constructor for the reversion confirmation form.
- *
- * This form prevents against CSRF attacks.
- *
- * @param int $node_revision
- *   The node revision ID.
- *
- * @return array
- *   An array as expected by drupal_render().
- *
- * @see node_menu()
- * @see node_revision_revert_confirm_submit()
- * @ingroup forms
- */
-function node_revision_revert_confirm($form, $form_state, $node_revision) {
-  $form['#node_revision'] = $node_revision;
-  return confirm_form($form, t('Are you sure you want to revert to the revision from %revision-date?', array('%revision-date' => format_date($node_revision->revision_timestamp))), 'node/' . $node_revision->nid . '/revisions', '', t('Revert'), t('Cancel'));
-}
-
-/**
- * Form submission handler for node_revision_revert_confirm().
- */
-function node_revision_revert_confirm_submit($form, &$form_state) {
-  $node_revision = $form['#node_revision'];
-  $node_revision->setNewRevision();
-  // Make this the new default revision for the node.
-  $node_revision->isDefaultRevision(TRUE);
-
-  // The revision timestamp will be updated when the revision is saved. Keep the
-  // original one for the confirmation message.
-  $original_revision_timestamp = $node_revision->revision_timestamp;
-
-  $node_revision->log = t('Copy of the revision from %date.', array('%date' => format_date($original_revision_timestamp)));
-
-  $node_revision->save();
-
-  watchdog('content', '@type: reverted %title revision %revision.', array('@type' => $node_revision->type, '%title' => $node_revision->label(), '%revision' => $node_revision->vid));
-  drupal_set_message(t('@type %title has been reverted back to the revision from %revision-date.', array('@type' => node_get_type_label($node_revision), '%title' => $node_revision->label(), '%revision-date' => format_date($original_revision_timestamp))));
-  $form_state['redirect'] = 'node/' . $node_revision->nid . '/revisions';
-}
-
-/**
- * Page callback: Form constructor for the revision deletion confirmation form.
- *
- * This form prevents against CSRF attacks.
- *
- * @param $node_revision
- *   The node revision ID.
- *
- * @return
- *   An array as expected by drupal_render().
- *
- * @see node_menu()
- * @see node_revision_delete_confirm_submit()
- * @ingroup forms
- */
-function node_revision_delete_confirm($form, $form_state, $node_revision) {
-  $form['#node_revision'] = $node_revision;
-  return confirm_form($form, t('Are you sure you want to delete the revision from %revision-date?', array('%revision-date' => format_date($node_revision->revision_timestamp))), 'node/' . $node_revision->nid . '/revisions', t('This action cannot be undone.'), t('Delete'), t('Cancel'));
-}
-
-/**
- * Form submission handler for node_revision_delete_confirm().
- */
-function node_revision_delete_confirm_submit($form, &$form_state) {
-  $node_revision = $form['#node_revision'];
-  node_revision_delete($node_revision->vid);
-
-  watchdog('content', '@type: deleted %title revision %revision.', array('@type' => $node_revision->type, '%title' => $node_revision->label(), '%revision' => $node_revision->vid));
-  drupal_set_message(t('Revision from %revision-date of @type %title has been deleted.', array('%revision-date' => format_date($node_revision->revision_timestamp), '@type' => node_get_type_label($node_revision), '%title' => $node_revision->label())));
-  $form_state['redirect'] = 'node/' . $node_revision->nid;
-  if (db_query('SELECT COUNT(DISTINCT vid) FROM {node_field_revision} WHERE nid = :nid', array(':nid' => $node_revision->nid))->fetchField() > 1) {
-    $form_state['redirect'] .= '/revisions';
-  }
 }

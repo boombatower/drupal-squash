@@ -10,8 +10,10 @@ namespace Drupal\field\Plugin\Type\Widget;
 use Drupal\Component\Utility\NestedArray;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Entity\Field\FieldDefinitionInterface;
+use Drupal\Core\Entity\Field\FieldInterface;
 use Drupal\field\FieldInstanceInterface;
 use Drupal\field\Plugin\PluginSettingsBase;
+use Symfony\Component\Validator\ConstraintViolationInterface;
 
 /**
  * Base class for 'Field widget' plugin implementations.
@@ -54,7 +56,7 @@ abstract class WidgetBase extends PluginSettingsBase implements WidgetInterface 
   /**
    * {@inheritdoc}
    */
-  public function form(EntityInterface $entity, $langcode, array $items, array &$form, array &$form_state, $get_delta = NULL) {
+  public function form(EntityInterface $entity, $langcode, FieldInterface $items, array &$form, array &$form_state, $get_delta = NULL) {
     $field_name = $this->fieldDefinition->getFieldName();
 
     $parents = $form['#parents'];
@@ -68,7 +70,7 @@ abstract class WidgetBase extends PluginSettingsBase implements WidgetInterface 
       $field_state = array(
         'items_count' => count($items),
         'array_parents' => array(),
-        'errors' => array(),
+        'constraint_violations' => array(),
       );
       field_form_set_state($parents, $field_name, $langcode, $form_state, $field_state);
     }
@@ -149,7 +151,7 @@ abstract class WidgetBase extends PluginSettingsBase implements WidgetInterface 
    * - AHAH-'add more' button
    * - table display and drag-n-drop value reordering
    */
-  protected function formMultipleElements(EntityInterface $entity, array $items, $langcode, array &$form, array &$form_state) {
+  protected function formMultipleElements(EntityInterface $entity, FieldInterface $items, $langcode, array &$form, array &$form_state) {
     $field_name = $this->fieldDefinition->getFieldName();
     $cardinality = $this->fieldDefinition->getFieldCardinality();
     $parents = $form['#parents'];
@@ -196,7 +198,7 @@ abstract class WidgetBase extends PluginSettingsBase implements WidgetInterface 
             '#title_display' => 'invisible',
             // Note: this 'delta' is the FAPI #type 'weight' element's property.
             '#delta' => $max,
-            '#default_value' => isset($items[$delta]['_weight']) ? $items[$delta]['_weight'] : $delta,
+            '#default_value' => $items[$delta]->_weight ?: $delta,
             '#weight' => 100,
           );
         }
@@ -242,7 +244,7 @@ abstract class WidgetBase extends PluginSettingsBase implements WidgetInterface 
   /**
    * Generates the form element for a single copy of the widget.
    */
-  protected function formSingleElement(EntityInterface $entity, array $items, $delta, $langcode, array $element, array &$form, array &$form_state) {
+  protected function formSingleElement(EntityInterface $entity, FieldInterface $items, $delta, $langcode, array $element, array &$form, array &$form_state) {
     $element += array(
       '#entity_type' => $entity->entityType(),
       '#bundle' => $entity->bundle(),
@@ -279,7 +281,7 @@ abstract class WidgetBase extends PluginSettingsBase implements WidgetInterface 
   /**
    * {@inheritdoc}
    */
-  public function extractFormValues(EntityInterface $entity, $langcode, array &$items, array $form, array &$form_state) {
+  public function extractFormValues(EntityInterface $entity, $langcode, FieldInterface $items, array $form, array &$form_state) {
     $field_name = $this->fieldDefinition->getFieldName();
 
     // Extract the values from $form_state['values'].
@@ -294,34 +296,36 @@ abstract class WidgetBase extends PluginSettingsBase implements WidgetInterface 
       // Let the widget turn the submitted values into actual field values.
       // Make sure the '_weight' entries are persisted in the process.
       $weights = array();
-      if (isset($values[0]['_weight'])) {
+      // Check that $values[0] is an array, because if it's a string, then in
+      // PHP 5.3, ['_weight'] returns the first character.
+      if (isset($values[0]) && is_array($values[0]) && isset($values[0]['_weight'])) {
         foreach ($values as $delta => $value) {
           $weights[$delta] = $value['_weight'];
         }
       }
-      $items = $this->massageFormValues($values, $form, $form_state);
+      $items->setValue($this->massageFormValues($values, $form, $form_state));
 
-      foreach ($items as $delta => &$item) {
+      foreach ($items as $delta => $item) {
         // Put back the weight.
         if (isset($weights[$delta])) {
-          $item['_weight'] = $weights[$delta];
+          $item->_weight = $weights[$delta];
         }
         // The tasks below are going to reshuffle deltas. Keep track of the
         // original deltas for correct reporting of errors in flagErrors().
-        $item['_original_delta'] = $delta;
+        $item->_original_delta = $delta;
       }
 
       // Account for drag-n-drop reordering.
       $this->sortItems($items);
 
       // Remove empty values.
-      $items = _field_filter_items($this->fieldDefinition->getFieldType(), $items);
+      $items->filterEmptyValues();
 
       // Put delta mapping in $form_state, so that flagErrors() can use it.
       $field_state = field_form_get_state($form['#parents'], $field_name, $langcode, $form_state);
-      foreach ($items as $delta => &$item) {
-        $field_state['original_deltas'][$delta] = $item['_original_delta'];
-        unset($item['_original_delta']);
+      foreach ($items as $delta => $item) {
+        $field_state['original_deltas'][$delta] = $item->_original_delta;
+        unset($item->_original_delta);
       }
       field_form_set_state($form['#parents'], $field_name, $langcode, $form_state, $field_state);
     }
@@ -330,12 +334,12 @@ abstract class WidgetBase extends PluginSettingsBase implements WidgetInterface 
   /**
    * {@inheritdoc}
    */
-  public function flagErrors(EntityInterface $entity, $langcode, array $items, array $form, array &$form_state) {
+  public function flagErrors(EntityInterface $entity, $langcode, FieldInterface $items, array $form, array &$form_state) {
     $field_name = $this->fieldDefinition->getFieldName();
 
     $field_state = field_form_get_state($form['#parents'], $field_name, $langcode, $form_state);
 
-    if (!empty($field_state['errors'])) {
+    if (!empty($field_state['constraint_violations'])) {
       // Locate the correct element in the the form.
       $element = NestedArray::getValue($form_state['complete_form'], $field_state['array_parents']);
 
@@ -344,7 +348,16 @@ abstract class WidgetBase extends PluginSettingsBase implements WidgetInterface 
         $definition = $this->getPluginDefinition();
         $is_multiple = $definition['multiple_values'];
 
-        foreach ($field_state['errors'] as $delta => $delta_errors) {
+        $violations_by_delta = array();
+        foreach ($field_state['constraint_violations'] as $violation) {
+          // Separate violations by delta.
+          $property_path = explode('.', $violation->getPropertyPath());
+          $delta = array_shift($property_path);
+          $violation->arrayPropertyPath = $property_path;
+          $violations_by_delta[$delta][] = $violation;
+        }
+
+        foreach ($violations_by_delta as $delta => $delta_violations) {
           // For a multiple-value widget, pass all errors to the main widget.
           // For single-value widgets, pass errors by delta.
           if ($is_multiple) {
@@ -354,13 +367,16 @@ abstract class WidgetBase extends PluginSettingsBase implements WidgetInterface 
             $original_delta = $field_state['original_deltas'][$delta];
             $delta_element = $element[$original_delta];
           }
-          foreach ($delta_errors as $error) {
-            $error_element = $this->errorElement($delta_element, $error, $form, $form_state);
-            form_error($error_element, $error['message']);
+          foreach ($delta_violations as $violation) {
+            // @todo: Pass $violation->arrayPropertyPath as property path.
+            $error_element = $this->errorElement($delta_element, $violation, $form, $form_state);
+            if ($error_element !== FALSE) {
+              form_error($error_element, $violation->getMessage());
+            }
           }
         }
         // Reinitialize the errors list for the next submit.
-        $field_state['errors'] = array();
+        $field_state['constraint_violations'] = array();
         field_form_set_state($form['#parents'], $field_name, $langcode, $form_state, $field_state);
       }
     }
@@ -374,9 +390,16 @@ abstract class WidgetBase extends PluginSettingsBase implements WidgetInterface 
   }
 
   /**
+   * {@inheritdoc}
+   */
+  public function settingsSummary() {
+    return array();
+  }
+
+  /**
    * Implements Drupal\field\Plugin\Type\Widget\WidgetInterface::errorElement().
    */
-  public function errorElement(array $element, array $error, array $form, array &$form_state) {
+  public function errorElement(array $element, ConstraintViolationInterface $error, array $form, array &$form_state) {
     return $element;
   }
 
@@ -390,23 +413,23 @@ abstract class WidgetBase extends PluginSettingsBase implements WidgetInterface 
   /**
    * Sorts submitted field values according to drag-n-drop reordering.
    *
-   * @param array $items
+   * @param FieldInterface $items
    *   The field values.
    */
-  protected function sortItems(array &$items) {
+  protected function sortItems(FieldInterface $items) {
     $cardinality = $this->fieldDefinition->getFieldCardinality();
     $is_multiple = ($cardinality == FIELD_CARDINALITY_UNLIMITED) || ($cardinality > 1);
-    if ($is_multiple && isset($items[0]['_weight'])) {
-      usort($items, function ($a, $b) {
+    if ($is_multiple && isset($items[0]->_weight)) {
+      $itemValues = $items->getValue(TRUE);
+      usort($itemValues, function ($a, $b) {
         $a_weight = (is_array($a) ? $a['_weight'] : 0);
         $b_weight = (is_array($b) ? $b['_weight'] : 0);
         return $a_weight - $b_weight;
       });
+      $items->setValue($itemValues);
       // Remove the '_weight' entries.
-      foreach ($items as $delta => &$item) {
-        if (is_array($item)) {
-          unset($item['_weight']);
-        }
+      foreach ($items as $delta => $item) {
+        unset($item->_weight);
       }
     }
   }

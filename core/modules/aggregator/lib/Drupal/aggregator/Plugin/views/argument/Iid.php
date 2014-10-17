@@ -50,7 +50,7 @@ class Iid extends Numeric {
    * {@inheritdoc}
    */
   public static function create(ContainerInterface $container, array $configuration, $plugin_id, array $plugin_definition) {
-    return new static($configuration, $plugin_id, $plugin_definition, $container->get('plugin.manager.entity'));
+    return new static($configuration, $plugin_id, $plugin_definition, $container->get('entity.manager'));
   }
 
   /**
@@ -59,7 +59,7 @@ class Iid extends Numeric {
   function titleQuery() {
     $titles = array();
 
-    $items = $this->entityManager->getStorageController('aggregator_item')->load($this->value);
+    $items = $this->entityManager->getStorageController('aggregator_item')->loadMultiple($this->value);
     foreach ($items as $feed) {
       $titles[] = String::checkPlain($feed->label());
     }

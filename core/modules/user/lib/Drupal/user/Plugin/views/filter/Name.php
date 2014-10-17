@@ -27,7 +27,7 @@ class Name extends InOperator {
       $result = entity_load_multiple_by_properties('user', array('uid' => $this->value));
       foreach ($result as $account) {
         if ($account->id()) {
-          $values[] = $account->name->value;
+          $values[] = $account->getUsername();
         }
         else {
           $values[] = 'Anonymous'; // Intentionally NOT translated.
@@ -42,7 +42,7 @@ class Name extends InOperator {
       '#title' => t('Usernames'),
       '#description' => t('Enter a comma separated list of user names.'),
       '#default_value' => $default_value,
-      '#autocomplete_path' => 'user/autocomplete/anonymous',
+      '#autocomplete_route_name' => 'user_autocomplete_anonymous',
     );
 
     if (!empty($form_state['exposed']) && !isset($form_state['input'][$this->options['expose']['identifier']])) {
@@ -130,7 +130,7 @@ class Name extends InOperator {
 
     $result = entity_load_multiple_by_properties('user', array('name' => $args));
     foreach ($result as $account) {
-      unset($missing[strtolower($account->name->value)]);
+      unset($missing[strtolower($account->getUsername())]);
       $uids[] = $account->id();
     }
 
@@ -155,7 +155,7 @@ class Name extends InOperator {
     if ($this->value) {
       $result = entity_load_multiple_by_properties('user', array('uid' => $this->value));
       foreach ($result as $account) {
-        if ($account->uid) {
+        if ($account->id()) {
           $this->value_options[$account->id()] = $account->label();
         }
         else {

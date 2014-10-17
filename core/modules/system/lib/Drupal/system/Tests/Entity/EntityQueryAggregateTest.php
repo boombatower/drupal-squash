@@ -12,7 +12,7 @@ use Drupal\simpletest\DrupalUnitTestBase;
 /**
  * Defines a test for testing aggregation support for entity query.
  *
- * @see \Drupal\entity_test\Plugin\Core\Entity\EntityTest
+ * @see \Drupal\entity_test\Entity\EntityTest
  */
 class EntityQueryAggregateTest extends EntityUnitTestBase {
 
@@ -55,14 +55,15 @@ class EntityQueryAggregateTest extends EntityUnitTestBase {
   public function setUp() {
     parent::setUp();
 
-    $this->entityStorageController = $this->container->get('plugin.manager.entity')->getStorageController('entity_test');
+    $this->entityStorageController = $this->container->get('entity.manager')->getStorageController('entity_test');
     $this->factory = $this->container->get('entity.query');
 
     // Add some fieldapi fields to be used in the test.
     for ($i = 1; $i <= 2; $i++) {
       $field_name = 'field_test_' . $i;
       entity_create('field_entity', array(
-        'field_name' => $field_name,
+        'name' => $field_name,
+        'entity_type' => 'entity_test',
         'type' => 'number_integer',
         'cardinality' => 2,
       ))->save();

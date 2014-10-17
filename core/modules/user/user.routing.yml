@@ -40,6 +40,20 @@ user_admin_create:
   requirements:
     _permission: 'administer users'
 
+user_admin_permissions:
+  pattern: '/admin/people/permissions'
+  defaults:
+    _form: '\Drupal\user\Form\UserPermissionsForm'
+  requirements:
+    _permission: 'administer permissions'
+
+user_admin_permission:
+  pattern: '/admin/people/permissions/{role_id}'
+  defaults:
+    _form: '\Drupal\user\Form\UserPermissionsRoleSpecificForm'
+  requirements:
+    _permission: 'administer permissions'
+
 user_role_list:
   pattern: '/admin/people/roles'
   defaults:
@@ -72,5 +86,19 @@ user_pass:
   pattern: '/user/password'
   defaults:
     _form: '\Drupal\user\Form\UserPasswordForm'
+  requirements:
+    _access: 'TRUE'
+
+user_page:
+  pattern: '/user'
+  defaults:
+    _content: '\Drupal\user\Controller\UserController::userPage'
+  requirements:
+    _access: 'TRUE'
+
+user_login:
+  pattern: '/user/login'
+  defaults:
+    _form: '\Drupal\user\Form\UserLoginForm'
   requirements:
     _access: 'TRUE'

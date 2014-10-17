@@ -131,7 +131,7 @@ class EntityDisplayTest extends DrupalUnitTestBase {
    * Tests the behavior of a field component within an EntityDisplay object.
    */
   public function testFieldComponent() {
-    $this->enableModules(array('field_sql_storage', 'field_test'));
+    $this->enableModules(array('field_test'));
 
     $display = entity_create('entity_display', array(
       'targetEntityType' => 'entity_test',
@@ -142,7 +142,8 @@ class EntityDisplayTest extends DrupalUnitTestBase {
     $field_name = 'test_field';
     // Create a field and an instance.
     $field = entity_create('field_entity', array(
-      'field_name' => $field_name,
+      'name' => $field_name,
+      'entity_type' => 'entity_test',
       'type' => 'test_field'
     ));
     $field->save();
@@ -155,34 +156,34 @@ class EntityDisplayTest extends DrupalUnitTestBase {
 
     // Check that providing no options results in default values being used.
     $display->setComponent($field_name);
-    $field_type_info = field_info_field_types($field->type);
+    $field_type_info = \Drupal::service('plugin.manager.entity.field.field_type')->getDefinition($field->type);
     $default_formatter = $field_type_info['default_formatter'];
-    $default_settings = field_info_formatter_settings($default_formatter);
+    $formatter_settings =  \Drupal::service('plugin.manager.field.formatter')->getDefinition($default_formatter);
     $expected = array(
       'weight' => 0,
       'label' => 'above',
       'type' => $default_formatter,
-      'settings' => $default_settings,
+      'settings' => $formatter_settings['settings'],
     );
     $this->assertEqual($display->getComponent($field_name), $expected);
 
     // Check that the getFormatter() method returns the correct formatter plugin.
-    $formatter = $display->getFormatter($field_name);
+    $formatter = $display->getRenderer($field_name);
     $this->assertEqual($formatter->getPluginId(), $default_formatter);
-    $this->assertEqual($formatter->getSettings(), $default_settings);
+    $this->assertEqual($formatter->getSettings(), $formatter_settings['settings']);
 
     // Check that the formatter is statically persisted, by assigning an
     // arbitrary property and reading it back.
     $random_value = $this->randomString();
     $formatter->randomValue = $random_value;
-    $formatter = $display->getFormatter($field_name);
+    $formatter = $display->getRenderer($field_name);
     $this->assertEqual($formatter->randomValue, $random_value);
 
     // Check that changing the definition creates a new formatter.
     $display->setComponent($field_name, array(
       'type' => 'field_test_multiple',
     ));
-    $formatter = $display->getFormatter($field_name);
+    $formatter = $display->getRenderer($field_name);
     $this->assertEqual($formatter->getPluginId(), 'field_test_multiple');
     $this->assertFalse(isset($formatter->randomValue));
 
@@ -194,7 +195,7 @@ class EntityDisplayTest extends DrupalUnitTestBase {
     ));
     $options = $display->getComponent($field_name);
     $this->assertEqual($options['type'], 'unknown_formatter');
-    $formatter = $display->getFormatter($field_name);
+    $formatter = $display->getRenderer($field_name);
     $this->assertEqual($formatter->getPluginId(), $default_formatter);
   }
 
@@ -202,41 +203,50 @@ class EntityDisplayTest extends DrupalUnitTestBase {
    * Tests renaming and deleting a bundle.
    */
   public function testRenameDeleteBundle() {
-    $this->enableModules(array('field_sql_storage', 'field_test', 'node', 'system'));
-    $this->installSchema('node', array('node_type'));
+    $this->enableModules(array('field_test', 'node', 'system', 'text'));
     $this->installSchema('system', array('variable'));
+    $this->installSchema('node', array('node'));
 
-    // Create a node bundle and display object.
-    node_type_save((object) array('type' => 'article'));
+    // Create a node bundle, display and form display object.
+    entity_create('node_type', array('type' => 'article'))->save();
     entity_get_display('node', 'article', 'default')->save();
+    entity_get_form_display('node', 'article', 'default')->save();
 
     // Rename the article bundle and assert the entity display is renamed.
     $info = node_type_load('article');
     $info->old_type = 'article';
     $info->type = 'article_rename';
-    node_type_save($info);
+    $info->save();
     $old_display = entity_load('entity_display', 'node.article.default');
     $this->assertFalse($old_display);
+    $old_form_display = entity_load('entity_form_display', 'node.article.default');
+    $this->assertFalse($old_form_display);
     $new_display = entity_load('entity_display', 'node.article_rename.default');
     $this->assertEqual('article_rename', $new_display->bundle);
     $this->assertEqual('node.article_rename.default', $new_display->id);
+    $new_form_display = entity_load('entity_form_display', 'node.article_rename.default');
+    $this->assertEqual('article_rename', $new_form_display->bundle);
+    $this->assertEqual('node.article_rename.default', $new_form_display->id);
 
     // Delete the bundle.
-    node_type_delete('article_rename');
+    $info->delete();
     $display = entity_load('entity_display', 'node.article_rename.default');
     $this->assertFalse($display);
+    $form_display = entity_load('entity_form_display', 'node.article_rename.default');
+    $this->assertFalse($form_display);
   }
 
   /**
    * Tests deleting field instance.
    */
   public function testDeleteFieldInstance() {
-    $this->enableModules(array('field_sql_storage', 'field_test'));
+    $this->enableModules(array('field_test'));
 
     $field_name = 'test_field';
     // Create a field and an instance.
     $field = entity_create('field_entity', array(
-      'field_name' => $field_name,
+      'name' => $field_name,
+      'entity_type' => 'entity_test',
       'type' => 'test_field'
     ));
     $field->save();

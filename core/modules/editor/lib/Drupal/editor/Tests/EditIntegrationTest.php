@@ -2,7 +2,7 @@
 
 /**
  * @file
- * Contains \Drupal\editor\Tests\EditorIntegrationTest.
+ * Contains \Drupal\editor\Tests\EditIntegrationTest.
  */
 
 namespace Drupal\editor\Tests;
@@ -124,7 +124,7 @@ class EditIntegrationTest extends EditTestBase {
    */
   function testEditorSelection() {
     $this->editorManager = new InPlaceEditorManager($this->container->get('container.namespaces'));
-    $this->editorSelector = new EditorSelector($this->editorManager);
+    $this->editorSelector = new EditorSelector($this->editorManager, $this->container->get('plugin.manager.field.formatter'));
 
     // Pretend there is an entity with these items for the field.
     $items = array(array('value' => 'Hello, world!', 'format' => 'filtered_html'));
@@ -149,7 +149,7 @@ class EditIntegrationTest extends EditTestBase {
   function testMetadata() {
     $this->editorManager = new InPlaceEditorManager($this->container->get('container.namespaces'));
     $this->accessChecker = new MockEditEntityFieldAccessCheck();
-    $this->editorSelector = new EditorSelector($this->editorManager);
+    $this->editorSelector = new EditorSelector($this->editorManager, $this->container->get('plugin.manager.field.formatter'));
     $this->metadataGenerator = new MetadataGenerator($this->accessChecker, $this->editorSelector, $this->editorManager);
 
     // Create an entity with values for the field.
@@ -161,7 +161,7 @@ class EditIntegrationTest extends EditTestBase {
 
     // Verify metadata.
     $instance = field_info_instance($entity->entityType(), $this->field_name, $entity->bundle());
-    $metadata = $this->metadataGenerator->generate($entity, $instance, Language::LANGCODE_NOT_SPECIFIED, 'default');
+    $metadata = $this->metadataGenerator->generateField($entity, $instance, Language::LANGCODE_NOT_SPECIFIED, 'default');
     $expected = array(
       'access' => TRUE,
       'label' => 'Long text field',

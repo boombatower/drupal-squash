@@ -7,10 +7,19 @@
 
 namespace Drupal\Tests;
 
+use Drupal\Component\Utility\Random;
+
 /**
  * Provides a base class and helpers for Drupal unit tests.
  */
 abstract class UnitTestCase extends \PHPUnit_Framework_TestCase {
+
+  /**
+   * The random generator.
+   *
+   * @var \Drupal\Component\Utility\Random
+   */
+  protected $randomGenerator;
 
   /**
    * This method exists to support the simpletest UI runner.
@@ -33,34 +42,33 @@ abstract class UnitTestCase extends \PHPUnit_Framework_TestCase {
   }
 
   /**
-   * Generates a random string containing letters and numbers.
-   *
-   * The string will always start with a letter. The letters may be upper or
-   * lower case. This method is better for restricted inputs that do not accept
-   * certain characters. For example, when testing input fields that require
-   * machine readable values (i.e. without spaces and non-standard characters)
-   * this method is best.
-   *
-   * Do not use this method when testing unvalidated user input. Instead, use
-   * Drupal\simpletest\TestBase::randomString().
+   * Generates a unique random string containing letters and numbers.
    *
    * @param int $length
    *   Length of random string to generate.
    *
    * @return string
-   *   Randomly generated string.
+   *   Randomly generated unique string.
    *
-   * @see Drupal\simpletest\TestBase::randomString()
+   * @see \Drupal\Component\Utility\Random::name()
    */
-  public static function randomName($length = 8) {
-    $values = array_merge(range(65, 90), range(97, 122), range(48, 57));
-    $max = count($values) - 1;
-    $str = chr(mt_rand(97, 122));
-    for ($i = 1; $i < $length; $i++) {
-      $str .= chr($values[mt_rand(0, $max)]);
-    }
-    return $str;
+  public function randomName($length = 8) {
+    return $this->getRandomGenerator()->name($length, TRUE);
   }
+
+  /**
+   * Gets the random generator for the utility methods.
+   *
+   * @return \Drupal\Component\Utility\Random
+   *   The random generator
+   */
+  protected function getRandomGenerator() {
+    if (!is_object($this->randomGenerator)) {
+      $this->randomGenerator = new Random();
+    }
+    return $this->randomGenerator;
+  }
+
 
   /**
    * Returns a stub config factory that behaves according to the passed in array.
@@ -132,6 +140,48 @@ abstract class UnitTestCase extends \PHPUnit_Framework_TestCase {
         ->will($this->returnValue($config));
     }
     return $config_storage;
+  }
+
+  /**
+   * Mocks a block with a block plugin.
+   *
+   * @param string $machine_name
+   *   The machine name of the block plugin.
+   *
+   * @return \Drupal\block\BlockInterface|\PHPUnit_Framework_MockObject_MockObject
+   *   The mocked block.
+   */
+  protected function getBlockMockWithMachineName($machine_name) {
+    $plugin = $this->getMockBuilder('Drupal\block\BlockBase')
+      ->disableOriginalConstructor()
+      ->getMock();
+    $plugin->expects($this->any())
+      ->method('getMachineNameSuggestion')
+      ->will($this->returnValue($machine_name));
+
+    $block = $this->getMockBuilder('Drupal\block\Entity\Block')
+      ->disableOriginalConstructor()
+      ->getMock();
+    $block->expects($this->any())
+      ->method('getPlugin')
+      ->will($this->returnValue($plugin));
+    return $block;
+  }
+
+  /**
+   * Returns a stub translation manager that just returns the passed string.
+   *
+   * @return \PHPUnit_Framework_MockObject_MockBuilder
+   *   A MockBuilder of \Drupal\Core\StringTranslation\TranslationInterface
+   */
+  public function getStringTranslationStub() {
+    $translation = $this->getMockBuilder('Drupal\Core\StringTranslation\TranslationManager')
+      ->disableOriginalConstructor()
+      ->getMock();
+    $translation->expects($this->any())
+      ->method('translate')
+      ->will($this->returnArgument(0));
+    return $translation;
   }
 
 }

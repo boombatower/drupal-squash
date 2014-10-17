@@ -8,16 +8,15 @@
 namespace Drupal\language\Plugin\Block;
 
 use Drupal\block\BlockBase;
-use Drupal\Component\Annotation\Plugin;
+use Drupal\block\Annotation\Block;
 use Drupal\Core\Annotation\Translation;
 
 /**
  * Provides a 'Language switcher' block.
  *
- * @Plugin(
+ * @Block(
  *   id = "language_block",
  *   admin_label = @Translation("Language switcher"),
- *   module = "language",
  *   derivative = "Drupal\language\Plugin\Derivative\LanguageBlock"
  * )
  */
@@ -36,7 +35,7 @@ class LanguageBlock extends BlockBase {
   public function build() {
     $build = array();
     $path = drupal_is_front_page() ? '<front>' : current_path();
-    list($plugin_id, $type) = explode(':', $this->getPluginId());
+    list(, $type) = explode(':', $this->getPluginId());
     $links = language_negotiation_get_switch_links($type, $path);
 
     if (isset($links->links)) {

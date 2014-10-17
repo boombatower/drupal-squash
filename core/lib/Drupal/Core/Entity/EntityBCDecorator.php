@@ -107,7 +107,7 @@ class EntityBCDecorator implements IteratorAggregate, EntityInterface {
       foreach ($this->decorated->fields[$name] as $langcode => $field) {
         // Only set if it's not empty, otherwise there can be ghost values.
         if (!$field->isEmpty()) {
-          $this->decorated->values[$name][$langcode] = $field->getValue();
+          $this->decorated->values[$name][$langcode] = $field->getValue(TRUE);
         }
       }
       // The returned values might be changed by reference, so we need to remove
@@ -124,11 +124,10 @@ class EntityBCDecorator implements IteratorAggregate, EntityInterface {
         $this->decorated->values[$name][Language::LANGCODE_DEFAULT][0]['value'] = NULL;
       }
       if (is_array($this->decorated->values[$name][Language::LANGCODE_DEFAULT])) {
-        // This will work with all defined properties that have a single value.
         // We need to ensure the key doesn't matter. Mostly it's 'value' but
-        // e.g. EntityReferenceItem uses target_id.
-        if (isset($this->decorated->values[$name][Language::LANGCODE_DEFAULT][0]) && count($this->decorated->values[$name][Language::LANGCODE_DEFAULT][0]) == 1) {
-          return $this->decorated->values[$name][Language::LANGCODE_DEFAULT][0][key($this->decorated->values[$name][Language::LANGCODE_DEFAULT][0])];
+        // e.g. EntityReferenceItem uses target_id - so just take the first one.
+        if (isset($this->decorated->values[$name][Language::LANGCODE_DEFAULT][0]) && is_array($this->decorated->values[$name][Language::LANGCODE_DEFAULT][0])) {
+          return $this->decorated->values[$name][Language::LANGCODE_DEFAULT][0][current(array_keys($this->decorated->values[$name][Language::LANGCODE_DEFAULT][0]))];
         }
       }
       return $this->decorated->values[$name][Language::LANGCODE_DEFAULT];
@@ -139,7 +138,7 @@ class EntityBCDecorator implements IteratorAggregate, EntityInterface {
       // Language::LANGCODE_DEFAULT. This is necessary as EntityNG always keys
       // default language values with Language::LANGCODE_DEFAULT while field API
       // expects them to be keyed by langcode.
-      $langcode = $this->decorated->language()->langcode;
+      $langcode = $this->decorated->getUntranslated()->language()->id;
       if ($langcode != Language::LANGCODE_DEFAULT && isset($this->decorated->values[$name]) && is_array($this->decorated->values[$name])) {
         if (isset($this->decorated->values[$name][Language::LANGCODE_DEFAULT]) && !isset($this->decorated->values[$name][$langcode])) {
           $this->decorated->values[$name][$langcode] = &$this->decorated->values[$name][Language::LANGCODE_DEFAULT];
@@ -173,7 +172,7 @@ class EntityBCDecorator implements IteratorAggregate, EntityInterface {
         // with Language::LANGCODE_DEFAULT while field API expects them to be
         // keyed by langcode.
         foreach ($value as $langcode => $data) {
-          if ($langcode != Language::LANGCODE_DEFAULT && $langcode == $this->decorated->language()->langcode) {
+          if ($langcode != Language::LANGCODE_DEFAULT && $langcode == $this->decorated->language()->id) {
             $value[Language::LANGCODE_DEFAULT] = $data;
             unset($value[$langcode]);
           }
@@ -185,6 +184,7 @@ class EntityBCDecorator implements IteratorAggregate, EntityInterface {
     // out of sync. That way, the next field object instantiated by EntityNG
     // will hold the updated value.
     unset($this->decorated->fields[$name]);
+    $this->decorated->onChange($name);
   }
 
   /**
@@ -425,15 +425,8 @@ class EntityBCDecorator implements IteratorAggregate, EntityInterface {
   /**
    * Forwards the call to the decorated entity.
    */
-  public function getTranslation($langcode, $strict = TRUE) {
-    return $this->decorated->getTranslation($langcode, $strict);
-  }
-
-  /**
-   * Forwards the call to the decorated entity.
-   */
-  public function getType() {
-    return $this->decorated->getType();
+  public function getTranslation($langcode) {
+    return $this->decorated->getTranslation($langcode);
   }
 
   /**
@@ -527,12 +520,6 @@ class EntityBCDecorator implements IteratorAggregate, EntityInterface {
     $this->decorated->onChange($property_name);
   }
 
-  /**
-   * Forwards the call to the decorated entity.
-   */
-  public function isTranslatable() {
-    return $this->decorated->isTranslatable();
-  }
 
   /**
    * Forwards the call to the decorated entity.
@@ -589,4 +576,54 @@ class EntityBCDecorator implements IteratorAggregate, EntityInterface {
    */
   public static function postLoad(EntityStorageControllerInterface $storage_controller, array $entities) {
   }
+
+  /**
+   * Forwards the call to the decorated entity.
+   */
+  public function isTranslatable() {
+    return $this->decorated->isTranslatable();
+  }
+
+  /**
+   * Forwards the call to the decorated entity.
+   */
+  public function getUntranslated() {
+    return $this->decorated->getUntranslated();
+  }
+
+  /**
+   * Forwards the call to the decorated entity.
+   */
+  public function hasTranslation($langcode) {
+    return $this->decorated->hasTranslation($langcode);
+  }
+
+  /**
+   * Forwards the call to the decorated entity.
+   */
+  public function addTranslation($langcode, array $values = array()) {
+    return $this->decorated->addTranslation($langcode, $values);
+  }
+
+  /**
+   * Forwards the call to the decorated entity.
+   */
+  public function removeTranslation($langcode) {
+    $this->decorated->removeTranslation($langcode);
+  }
+
+  /**
+   * Forwards the call to the decorated entity.
+   */
+  public function initTranslation($langcode) {
+    $this->decorated->initTranslation($langcode);
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public static function baseFieldDefinitions($entity_type) {
+    return array();
+  }
+
 }

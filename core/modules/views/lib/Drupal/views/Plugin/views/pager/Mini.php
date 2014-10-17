@@ -7,7 +7,7 @@
 
 namespace Drupal\views\Plugin\views\pager;
 
-use Drupal\Component\Annotation\Plugin;
+use Drupal\views\Annotation\ViewsPager;
 use Drupal\Core\Annotation\Translation;
 
 /**
@@ -15,7 +15,7 @@ use Drupal\Core\Annotation\Translation;
  *
  * @ingroup views_pager_plugins
  *
- * @Plugin(
+ * @ViewsPager(
  *   id = "mini",
  *   title = @Translation("Paged output, mini pager"),
  *   short_title = @Translation("Mini"),
@@ -57,7 +57,7 @@ class Mini extends SqlBase {
 
     // Don't query for the next page if we have a pager that has a limited
     // amount of pages.
-    if (empty($this->options['total_pages']) || ($this->getCurrentPage() < $this->options['total_pages'])) {
+    if ($this->getItemsPerPage() > 0 && (empty($this->options['total_pages']) || ($this->getCurrentPage() < $this->options['total_pages']))) {
       // Increase the items in the query in order to be able to find out whether
       // there is another page.
       $limit = $this->view->query->getLimit();
@@ -79,7 +79,7 @@ class Mini extends SqlBase {
   public function postExecute(&$result) {
     // In query() one more item might have been retrieved than necessary. If so,
     // the next link needs to be displayed and the item removed.
-    if (count($result) > $this->getItemsPerPage()) {
+    if ($this->getItemsPerPage() > 0 && count($result) > $this->getItemsPerPage()) {
       array_pop($result);
       // Make sure the pager shows the next link by setting the total items to
       // the biggest possible number but prevent failing calculations like
@@ -89,24 +89,24 @@ class Mini extends SqlBase {
     else {
       $total = $this->getCurrentPage() * $this->getItemsPerPage() + count($result);
     }
-    pager_default_initialize($total, $this->getItemsPerPage(), $this->options['id']);
+    $this->total_items = $total;
   }
 
   /**
-   * Overrides \Drupal\views\Plugin\views\pager\PagerPluginBase::render().
+   * {@inheritdoc}
    */
-  function render($input) {
-    // The 1, 3 index are correct, see theme_pager().
+  public function render($input) {
+    // The 1, 3 indexes are correct, see template_preprocess_pager().
     $tags = array(
       1 => $this->options['tags']['previous'],
       3 => $this->options['tags']['next'],
     );
-    $output = theme($this->themeFunctions(), array(
-      'parameters' => $input,
-      'element' => $this->options['id'],
-      'tags' => $tags,
-    ));
-    return $output;
+    return array(
+      '#theme' => $this->themeFunctions(),
+      '#tags' => $tags,
+      '#element' => $this->options['id'],
+      '#parameters' => $input,
+    );
   }
 
 }

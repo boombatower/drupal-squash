@@ -12,7 +12,7 @@ image.size:
       label: 'Height'
 
 # Image styles (multiple).
-# Plugin \Drupal\image\Plugin\Core\Entity\ImageStyle
+# Plugin \Drupal\image\Entity\ImageStyle
 image.style.*:
   type: mapping
   label: 'Image style'
@@ -26,13 +26,13 @@ image.style.*:
       sequence:
         - type: mapping
           mapping:
-            name:
+            id:
               type: string
             data:
-              type: image.effect.[%parent.name]
+              type: image.effect.[%parent.id]
             weight:
               type: integer
-            ieid:
+            uuid:
               type: string
     langcode:
       type: string

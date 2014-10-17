@@ -91,31 +91,31 @@ class TrackerTest extends WebTestBase {
 
     $unpublished = $this->drupalCreateNode(array(
       'title' => $this->randomName(8),
-      'uid' => $this->user->uid,
+      'uid' => $this->user->id(),
       'status' => 0,
     ));
     $my_published = $this->drupalCreateNode(array(
       'title' => $this->randomName(8),
-      'uid' => $this->user->uid,
+      'uid' => $this->user->id(),
       'status' => 1,
     ));
     $other_published_no_comment = $this->drupalCreateNode(array(
       'title' => $this->randomName(8),
-      'uid' => $this->other_user->uid,
+      'uid' => $this->other_user->id(),
       'status' => 1,
     ));
     $other_published_my_comment = $this->drupalCreateNode(array(
       'title' => $this->randomName(8),
-      'uid' => $this->other_user->uid,
+      'uid' => $this->other_user->id(),
       'status' => 1,
     ));
     $comment = array(
       'subject' => $this->randomName(),
       'comment_body[' . Language::LANGCODE_NOT_SPECIFIED . '][0][value]' => $this->randomName(20),
     );
-    $this->drupalPost('comment/reply/' . $other_published_my_comment->nid, $comment, t('Save'));
+    $this->drupalPost('comment/reply/' . $other_published_my_comment->id(), $comment, t('Save'));
 
-    $this->drupalGet('user/' . $this->user->uid . '/track');
+    $this->drupalGet('user/' . $this->user->id() . '/track');
     $this->assertNoText($unpublished->label(), "Unpublished nodes do not show up in the users's tracker listing.");
     $this->assertText($my_published->label(), "Published nodes show up in the user's tracker listing.");
     $this->assertNoText($other_published_no_comment->label(), "Other user's nodes do not show up in the user's tracker listing.");
@@ -125,7 +125,7 @@ class TrackerTest extends WebTestBase {
     $admin_user = $this->drupalCreateUser(array('post comments', 'administer comments', 'access user profiles'));
     $this->drupalLogin($admin_user);
     $this->drupalPost('comment/1/edit', array('status' => COMMENT_NOT_PUBLISHED), t('Save'));
-    $this->drupalGet('user/' . $this->user->uid . '/track');
+    $this->drupalGet('user/' . $this->user->id() . '/track');
     $this->assertNoText($other_published_my_comment->label(), 'Unpublished comments are not counted on the tracker listing.');
   }
 
@@ -144,7 +144,7 @@ class TrackerTest extends WebTestBase {
     $this->drupalGet('tracker');
     $this->assertPattern('/' . $title . '.*new/', 'New nodes are flagged as such in the tracker listing.');
 
-    $this->drupalGet('node/' . $node->nid);
+    $this->drupalGet('node/' . $node->id());
     $this->drupalGet('tracker');
     $this->assertNoPattern('/' . $title . '.*new/', 'Visited nodes are not flagged as new.');
 
@@ -152,7 +152,7 @@ class TrackerTest extends WebTestBase {
     $this->drupalGet('tracker');
     $this->assertPattern('/' . $title . '.*new/', 'For another user, new nodes are flagged as such in the tracker listing.');
 
-    $this->drupalGet('node/' . $node->nid);
+    $this->drupalGet('node/' . $node->id());
     $this->drupalGet('tracker');
     $this->assertNoPattern('/' . $title . '.*new/', 'For another user, visited nodes are not flagged as new.');
   }
@@ -174,12 +174,12 @@ class TrackerTest extends WebTestBase {
       'comment_body[' . Language::LANGCODE_NOT_SPECIFIED . '][0][value]' => $this->randomName(20),
     );
     // The new comment is automatically viewed by the current user.
-    $this->drupalPost('comment/reply/' . $node->nid, $comment, t('Save'));
+    $this->drupalPost('comment/reply/' . $node->id(), $comment, t('Save'));
 
     $this->drupalLogin($this->other_user);
     $this->drupalGet('tracker');
     $this->assertText('1 new', 'New comments are counted on the tracker listing pages.');
-    $this->drupalGet('node/' . $node->nid);
+    $this->drupalGet('node/' . $node->id());
 
     // Add another comment as other_user.
     $comment = array(
@@ -189,7 +189,7 @@ class TrackerTest extends WebTestBase {
     // If the comment is posted in the same second as the last one then Drupal
     // can't tell the difference, so we wait one second here.
     sleep(1);
-    $this->drupalPost('comment/reply/' . $node->nid, $comment, t('Save'));
+    $this->drupalPost('comment/reply/' . $node->id(), $comment, t('Save'));
 
     $this->drupalLogin($this->user);
     $this->drupalGet('tracker');
@@ -219,7 +219,7 @@ class TrackerTest extends WebTestBase {
       'subject' => $this->randomName(),
       'comment_body[' . Language::LANGCODE_NOT_SPECIFIED . '][0][value]' => $this->randomName(20),
     );
-    $this->drupalPost('comment/reply/' . $nodes[3]->nid, $comment, t('Save'));
+    $this->drupalPost('comment/reply/' . $nodes[3]->id(), $comment, t('Save'));
 
     // Start indexing backwards from node 3.
     \Drupal::state()->set('tracker.index_nid', 3);
@@ -234,7 +234,7 @@ class TrackerTest extends WebTestBase {
     $this->drupalLogin($this->user);
 
     // Fetch the user's tracker.
-    $this->drupalGet('tracker/' . $this->user->uid);
+    $this->drupalGet('tracker/' . $this->user->id());
 
     // Assert that all node titles are displayed.
     foreach ($nodes as $i => $node) {
@@ -273,7 +273,7 @@ class TrackerTest extends WebTestBase {
     // Unpublish the node and ensure that it's no longer displayed.
     $edit = array(
       'action' => 'node_unpublish_action',
-      'node_bulk_form[0]' => $node->nid,
+      'node_bulk_form[0]' => $node->id(),
     );
     $this->drupalPost('admin/content', $edit, t('Apply'));
 

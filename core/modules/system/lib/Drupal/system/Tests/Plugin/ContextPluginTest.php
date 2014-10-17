@@ -17,7 +17,7 @@ use Drupal\Component\Plugin\Exception\ContextException;
  */
 class ContextPluginTest extends DrupalUnitTestBase {
 
-  public static $modules = array('system', 'user', 'node');
+  public static $modules = array('system', 'user', 'node', 'field');
 
   public static function getInfo() {
     return array(
@@ -25,11 +25,6 @@ class ContextPluginTest extends DrupalUnitTestBase {
       'description' => 'Tests that contexts are properly set and working within plugins.',
       'group' => 'Plugin API',
     );
-  }
-
-  protected function setUp() {
-    parent::setUp();
-    $this->installSchema('node', 'node_type');
   }
 
   /**

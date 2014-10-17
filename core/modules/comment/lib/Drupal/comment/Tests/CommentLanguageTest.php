@@ -68,10 +68,10 @@ class CommentLanguageTest extends WebTestBase {
     // Change user language preference, this way interface language is always
     // French no matter what path prefix the URLs have.
     $edit = array('preferred_langcode' => 'fr');
-    $this->drupalPost("user/{$admin_user->uid}/edit", $edit, t('Save'));
+    $this->drupalPost("user/" . $admin_user->id() . "/edit", $edit, t('Save'));
 
     // Make comment body translatable.
-    $field = field_info_field('comment_body');
+    $field = field_info_field('comment', 'comment_body');
     $field['translatable'] = TRUE;
     $field->save();
     $this->assertTrue(field_is_translatable('comment', $field), 'Comment body is translatable.');
@@ -111,13 +111,13 @@ class CommentLanguageTest extends WebTestBase {
           'subject' => $this->randomName(),
           "comment_body[$langcode][0][value]" => $comment_values[$node_langcode][$langcode],
         );
-        $this->drupalPost("{$prefix}node/{$node->nid}", $edit, t('Preview'));
+        $this->drupalPost($prefix . 'node/' . $node->id(), $edit, t('Preview'));
         $this->drupalPost(NULL, $edit, t('Save'));
 
         // Check that comment language matches the current content language.
         $cid = db_select('comment', 'c')
           ->fields('c', array('cid'))
-          ->condition('nid', $node->nid)
+          ->condition('nid', $node->id())
           ->orderBy('cid', 'DESC')
           ->range(0, 1)
           ->execute()

@@ -36,7 +36,6 @@ class Php extends FilterBase {
    * {@inheritdoc}
    */
   public function tips($long = FALSE) {
-    global $base_url;
     if ($long) {
       $output = '<h4>' . t('Using custom PHP code') . '</h4>';
       $output .= '<p>' . t('Custom PHP code may be embedded in some types of site content, including posts and blocks. While embedding PHP code inside a post or block is a powerful and flexible feature when used by a trusted user with PHP experience, it is a significant and dangerous security risk when used improperly. Even a small mistake when posting PHP code may accidentally compromise your site.') . '</p>';
@@ -58,7 +57,7 @@ class Php extends FilterBase {
       $output .= '<li>' . t('<p>To display the name of a registered user, use this instead:</p>
   <pre>
   global $user;
-  if ($user->uid) {
+  if ($user->isAuthenticated()) {
     print t(\'Welcome @name! Thank you for visiting.\', array(\'@name\' => user_format_name($user)));
   }
   else {

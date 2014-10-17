@@ -26,7 +26,7 @@ class UserLoginTest extends WebTestBase {
    * Test the global login flood control.
    */
   function testGlobalLoginFloodControl() {
-    config('user.flood')
+    \Drupal::config('user.flood')
       ->set('ip_limit', 10)
       // Set a high per-user limit out so that it is not relevant in the test.
       ->set('user_limit', 4000)
@@ -63,7 +63,7 @@ class UserLoginTest extends WebTestBase {
    * Test the per-user login flood control.
    */
   function testPerUserLoginFloodControl() {
-    config('user.flood')
+    \Drupal::config('user.flood')
       // Set a high global limit out so that it is not relevant in the test.
       ->set('ip_limit', 4000)
       ->set('user_limit', 3)
@@ -107,7 +107,7 @@ class UserLoginTest extends WebTestBase {
     $default_count_log2 = 16;
 
     // Retrieve instance of password hashing algorithm
-    $password_hasher = drupal_container()->get('password');
+    $password_hasher = $this->container->get('password');
 
     // Create a new user and authenticate.
     $account = $this->drupalCreateUser(array());
@@ -115,8 +115,8 @@ class UserLoginTest extends WebTestBase {
     $this->drupalLogin($account);
     $this->drupalLogout();
     // Load the stored user. The password hash should reflect $default_count_log2.
-    $account = user_load($account->uid);
-    $this->assertIdentical($password_hasher->getCountLog2($account->pass), $default_count_log2);
+    $account = user_load($account->id());
+    $this->assertIdentical($password_hasher->getCountLog2($account->getPassword()), $default_count_log2);
 
     // Change the required number of iterations by loading a test-module
     // containing the necessary container builder code and then verify that the
@@ -127,8 +127,8 @@ class UserLoginTest extends WebTestBase {
     $account->pass_raw = $password;
     $this->drupalLogin($account);
     // Load the stored user, which should have a different password hash now.
-    $account = user_load($account->uid, TRUE);
-    $this->assertIdentical($password_hasher->getCountLog2($account->pass), $overridden_count_log2);
+    $account = user_load($account->id(), TRUE);
+    $this->assertIdentical($password_hasher->getCountLog2($account->getPassword()), $overridden_count_log2);
   }
 
   /**
@@ -142,14 +142,14 @@ class UserLoginTest extends WebTestBase {
    */
   function assertFailedLogin($account, $flood_trigger = NULL) {
     $edit = array(
-      'name' => $account->name,
+      'name' => $account->getUsername(),
       'pass' => $account->pass_raw,
     );
     $this->drupalPost('user', $edit, t('Log in'));
     $this->assertNoFieldByXPath("//input[@name='pass' and @value!='']", NULL, 'Password value attribute is blank.');
     if (isset($flood_trigger)) {
       if ($flood_trigger == 'user') {
-        $this->assertRaw(format_plural(config('user.flood')->get('user_limit'), 'Sorry, there has been more than one failed login attempt for this account. It is temporarily blocked. Try again later or <a href="@url">request a new password</a>.', 'Sorry, there have been more than @count failed login attempts for this account. It is temporarily blocked. Try again later or <a href="@url">request a new password</a>.', array('@url' => url('user/password'))));
+        $this->assertRaw(format_plural(\Drupal::config('user.flood')->get('user_limit'), 'Sorry, there has been more than one failed login attempt for this account. It is temporarily blocked. Try again later or <a href="@url">request a new password</a>.', 'Sorry, there have been more than @count failed login attempts for this account. It is temporarily blocked. Try again later or <a href="@url">request a new password</a>.', array('@url' => url('user/password'))));
       }
       else {
         // No uid, so the limit is IP-based.

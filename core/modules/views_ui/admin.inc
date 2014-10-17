@@ -224,7 +224,7 @@ function views_ui_taxonomy_autocomplete_validate($element, &$form_state) {
   if ($tags = $element['#value']) {
     // Get the machine names of the vocabularies we will search, keyed by the
     // vocabulary IDs.
-    $field = field_info_field($element['#field_name']);
+    $field = field_info_field($element['#entity_type'], $element['#field_name']);
     $vocabularies = array();
     if (!empty($field['settings']['allowed_values'])) {
       foreach ($field['settings']['allowed_values'] as $tree) {
@@ -272,6 +272,15 @@ function views_ui_pre_render_add_fieldset_markup($form) {
       $form[$element['#fieldset']][$key] = $element;
       // Remove the original element this duplicates.
       unset($form[$key]);
+    }
+  }
+
+  // Hide the fieldsets if there is nothing in there.
+  if (isset($form['fieldsets']['#value'])) {
+    foreach ($form['fieldsets']['#value'] as $fieldset) {
+      if (!element_children($form[$fieldset])) {
+        $form[$fieldset]['#access'] = FALSE;
+      }
     }
   }
 
@@ -335,7 +344,7 @@ function views_ui_pre_render_move_argument_options($form) {
 function views_ui_standard_display_dropdown(&$form, &$form_state, $section) {
   $view = &$form_state['view'];
   $display_id = $form_state['display_id'];
-  $executable = $view->get('executable');
+  $executable = $view->getExecutable();
   $displays = $executable->displayHandlers;
   $current_display = $executable->display_handler;
 

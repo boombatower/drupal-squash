@@ -22,19 +22,49 @@ Drupal.theme.editBackstage = function (settings) {
 };
 
 /**
- * Theme function for a modal of the Edit module.
+ * Theme function for a toolbar container of the Edit module.
+ *
+ * @param Object settings
+ *   An object with the following keys:
+ *   - String id: the id to apply to the toolbar container.
+ * @return String
+ *   The corresponding HTML.
+ */
+Drupal.theme.editEntityToolbar = function (settings) {
+  var html = '';
+  html += '<div id="' + settings.id + '" class="edit edit-toolbar-container clearfix">';
+  html += '<i class="edit-toolbar-pointer"></i>';
+  html += '<div class="edit-toolbar-content">';
+  html += '<div class="edit-toolbar edit-toolbar-entity clearfix">';
+  html += '<div class="edit-toolbar-label" />';
+  html += '</div>';
+  html += '<div class="edit-toolbar edit-toolbar-field clearfix" />';
+  html += '</div><div class="edit-toolbar-lining"></div></div>';
+  return html;
+};
+
+/**
+ * Theme function for a toolbar container of the Edit module.
+ *
+ * @param Object settings
+ *   An object with the following keys:
+ *   - String entityLabel: The title of the active entity.
+ *   - String fieldLabel: The label of the highlighted or active field.
+ * @return String
+ *   The corresponding HTML.
+ */
+Drupal.theme.editEntityToolbarLabel = function (settings) {
+  return settings.entityLabel + ': <b>' + settings.fieldLabel + '</b>';
+};
+
+/**
+ * Element that defines a containing box of the placement of the entity toolbar.
  *
  * @return String
  *   The corresponding HTML.
  */
-Drupal.theme.editModal = function () {
-  var classes = 'edit-animate-slow edit-animate-invisible edit-animate-delay-veryfast';
-  var html = '';
-  html += '<div id="edit_modal" class="' + classes + '" role="dialog">';
-  html += '  <div class="main"><p></p></div>';
-  html += '  <div class="actions"></div>';
-  html += '</div>';
-  return html;
+Drupal.theme.editEntityToolbarFence = function () {
+  return '<div id="edit-toolbar-fence" />';
 };
 
 /**
@@ -42,18 +72,12 @@ Drupal.theme.editModal = function () {
  *
  * @param settings
  *   An object with the following keys:
- *   - String id: the id to apply to the toolbar container.
- * @return String
+ *   - id: the id to apply to the toolbar container.
+ * @return
  *   The corresponding HTML.
  */
-Drupal.theme.editToolbarContainer = function (settings) {
-  var html = '';
-  html += '<div id="' + settings.id + '" class="edit-toolbar-container">';
-  html += '  <div class="edit-toolbar-heightfaker edit-animate-fast">';
-  html += '    <div class="edit-toolbar primary" />';
-  html += '  </div>';
-  html += '</div>';
-  return html;
+Drupal.theme.editFieldToolbar = function (settings) {
+  return '<div id="' + settings.id + '" />';
 };
 
 /**
@@ -68,9 +92,11 @@ Drupal.theme.editToolbarContainer = function (settings) {
  *   The corresponding HTML.
  */
 Drupal.theme.editToolgroup = function (settings) {
-  var classes = 'edit-toolgroup edit-animate-slow edit-animate-invisible edit-animate-delay-veryfast';
+  // Classes.
+  var classes = (settings.classes || []);
+  classes.unshift('edit-toolgroup');
   var html = '';
-  html += '<div class="' + classes + ' ' + settings.classes + '"';
+  html += '<div class="' + classes.join(' ') + '"';
   if (settings.id) {
     html += ' id="' + settings.id + '"';
   }
@@ -91,7 +117,6 @@ Drupal.theme.editToolgroup = function (settings) {
  *     - String type: the type of the button (defaults to 'button')
  *     - Array classes: the classes of the button.
  *     - String label: the label of the button.
- *     - String action: sets a data-edit-modal-action attribute.
  * @return String
  *   The corresponding HTML.
  */
@@ -102,11 +127,16 @@ Drupal.theme.editButtons = function (settings) {
     if (!button.hasOwnProperty('type')) {
       button.type = 'button';
     }
-
-    html += '<button type="' + button.type + '" class="' + button.classes + '"';
-    html += (button.action) ? ' data-edit-modal-action="' + button.action + '"' : '';
-    html += '>';
-    html +=    button.label;
+    // Attributes.
+    var attributes = [];
+    var attrMap  = settings.buttons[i].attributes || {};
+    for (var attr in attrMap) {
+      if (attrMap.hasOwnProperty(attr)) {
+        attributes.push(attr + ((attrMap[attr]) ? '="' + attrMap[attr] + '"' : '' ));
+      }
+    }
+    html += '<button type="' + button.type + '" class="' + button.classes + '"'  + ' ' + attributes.join(' ') + '>';
+    html += button.label;
     html += '</button>';
   }
   return html;

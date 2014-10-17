@@ -24,7 +24,7 @@ class PathProcessorTest implements InboundPathProcessorInterface, OutboundPathPr
     if (preg_match('!^user/([^/]+)(/.*)?!', $path, $matches)) {
       if ($account = user_load_by_name($matches[1])) {
         $matches += array(2 => '');
-        $path = 'user/' . $account->uid . $matches[2];
+        $path = 'user/' . $account->id() . $matches[2];
       }
     }
 
@@ -47,7 +47,7 @@ class PathProcessorTest implements InboundPathProcessorInterface, OutboundPathPr
     if (preg_match('!^user/([0-9]+)(/.*)?!', $path, $matches)) {
       if ($account = user_load($matches[1])) {
         $matches += array(2 => '');
-        $path = 'user/' . $account->name . $matches[2];
+        $path = 'user/' . $account->getUsername() . $matches[2];
       }
     }
 

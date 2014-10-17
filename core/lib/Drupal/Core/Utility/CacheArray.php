@@ -62,6 +62,8 @@ use Drupal\Core\Cache\CacheBackendInterface;
  * procedural code. Extending classes may wish to alter this behavior, for
  * example by overriding offsetSet() and adding an automatic call to persist().
  *
+ * @deprecated as of Drupal 8.0. Use \Drupal\Core\Cache\CacheCollector instead.
+ *
  * @see SchemaCache
  */
 abstract class CacheArray implements ArrayAccess {
@@ -163,11 +165,11 @@ abstract class CacheArray implements ArrayAccess {
    * without necessarily writing back to the persistent cache at the end.
    *
    * @param $offset
-   *   The array offset that was request.
+   *   The array offset that was requested.
    * @param $persist
    *   Optional boolean to specify whether the offset should be persisted or
    *   not, defaults to TRUE. When called with $persist = FALSE the offset will
-   *   be unflagged so that it will not written at the end of the request.
+   *   be unflagged so that it will not be written at the end of the request.
    */
   protected function persist($offset, $persist = TRUE) {
     $this->keysToPersist[$offset] = $persist;

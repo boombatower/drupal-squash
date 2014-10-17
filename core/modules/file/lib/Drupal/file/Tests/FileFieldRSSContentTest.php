@@ -43,12 +43,12 @@ class FileFieldRSSContentTest extends FileFieldTestBase {
       'description_field' => '1',
     );
     $widget_settings = array();
-    $this->createFileField($field_name, $type_name, $field_settings, $instance_settings, $widget_settings);
+    $this->createFileField($field_name, 'node', $type_name, $field_settings, $instance_settings, $widget_settings);
 
     // RSS display must be added manually.
     $this->drupalGet("admin/structure/types/manage/$type_name/display");
     $edit = array(
-      "view_modes_custom[rss]" => '1',
+      "display_modes_custom[rss]" => '1',
     );
     $this->drupalPost(NULL, $edit, t('Save'));
 
@@ -63,11 +63,11 @@ class FileFieldRSSContentTest extends FileFieldTestBase {
     $test_file = $this->getTestFile('text');
 
     // Create a new node with the uploaded file.
-    $nid = $this->uploadNodeFile($test_file, $field_name, $node->nid);
+    $nid = $this->uploadNodeFile($test_file, $field_name, $node->id());
 
     // Get the uploaded file from the node.
     $node = node_load($nid, TRUE);
-    $node_file = file_load($node->{$field_name}[Language::LANGCODE_NOT_SPECIFIED][0]['fid']);
+    $node_file = file_load($node->{$field_name}->target_id);
 
     // Check that the RSS enclosure appears in the RSS feed.
     $this->drupalGet('rss.xml');

@@ -7,15 +7,16 @@
 
 namespace Drupal\text\Plugin\field\widget;
 
-use Drupal\Component\Annotation\Plugin;
+use Drupal\field\Annotation\FieldWidget;
 use Drupal\Core\Annotation\Translation;
+use Symfony\Component\Validator\ConstraintViolationInterface;
+use Drupal\Core\Entity\Field\FieldInterface;
 
 /**
  * Plugin implementation of the 'text_textarea_with_summary' widget.
  *
- * @Plugin(
+ * @FieldWidget(
  *   id = "text_textarea_with_summary",
- *   module = "text",
  *   label = @Translation("Text area with a summary"),
  *   field_types = {
  *     "text_with_summary"
@@ -32,13 +33,39 @@ class TextareaWithSummaryWidget extends TextareaWidget {
   /**
    * {@inheritdoc}
    */
-  function formElement(array $items, $delta, array $element, $langcode, array &$form, array &$form_state) {
+  public function settingsForm(array $form, array &$form_state) {
+    $element = parent::settingsForm($form, $form_state);
+    $element['summary_rows'] = array(
+      '#type' => 'number',
+      '#title' => t('Summary rows'),
+      '#default_value' => $this->getSetting('summary_rows'),
+      '#required' => TRUE,
+      '#min' => 1,
+    );
+    return $element;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function settingsSummary() {
+    $summary = parent::settingsSummary();
+
+    $summary[] = t('Number of summary rows: !rows', array('!rows' => $this->getSetting('summary_rows')));
+
+    return $summary;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  function formElement(FieldInterface $items, $delta, array $element, $langcode, array &$form, array &$form_state) {
     $element = parent::formElement($items, $delta, $element, $langcode, $form, $form_state);
 
-    $display_summary = !empty($items[$delta]['summary']) || $this->getFieldSetting('display_summary');
+    $display_summary = $items[$delta]->summary || $this->getFieldSetting('display_summary');
     $element['summary'] = array(
       '#type' => $display_summary ? 'textarea' : 'value',
-      '#default_value' => isset($items[$delta]['summary']) ? $items[$delta]['summary'] : NULL,
+      '#default_value' => $items[$delta]->summary,
       '#title' => t('Summary'),
       '#rows' => $this->getSetting('summary_rows'),
       '#description' => t('Leave blank to use trimmed value of full text as the summary.'),
@@ -57,18 +84,9 @@ class TextareaWithSummaryWidget extends TextareaWidget {
   /**
    * {@inheritdoc}
    */
-  public function errorElement(array $element, array $error, array $form, array &$form_state) {
-    switch ($error['error']) {
-      case 'text_summary_max_length':
-        $error_element = $element['summary'];
-        break;
-
-      default:
-        $error_element = $element;
-        break;
-    }
-
-    return $error_element;
+  public function errorElement(array $element, ConstraintViolationInterface $violation, array $form, array &$form_state) {
+    $element = parent::errorElement($element, $violation, $form, $form_state);
+    return ($element === FALSE) ? FALSE : $element[$violation->arrayPropertyPath[0]];
   }
 
 }

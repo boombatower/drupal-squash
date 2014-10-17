@@ -24,11 +24,18 @@
   clear: left; /* LTR */
   float: left; /* LTR */
 }
+[dir="rtl"] .ckeditor-toolbar-active > ul {
+  clear: right;
+  float: right;
+}
 #ckeditor-button-description {
   margin-bottom: 1em;
 }
 .ckeditor-toolbar-dividers {
-  float: right;
+  float: right; /* LTR */
+}
+[dir="rtl"] .ckeditor-toolbar-dividers {
+  float: left;
 }
 .ckeditor-toolbar-disabled ul.ckeditor-buttons {
   border: 0;
@@ -61,6 +68,9 @@ ul.ckeditor-buttons li {
   margin: 0;
   float: left; /* LTR */
 }
+[dir="rtl"] ul.ckeditor-buttons li {
+  float: right;
+}
 ul.ckeditor-buttons li a {
   position: relative;
   display: block;
@@ -85,16 +95,26 @@ ul.ckeditor-buttons li .cke-icon-only {
   text-indent: -9999px;
   width: 16px;
 }
-ul.ckeditor-buttons li a:focus {
+ul.ckeditor-buttons li a:focus,
+ul.ckeditor-multiple-buttons li a:focus {
   z-index: 11; /* Ensure focused buttons show their outline on all sides. */
+  outline: 1px dotted #333;
 }
 ul.ckeditor-buttons li:first-child a {
   border-top-left-radius: 2px; /* LTR */
   border-bottom-left-radius: 2px; /* LTR */
 }
+[dir="rtl"] ul.ckeditor-buttons li:first-child a {
+  border-top-right-radius: 2px;
+  border-bottom-right-radius: 2px;
+}
 ul.ckeditor-buttons li:last-child a {
   border-top-right-radius: 2px; /* LTR */
   border-bottom-right-radius: 2px; /* LTR */
+}
+[dir="rtl"] ul.ckeditor-buttons li:last-child a {
+  border-top-left-radius: 2px;
+  border-bottom-left-radius: 2px;
 }
 ul.ckeditor-buttons li.ckeditor-button-placeholder a {
   background: #333;
@@ -106,11 +126,17 @@ ul.ckeditor-multiple-buttons {
   list-style: none;
   float: left; /* LTR */
 }
+[dir="rtl"] ul.ckeditor-multiple-buttons {
+  float: right;
+}
 ul.ckeditor-multiple-buttons li {
   display: inline-block;
   float: left; /* LTR */
   margin: 0;
   padding: 0;
+}
+[dir="rtl"] ul.ckeditor-multiple-buttons li {
+  float: right;
 }
 ul.ckeditor-multiple-buttons li a {
   cursor: move;
@@ -173,6 +199,10 @@ ul.ckeditor-multiple-buttons li.ckeditor-button-separator a {
   font-size: 18px;
   width: 40px;
   text-align: right; /* LTR */
+}
+[dir="rtl"] .ckeditor-row-controls {
+  float: left;
+  text-align: left;
 }
 .ckeditor-row-controls a {
   display: inline-block;

@@ -42,11 +42,25 @@ class LanguageUpgradePathTest extends UpgradePathTestBase {
     db_update('users')->fields(array('language' => 'ca'))->condition('uid', '1')->execute();
     $this->assertTrue($this->performUpgrade(), 'The upgrade was completed successfully.');
 
+    // Check that the configuration for the 'Catalan' language is correct.
+    $config = $this->container->get('config.factory')->get('language.entity.ca')->get();
+    // We cannot predict the value of the UUID, we just check it's present.
+    $this->assertFalse(empty($config['uuid']));
+    unset($config['uuid']);
+    $this->assertEqual($config, array(
+      'id' => 'ca',
+      'label' => 'Catalan',
+      'direction' => 0,
+      'weight' => 0,
+      'locked' => 0,
+      'langcode' => 'en',
+    ));
+
     // Ensure Catalan was properly upgraded to be the new default language.
-    $this->assertTrue(language_default()->langcode == 'ca', 'Catalan is the default language');
+    $this->assertTrue(language_default()->id == 'ca', 'Catalan is the default language');
     $languages = language_list(Language::STATE_ALL);
     foreach ($languages as $language) {
-      $this->assertTrue($language->default == ($language->langcode == 'ca'), format_string('@language default property properly set', array('@language' => $language->name)));
+      $this->assertTrue($language->default == ($language->id == 'ca'), format_string('@language default property properly set', array('@language' => $language->name)));
     }
 
     // Check that both comments display on the node.
@@ -70,9 +84,9 @@ class LanguageUpgradePathTest extends UpgradePathTestBase {
     $spanish_nid = 51;
     $translation_source_nid = 52;
     $translation_nid = 53;
-    // Check directly for the $node->langcode property.
-    $this->assertEqual(node_load($language_none_nid)->langcode, Language::LANGCODE_NOT_SPECIFIED, "'language' property was renamed to 'langcode' for Language::LANGCODE_NOT_SPECIFIED node.");
-    $this->assertEqual(node_load($spanish_nid)->langcode, 'ca', "'language' property was renamed to 'langcode' for Catalan node.");
+    // Check directly for the node langcode.
+    $this->assertEqual(node_load($language_none_nid)->language()->id, Language::LANGCODE_NOT_SPECIFIED, "'language' property was renamed to 'langcode' for Language::LANGCODE_NOT_SPECIFIED node.");
+    $this->assertEqual(node_load($spanish_nid)->language()->id, 'ca', "'language' property was renamed to 'langcode' for Catalan node.");
     // Check that the translation table works correctly.
     $this->drupalGet("node/$translation_source_nid/translate");
     $this->assertResponse(200, 'The translated node has a proper translation table.');
@@ -94,7 +108,7 @@ class LanguageUpgradePathTest extends UpgradePathTestBase {
 
     // A langcode property was added to vocabularies and terms. Check that
     // existing vocabularies and terms got assigned the site default language.
-    $vocabulary = taxonomy_vocabulary_load('tags');
+    $vocabulary = entity_load('taxonomy_vocabulary', 'tags');
     $this->assertEqual($vocabulary->langcode, 'ca');
     $term = db_query('SELECT * FROM {taxonomy_term_data} WHERE tid = :tid', array(':tid' => 1))->fetchObject();
     $this->assertEqual($term->langcode, 'ca');
@@ -191,6 +205,8 @@ class LanguageUpgradePathTest extends UpgradePathTestBase {
    * Tests upgrading translations permissions.
    */
   public function testLanguagePermissionsUpgrade() {
+    // Insert a permission into the Drupal 7 database before running the
+    // upgrade.
     db_insert('role_permission')->fields(array(
       'rid' => 2,
       'permission' => 'translate content',
@@ -198,12 +214,8 @@ class LanguageUpgradePathTest extends UpgradePathTestBase {
     ))->execute();
 
     $this->assertTrue($this->performUpgrade(), 'The upgrade was completed successfully.');
-
-    // Check that translate content role doesn't exist on database.
-    $old_permission_exists = db_query('SELECT * FROM {role_permission} WHERE permission LIKE ?', array('translate content'))->fetchObject();
-    $this->assertFalse($old_permission_exists, 'No translate content role left on database.');
+    $this->assertFalse(user_roles(FALSE, 'translate content'), 'No translate content role left in config.');
     // Check that translate content has been renamed to translate all content.
-    $new_permission_exists = db_query('SELECT * FROM {role_permission} WHERE permission LIKE ?', array('translate all content'))->fetchObject();
-    $this->assertTrue($new_permission_exists, 'Rename role translate content to translate all content was completed successfully.');
+    $this->assertTrue(user_roles(FALSE, 'translate all content'), 'Rename role translate content to translate all content was completed successfully.');
   }
 }

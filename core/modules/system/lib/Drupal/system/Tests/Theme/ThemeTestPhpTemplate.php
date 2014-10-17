@@ -38,11 +38,11 @@ class ThemeTestPhpTemplate extends WebTestBase {
    * Ensures a theme's template is overrideable based on the 'template' filename.
    */
   function testTemplateOverride() {
-    config('system.theme')
+    \Drupal::config('system.theme')
       ->set('default', 'test_theme_phptemplate')
       ->save();
     $this->drupalGet('theme-test/template-test');
-    $this->assertText('Success: Template overridden with PHPTemplate theme.', t('Template overridden by PHPTemplate file.'));
+    $this->assertText('Success: Template overridden with PHPTemplate theme.', 'Template overridden by PHPTemplate file.');
   }
 
 }

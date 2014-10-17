@@ -9,7 +9,8 @@ namespace Drupal\edit;
 
 use Drupal\Component\Plugin\PluginManagerInterface;
 use Drupal\Component\Utility\NestedArray;
-use Drupal\field\Plugin\Core\Entity\FieldInstance;
+use Drupal\Core\Entity\Field\FieldDefinitionInterface;
+use Drupal\field\Plugin\Type\Formatter\FormatterPluginManager;
 
 /**
  * Selects an in-place editor (an Editor plugin) for a field.
@@ -24,6 +25,13 @@ class EditorSelector implements EditorSelectorInterface {
   protected $editorManager;
 
   /**
+   * The manager for formatter plugins.
+   *
+   * @var \Drupal\field\Plugin\Type\Formatter\FormatterPluginManager.
+   */
+  protected $formatterManager;
+
+  /**
    * A list of alternative editor plugin IDs, keyed by editor plugin ID.
    *
    * @var array
@@ -35,15 +43,18 @@ class EditorSelector implements EditorSelectorInterface {
    *
    * @param \Drupal\Component\Plugin\PluginManagerInterface
    *   The manager for editor plugins.
+   * @param \Drupal\field\Plugin\Type\Formatter\FormatterPluginManager
+   *   The manager for formatter plugins.
    */
-  public function __construct(PluginManagerInterface $editor_manager) {
+  public function __construct(PluginManagerInterface $editor_manager, FormatterPluginManager $formatter_manager) {
     $this->editorManager = $editor_manager;
+    $this->formatterManager = $formatter_manager;
   }
 
   /**
    * {@inheritdoc}
    */
-  public function getEditor($formatter_type, FieldInstance $instance, array $items) {
+  public function getEditor($formatter_type, FieldDefinitionInterface $field_definition, array $items) {
     // Build a static cache of the editors that have registered themselves as
     // alternatives to a certain editor.
     if (!isset($this->alternatives)) {
@@ -62,7 +73,7 @@ class EditorSelector implements EditorSelectorInterface {
     // 'direct' editor. If the formatter doesn't specify, fall back to the
     // 'form' editor, since that can work for any field. Formatter definitions
     // can use 'disabled' to explicitly opt out of in-place editing.
-    $formatter_info = field_info_formatter_types($formatter_type);
+    $formatter_info = $this->formatterManager->getDefinition($formatter_type);
     $editor_id = $formatter_info['edit']['editor'];
     if ($editor_id === 'disabled') {
       return;
@@ -80,7 +91,7 @@ class EditorSelector implements EditorSelectorInterface {
     // Make a choice.
     foreach ($editor_choices as $editor_id) {
       $editor = $this->editorManager->createInstance($editor_id);
-      if ($editor->isCompatible($instance, $items)) {
+      if ($editor->isCompatible($field_definition, $items)) {
         return $editor_id;
       }
     }

@@ -260,8 +260,10 @@ class RouteProviderTest extends UnitTestBase {
 
     try {
       $routes = $provider->getRouteCollectionForRequest($request);
+      $routes_array = $routes->all();
 
       $this->assertEqual(count($routes), 2, 'The correct number of routes was found.');
+      $this->assertEqual(array('narf', 'poink'), array_keys($routes_array), 'Ensure the fitness was taken into account.');
       $this->assertNotNull($routes->get('narf'), 'The first matching route was found.');
       $this->assertNotNull($routes->get('poink'), 'The second matching route was found.');
       $this->assertNull($routes->get('eep'), 'Noin-matching route was not found.');
@@ -336,7 +338,7 @@ class RouteProviderTest extends UnitTestBase {
   }
 
   /**
-   * Confirms that system_path attribute overrides request path.
+   * Confirms that _system_path attribute overrides request path.
    */
   function testSystemPathMatch() {
     $connection = Database::getConnection();
@@ -349,7 +351,7 @@ class RouteProviderTest extends UnitTestBase {
     $dumper->dump();
 
     $request = Request::create('/path/one', 'GET');
-    $request->attributes->set('system_path', 'path/two');
+    $request->attributes->set('_system_path', 'path/two');
 
     $routes_by_pattern = $provider->getRoutesByPattern('/path/two');
     $routes = $provider->getRouteCollectionForRequest($request);

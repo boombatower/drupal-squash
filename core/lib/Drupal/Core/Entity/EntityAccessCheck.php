@@ -10,18 +10,18 @@ namespace Drupal\Core\Entity;
 use Drupal\Core\Entity\EntityInterface;
 use Symfony\Component\Routing\Route;
 use Symfony\Component\HttpFoundation\Request;
-use Drupal\Core\Access\AccessCheckInterface;
+use Drupal\Core\Access\StaticAccessCheckInterface;
 
 /**
  * Provides a generic access checker for entities.
  */
-class EntityAccessCheck implements AccessCheckInterface {
+class EntityAccessCheck implements StaticAccessCheckInterface {
 
   /**
    * {@inheritdoc}
    */
-  public function applies(Route $route) {
-    return array_key_exists('_entity_access', $route->getRequirements());
+  public function appliesTo() {
+    return array('_entity_access');
   }
 
   /**
@@ -45,12 +45,12 @@ class EntityAccessCheck implements AccessCheckInterface {
     if ($request->attributes->has($entity_type)) {
       $entity = $request->attributes->get($entity_type);
       if ($entity instanceof EntityInterface) {
-        return $entity->access($operation);
+        return $entity->access($operation) ? static::ALLOW : static::DENY;
       }
     }
     // No opinion, so other access checks should decide if access should be
     // allowed or not.
-    return NULL;
+    return static::DENY;
   }
 
 }

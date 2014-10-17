@@ -29,7 +29,8 @@ function file_field_info() {
       ),
       'default_widget' => 'file_generic',
       'default_formatter' => 'file_default',
-      'field item class' => '\Drupal\file\Type\FileItem',
+      'class' => '\Drupal\file\Type\FileItem',
+      'list_class' => '\Drupal\file\Type\FileField',
     ),
   );
 }
@@ -38,7 +39,7 @@ function file_field_info() {
  * Implements hook_field_settings_form().
  */
 function file_field_settings_form($field, $instance) {
-  $defaults = field_info_field_settings($field['type']);
+  $defaults = \Drupal::service('plugin.manager.entity.field.field_type')->getDefaultSettings($field['type']);
   $settings = array_merge($defaults, $field['settings']);
 
   $form['#attached']['library'][] = array('file', 'drupal.file');
@@ -184,41 +185,12 @@ function _file_generic_settings_file_directory_validate($element, &$form_state) 
 }
 
 /**
- * Implements hook_field_prepare_view().
- */
-function file_field_prepare_view($entity_type, $entities, $field, $instances, $langcode, &$items) {
-  // Remove files specified to not be displayed.
-  $fids = array();
-  foreach ($entities as $id => $entity) {
-    foreach ($items[$id] as $delta => $item) {
-      if (file_field_displayed($item, $field) && !empty($item['fid'])) {
-        // Load the files from the files table.
-        $fids[] = $item['fid'];
-      }
-    }
-  }
-
-  if ($fids) {
-    $files = file_load_multiple($fids);
-
-    foreach ($entities as $id => $entity) {
-      foreach ($items[$id] as $delta => $item) {
-        // If the file does not exist, mark the entire item as empty.
-        if (!empty($item['fid'])) {
-          $items[$id][$delta]['entity'] = isset($files[$item['fid']]) ? $files[$item['fid']] : NULL;
-        }
-      }
-    }
-  }
-}
-
-/**
  * Implements hook_field_insert().
  */
 function file_field_insert(EntityInterface $entity, $field, $instance, $langcode, &$items) {
   // Add a new usage of each uploaded file.
   foreach ($items as $item) {
-    file_usage()->add(file_load($item['fid']), 'file', $entity->entityType(), $entity->id());
+    file_usage()->add(file_load($item['target_id']), 'file', $entity->entityType(), $entity->id());
   }
 }
 
@@ -232,7 +204,7 @@ function file_field_update(EntityInterface $entity, $field, $instance, $langcode
   // deletion of previous file usages are necessary.
   if (!empty($entity->original) && $entity->getRevisionId() != $entity->original->getRevisionId()) {
     foreach ($items as $item) {
-      file_usage()->add(file_load($item['fid']), 'file', $entity->entityType(), $entity->id());
+      file_usage()->add(file_load($item['target_id']), 'file', $entity->entityType(), $entity->id());
     }
     return;
   }
@@ -240,7 +212,7 @@ function file_field_update(EntityInterface $entity, $field, $instance, $langcode
   // Build a display of the current FIDs.
   $current_fids = array();
   foreach ($items as $item) {
-    $current_fids[] = $item['fid'];
+    $current_fids[] = $item['target_id'];
   }
 
   // Compare the original field values with the ones that are being saved.
@@ -248,18 +220,18 @@ function file_field_update(EntityInterface $entity, $field, $instance, $langcode
   $original_fids = array();
   if (!empty($original->{$field['field_name']}[$langcode])) {
     foreach ($original->{$field['field_name']}[$langcode] as $original_item) {
-      $original_fids[] = $original_item['fid'];
-      if (isset($original_item['fid']) && !in_array($original_item['fid'], $current_fids)) {
+      $original_fids[] = $original_item['target_id'];
+      if (isset($original_item['target_id']) && !in_array($original_item['target_id'], $current_fids)) {
         // Decrement the file usage count by 1.
-        file_usage()->delete(file_load($original_item['fid']), 'file', $entity->entityType(), $entity->id());
+        file_usage()->delete(file_load($original_item['target_id']), 'file', $entity->entityType(), $entity->id());
       }
     }
   }
 
   // Add new usage entries for newly added files.
   foreach ($items as $item) {
-    if (!in_array($item['fid'], $original_fids)) {
-      file_usage()->add(file_load($item['fid']), 'file', $entity->entityType(), $entity->id());
+    if (!in_array($item['target_id'], $original_fids)) {
+      file_usage()->add(file_load($item['target_id']), 'file', $entity->entityType(), $entity->id());
     }
   }
 }
@@ -270,7 +242,7 @@ function file_field_update(EntityInterface $entity, $field, $instance, $langcode
 function file_field_delete(EntityInterface $entity, $field, $instance, $langcode, &$items) {
   // Delete all file usages within this entity.
   foreach ($items as $delta => $item) {
-    file_usage()->delete(file_load($item['fid']), 'file', $entity->entityType(), $entity->id(), 0);
+    file_usage()->delete(file_load($item['target_id']), 'file', $entity->entityType(), $entity->id(), 0);
   }
 }
 
@@ -280,7 +252,7 @@ function file_field_delete(EntityInterface $entity, $field, $instance, $langcode
 function file_field_delete_revision(EntityInterface $entity, $field, $instance, $langcode, &$items) {
   foreach ($items as $delta => $item) {
     // Decrement the file usage count by 1.
-    file_usage()->delete(file_load($item['fid']), 'file', $entity->entityType(), $entity->id());
+    file_usage()->delete(file_load($item['target_id']), 'file', $entity->entityType(), $entity->id());
   }
 }
 
@@ -288,25 +260,7 @@ function file_field_delete_revision(EntityInterface $entity, $field, $instance, 
  * Implements hook_field_is_empty().
  */
 function file_field_is_empty($item, $field_type) {
-  return empty($item['fid']);
-}
-
-/**
- * Determines whether a file should be displayed when outputting field content.
- *
- * @param $item
- *   A field item array.
- * @param $field
- *   A field array.
- *
- * @return
- *   Boolean TRUE if the file will be displayed, FALSE if the file is hidden.
- */
-function file_field_displayed($item, $field) {
-  if (!empty($field['settings']['display_field'])) {
-    return (bool) $item['display'];
-  }
-  return TRUE;
+  return empty($item['target_id']);
 }
 
 /**
@@ -402,7 +356,7 @@ function file_field_widget_multiple_count_validate($element, &$form_state, $form
   array_pop($parents);
   $current = count(element_children(NestedArray::getValue($form, $parents))) - 1;
 
-  $field = field_info_field($element['#field_name']);
+  $field = field_info_field($element['#entity_type'], $element['#field_name']);
   $uploaded = count($values['fids']);
   $count = $uploaded + $current;
   if ($count > $field['cardinality']) {
@@ -461,7 +415,7 @@ function file_field_widget_process($element, &$form_state, $form) {
 
   // Add the description field if enabled.
   if ($element['#description_field'] && $item['fids']) {
-    $config = config('file.settings');
+    $config = Drupal::config('file.settings');
     $element['description'] = array(
       '#type' => $config->get('description.type'),
       '#title' => t('Description'),
@@ -475,12 +429,19 @@ function file_field_widget_process($element, &$form_state, $form) {
   // file, the entire group of file fields is updated together.
   if ($element['#cardinality'] != 1) {
     $parents = array_slice($element['#array_parents'], 0, -1);
-    $new_path = 'file/ajax/' . implode('/', $parents) . '/' . $form['form_build_id']['#value'];
+    $new_path = 'file/ajax';
+    $new_options = array(
+      'query' => array(
+        'element_parents' => implode('/', $parents),
+        'form_build_id' => $form['form_build_id']['#value'],
+      ),
+    );
     $field_element = NestedArray::getValue($form, $parents);
     $new_wrapper = $field_element['#id'] . '-ajax-wrapper';
     foreach (element_children($element) as $key) {
       if (isset($element[$key]['#ajax'])) {
         $element[$key]['#ajax']['path'] = $new_path;
+        $element[$key]['#ajax']['options'] = $new_options;
         $element[$key]['#ajax']['wrapper'] = $new_wrapper;
       }
     }
@@ -643,7 +604,7 @@ function theme_file_widget($variables) {
   if (!empty($element['fids']['#value'])) {
     // Add the file size after the file name.
     $file = reset($element['#files']);
-    $element['file_' . $file->id()]['filename']['#markup'] .= ' <span class="file-size">(' . format_size($file->getSize()) . ')</span> ';
+    $element['file_' . $file->id()]['filename']['#suffix'] = ' <span class="file-size">(' . format_size($file->getSize()) . ')</span> ';
   }
   $output .= drupal_render_children($element);
   $output .= '</div>';
@@ -692,7 +653,7 @@ function theme_file_widget_multiple($variables) {
     // Save the uploading row for last.
     if (empty($widget['#files'])) {
       $widget['#title'] = $element['#file_upload_title'];
-      $widget['#description'] = $element['#file_upload_description'];
+      $widget['#description'] = drupal_render($element['#file_upload_description']);
       continue;
     }
 
@@ -750,8 +711,16 @@ function theme_file_widget_multiple($variables) {
 
   drupal_add_tabledrag($table_id, 'order', 'sibling', $weight_class);
 
-  $output = '';
-  $output = empty($rows) ? '' : theme('table', array('header' => $headers, 'rows' => $rows, 'attributes' => array('id' => $table_id)));
+  $build = array(
+    '#theme' => 'table',
+    '#header' => $headers,
+    '#rows' => $rows,
+    '#attributes' => array(
+      'id' => $table_id,
+    ),
+  );
+
+  $output = empty($rows) ? '' : drupal_render($build);
   $output .= drupal_render_children($element);
   return $output;
 }
@@ -851,11 +820,22 @@ function theme_file_formatter_table($variables) {
   foreach ($variables['items'] as $delta => $item) {
     if ($item['display'] && $item['entity']) {
       $rows[] = array(
-        theme('file_link', array('file' => $item['entity'])),
+        array(
+          'data' => array(
+            '#theme' => 'file_link',
+            '#file' => $item['entity'],
+          ),
+        ),
         format_size($item['entity']->getSize()),
       );
     }
   }
 
-  return empty($rows) ? '' : theme('table', array('header' => $header, 'rows' => $rows));
+  $build = array(
+    '#theme' => 'table',
+    '#header' => $header,
+    '#rows' => $rows,
+  );
+
+  return empty($rows) ? '' : drupal_render($build);
 }

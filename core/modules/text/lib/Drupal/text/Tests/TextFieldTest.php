@@ -8,7 +8,6 @@
 namespace Drupal\text\Tests;
 
 use Drupal\Core\Language\Language;
-use Drupal\field\FieldValidationException;
 use Drupal\simpletest\WebTestBase;
 
 /**
@@ -51,7 +50,8 @@ class TextFieldTest extends WebTestBase {
     // Create a field with settings to validate.
     $max_length = 3;
     $this->field = entity_create('field_entity', array(
-      'field_name' => drupal_strtolower($this->randomName()),
+      'name' => drupal_strtolower($this->randomName()),
+      'entity_type' => 'entity_test',
       'type' => 'text',
       'settings' => array(
         'max_length' => $max_length,
@@ -59,22 +59,21 @@ class TextFieldTest extends WebTestBase {
     ));
     $this->field->save();
     entity_create('field_instance', array(
-      'field_name' => $this->field->id(),
+      'field_name' => $this->field->name,
       'entity_type' => 'entity_test',
       'bundle' => 'entity_test',
     ))->save();
 
-    // Test valid and invalid values with field_attach_validate().
+    // Test validation with valid and invalid values.
     $entity = entity_create('entity_test', array());
-    $langcode = Language::LANGCODE_NOT_SPECIFIED;
     for ($i = 0; $i <= $max_length + 2; $i++) {
-      $entity->{$this->field->id()}->value = str_repeat('x', $i);
-      try {
-        field_attach_validate($entity);
-        $this->assertTrue($i <= $max_length, "Length $i does not cause validation error when max_length is $max_length");
+      $entity->{$this->field->name}->value = str_repeat('x', $i);
+      $violations = $entity->{$this->field->name}->validate();
+      if ($i <= $max_length) {
+        $this->assertEqual(count($violations), 0, "Length $i does not cause validation error when max_length is $max_length");
       }
-      catch (FieldValidationException $e) {
-        $this->assertTrue($i > $max_length, "Length $i causes validation error when max_length is $max_length");
+      else {
+        $this->assertEqual(count($violations), 1, "Length $i causes validation error when max_length is $max_length");
       }
     }
   }
@@ -92,10 +91,10 @@ class TextFieldTest extends WebTestBase {
    */
   function _testTextfieldWidgets($field_type, $widget_type) {
     // Setup a field and instance
-    $entity_type = 'entity_test';
     $this->field_name = drupal_strtolower($this->randomName());
     $this->field = entity_create('field_entity', array(
-      'field_name' => $this->field_name,
+      'name' => $this->field_name,
+      'entity_type' => 'entity_test',
       'type' => $field_type
     ));
     $this->field->save();
@@ -163,7 +162,8 @@ class TextFieldTest extends WebTestBase {
     // Setup a field and instance
     $this->field_name = drupal_strtolower($this->randomName());
     $this->field = entity_create('field_entity', array(
-      'field_name' => $this->field_name,
+      'name' => $this->field_name,
+      'entity_type' => 'entity_test',
       'type' => $field_type
     ));
     $this->field->save();
@@ -190,8 +190,8 @@ class TextFieldTest extends WebTestBase {
     // Disable all text formats besides the plain text fallback format.
     $this->drupalLogin($this->admin_user);
     foreach (filter_formats() as $format) {
-      if ($format->format != filter_fallback_format()) {
-        $this->drupalPost('admin/config/content/formats/' . $format->format . '/disable', array(), t('Disable'));
+      if (!$format->isFallbackFormat()) {
+        $this->drupalPost('admin/config/content/formats/manage/' . $format->format . '/disable', array(), t('Disable'));
       }
     }
     $this->drupalLogin($this->web_user);
@@ -232,10 +232,11 @@ class TextFieldTest extends WebTestBase {
     $this->drupalPost('admin/config/content/formats/add', $edit, t('Save configuration'));
     filter_formats_reset();
     $this->checkPermissions(array(), TRUE);
-    $format = filter_format_load($edit['format']);
+    $format = entity_load('filter_format', $edit['format']);
     $format_id = $format->format;
-    $permission = filter_permission_name($format);
-    $rid = $this->web_user->roles[0];
+    $permission = $format->getPermissionName();
+    $roles = $this->web_user->getRoles();
+    $rid = $roles[0];
     user_role_grant_permissions($rid, array($permission));
     $this->drupalLogin($this->web_user);
 
@@ -255,7 +256,7 @@ class TextFieldTest extends WebTestBase {
     $this->assertText(t('entity_test @id has been updated.', array('@id' => $id)), 'Entity was updated');
 
     // Display the entity.
-    $this->container->get('plugin.manager.entity')->getStorageController('entity_test')->resetCache(array($id));
+    $this->container->get('entity.manager')->getStorageController('entity_test')->resetCache(array($id));
     $entity = entity_load('entity_test', $id);
     $display = entity_get_display($entity->entityType(), $entity->bundle(), 'full');
     $entity->content = field_attach_view($entity, $display);

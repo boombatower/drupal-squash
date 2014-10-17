@@ -7,8 +7,7 @@
 
 namespace Drupal\action\Form;
 
-use Drupal\Core\Controller\ControllerInterface;
-use Drupal\Core\Form\FormInterface;
+use Drupal\Core\Form\FormBase;
 use Drupal\Component\Utility\Crypt;
 use Drupal\Core\Action\ActionManager;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -16,7 +15,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
 /**
  * Provides a configuration form for configurable actions.
  */
-class ActionAdminManageForm implements FormInterface, ControllerInterface {
+class ActionAdminManageForm extends FormBase {
 
   /**
    * The action plugin manager.
@@ -57,37 +56,31 @@ class ActionAdminManageForm implements FormInterface, ControllerInterface {
   public function buildForm(array $form, array &$form_state) {
     $actions = array();
     foreach ($this->manager->getDefinitions() as $id => $definition) {
-      if (is_subclass_of($definition['class'], '\Drupal\Core\Action\ConfigurableActionInterface')) {
+      if (is_subclass_of($definition['class'], '\Drupal\Core\Plugin\PluginFormInterface')) {
         $key = Crypt::hashBase64($id);
         $actions[$key] = $definition['label'] . '...';
       }
     }
     $form['parent'] = array(
       '#type' => 'details',
-      '#title' => t('Create an advanced action'),
+      '#title' => $this->t('Create an advanced action'),
       '#attributes' => array('class' => array('container-inline')),
     );
     $form['parent']['action'] = array(
       '#type' => 'select',
-      '#title' => t('Action'),
+      '#title' => $this->t('Action'),
       '#title_display' => 'invisible',
       '#options' => $actions,
-      '#empty_option' => t('Choose an advanced action'),
+      '#empty_option' => $this->t('Choose an advanced action'),
     );
     $form['parent']['actions'] = array(
       '#type' => 'actions'
     );
     $form['parent']['actions']['submit'] = array(
       '#type' => 'submit',
-      '#value' => t('Create'),
+      '#value' => $this->t('Create'),
     );
     return $form;
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  public function validateForm(array &$form, array &$form_state) {
   }
 
   /**

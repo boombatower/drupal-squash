@@ -37,7 +37,7 @@ class ManyToOneHelper {
     $form['reduce_duplicates'] = array(
       '#type' => 'checkbox',
       '#title' => t('Reduce duplicates'),
-      '#description' => t('This filter can cause items that have more than one of the selected options to appear as duplicate results. If this filter causes duplicate results to occur, this checkbox can reduce those duplicates; however, the more terms it has to search for, the less performant the query will be, so use this with caution. Shouldn\'t be set on single-value fields, as it may cause values to disappear from display, if used on an incompatible field.'),
+      '#description' => t("This filter can cause items that have more than one of the selected options to appear as duplicate results. If this filter causes duplicate results to occur, this checkbox can reduce those duplicates; however, the more terms it has to search for, the less performant the query will be, so use this with caution. Shouldn't be set on single-value fields, as it may cause values to disappear from display, if used on an incompatible field."),
       '#default_value' => !empty($this->handler->options['reduce_duplicates']),
       '#weight' => 4,
     );
@@ -309,7 +309,7 @@ class ManyToOneHelper {
       else {
         $placeholder = $this->placeholder();
         if (count($this->handler->value) > 1) {
-          $this->query->addWhereExpression(0, "$field $operator($placeholder)", array($placeholder => $value));
+          $this->handler->query->addWhereExpression(0, "$field $operator($placeholder)", array($placeholder => $value));
         }
         else {
           $this->handler->query->addWhereExpression(0, "$field $operator $placeholder", array($placeholder => $value));

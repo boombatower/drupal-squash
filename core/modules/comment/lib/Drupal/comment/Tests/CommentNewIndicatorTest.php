@@ -48,10 +48,10 @@ class CommentNewIndicatorTest extends CommentTestBase {
     // comment settings so use $comment->save() to avoid complex setup.
     $comment = entity_create('comment', array(
       'cid' => NULL,
-      'nid' => $this->node->nid,
-      'node_type' => $this->node->type,
+      'nid' => $this->node->id(),
+      'node_type' => $this->node->getType(),
       'pid' => 0,
-      'uid' => $this->loggedInUser->uid,
+      'uid' => $this->loggedInUser->id(),
       'status' => COMMENT_PUBLISHED,
       'subject' => $this->randomName(),
       'hostname' => '127.0.0.1',

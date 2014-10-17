@@ -51,16 +51,16 @@ class StatisticsLoggingTest extends WebTestBase {
     $this->auth_user = $this->drupalCreateUser(array('access content', 'create page content', 'edit own page content'));
 
     // Ensure we have a node page to access.
-    $this->node = $this->drupalCreateNode(array('title' => $this->randomName(255), 'uid' => $this->auth_user->uid));
+    $this->node = $this->drupalCreateNode(array('title' => $this->randomName(255), 'uid' => $this->auth_user->id()));
 
     // Enable page caching.
-    $config = config('system.performance');
+    $config = \Drupal::config('system.performance');
     $config->set('cache.page.use_internal', 1);
     $config->set('cache.page.max_age', 300);
     $config->save();
 
     // Enable access logging.
-    config('statistics.settings')
+    \Drupal::config('statistics.settings')
       ->set('count_content_views', 1)
       ->save();
 
@@ -75,7 +75,7 @@ class StatisticsLoggingTest extends WebTestBase {
    * Verifies request logging for cached and uncached pages.
    */
   function testLogging() {
-    $path = 'node/' . $this->node->nid;
+    $path = 'node/' . $this->node->id();
     $expected = array(
       'title' => $this->node->label(),
       'path' => $path,
@@ -84,30 +84,29 @@ class StatisticsLoggingTest extends WebTestBase {
     // Verify logging of an uncached page.
     $this->drupalGet($path);
     // Manually calling statistics.php, simulating ajax behavior.
-    $nid = $this->node->nid;
-    $post = http_build_query(array('nid' => $nid));
-    $headers = array('Content-Type' => 'application/x-www-form-urlencoded');
+    $nid = $this->node->id();
+    $post = array('nid' => $nid);
     global $base_url;
     $stats_path = $base_url . '/' . drupal_get_path('module', 'statistics'). '/statistics.php';
-    $this->client->post($stats_path, $headers, $post)->send();
+    $this->client->post($stats_path, array(), $post)->send();
     $this->assertIdentical($this->drupalGetHeader('X-Drupal-Cache'), 'MISS', 'Testing an uncached page.');
-    $node_counter = statistics_get($this->node->nid);
+    $node_counter = statistics_get($this->node->id());
     $this->assertIdentical($node_counter['totalcount'], '1');
 
     // Verify logging of a cached page.
     $this->drupalGet($path);
     // Manually calling statistics.php, simulating ajax behavior.
-    $this->client->post($stats_path, $headers, $post)->send();
+    $this->client->post($stats_path, array(), $post)->send();
     $this->assertIdentical($this->drupalGetHeader('X-Drupal-Cache'), 'HIT', 'Testing a cached page.');
-    $node_counter = statistics_get($this->node->nid);
+    $node_counter = statistics_get($this->node->id());
     $this->assertIdentical($node_counter['totalcount'], '2');
 
     // Test logging from authenticated users
     $this->drupalLogin($this->auth_user);
     $this->drupalGet($path);
     // Manually calling statistics.php, simulating ajax behavior.
-    $this->client->post($stats_path, $headers, $post)->send();
-    $node_counter = statistics_get($this->node->nid);
+    $this->client->post($stats_path, array(), $post)->send();
+    $node_counter = statistics_get($this->node->id());
     $this->assertIdentical($node_counter['totalcount'], '3');
 
   }

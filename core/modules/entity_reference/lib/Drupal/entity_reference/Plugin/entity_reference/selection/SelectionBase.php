@@ -7,21 +7,20 @@
 
 namespace Drupal\entity_reference\Plugin\entity_reference\selection;
 
-use Drupal\Component\Annotation\Plugin;
 use Drupal\Core\Annotation\Translation;
 use Drupal\Core\Database\Query\AlterableInterface;
 use Drupal\Core\Database\Query\SelectInterface;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Entity\Field\FieldDefinitionInterface;
 use Drupal\Component\Utility\NestedArray;
+use Drupal\entity_reference\Annotation\EntityReferenceSelection;
 use Drupal\entity_reference\Plugin\Type\Selection\SelectionInterface;
 
 /**
  * Plugin implementation of the 'selection' entity_reference.
  *
- * @Plugin(
+ * @EntityReferenceSelection(
  *   id = "default",
- *   module = "entity_reference",
  *   label = @Translation("Default"),
  *   group = "default",
  *   weight = 0,
@@ -53,17 +52,16 @@ class SelectionBase implements SelectionInterface {
   }
 
   /**
-   * Implements SelectionInterface::settingsForm().
+   * {@inheritdoc}
    */
-  public static function settingsForm(&$field, &$instance) {
-    $entity_info = entity_get_info($field['settings']['target_type']);
-    $bundles = entity_get_bundles($field['settings']['target_type']);
+  public static function settingsForm(FieldDefinitionInterface $field_definition) {
+    $target_type = $field_definition->getFieldSetting('target_type');
+    $selection_handler_settings = $field_definition->getFieldSetting('handler_settings') ?: array();
+    $entity_info = \Drupal::entityManager()->getDefinition($target_type);
+    $bundles = entity_get_bundles($target_type);
 
     // Merge-in default values.
-    if (!isset($instance['settings']['handler_settings'])) {
-      $instance['settings']['handler_settings'] = array();
-    }
-    $instance['settings']['handler_settings'] += array(
+    $selection_handler_settings += array(
       'target_bundles' => array(),
       'sort' => array(
         'field' => '_none',
@@ -79,10 +77,10 @@ class SelectionBase implements SelectionInterface {
 
       $target_bundles_title = t('Bundles');
       // Default core entity types with sensible labels.
-      if ($field['settings']['target_type'] == 'node') {
+      if ($target_type == 'node') {
         $target_bundles_title = t('Content types');
       }
-      elseif ($field['settings']['target_type'] == 'taxonomy_term') {
+      elseif ($target_type == 'taxonomy_term') {
         $target_bundles_title = t('Vocabularies');
       }
 
@@ -90,7 +88,7 @@ class SelectionBase implements SelectionInterface {
         '#type' => 'checkboxes',
         '#title' => $target_bundles_title,
         '#options' => $bundle_options,
-        '#default_value' => (!empty($instance['settings']['handler_settings']['target_bundles'])) ? $instance['settings']['handler_settings']['target_bundles'] : array(),
+        '#default_value' => (!empty($selection_handler_settings['target_bundles'])) ? $selection_handler_settings['target_bundles'] : array(),
         '#required' => TRUE,
         '#size' => 6,
         '#multiple' => TRUE,
@@ -107,9 +105,9 @@ class SelectionBase implements SelectionInterface {
     // @todo Use Entity::getPropertyDefinitions() when all entity types are
     // converted to the new Field API.
     $fields = drupal_map_assoc(drupal_schema_fields_sql($entity_info['base_table']));
-    foreach (field_info_instances($field['settings']['target_type']) as $bundle_instances) {
+    foreach (field_info_instances($target_type) as $bundle_instances) {
       foreach ($bundle_instances as $instance_name => $instance_info) {
-        $field_info = field_info_field($instance_name);
+        $field_info = $instance_info->getField();
         foreach ($field_info['columns'] as $column_name => $column_info) {
           $fields[$instance_name . '.' . $column_name] = t('@label (@column)', array('@label' => $instance_info['label'], '@column' => $column_name));
         }
@@ -124,7 +122,7 @@ class SelectionBase implements SelectionInterface {
       ) + $fields,
       '#ajax' => TRUE,
       '#limit_validation_errors' => array(),
-      '#default_value' => $instance['settings']['handler_settings']['sort']['field'],
+      '#default_value' => $selection_handler_settings['sort']['field'],
     );
 
     $form['sort']['settings'] = array(
@@ -133,9 +131,9 @@ class SelectionBase implements SelectionInterface {
       '#process' => array('_entity_reference_form_process_merge_parent'),
     );
 
-    if ($instance['settings']['handler_settings']['sort']['field'] != '_none') {
+    if ($selection_handler_settings['sort']['field'] != '_none') {
       // Merge-in default values.
-      $instance['settings']['handler_settings']['sort'] += array(
+      $selection_handler_settings['sort'] += array(
         'direction' => 'ASC',
       );
 
@@ -147,7 +145,7 @@ class SelectionBase implements SelectionInterface {
           'ASC' => t('Ascending'),
           'DESC' => t('Descending'),
         ),
-        '#default_value' => $instance['settings']['handler_settings']['sort']['direction'],
+        '#default_value' => $selection_handler_settings['sort']['direction'],
       );
     }
 
@@ -155,9 +153,9 @@ class SelectionBase implements SelectionInterface {
   }
 
   /**
-   * Implements SelectionInterface::getReferencableEntities().
+   * {@inheritdoc}
    */
-  public function getReferencableEntities($match = NULL, $match_operator = 'CONTAINS', $limit = 0) {
+  public function getReferenceableEntities($match = NULL, $match_operator = 'CONTAINS', $limit = 0) {
     $target_type = $this->fieldDefinition->getFieldSetting('target_type');
 
     $query = $this->buildEntityQuery($match, $match_operator);
@@ -182,9 +180,9 @@ class SelectionBase implements SelectionInterface {
   }
 
   /**
-   * Implements SelectionInterface::countReferencableEntities().
+   * {@inheritdoc}
    */
-  public function countReferencableEntities($match = NULL, $match_operator = 'CONTAINS') {
+  public function countReferenceableEntities($match = NULL, $match_operator = 'CONTAINS') {
     $query = $this->buildEntityQuery($match, $match_operator);
     return $query
       ->count()
@@ -192,9 +190,9 @@ class SelectionBase implements SelectionInterface {
   }
 
   /**
-   * Implements SelectionInterface::validateReferencableEntities().
+   * {@inheritdoc}
    */
-  public function validateReferencableEntities(array $ids) {
+  public function validateReferenceableEntities(array $ids) {
     $result = array();
     if ($ids) {
       $target_type = $this->fieldDefinition->getFieldSetting('target_type');
@@ -209,10 +207,10 @@ class SelectionBase implements SelectionInterface {
   }
 
   /**
-   * Implements SelectionInterface::validateAutocompleteInput().
+   * {@inheritdoc}
    */
   public function validateAutocompleteInput($input, &$element, &$form_state, $form, $strict = TRUE) {
-    $entities = $this->getReferencableEntities($input, '=', 6);
+    $entities = $this->getReferenceableEntities($input, '=', 6);
     $params = array(
       '%value' => $input,
       '@value' => $input,
@@ -244,7 +242,7 @@ class SelectionBase implements SelectionInterface {
   }
 
   /**
-   * Builds an EntityQuery to get referencable entities.
+   * Builds an EntityQuery to get referenceable entities.
    *
    * @param string|null $match
    *   (Optional) Text to match the label against. Defaults to NULL.
@@ -258,11 +256,12 @@ class SelectionBase implements SelectionInterface {
    */
   public function buildEntityQuery($match = NULL, $match_operator = 'CONTAINS') {
     $target_type = $this->fieldDefinition->getFieldSetting('target_type');
+    $handler_settings = $this->fieldDefinition->getFieldSetting('handler_settings');
     $entity_info = entity_get_info($target_type);
 
     $query = \Drupal::entityQuery($target_type);
-    if (!empty($this->instance['settings']['handler_settings']['target_bundles'])) {
-      $query->condition($entity_info['entity_keys']['bundle'], $this->instance['settings']['handler_settings']['target_bundles'], 'IN');
+    if (!empty($handler_settings['target_bundles'])) {
+      $query->condition($entity_info['entity_keys']['bundle'], $handler_settings['target_bundles'], 'IN');
     }
 
     if (isset($match) && isset($entity_info['entity_keys']['label'])) {
@@ -291,7 +290,7 @@ class SelectionBase implements SelectionInterface {
   }
 
   /**
-   * Implements SelectionInterface::entityQueryAlter().
+   * {@inheritdoc}
    */
   public function entityQueryAlter(SelectInterface $query) { }
 

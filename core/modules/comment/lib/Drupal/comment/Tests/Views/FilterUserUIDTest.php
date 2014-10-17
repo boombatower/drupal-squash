@@ -38,16 +38,16 @@ class FilterUserUIDTest extends CommentTestBase {
       'id' => 'uid_touch',
       'table' => 'node_field_data',
       'field' => 'uid_touch',
-      'value' => array($this->loggedInUser->uid),
+      'value' => array($this->loggedInUser->id()),
     );
     $view->addItem('default', 'filter', 'node_field_data', 'uid_touch', $options);
-    $this->executeView($view, array($this->account->uid));
+    $this->executeView($view, array($this->account->id()));
     $result_set = array(
       array(
-        'nid' => $this->node_user_posted->nid,
+        'nid' => $this->node_user_posted->id(),
       ),
       array(
-        'nid' => $this->node_user_commented->nid,
+        'nid' => $this->node_user_commented->id(),
       ),
     );
     $this->column_map = array('nid' => 'nid');

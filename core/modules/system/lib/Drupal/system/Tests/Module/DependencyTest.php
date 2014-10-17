@@ -20,16 +20,16 @@ class DependencyTest extends ModuleTestBase {
   }
 
   /**
-   * Attempts to enable the Entity Translation module without Language enabled.
+   * Attempts to enable the Content Translation module without Language enabled.
    */
   function testEnableWithoutDependency() {
-    // Attempt to enable Entity Translation without Language enabled.
+    // Attempt to enable Content Translation without Language enabled.
     $edit = array();
-    $edit['modules[Multilingual][translation_entity][enable]'] = 'translation_entity';
+    $edit['modules[Multilingual][content_translation][enable]'] = 'content_translation';
     $this->drupalPost('admin/modules', $edit, t('Save configuration'));
     $this->assertText(t('Some required modules must be enabled'), 'Dependency required.');
 
-    $this->assertModules(array('translation_entity', 'language'), FALSE);
+    $this->assertModules(array('content_translation', 'language'), FALSE);
 
     // Assert that the language tables weren't enabled.
     $this->assertTableCount('language', FALSE);
@@ -37,10 +37,11 @@ class DependencyTest extends ModuleTestBase {
     $this->drupalPost(NULL, NULL, t('Continue'));
     $this->assertText(t('The configuration options have been saved.'), 'Modules status has been updated.');
 
-    $this->assertModules(array('translation_entity', 'language'), TRUE);
+    $this->assertModules(array('content_translation', 'language'), TRUE);
 
-    // Assert that the language tables were enabled.
-    $this->assertTableCount('language', TRUE);
+    // Assert that the language YAML files were created.
+    $storage = $this->container->get('config.storage');
+    $this->assertTrue(count($storage->listAll('language.entity.')) > 0, 'Language config entity files exist.');
   }
 
   /**
@@ -60,7 +61,7 @@ class DependencyTest extends ModuleTestBase {
     // Verify that the module is forced to be disabled when submitting
     // the module page.
     $this->drupalPost('admin/modules', array(), t('Save configuration'));
-    $this->assertText(t('The @module module is missing, so the following module will be disabled: @depends.', array('@module' => '_missing_dependency', '@depends' => 'system_dependencies_test')), 'The module missing dependencies will be disabled.');
+    $this->assertText(t('The @module module is missing, so the following module will be disabled: @depends.', array('@module' => '_missing_dependency', '@depends' => 'System dependency test')), 'The module missing dependencies will be disabled.');
 
     // Confirm.
     $this->drupalPost(NULL, NULL, t('Continue'));

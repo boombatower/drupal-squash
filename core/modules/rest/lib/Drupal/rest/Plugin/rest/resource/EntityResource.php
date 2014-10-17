@@ -71,7 +71,11 @@ class EntityResource extends ResourceBase {
    *
    * @throws \Symfony\Component\HttpKernel\Exception\HttpException
    */
-  public function post($id, EntityInterface $entity) {
+  public function post($id, EntityInterface $entity = NULL) {
+    if ($entity == NULL) {
+      throw new BadRequestHttpException(t('No entity content received.'));
+    }
+
     if (!$entity->access('create')) {
       throw new AccessDeniedHttpException();
     }
@@ -91,6 +95,9 @@ class EntityResource extends ResourceBase {
         throw new AccessDeniedHttpException(t('Access denied on creating field @field.', array('@field' => $field_name)));
       }
     }
+
+    // Validate the received data before saving.
+    $this->validate($entity);
     try {
       $entity->save();
       watchdog('rest', 'Created entity %type with ID %id.', array('%type' => $entity->entityType(), '%id' => $entity->id()));
@@ -117,7 +124,11 @@ class EntityResource extends ResourceBase {
    *
    * @throws \Symfony\Component\HttpKernel\Exception\HttpException
    */
-  public function patch($id, EntityInterface $entity) {
+  public function patch($id, EntityInterface $entity = NULL) {
+    if ($entity == NULL) {
+      throw new BadRequestHttpException(t('No entity content received.'));
+    }
+
     if (empty($id)) {
       throw new NotFoundHttpException();
     }
@@ -134,26 +145,26 @@ class EntityResource extends ResourceBase {
     if (!$original_entity->access('update')) {
       throw new AccessDeniedHttpException();
     }
-    $info = $original_entity->entityInfo();
-    // Make sure that the entity ID is the one provided in the URL.
-    $entity->{$info['entity_keys']['id']} = $id;
 
     // Overwrite the received properties.
     foreach ($entity as $field_name => $field) {
       if (isset($entity->{$field_name})) {
         if (empty($entity->{$field_name})) {
-          if (!$original_entity->{$field_name}->access('delete')) {
+          if (!$original_entity->get($field_name)->access('delete')) {
             throw new AccessDeniedHttpException(t('Access denied on deleting field @field.', array('@field' => $field_name)));
           }
         }
         else {
-          if (!$original_entity->{$field_name}->access('update')) {
+          if (!$original_entity->get($field_name)->access('update')) {
             throw new AccessDeniedHttpException(t('Access denied on updating field @field.', array('@field' => $field_name)));
           }
         }
-        $original_entity->{$field_name} = $field;
+        $original_entity->set($field_name, $field->getValue());
       }
     }
+
+    // Validate the received data before saving.
+    $this->validate($original_entity);
     try {
       $original_entity->save();
       watchdog('rest', 'Updated entity %type with ID %id.', array('%type' => $entity->entityType(), '%id' => $entity->id()));
@@ -196,5 +207,29 @@ class EntityResource extends ResourceBase {
       }
     }
     throw new NotFoundHttpException(t('Entity with ID @id not found', array('@id' => $id)));
+  }
+
+  /**
+   * Verifies that the whole entity does not violate any validation constraints.
+   *
+   * @param \Drupal\Core\Entity\EntityInterface $entity
+   *   The entity object.
+   *
+   * @throws \Symfony\Component\HttpKernel\Exception\HttpException
+   *   If validation errors are found.
+   */
+  protected function validate(EntityInterface $entity) {
+    $violations = $entity->validate();
+    if (count($violations) > 0) {
+      $message = "Unprocessable Entity: validation failed.\n";
+      foreach ($violations as $violation) {
+        $message .= $violation->getPropertyPath() . ': ' . $violation->getMessage() . "\n";
+      }
+      // Instead of returning a generic 400 response we use the more specific
+      // 422 Unprocessable Entity code from RFC 4918. That way clients can
+      // distinguish between general syntax errors in bad serializations (code
+      // 400) and semantic errors in well-formed requests (code 422).
+      throw new HttpException(422, $message);
+    }
   }
 }

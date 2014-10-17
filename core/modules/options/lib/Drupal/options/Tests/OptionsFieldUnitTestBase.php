@@ -39,14 +39,14 @@ class OptionsFieldUnitTestBase extends FieldUnitTestBase {
   /**
    * The list field used in the test.
    *
-   * @var \Drupal\field\Plugin\Core\Entity\Field
+   * @var \Drupal\field\Entity\Field
    */
   protected $field;
 
   /**
    * The list field instance used in the test.
    *
-   * @var \Drupal\field\Plugin\Core\Entity\FieldInstance
+   * @var \Drupal\field\Entity\FieldInstance
    */
   protected $instance;
 
@@ -58,7 +58,8 @@ class OptionsFieldUnitTestBase extends FieldUnitTestBase {
     $this->installSchema('system', 'menu_router');
 
     $this->fieldDefinition = array(
-      'field_name' => $this->fieldName,
+      'name' => $this->fieldName,
+      'entity_type' => 'entity_test',
       'type' => 'list_integer',
       'cardinality' => 1,
       'settings' => array(

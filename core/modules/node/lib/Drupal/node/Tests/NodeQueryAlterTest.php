@@ -56,31 +56,6 @@ class NodeQueryAlterTest extends NodeTestBase {
   }
 
   /**
-   * Tests that node access permissions are followed.
-   */
-  function testNodeQueryAlterWithUI() {
-    // Verify that a user with access permission can see at least one node.
-    $this->drupalLogin($this->accessUser);
-    $this->drupalGet('node_access_test_page');
-    $this->assertText('Yes, 4 nodes', "4 nodes were found for access user");
-    $this->assertNoText('Exception', "No database exception");
-
-    // Test the content overview page.
-    $this->drupalGet('admin/content');
-    $table_rows = $this->xpath('//tbody/tr');
-    $this->assertEqual(4, count($table_rows), "4 nodes were found for access user");
-
-    // Verify that a user with no access permission cannot see nodes.
-    $this->drupalLogin($this->noAccessUser);
-    $this->drupalGet('node_access_test_page');
-    $this->assertText('No nodes', "No nodes were found for no access user");
-    $this->assertNoText('Exception', "No database exception");
-
-    $this->drupalGet('admin/content');
-    $this->assertText(t('No content available.'));
-  }
-
-  /**
    * Tests 'node_access' query alter, for user with access.
    *
    * Verifies that a non-standard table alias can be used, and that a user with
@@ -194,7 +169,7 @@ class NodeQueryAlterTest extends NodeTestBase {
     // $account instead of the global $user, we will log in as
     // noAccessUser2.
     $this->drupalLogin($this->noAccessUser2);
-    \Drupal::state()->set('node_access_test.no_access_uid', $this->noAccessUser->uid);
+    \Drupal::state()->set('node_access_test.no_access_uid', $this->noAccessUser->id());
     drupal_static_reset('node_access_view_all_nodes');
     try {
       $query = db_select('node', 'mytab')

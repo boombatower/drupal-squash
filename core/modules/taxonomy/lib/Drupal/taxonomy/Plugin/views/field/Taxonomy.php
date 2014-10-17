@@ -7,8 +7,10 @@
 
 namespace Drupal\taxonomy\Plugin\views\field;
 
+use Drupal\views\Plugin\views\area\Result;
 use Drupal\views\Plugin\views\field\FieldPluginBase;
 use Drupal\views\Plugin\views\display\DisplayPluginBase;
+use Drupal\views\ResultRow;
 use Drupal\views\ViewExecutable;
 use Drupal\Component\Annotation\PluginID;
 
@@ -68,7 +70,7 @@ class Taxonomy extends FieldPluginBase {
    *
    * Data should be made XSS safe prior to calling this function.
    */
-  function render_link($data, $values) {
+  protected function renderLink($data, ResultRow $values) {
     $tid = $this->getValue($values, 'tid');
     if (!empty($this->options['link_to_taxonomy']) && !empty($tid) && $data !== NULL && $data !== '') {
       $term = entity_create('taxonomy_term', array(
@@ -87,9 +89,12 @@ class Taxonomy extends FieldPluginBase {
     return $data;
   }
 
-  function render($values) {
+  /**
+   * {@inheritdoc}
+   */
+  public function render(ResultRow $values) {
     $value = $this->getValue($values);
-    return $this->render_link($this->sanitizeValue($value), $values);
+    return $this->renderLink($this->sanitizeValue($value), $values);
   }
 
 }

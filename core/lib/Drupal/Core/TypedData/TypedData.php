@@ -59,13 +59,6 @@ abstract class TypedData implements TypedDataInterface, PluginInspectionInterfac
   }
 
   /**
-   * Implements \Drupal\Core\TypedData\TypedDataInterface::getType().
-   */
-  public function getType() {
-    return $this->definition['type'];
-  }
-
-  /**
    * {@inheritdoc}
    */
   public function getPluginId() {
@@ -97,11 +90,11 @@ abstract class TypedData implements TypedDataInterface, PluginInspectionInterfac
    * Implements \Drupal\Core\TypedData\TypedDataInterface::setValue().
    */
   public function setValue($value, $notify = TRUE) {
-    // Notify the parent of any changes to be made.
+    $this->value = $value;
+    // Notify the parent of any changes.
     if ($notify && isset($this->parent)) {
       $this->parent->onChange($this->name);
     }
-    $this->value = $value;
   }
 
   /**

@@ -46,8 +46,8 @@ class SearchConfigSettingsFormTest extends SearchTestBase {
     // also needs the word "pizza" so we can use it as the search keyword.
     $langcode = Language::LANGCODE_NOT_SPECIFIED;
     $body_key = "body[$langcode][0][value]";
-    $edit[$body_key] = l($node->label(), 'node/' . $node->nid) . ' pizza sandwich';
-    $this->drupalPost('node/' . $node->nid . '/edit', $edit, t('Save and keep published'));
+    $edit[$body_key] = l($node->label(), 'node/' . $node->id()) . ' pizza sandwich';
+    $this->drupalPost('node/' . $node->id() . '/edit', $edit, t('Save and keep published'));
 
     node_update_index();
     search_update_totals();
@@ -145,8 +145,8 @@ class SearchConfigSettingsFormTest extends SearchTestBase {
       'user' => array(
         'path' => 'user',
         'title' => 'User',
-        'keys' => $this->search_user->name,
-        'text' => $this->search_user->mail,
+        'keys' => $this->search_user->getUsername(),
+        'text' => $this->search_user->getEmail(),
       ),
       'search_extra_type' => array(
         'path' => 'dummy_path',

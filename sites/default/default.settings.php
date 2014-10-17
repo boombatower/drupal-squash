@@ -411,14 +411,15 @@ $settings['update_free_access'] = FALSE;
 /**
  * Class Loader.
  *
- * By default, Drupal uses the Symfony UniversalClassLoader which is best for
- * development, as it does not break when code is moved on the file system.
- * The APC classloader provides better performance and is recommended for
- * production sites.
+ * By default, Drupal uses Composer's ClassLoader, which is best for
+ * development, as it does not break when code is moved on the file
+ * system. It is possible, however, to wrap the class loader with a
+ * cached class loader solution for better performance, which is
+ * recommended for production sites.
  *
  * Examples:
- *  $class_loader = 'apc'
- *  $class_loader = 'default'
+ *   $settings['class_loader'] = 'apc';
+ *   $settings['class_loader'] = 'default';
  */
 # $settings['class_loader'] = 'apc';
 
@@ -453,6 +454,15 @@ $settings['update_free_access'] = FALSE;
  * Defaults to FALSE.
  */
 # $settings['mixed_mode_sessions'] = TRUE;
+
+/**
+ * Public file path:
+ *
+ * A local file system path where public files will be stored. This directory
+ * must exist and be writable by Drupal. This directory must be relative to
+ * the Drupal installation directory and be accessible over the web.
+ */
+# $settings['file_public_path'] = 'sites/default/files';
 
 /**
  * Session write interval:

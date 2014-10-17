@@ -23,6 +23,8 @@
 // Change the directory to the Drupal root.
 chdir('..');
 
+require_once __DIR__ . '/vendor/autoload.php';
+
 /**
  * Global flag to identify update.php and authorize.php runs.
  *
@@ -48,10 +50,12 @@ function authorize_access_denied_page() {
  * The killswitch in settings.php overrides all else, otherwise, the user must
  * have access to the 'administer software updates' permission.
  *
- * @return
+ * @return bool
  *   TRUE if the current user can run authorize.php, and FALSE if not.
  */
 function authorize_access_allowed() {
+  require_once DRUPAL_ROOT . '/' . settings()->get('session_inc', 'core/includes/session.inc');
+  drupal_session_initialize();
   return settings()->get('allow_authorize_operations', TRUE) && user_access('administer software updates');
 }
 
@@ -65,7 +69,7 @@ require_once __DIR__ . '/includes/ajax.inc';
 
 // We prepare only a minimal bootstrap. This includes the database and
 // variables, however, so we have access to the class autoloader.
-drupal_bootstrap(DRUPAL_BOOTSTRAP_SESSION);
+drupal_bootstrap(DRUPAL_BOOTSTRAP_VARIABLES);
 
 // This must go after drupal_bootstrap(), which unsets globals!
 global $conf;

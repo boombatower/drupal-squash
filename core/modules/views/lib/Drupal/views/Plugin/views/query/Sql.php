@@ -13,7 +13,7 @@ use Drupal\views\Plugin\views\display\DisplayPluginBase;
 use Drupal\Core\Database\DatabaseExceptionWrapper;
 use Drupal\views\Plugin\views\join\JoinPluginBase;
 use Drupal\views\Plugin\views\HandlerBase;
-use Drupal\Component\Annotation\Plugin;
+use Drupal\views\Annotation\ViewsQuery;
 use Drupal\Core\Annotation\Translation;
 use Drupal\views\ViewExecutable;
 use Drupal\views\Views;
@@ -21,7 +21,7 @@ use Drupal\views\Views;
 /**
  * @todo.
  *
- * @Plugin(
+ * @ViewsQuery(
  *   id = "views_query",
  *   title = @Translation("SQL Query"),
  *   help = @Translation("Query will be generated and run using the Drupal database API.")
@@ -1424,16 +1424,13 @@ class Sql extends QueryPluginBase {
         }
 
         $result = $query->execute();
+        $result->setFetchMode(\PDO::FETCH_CLASS, 'Drupal\views\ResultRow');
 
-        $view->result = array();
-        foreach ($result as $item) {
-          $view->result[] = $item;
-        }
+        $view->result = iterator_to_array($result);
 
         $view->pager->postExecute($view->result);
-        if ($view->pager->useCountQuery() || !empty($view->get_total_rows)) {
-          $view->total_rows = $view->pager->getTotalItems();
-        }
+        $view->pager->updatePageInfo();
+        $view->total_rows = $view->pager->getTotalItems();
 
         // Load all entities contained in the results.
         $this->loadEntities($view->result);
@@ -1520,12 +1517,6 @@ class Sql extends QueryPluginBase {
       return;
     }
 
-     // Initialize the entity placeholders in $results.
-    foreach ($results as $index => $result) {
-      $results[$index]->_entity = FALSE;
-      $results[$index]->_relationship_entities = array();
-    }
-
     // Assemble a list of entities to load.
     $ids_by_table = array();
     foreach ($entity_tables as $table_alias => $table) {
@@ -1563,7 +1554,12 @@ class Sql extends QueryPluginBase {
       }
 
       foreach ($ids as $index => $id) {
-        $entity = isset($entities[$id]) ? $entities[$id] : FALSE;
+        if (isset($entities[$id])) {
+          $entity = $entities[$id];
+        }
+        else {
+          $entity = NULL;
+        }
 
         if ($relationship_id == 'none') {
           $results[$index]->_entity = $entity;

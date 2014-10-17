@@ -25,10 +25,10 @@ class PageViewTest extends NodeTestBase {
   function testPageView() {
     // Create a node to view.
     $node = $this->drupalCreateNode();
-    $this->assertTrue(node_load($node->nid), 'Node created.');
+    $this->assertTrue(node_load($node->id()), 'Node created.');
 
     // Try to edit with anonymous user.
-    $html = $this->drupalGet("node/$node->nid/edit");
+    $this->drupalGet("node/" . $node->id() . "/edit");
     $this->assertResponse(403);
 
     // Create a user without permission to edit node.
@@ -36,7 +36,7 @@ class PageViewTest extends NodeTestBase {
     $this->drupalLogin($web_user);
 
     // Attempt to access edit page.
-    $this->drupalGet("node/$node->nid/edit");
+    $this->drupalGet("node/" . $node->id() . "/edit");
     $this->assertResponse(403);
 
     // Create user with permission to edit node.
@@ -44,7 +44,7 @@ class PageViewTest extends NodeTestBase {
     $this->drupalLogin($web_user);
 
     // Attempt to access edit page.
-    $this->drupalGet("node/$node->nid/edit");
+    $this->drupalGet("node/" . $node->id() . "/edit");
     $this->assertResponse(200);
   }
 }

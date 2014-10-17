@@ -6,11 +6,13 @@
  */
 
 use Drupal\Core\Entity\EntityInterface;
+use Drupal\node\NodeTypeInterface;
 use Drupal\Core\Language\Language;
-use Drupal\entity\Plugin\Core\Entity\EntityDisplay;
+use Drupal\entity\Entity\EntityDisplay;
 use Drupal\Core\Template\Attribute;
-use Drupal\menu_link\Plugin\Core\Entity\MenuLink;
+use Drupal\menu_link\Entity\MenuLink;
 use Drupal\menu_link\MenuLinkStorageController;
+use Drupal\node\NodeInterface;
 
 /**
  * Implements hook_help().
@@ -118,13 +120,13 @@ function book_permission() {
  * @param $view_mode
  *   The view mode of the node.
  */
-function book_node_view_link(EntityInterface $node, $view_mode) {
+function book_node_view_link(NodeInterface $node, $view_mode) {
   $links = array();
 
   if (isset($node->book['depth'])) {
     if ($view_mode == 'full' && node_is_page($node)) {
-      $child_type = config('book.settings')->get('child_type');
-      if ((user_access('add content to books') || user_access('administer book outlines')) && node_access('create', $child_type) && $node->status == 1 && $node->book['depth'] < MENU_MAX_DEPTH) {
+      $child_type = Drupal::config('book.settings')->get('child_type');
+      if ((user_access('add content to books') || user_access('administer book outlines')) && node_access('create', $child_type) && $node->isPublished() && $node->book['depth'] < MENU_MAX_DEPTH) {
         $links['book_add_child'] = array(
           'title' => t('Add child page'),
           'href' => 'node/add/' . $child_type,
@@ -135,7 +137,7 @@ function book_node_view_link(EntityInterface $node, $view_mode) {
       if (user_access('access printer-friendly version')) {
         $links['book_printer'] = array(
           'title' => t('Printer-friendly version'),
-          'href' => 'book/export/html/' . $node->nid,
+          'href' => 'book/export/html/' . $node->id(),
           'attributes' => array('title' => t('Show a printer-friendly version of this book page and its sub-pages.'))
         );
       }
@@ -185,14 +187,6 @@ function book_menu() {
     'route_name' => 'book_render',
     'type' => MENU_SUGGESTED_ITEM,
   );
-  $items['book/export/%/%node'] = array(
-    'page callback' => 'book_export',
-    'page arguments' => array(2, 3),
-    'access callback' => 'book_export_access',
-    'access arguments' => array(3),
-    'type' => MENU_CALLBACK,
-    'file' => 'book.pages.inc',
-  );
   $items['node/%node/outline'] = array(
     'title' => 'Outline',
     'page callback' => 'book_outline',
@@ -213,16 +207,6 @@ function book_menu() {
   );
 
   return $items;
-}
-
-/**
- * Access callback: Determines if the book export page is accessible.
- *
- * @param \Drupal\node\Plugin\Core\Entity\EntityInterface $node
- *   The node whose export page is to be viewed.
- */
-function book_export_access(EntityInterface $node) {
-  return user_access('access printer-friendly version') && node_access('view', $node);
 }
 
 /**
@@ -263,14 +247,14 @@ function _book_outline_remove_access(EntityInterface $node) {
  *   The node to remove from the outline.
  */
 function _book_node_is_removable(EntityInterface $node) {
-  return (!empty($node->book['bid']) && (($node->book['bid'] != $node->nid) || !$node->book['has_children']));
+  return (!empty($node->book['bid']) && (($node->book['bid'] != $node->id()) || !$node->book['has_children']));
 }
 
 /**
  * Implements hook_admin_paths().
  */
 function book_admin_paths() {
-  if (variable_get('node_admin_theme')) {
+  if (Drupal::config('node.settings')->get('use_admin_theme')) {
     $paths = array(
       'node/*/outline' => TRUE,
       'node/*/outline/remove' => TRUE,
@@ -305,7 +289,7 @@ function book_form_node_form_alter(&$form, &$form_state, $form_id) {
   $node = $form_state['controller']->getEntity();
   $access = user_access('administer book outlines');
   if (!$access) {
-    if (user_access('add content to books') && ((!empty($node->book['mlid']) && !empty($node->nid)) || book_type_is_allowed($node->type))) {
+    if (user_access('add content to books') && ((!empty($node->book['mlid']) && !$node->isNew()) || book_type_is_allowed($node->getType()))) {
       // Already in the book hierarchy, or this node type is allowed.
       $access = TRUE;
     }
@@ -325,7 +309,17 @@ function book_form_node_form_alter(&$form, &$form_state, $form_id) {
         'css' => array(drupal_get_path('module', 'book') . '/css/book.admin.css'),
       ),
     );
+    $form['#entity_builders'][] = 'book_node_builder';
   }
+}
+
+/**
+ * Entity form builder to add the book information to the node.
+ *
+ * @todo: Remove this in favor of an entity field.
+ */
+function book_node_builder($entity_type, $entity, &$form, &$form_state) {
+  $entity->book = $form_state['values']['book'];
 }
 
 /**
@@ -360,7 +354,7 @@ function book_pick_book_nojs_submit($form, &$form_state) {
  *   A parent selection form element.
  */
 function _book_parent_select($book_link) {
-  if (config('menu.settings')->get('override_parent_selector')) {
+  if (Drupal::config('menu.settings')->get('override_parent_selector')) {
     return array();
   }
   // Offer a message or a drop-down to choose a different parent page.
@@ -445,11 +439,11 @@ function _book_add_form_elements(&$form, &$form_state, EntityInterface $node) {
     '#description' => t('Pages at a given level are ordered first by weight and then by title.'),
   );
   $options = array();
-  $nid = isset($node->nid) ? $node->nid : 'new';
+  $nid = !$node->isNew() ? $node->id() : 'new';
 
-  if (isset($node->nid) && ($nid == $node->book['original_bid']) && ($node->book['parent_depth_limit'] == 0)) {
+  if ($node->id() && ($nid == $node->book['original_bid']) && ($node->book['parent_depth_limit'] == 0)) {
     // This is the top level node in a maximum depth book and thus cannot be moved.
-    $options[$node->nid] = $node->label();
+    $options[$node->id()] = $node->label();
   }
   else {
     foreach (book_get_books() as $book) {
@@ -517,13 +511,13 @@ function _book_update_outline(EntityInterface $node) {
   }
   $new = empty($node->book['mlid']);
 
-  $node->book['link_path'] = 'node/' . $node->nid;
+  $node->book['link_path'] = 'node/' . $node->id();
   $node->book['link_title'] = $node->label();
   $node->book['parent_mismatch'] = FALSE; // The normal case.
 
-  if ($node->book['bid'] == $node->nid) {
+  if ($node->book['bid'] == $node->id()) {
     $node->book['plid'] = 0;
-    $node->book['menu_name'] = book_menu_name($node->nid);
+    $node->book['menu_name'] = book_menu_name($node->id());
   }
   else {
     // Check in case the parent is not is this book; the book takes precedence.
@@ -546,7 +540,7 @@ function _book_update_outline(EntityInterface $node) {
       // Insert new.
       db_insert('book')
         ->fields(array(
-          'nid' => $node->nid,
+          'nid' => $node->id(),
           'mlid' => $node->book['mlid'],
           'bid' => $node->book['bid'],
         ))
@@ -556,7 +550,7 @@ function _book_update_outline(EntityInterface $node) {
     }
     else {
       if ($node->book['bid'] != db_query("SELECT bid FROM {book} WHERE nid = :nid", array(
-          ':nid' => $node->nid,
+          ':nid' => $node->id(),
         ))->fetchField()) {
         // Update the bid for this page and all children.
         book_update_bid($node->book);
@@ -814,7 +808,7 @@ function book_node_presave(EntityInterface $node) {
     $node->setNewRevision();
   }
   // Make sure a new node gets a new menu link.
-  if (empty($node->nid)) {
+  if ($node->isNew()) {
     $node->book['mlid'] = NULL;
   }
 }
@@ -826,9 +820,9 @@ function book_node_insert(EntityInterface $node) {
   if (!empty($node->book['bid'])) {
     if ($node->book['bid'] == 'new') {
       // New nodes that are their own book.
-      $node->book['bid'] = $node->nid;
+      $node->book['bid'] = $node->id();
     }
-    $node->book['nid'] = $node->nid;
+    $node->book['nid'] = $node->id();
     $node->book['menu_name'] = book_menu_name($node->book['bid']);
     _book_update_outline($node);
   }
@@ -841,9 +835,9 @@ function book_node_update(EntityInterface $node) {
   if (!empty($node->book['bid'])) {
     if ($node->book['bid'] == 'new') {
       // New nodes that are their own book.
-      $node->book['bid'] = $node->nid;
+      $node->book['bid'] = $node->id();
     }
-    $node->book['nid'] = $node->nid;
+    $node->book['nid'] = $node->id();
     $node->book['menu_name'] = book_menu_name($node->book['bid']);
     _book_update_outline($node);
   }
@@ -854,14 +848,14 @@ function book_node_update(EntityInterface $node) {
  */
 function book_node_predelete(EntityInterface $node) {
   if (!empty($node->book['bid'])) {
-    if ($node->nid == $node->book['bid']) {
+    if ($node->id() == $node->book['bid']) {
       // Handle deletion of a top-level post.
       $result = db_query("SELECT b.nid FROM {menu_links} ml INNER JOIN {book} b on b.mlid = ml.mlid WHERE ml.plid = :plid", array(
         ':plid' => $node->book['mlid']
       ));
       foreach ($result as $child) {
-        $child_node = node_load($child->nid);
-        $child_node->book['bid'] = $child_node->nid;
+        $child_node = node_load($child->id());
+        $child_node->book['bid'] = $child_node->id();
         _book_update_outline($child_node);
       }
     }
@@ -874,15 +868,15 @@ function book_node_predelete(EntityInterface $node) {
 }
 
 /**
- * Implements hook_node_prepare().
+ * Implements hook_node_prepare_form().
  */
-function book_node_prepare(EntityInterface $node) {
+function book_node_prepare_form(NodeInterface $node, $form_display, $operation, array &$form_state) {
   // Prepare defaults for the add/edit form.
   if (empty($node->book) && (user_access('add content to books') || user_access('administer book outlines'))) {
     $node->book = array();
 
     $query = \Drupal::request()->query;
-    if (empty($node->nid) && !is_null($query->get('parent')) && is_numeric($query->get('parent'))) {
+    if ($node->isNew() && !is_null($query->get('parent')) && is_numeric($query->get('parent'))) {
       // Handle "Add child page" links:
       $parent = book_link_load($query->get('parent'));
 
@@ -893,7 +887,7 @@ function book_node_prepare(EntityInterface $node) {
       }
     }
     // Set defaults.
-    $node->book += _book_link_defaults(!empty($node->nid) ? $node->nid : 'new');
+    $node->book += _book_link_defaults(!$node->isNew() ? $node->id() : 'new');
   }
   else {
     if (isset($node->book['bid']) && !isset($node->book['original_bid'])) {
@@ -1127,71 +1121,9 @@ function template_preprocess_book_export_html(&$variables) {
 
   // HTML element attributes.
   $attributes = array();
-  $attributes['lang'] = $language_interface->langcode;
+  $attributes['lang'] = $language_interface->id;
   $attributes['dir'] = $language_interface->direction ? 'rtl' : 'ltr';
   $variables['html_attributes'] = new Attribute($attributes);
-}
-
-/**
- * Traverses the book tree to build printable or exportable output.
- *
- * During the traversal, the $visit_func() callback is applied to each node and
- * is called recursively for each child of the node (in weight, title order).
- *
- * @param $tree
- *   A subtree of the book menu hierarchy, rooted at the current page.
- * @param $visit_func
- *   A function callback to be called upon visiting a node in the tree.
- *
- * @return
- *   The output generated in visiting each node.
- */
-function book_export_traverse($tree, $visit_func) {
-  $output = '';
-
-  foreach ($tree as $data) {
-    // Note- access checking is already performed when building the tree.
-    if ($node = node_load($data['link']['nid'])) {
-      $children = '';
-
-      if ($data['below']) {
-        $children = book_export_traverse($data['below'], $visit_func);
-      }
-
-      if (!empty($visit_func)) {
-        $output .= call_user_func($visit_func, $node, $children);
-      }
-      else {
-        // Use the default function.
-        $output .= book_node_export($node, $children);
-      }
-    }
-  }
-
-  return $output;
-}
-
-/**
- * Generates printer-friendly HTML for a node.
- *
- * @param \Drupal\Core\Entity\EntityInterface $node
- *   The node that will be output.
- * @param $children
- *   (optional) All the rendered child nodes within the current node. Defaults
- *   to an empty string.
- *
- * @return
- *   The HTML generated for the given node.
- *
- * @see book_export_traverse()
- */
-function book_node_export(EntityInterface $node, $children = '') {
-  $build = node_view($node, 'print');
-  unset($build['#theme']);
-  // @todo Rendering should happen in the template using render().
-  $node->rendered = drupal_render($build);
-  $book_node_export_html = array('#theme' => 'book_node_export_html', '#node' => $node, '#children' => $children );
-  return drupal_render($book_node_export_html);
 }
 
 /**
@@ -1221,7 +1153,7 @@ function template_preprocess_book_node_export_html(&$variables) {
  *   A Boolean TRUE if the node type can be included in books; otherwise, FALSE.
  */
 function book_type_is_allowed($type) {
-  return in_array($type, config('book.settings')->get('allowed_types'));
+  return in_array($type, Drupal::config('book.settings')->get('allowed_types'));
 }
 
 /**
@@ -1230,25 +1162,24 @@ function book_type_is_allowed($type) {
  * Updates book.settings configuration object if the machine-readable name of a
  * node type is changed.
  */
-function book_node_type_update($type) {
-  if (!empty($type->old_type) && $type->old_type != $type->type) {
-    $config = config('book.settings');
+function book_node_type_update(NodeTypeInterface $type) {
+  if ($type->getOriginalID() != $type->id()) {
+    $config = Drupal::config('book.settings');
     // Update the list of node types that are allowed to be added to books.
     $allowed_types = $config->get('allowed_types');
-    $old_key = array_search($type->old_type, $allowed_types);
+    $old_key = array_search($type->getOriginalID(), $allowed_types);
+
     if ($old_key !== FALSE) {
-      // Replace the old machine-readable name with the new machine-readable
-      // name.
-      $allowed_types[$old_key] = $type->type;
+      $allowed_types[$old_key] = $type->id();
       // Ensure that the allowed_types array is sorted consistently.
-      // @see book_admin_settings_submit()
+      // @see BookSettingsForm::submitForm()
       sort($allowed_types);
       $config->set('allowed_types', $allowed_types);
     }
 
     // Update the setting for the "Add child page" link.
-    if ($config->get('child_type') == $type->old_type) {
-      $config->set('child_type', $type->type);
+    if ($config->get('child_type') == $type->getOriginalID()) {
+      $config->set('child_type', $type->id());
     }
     $config->save();
   }

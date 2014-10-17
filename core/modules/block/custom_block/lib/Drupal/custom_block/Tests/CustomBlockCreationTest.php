@@ -64,6 +64,42 @@ class CustomBlockCreationTest extends CustomBlockTestBase {
     $blocks = entity_load_multiple_by_properties('custom_block', array('info' => $edit['info']));
     $block = reset($blocks);
     $this->assertTrue($block, 'Custom Block found in database.');
+
+    // Check that attempting to create another block with the same value for
+    // 'info' returns an error.
+    $this->drupalPost('block/add/basic', $edit, t('Save'));
+
+    // Check that the Basic block has been created.
+    $this->assertRaw(format_string('A block with description %name already exists.', array(
+      '%name' => $edit["info"]
+    )));
+    $this->assertResponse(200);
+  }
+
+  /**
+   * Create a default custom block.
+   *
+   * Creates a custom block from defaults and ensures that the 'basic block'
+   * type is being used.
+   */
+  public function testDefaultCustomBlockCreation() {
+    $edit = array();
+    $langcode = Language::LANGCODE_NOT_SPECIFIED;
+    $edit['info'] = $this->randomName(8);
+    $edit["block_body[$langcode][0][value]"] = $this->randomName(16);
+    // Don't pass the custom block type in the url so the default is forced.
+    $this->drupalPost('block/add', $edit, t('Save'));
+
+    // Check that the block has been created and that it is a basic block.
+    $this->assertRaw(format_string('!block %name has been created.', array(
+      '!block' => 'Basic block',
+      '%name' => $edit["info"],
+    )), 'Basic block created.');
+
+    // Check that the block exists in the database.
+    $blocks = entity_load_multiple_by_properties('custom_block', array('info' => $edit['info']));
+    $block = reset($blocks);
+    $this->assertTrue($block, 'Default Custom Block found in database.');
   }
 
   /**
@@ -121,7 +157,9 @@ class CustomBlockCreationTest extends CustomBlockTestBase {
       'settings[label]' => $edit['info'],
       'region' => 'sidebar_first',
     );
-    $this->drupalPost(NULL, $instance, t('Save block'));
+    $block = entity_load('custom_block', 1);
+    $url = 'admin/structure/block/add/custom_block:' . $block->uuid() . '/' . \Drupal::config('system.theme')->get('default');
+    $this->drupalPost($url, $instance, t('Save block'));
 
     $block = custom_block_load(1);
 

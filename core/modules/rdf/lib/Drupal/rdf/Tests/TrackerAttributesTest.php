@@ -2,7 +2,7 @@
 
 /**
  * @file
- * Contains Drupal\rdf\Tests\TrackerAttributesTest.
+ * Contains \Drupal\rdf\Tests\TrackerAttributesTest.
  */
 
 namespace Drupal\rdf\Tests;
@@ -36,6 +36,48 @@ class TrackerAttributesTest extends WebTestBase {
 
     // Creates article content type.
     $this->drupalCreateContentType(array('type' => 'article', 'name' => t('Article')));
+
+    // Set bundle RDF mapping config for article.
+    $mapping = rdf_get_mapping('node', 'article');
+    // Set fields RDF mapping config for article.
+    $node_shared_field_mappings = array(
+      'title' => array(
+        'properties' => array('dc:title'),
+      ),
+      'created' => array(
+        'properties' => array('dc:date', 'dc:created'),
+        'datatype' => 'xsd:dateTime',
+        'datatype_callback' => array('callable' => 'date_iso8601'),
+      ),
+      'changed' => array(
+        'properties' => array('dc:modified'),
+        'datatype' => 'xsd:dateTime',
+        'datatype_callback' => array('callable' => 'date_iso8601'),
+      ),
+      'body' => array(
+        'properties' => array('content:encoded'),
+      ),
+      'uid' => array(
+        'properties' => array('sioc:has_creator'),
+        'mapping_type' => 'rel',
+      ),
+      'name' => array(
+        'properties' => array('foaf:name'),
+      ),
+      'comment_count' => array(
+        'properties' => array('sioc:num_replies'),
+        'datatype' => 'xsd:integer',
+      ),
+      'last_activity' => array(
+        'properties' => array('sioc:last_activity_date'),
+        'datatype' => 'xsd:dateTime',
+        'datatype_callback' => array('callable' => 'date_iso8601'),
+      ),
+    );
+    // Iterate over field mappings and save.
+    foreach ($node_shared_field_mappings as $field_name => $field_mapping) {
+      $mapping->setFieldMapping($field_name, $field_mapping)->save();
+    }
 
     // Enables anonymous posting of content.
     user_role_change_permissions(DRUPAL_ANONYMOUS_RID, array(
@@ -76,10 +118,10 @@ class TrackerAttributesTest extends WebTestBase {
    * The node just created.
    */
   function _testBasicTrackerRdfaMarkup(EntityInterface $node) {
-    $node_uri = url('node/' . $node->nid, array('absolute' => TRUE));
-    $user_uri = url('user/' . $node->uid, array('absolute' => TRUE));
+    $node_uri = url('node/' . $node->id(), array('absolute' => TRUE));
+    $user_uri = url('user/' . $node->getAuthorId(), array('absolute' => TRUE));
 
-    $user = ($node->uid == 0) ? 'Anonymous user' : 'Registered user';
+    $user = ($node->getAuthorId() == 0) ? 'Anonymous user' : 'Registered user';
 
     // Parses tracker page where the nodes are displayed in a table.
     $parser = new \EasyRdf_Parser_Rdfa();
@@ -92,7 +134,7 @@ class TrackerAttributesTest extends WebTestBase {
       'type' => 'literal',
       // The theme layer adds a space after the title a element, and the RDFa
       // attribute is on the wrapping td. Adds a space to match this.
-      'value' => $node->title . ' ',
+      'value' => $node->getTitle() . ' ',
       'lang' => 'en',
     );
     $this->assertTrue($graph->hasProperty($node_uri, 'http://purl.org/dc/terms/title', $expected_value), 'Title found in RDF output (dc:title).');
@@ -108,16 +150,16 @@ class TrackerAttributesTest extends WebTestBase {
       'type' => 'uri',
       'value' => $user_uri,
     );
-    if ($node->uid == 0) {
+    if ($node->getAuthorId() == 0) {
       $this->assertFalse($graph->hasProperty($node_uri, 'http://rdfs.org/sioc/ns#has_creator', $expected_value), 'No relation to author found in RDF output (sioc:has_creator).');
     }
-    elseif ($node->uid > 0) {
+    elseif ($node->getAuthorId() > 0) {
       $this->assertTrue($graph->hasProperty($node_uri, 'http://rdfs.org/sioc/ns#has_creator', $expected_value), 'Relation to author found in RDF output (sioc:has_creator).');
     }
     // Last updated.
     $expected_value = array(
       'type' => 'literal',
-      'value' => date('c', $node->changed),
+      'value' => date('c', $node->getChangedTime()),
       'datatype' => 'http://www.w3.org/2001/XMLSchema#dateTime',
     );
     $this->assertTrue($graph->hasProperty($node_uri, 'http://rdfs.org/sioc/ns#last_activity_date', $expected_value), 'Last activity date found in RDF output (sioc:last_activity_date).');
@@ -128,7 +170,7 @@ class TrackerAttributesTest extends WebTestBase {
       'subject' => $this->randomName(),
       'comment_body[' . Language::LANGCODE_NOT_SPECIFIED . '][0][value]' => $this->randomName(),
     );
-    $this->drupalPost('comment/reply/' . $node->nid, $comment, t('Save'));
+    $this->drupalPost('comment/reply/' . $node->id(), $comment, t('Save'));
 
     // Parses tracker page where the nodes are displayed in a table.
     $parser = new \EasyRdf_Parser_Rdfa();
@@ -145,7 +187,7 @@ class TrackerAttributesTest extends WebTestBase {
     // Last updated due to new comment.
     // last_activity_date needs to be queried from the database directly because
     // it cannot be accessed via node_load().
-    $expected_last_activity_date = db_query('SELECT t.changed FROM {tracker_node} t WHERE t.nid = (:nid)', array(':nid' => $node->nid))->fetchField();
+    $expected_last_activity_date = db_query('SELECT t.changed FROM {tracker_node} t WHERE t.nid = (:nid)', array(':nid' => $node->id()))->fetchField();
     $expected_value = array(
       'type' => 'literal',
       'value' => date('c', $expected_last_activity_date),

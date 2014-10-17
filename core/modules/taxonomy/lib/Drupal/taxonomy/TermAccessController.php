@@ -14,7 +14,7 @@ use Drupal\Core\Session\AccountInterface;
 /**
  * Defines an access controller for the taxonomy term entity.
  *
- * @see \Drupal\taxonomy\Plugin\Core\Entity\Term
+ * @see \Drupal\taxonomy\Entity\Term
  */
 class TermAccessController extends EntityAccessController {
 
@@ -24,21 +24,24 @@ class TermAccessController extends EntityAccessController {
   protected function checkAccess(EntityInterface $entity, $operation, $langcode, AccountInterface $account) {
     switch ($operation) {
       case 'view':
-        return user_access('access content', $account);
-        break;
-
-      case 'create':
-        return user_access('administer taxonomy', $account);
+        return $account->hasPermission('access content');
         break;
 
       case 'update':
-        return user_access("edit terms in {$entity->bundle()}", $account) || user_access('administer taxonomy', $account);
+        return $account->hasPermission("edit terms in {$entity->bundle()}") || $account->hasPermission('administer taxonomy');
         break;
 
       case 'delete':
-        return user_access("delete terms in {$entity->bundle()}", $account) || user_access('administer taxonomy', $account);
+        return $account->hasPermission("delete terms in {$entity->bundle()}") || $account->hasPermission('administer taxonomy');
         break;
     }
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  protected function checkCreateAccess(AccountInterface $account, array $context, $entity_bundle = NULL) {
+    return $account->hasPermission('administer taxonomy');
   }
 
 }

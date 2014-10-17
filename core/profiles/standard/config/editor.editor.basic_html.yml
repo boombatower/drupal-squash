@@ -7,18 +7,26 @@ settings:
         - Bold
         - Italic
         - '|'
-        - Link
-        - Unlink
+        - DrupalLink
+        - DrupalUnlink
         - '|'
         - BulletedList
         - NumberedList
         - '|'
         - Blockquote
-        - Image
+        - DrupalImage
         - '|'
         - Source
   plugins:
     stylescombo:
       styles: ''
+image_upload:
+  status: '1'
+  scheme: public
+  directory: inline-images
+  max_size: ''
+  max_dimensions:
+    width: ''
+    height: ''
 status: '1'
 langcode: und

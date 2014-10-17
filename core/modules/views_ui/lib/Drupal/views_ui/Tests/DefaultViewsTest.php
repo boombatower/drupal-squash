@@ -17,7 +17,7 @@ class DefaultViewsTest extends UITestBase {
    *
    * @var array
    */
-  public static $testViews = array('test_view_status');
+  public static $testViews = array('test_view_status', 'test_page_display_menu', 'test_page_display_arguments');
 
   public static function getInfo() {
     return array(
@@ -86,7 +86,7 @@ class DefaultViewsTest extends UITestBase {
     $edit = array(
       'id' => 'clone_of_glossary',
     );
-    $this->assertTitle(t('Clone of @label | @site-name', array('@label' => 'Glossary', '@site-name' => config('system.site')->get('name'))));
+    $this->assertTitle(t('Clone of @label | @site-name', array('@label' => 'Glossary', '@site-name' => \Drupal::config('system.site')->get('name'))));
     $this->drupalPost(NULL, $edit, t('Clone'));
     $this->assertUrl('admin/structure/views/view/clone_of_glossary', array(), 'The normal cloning name schema is applied.');
 
@@ -155,6 +155,26 @@ class DefaultViewsTest extends UITestBase {
     $arguments[':status'] = 'views-list-section enabled';
     $elements = $this->xpath($xpath, $arguments);
     $this->assertIdentical(count($elements), 1, 'After enabling a view, it is found in the enabled views table.');
+
+    // Attempt to disable the view by path directly, with no token.
+    $this->drupalGet('admin/structure/views/view/test_view_status/disable');
+    $this->assertResponse(403);
+  }
+
+  /**
+   * Tests that page displays show the correct path.
+   */
+  public function testPathDestination() {
+    $this->drupalGet('admin/structure/views');
+
+    // Check that links to views on default tabs are rendered correctly.
+    $this->assertLinkByHref('test_page_display_menu');
+    $this->assertNoLinkByHref('test_page_display_menu/default');
+    $this->assertLinkByHref('test_page_display_menu/local');
+
+    // Check that a dynamic path is shown as text.
+    $this->assertRaw('test_route_with_suffix/%/suffix');
+    $this->assertNoLinkByHref(url('test_route_with_suffix/%/suffix'));
   }
 
   /**

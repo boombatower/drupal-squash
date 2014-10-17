@@ -7,16 +7,16 @@
 
 namespace Drupal\email\Plugin\field\widget;
 
-use Drupal\Component\Annotation\Plugin;
+use Drupal\field\Annotation\FieldWidget;
 use Drupal\Core\Annotation\Translation;
+use Drupal\Core\Entity\Field\FieldInterface;
 use Drupal\field\Plugin\Type\Widget\WidgetBase;
 
 /**
  * Plugin implementation of the 'email_default' widget.
  *
- * @Plugin(
+ * @FieldWidget(
  *   id = "email_default",
- *   module = "email",
  *   label = @Translation("E-mail"),
  *   field_types = {
  *     "email"
@@ -42,12 +42,29 @@ class EmailDefaultWidget extends WidgetBase {
   }
 
   /**
+   * {@inheritdoc}
+   */
+  public function settingsSummary() {
+    $summary = array();
+
+    $placeholder = $this->getSetting('placeholder');
+    if (!empty($placeholder)) {
+      $summary[] = t('Placeholder: @placeholder', array('@placeholder' => $placeholder));
+    }
+    else {
+      $summary[] = t('No placeholder');
+    }
+
+    return $summary;
+  }
+
+  /**
    * Implements Drupal\field\Plugin\Type\Widget\WidgetInterface::formElement().
    */
-  public function formElement(array $items, $delta, array $element, $langcode, array &$form, array &$form_state) {
+  public function formElement(FieldInterface $items, $delta, array $element, $langcode, array &$form, array &$form_state) {
     $element['value'] = $element + array(
       '#type' => 'email',
-      '#default_value' => isset($items[$delta]['value']) ? $items[$delta]['value'] : NULL,
+      '#default_value' => isset($items[$delta]->value) ? $items[$delta]->value : NULL,
       '#placeholder' => $this->getSetting('placeholder'),
     );
     return $element;

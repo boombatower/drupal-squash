@@ -2,7 +2,7 @@
 
 /**
  * @file
- * Contains Drupal\rdf\Tests\NodeAttributesTest.
+ * Contains \Drupal\rdf\Tests\NodeAttributesTest.
  */
 
 namespace Drupal\rdf\Tests;
@@ -29,19 +29,42 @@ class NodeAttributesTest extends NodeTestBase {
     );
   }
 
+  public function setUp() {
+    parent::setUp();
+
+    rdf_get_mapping('node', 'article')
+      ->setBundleMapping(array(
+        'types' => array('sioc:Item', 'foaf:Document'),
+      ))
+      ->setFieldMapping('title', array(
+        'properties' => array('dc:title'),
+      ))
+      ->setFieldMapping('created', array(
+        'properties' => array('dc:date', 'dc:created'),
+        'datatype' => 'xsd:dateTime',
+        'datatype_callback' => array('callable' => 'date_iso8601'),
+      ))
+      ->save();
+  }
+
   /**
    * Creates a node of type article and tests its RDFa markup.
    */
   function testNodeAttributes() {
-    $node = $this->drupalCreateNode(array('type' => 'article'));
+    // Create node with single quotation mark title to ensure it does not get
+    // escaped more than once.
+    $node = $this->drupalCreateNode(array(
+      'type' => 'article',
+      'title' => $this->randomName(8) . "'",
+    ));
 
-    $node_uri = url('node/' . $node->nid, array('absolute' => TRUE));
+    $node_uri = url('node/' . $node->id(), array('absolute' => TRUE));
     $base_uri = url('<front>', array('absolute' => TRUE));
 
     // Parses front page where the node is displayed in its teaser form.
     $parser = new \EasyRdf_Parser_Rdfa();
     $graph = new \EasyRdf_Graph();
-    $parser->parse($graph, $this->drupalGet('node/' . $node->nid), 'rdfa', $base_uri);
+    $parser->parse($graph, $this->drupalGet('node/' . $node->id()), 'rdfa', $base_uri);
 
     // Inspects RDF graph output.
     // Node type.
@@ -59,21 +82,21 @@ class NodeAttributesTest extends NodeTestBase {
     // Node title.
     $expected_value = array(
       'type' => 'literal',
-      'value' => $node->title,
+      'value' => $node->getTitle(),
       'lang' => 'en',
     );
     $this->assertTrue($graph->hasProperty($node_uri, 'http://purl.org/dc/terms/title', $expected_value), 'Node title found in RDF output (dc:title).');
     // Node date.
     $expected_value = array(
       'type' => 'literal',
-      'value' => date('c', $node->created),
+      'value' => date('c', $node->getCreatedTime()),
       'datatype' => 'http://www.w3.org/2001/XMLSchema#dateTime',
     );
     $this->assertTrue($graph->hasProperty($node_uri, 'http://purl.org/dc/terms/date', $expected_value), 'Node date found in RDF output (dc:date).');
     // Node date.
     $expected_value = array(
       'type' => 'literal',
-      'value' => date('c', $node->created),
+      'value' => date('c', $node->getCreatedTime()),
       'datatype' => 'http://www.w3.org/2001/XMLSchema#dateTime',
     );
     $this->assertTrue($graph->hasProperty($node_uri, 'http://purl.org/dc/terms/created', $expected_value), 'Node date found in RDF output (dc:created).');

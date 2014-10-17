@@ -84,7 +84,7 @@ function _drupal_session_read($sid) {
   // cookies (eg. web crawlers).
   $insecure_session_name = substr(session_name(), 1);
   if (!isset($_COOKIE[session_name()]) && !isset($_COOKIE[$insecure_session_name])) {
-    $user = drupal_anonymous_user();
+    $user = new UserSession();
     return '';
   }
 
@@ -106,30 +106,25 @@ function _drupal_session_read($sid) {
     $values = db_query("SELECT u.*, s.* FROM {users} u INNER JOIN {sessions} s ON u.uid = s.uid WHERE s.sid = :sid", array(':sid' => $sid))->fetchAssoc();
   }
 
-  if ($values) {
-    $user = new UserSession($values);
-  }
-
   // We found the client's session record and they are an authenticated,
   // active user.
   if ($values && $values['uid'] > 0 && $values['status'] == 1) {
-    $user = new UserSession($values);
     // Add roles element to $user.
-    $rids = db_query("SELECT ur.rid FROM {users_roles} ur WHERE ur.uid = :uid", array(':uid' => $user->uid))->fetchCol();
-    $user->roles = array_merge(array(DRUPAL_AUTHENTICATED_RID), $rids);
+    $rids = db_query("SELECT ur.rid FROM {users_roles} ur WHERE ur.uid = :uid", array(':uid' => $values['uid']))->fetchCol();
+    $values['roles'] = array_merge(array(DRUPAL_AUTHENTICATED_RID), $rids);
+    $user = new UserSession($values);
   }
-  elseif ($user) {
+  elseif ($values) {
     // The user is anonymous or blocked. Only preserve two fields from the
     // {sessions} table.
-    $account = drupal_anonymous_user();
-    $account->session = $user->session;
-    $account->timestamp = $user->timestamp;
-    $user = $account;
+    $user = new UserSession(array(
+      'session' => $values['session'],
+      'access' => $values['access'],
+    ));
   }
   else {
     // The session has expired.
-    $user = drupal_anonymous_user();
-    $user->session = '';
+    $user = new UserSession();
   }
 
   // Store the session that was read for comparison in _drupal_session_write().
@@ -177,10 +172,10 @@ function _drupal_session_write($sid, $value) {
 
     // For performance reasons, do not update the sessions table, unless
     // $_SESSION has changed or more than 180 has passed since the last update.
-    if ($is_changed || !isset($user->timestamp) || REQUEST_TIME - $user->timestamp > settings()->get('session_write_interval', 180)) {
+    if ($is_changed || !$user->getLastAccessedTime() || REQUEST_TIME - $user->getLastAccessedTime() > settings()->get('session_write_interval', 180)) {
       // Either ssid or sid or both will be added from $key below.
       $fields = array(
-        'uid' => $user->uid,
+        'uid' => $user->id(),
         'hostname' => Drupal::request()->getClientIP(),
         'session' => $value,
         'timestamp' => REQUEST_TIME,
@@ -214,12 +209,12 @@ function _drupal_session_write($sid, $value) {
     }
 
     // Likewise, do not update access time more than once per 180 seconds.
-    if ($user->uid && REQUEST_TIME - $user->access > settings()->get('session_write_interval', 180)) {
+    if ($user->isAuthenticated() && REQUEST_TIME - $user->getLastAccessedTime() > settings()->get('session_write_interval', 180)) {
       db_update('users')
         ->fields(array(
           'access' => REQUEST_TIME
         ))
-        ->condition('uid', $user->uid)
+        ->condition('uid', $user->id())
         ->execute();
     }
 
@@ -254,7 +249,7 @@ function drupal_session_initialize() {
     // anonymous users not use a session cookie unless something is stored in
     // $_SESSION. This allows HTTP proxies to cache anonymous pageviews.
     drupal_session_start();
-    if (!empty($user->uid) || !empty($_SESSION)) {
+    if ($user->isAuthenticated() || !empty($_SESSION)) {
       drupal_page_is_cacheable(FALSE);
     }
   }
@@ -312,7 +307,7 @@ function drupal_session_commit() {
     return;
   }
 
-  if (empty($user->uid) && empty($_SESSION)) {
+  if ($user->isAnonymous() && empty($_SESSION)) {
     // There is no session data to store, destroy the session if it was
     // previously started.
     if (drupal_session_started()) {

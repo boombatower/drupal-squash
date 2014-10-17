@@ -109,7 +109,7 @@ function locale_translate_filters() {
   }
 
   // Pick the current interface language code for the filter.
-  $default_langcode = language(Language::TYPE_INTERFACE)->langcode;
+  $default_langcode = language(Language::TYPE_INTERFACE)->id;
   if (!isset($language_options[$default_langcode])) {
     $available_langcodes = array_keys($language_options);
     $default_langcode = array_shift($available_langcodes);
@@ -469,30 +469,6 @@ function locale_translate_edit_form_submit($form, &$form_state) {
 }
 
 /**
- * Page callback: Checks for translation updates and displays the translations status.
- *
- * Manually checks the translation status without the use of cron.
- *
- * @see locale_menu()
- */
-function locale_translation_manual_status() {
-  module_load_include('compare.inc', 'locale');
-
-  // Check translation status of all translatable project in all languages.
-  // First we clear the cached list of projects. Although not strictly
-  // nescessary, this is helpfull in case the project list is out of sync.
-  locale_translation_flush_projects();
-  locale_translation_check_projects();
-
-  // Execute a batch if required. A batch is only used when remote files
-  // are checked.
-  if (batch_get()) {
-    return batch_process('admin/reports/translations');
-  }
-  return new RedirectResponse(url('admin/reports/translations', array('absolute' => TRUE)));
-}
-
-/**
  * Page callback: Display the current translation status.
  *
  * @see locale_menu()
@@ -502,14 +478,14 @@ function locale_translation_status_form($form, &$form_state) {
   module_load_include('compare.inc', 'locale');
   $updates = $options = array();
   $languages_update = $languages_not_found = array();
+  $projects_update = array();
 
   // @todo Calling locale_translation_build_projects() is an expensive way to
   //   get a module name. In follow-up issue http://drupal.org/node/1842362
   //   the project name will be stored to display use, like here.
   $project_data = locale_translation_build_projects();
   $languages = locale_translatable_language_list();
-  $projects = locale_translation_get_projects();
-  $status = Drupal::state()->get('locale.translation_status');
+  $status = locale_translation_get_status();
 
   // Prepare information about projects which have available translation
   // updates.
@@ -517,7 +493,7 @@ function locale_translation_status_form($form, &$form_state) {
     foreach ($status as $project_id => $project) {
       foreach ($project as $langcode => $project_info) {
         // No translation file found for this project-language combination.
-        if (!isset($project_info->type)) {
+        if (empty($project_info->type)) {
           $updates[$langcode]['not_found'][] = array(
             'name' => $project_info->name == 'drupal' ? t('Drupal core') : $project_data[$project_info->name]->info['name'],
             'version' => $project_info->version,
@@ -536,6 +512,7 @@ function locale_translation_status_form($form, &$form_state) {
             'timestamp' => $recent->timestamp,
           );
           $languages_update[$langcode] = $langcode;
+          $projects_update[$project_info->name] = $project_info->name;
         }
       }
     }
@@ -543,9 +520,15 @@ function locale_translation_status_form($form, &$form_state) {
 
     // Build data options for the select table.
     foreach($updates as $langcode => $update) {
+      $locale_translation_update_info = array('#theme' => 'locale_translation_update_info');
+      foreach (array('updates', 'not_found') as $update_status) {
+        if (isset($update[$update_status])) {
+          $locale_translation_update_info['#' . $update_status] = $update[$update_status];
+        }
+      }
       $options[$langcode] = array(
         'title' => check_plain($languages[$langcode]->name),
-        'status' => array('class' => array('description', 'expand', 'priority-low'), 'data' => theme('locale_translation_update_info', $update)),
+        'status' => array('class' => array('description', 'expand', 'priority-low'), 'data' => drupal_render($locale_translation_update_info)),
       );
     }
     // Sort the table data on language name.
@@ -578,6 +561,12 @@ function locale_translation_status_form($form, &$form_state) {
   else  {
     $empty = t('No translation status available. <a href="@check">Check manually</a>.', array('@check' => url('admin/reports/translations/check')));
   }
+
+  // The projects which require an update. Used by the _submit callback.
+  $form['projects_update'] = array(
+    '#type' => 'value',
+    '#value' => $projects_update,
+  );
 
   $form['langcodes'] = array(
     '#type' => 'tableselect',
@@ -622,6 +611,7 @@ function locale_translation_status_form_validate($form, &$form_state) {
 function locale_translation_status_form_submit($form, &$form_state) {
   module_load_include('fetch.inc', 'locale');
   $langcodes = array_filter($form_state['values']['langcodes']);
+  $projects = array_filter($form_state['values']['projects_update']);
 
   // Set the translation import options. This determines if existing
   // translations will be overwritten by imported strings.
@@ -637,7 +627,7 @@ function locale_translation_status_form_submit($form, &$form_state) {
     batch_set($batch);
   }
   else {
-    $batch = locale_translation_batch_fetch_build(array(), $langcodes, $options);
+    $batch = locale_translation_batch_fetch_build($projects, $langcodes, $options);
     batch_set($batch);
   }
 }
@@ -734,13 +724,16 @@ function theme_locale_translate_edit_form_strings($variables) {
       array('data' => $string['translations']),
     );
   }
-  $output .= theme('table', array(
-    'header' => $header,
-    'rows' => $rows,
-    'empty' => t('No strings available.'),
-    'attributes' => array('class' => array('locale-translate-edit-table')),
-  ));
-  $output .= theme('pager');
+  $table = array(
+    '#theme' => 'table',
+    '#header' => $header,
+    '#rows' => $rows,
+    '#empty' => t('No strings available.'),
+    '#attributes' => array('class' => array('locale-translate-edit-table')),
+  );
+  $output .= drupal_render($table);
+  $pager = array('#theme' => 'pager');
+  $output .= drupal_render($pager);
   return $output;
 }
 
@@ -763,8 +756,8 @@ function template_preprocess_locale_translation_update_info(&$variables) {
 
   // Build output for available updates.
   if (isset($variables['updates'])) {
+    $releases = array();
     if ($variables['updates']) {
-      $releases = array();
       foreach ($variables['updates'] as $update) {
         $modules[] = $update['name'];
         $releases[] = t('@module (@date)', array('@module' => $update['name'], '@date' => format_date($update['timestamp'], 'html_date')));
@@ -779,9 +772,9 @@ function template_preprocess_locale_translation_update_info(&$variables) {
 
   // Build output for updates not found.
   if (isset($variables['not_found'])) {
+    $releases = array();
     $variables['missing_updates_status'] = format_plural(count($variables['not_found']), 'Missing translations for one project', 'Missing translations for @count projects');
     if ($variables['not_found']) {
-      $releases = array();
       foreach ($variables['not_found'] as $update) {
         $version = $update['version'] ? $update['version'] : t('no version');
         $releases[] = t('@module (@version).', array('@module' => $update['name'], '@version' => $version)) . ' ' . $update['info'];

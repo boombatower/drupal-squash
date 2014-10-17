@@ -7,6 +7,7 @@
 
 namespace Drupal\Core\Routing;
 
+use Drupal\Component\Utility\String;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Exception\RouteNotFoundException;
 use Symfony\Component\Routing\RouteCollection;
@@ -80,15 +81,15 @@ class RouteProvider implements RouteProviderInterface {
    */
   public function getRouteCollectionForRequest(Request $request) {
 
-    // The 'system_path' has language prefix stripped and path alias resolved,
+    // The '_system_path' has language prefix stripped and path alias resolved,
     // whereas getPathInfo() returns the requested path. In Drupal, the request
     // always contains a system_path attribute, but this component may get
     // adopted by non-Drupal projects. Some unit tests also skip initializing
-    // 'system_path'.
+    // '_system_path'.
     // @todo Consider abstracting this to a separate object.
-    if ($request->attributes->has('system_path')) {
-      // system_path never has leading or trailing slashes.
-      $path = '/' . $request->attributes->get('system_path');
+    if ($request->attributes->has('_system_path')) {
+      // _system_path never has leading or trailing slashes.
+      $path = '/' . $request->attributes->get('_system_path');
     }
     else {
       // getPathInfo() always has leading slash, and might or might not have a
@@ -99,7 +100,7 @@ class RouteProvider implements RouteProviderInterface {
     $collection = $this->getRoutesByPath($path);
 
     if (!count($collection)) {
-      throw new ResourceNotFoundException();
+      throw new ResourceNotFoundException(String::format("The route for '@path' could not be found", array('@path' => $path)));
     }
 
     return $collection;
@@ -160,7 +161,6 @@ class RouteProvider implements RouteProviderInterface {
       $result = $this->connection->query('SELECT name, route FROM {' . $this->connection->escapeTable($this->tableName) . '} WHERE name IN (:names)', array(':names' => $routes_to_load));
       $routes = $result->fetchAllKeyed();
 
-      $return = array();
       foreach ($routes as $name => $route) {
         $this->routes[$name] = unserialize($route);
       }
@@ -246,7 +246,7 @@ class RouteProvider implements RouteProviderInterface {
 
     $ancestors = $this->getCandidateOutlines($parts);
 
-    $routes = $this->connection->query("SELECT name, route FROM {" . $this->connection->escapeTable($this->tableName) . "} WHERE pattern_outline IN (:patterns) ORDER BY fit", array(
+    $routes = $this->connection->query("SELECT name, route FROM {" . $this->connection->escapeTable($this->tableName) . "} WHERE pattern_outline IN (:patterns) ORDER BY fit DESC", array(
       ':patterns' => $ancestors,
     ))
       ->fetchAllKeyed();

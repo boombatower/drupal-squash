@@ -121,17 +121,6 @@ abstract class EntityDisplayBase extends ConfigEntityBase implements EntityDispl
   /**
    * {@inheritdoc}
    */
-  public function save() {
-    // Build an ID if none is set.
-    if (empty($this->id)) {
-      $this->id = $this->id();
-    }
-    return parent::save();
-  }
-
-  /**
-   * {@inheritdoc}
-   */
   public function getExportProperties() {
     $names = array(
       'id',
@@ -163,7 +152,7 @@ abstract class EntityDisplayBase extends ConfigEntityBase implements EntityDispl
   public function getComponents() {
     $result = array();
     foreach ($this->content as $name => $options) {
-      if (!isset($options['visible']) || $options['visible'] === TRUE) {
+      if (!isset($options['visible']) || $options['visible'] == TRUE) {
         unset($options['visible']);
         $result[$name] = $options;
       }
@@ -220,7 +209,7 @@ abstract class EntityDisplayBase extends ConfigEntityBase implements EntityDispl
     }
 
     if ($instance = field_info_instance($this->targetEntityType, $name, $this->bundle)) {
-      $field = field_info_field($instance['field_name']);
+      $field = $instance->getField();
       $options = $this->pluginManager->prepareConfiguration($field['type'], $options);
 
       // Clear the persisted plugin, if any.

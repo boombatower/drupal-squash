@@ -8,16 +8,15 @@
 namespace Drupal\user\Plugin\Block;
 
 use Drupal\block\BlockBase;
-use Drupal\Component\Annotation\Plugin;
+use Drupal\block\Annotation\Block;
 use Drupal\Core\Annotation\Translation;
 
 /**
  * Provides a "Who's new" block.
  *
- * @Plugin(
+ * @Block(
  *   id = "user_new_block",
- *   admin_label = @Translation("Who's new"),
- *   module = "user"
+ *   admin_label = @Translation("Who's new")
  * )
  */
 class UserNewBlock extends BlockBase {
@@ -66,12 +65,12 @@ class UserNewBlock extends BlockBase {
    */
   public function build() {
     // Retrieve a list of new users who have accessed the site successfully.
-    $items = db_query_range('SELECT uid, name FROM {users} WHERE status <> 0 AND access <> 0 ORDER BY created DESC', 0, $this->configuration['whois_new_count'])->fetchAll();
+    $uids = db_query_range('SELECT uid FROM {users} WHERE status <> 0 AND access <> 0 ORDER BY created DESC', 0, $this->configuration['whois_new_count'])->fetchCol();
     $build = array(
       '#theme' => 'item_list__user__new',
       '#items' => array(),
     );
-    foreach ($items as $account) {
+    foreach (user_load_multiple($uids) as $account) {
       $username = array(
         '#theme' => 'username',
         '#account' => $account,

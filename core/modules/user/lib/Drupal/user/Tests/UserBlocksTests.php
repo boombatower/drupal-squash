@@ -54,7 +54,7 @@ class UserBlocksTests extends WebTestBase {
 
     // Log in using the block.
     $edit = array();
-    $edit['name'] = $user->name;
+    $edit['name'] = $user->getUsername();
     $edit['pass'] = $user->pass_raw;
     $this->drupalPost('admin/people/permissions', $edit, t('Log in'));
     $this->assertNoText(t('User login'), 'Logged in.');
@@ -73,7 +73,7 @@ class UserBlocksTests extends WebTestBase {
     $this->drupalLogout();
     $this->drupalPost('http://example.com/', $edit, t('Log in'), array('external' => FALSE));
     // Check that we remain on the site after login.
-    $this->assertEqual(url('user/' . $user->uid, array('absolute' => TRUE)), $this->getUrl(), 'Redirected to user profile page after login from the frontpage');
+    $this->assertEqual(url('user/' . $user->id(), array('absolute' => TRUE)), $this->getUrl(), 'Redirected to user profile page after login from the frontpage');
   }
 
   /**
@@ -89,23 +89,23 @@ class UserBlocksTests extends WebTestBase {
     $user3 = $this->drupalCreateUser(array());
 
     // Update access of two users to be within the active timespan.
-    $this->updateAccess($user1->uid);
-    $this->updateAccess($user2->uid, REQUEST_TIME + 1);
+    $this->updateAccess($user1->id());
+    $this->updateAccess($user2->id(), REQUEST_TIME + 1);
 
     // Insert an inactive user who should not be seen in the block, and ensure
     // that the admin user used in setUp() does not appear.
     $inactive_time = REQUEST_TIME - $config['seconds_online'] - 1;
-    $this->updateAccess($user3->uid, $inactive_time);
-    $this->updateAccess($this->adminUser->uid, $inactive_time);
+    $this->updateAccess($user3->id(), $inactive_time);
+    $this->updateAccess($this->adminUser->id(), $inactive_time);
 
     // Test block output.
     $content = entity_view($block, 'block');
     $this->drupalSetContent(render($content));
     $this->assertRaw(t('2 users'), 'Correct number of online users (2 users).');
-    $this->assertText($user1->name, 'Active user 1 found in online list.');
-    $this->assertText($user2->name, 'Active user 2 found in online list.');
-    $this->assertNoText($user3->name, 'Inactive user not found in online list.');
-    $this->assertTrue(strpos($this->drupalGetContent(), $user1->name) > strpos($this->drupalGetContent(), $user2->name), 'Online users are ordered correctly.');
+    $this->assertText($user1->getUsername(), 'Active user 1 found in online list.');
+    $this->assertText($user2->getUsername(), 'Active user 2 found in online list.');
+    $this->assertNoText($user3->getUsername(), 'Inactive user not found in online list.');
+    $this->assertTrue(strpos($this->drupalGetContent(), $user1->getUsername()) > strpos($this->drupalGetContent(), $user2->getUsername()), 'Online users are ordered correctly.');
   }
 
   /**

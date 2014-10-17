@@ -10,6 +10,7 @@ namespace Drupal\user\Plugin\views\field;
 use Drupal\user\Plugin\views\field\User;
 use Drupal\views\Plugin\views\display\DisplayPluginBase;
 use Drupal\Component\Annotation\PluginID;
+use Drupal\views\ResultRow;
 use Drupal\views\ViewExecutable;
 
 /**
@@ -44,20 +45,23 @@ class Name extends User {
     return $options;
   }
 
+  /**
+   * {@inheritdoc}
+   */
   public function buildOptionsForm(&$form, &$form_state) {
+    parent::buildOptionsForm($form, $form_state);
+
     $form['format_username'] = array(
       '#title' => t('Use formatted username'),
       '#type' => 'checkbox',
       '#default_value' => !empty($this->options['format_username']),
       '#description' => t('If checked, the username will be formatted by the system. If unchecked, it will be displayed raw.'),
-      '#fieldset' => 'more',
     );
     $form['overwrite_anonymous'] = array(
       '#title' => t('Overwrite the value to display for anonymous users'),
       '#type' => 'checkbox',
       '#default_value' => !empty($this->options['overwrite_anonymous']),
       '#description' => t('Enable to display different text for anonymous users.'),
-      '#fieldset' => 'more',
     );
     $form['anonymous_text'] = array(
       '#title' => t('Text to display for anonymous users'),
@@ -68,18 +72,15 @@ class Name extends User {
           ':input[name="options[overwrite_anonymous]"]' => array('checked' => TRUE),
         ),
       ),
-      '#fieldset' => 'more',
     );
-
-    parent::buildOptionsForm($form, $form_state);
   }
 
-  function render_link($data, $values) {
+  protected function renderLink($data, ResultRow $values) {
     $account = entity_create('user', array());
     $account->uid = $this->getValue($values, 'uid');
     $account->name = $this->getValue($values);
     if (!empty($this->options['link_to_user']) || !empty($this->options['overwrite_anonymous'])) {
-      if (!empty($this->options['overwrite_anonymous']) && !$account->uid) {
+      if (!empty($this->options['overwrite_anonymous']) && !$account->id()) {
         // This is an anonymous user, and we're overriting the text.
         return check_plain($this->options['anonymous_text']);
       }

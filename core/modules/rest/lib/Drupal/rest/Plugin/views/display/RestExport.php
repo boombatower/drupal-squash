@@ -7,10 +7,14 @@
 
 namespace Drupal\rest\Plugin\views\display;
 
-use Drupal\Component\Annotation\Plugin;
+
+use Drupal\views\Annotation\ViewsDisplay;
 use Drupal\Core\Annotation\Translation;
+use Drupal\Core\ContentNegotiation;
 use Drupal\views\ViewExecutable;
 use Drupal\views\Plugin\views\display\PathPluginBase;
+use Symfony\Component\DependencyInjection\ContainerInterface;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\RouteCollection;
 
@@ -19,7 +23,7 @@ use Symfony\Component\Routing\RouteCollection;
  *
  * @ingroup views_display_plugins
  *
- * @Plugin(
+ * @ViewsDisplay(
  *   id = "rest_export",
  *   module = "rest",
  *   title = @Translation("REST export"),
@@ -70,16 +74,59 @@ class RestExport extends PathPluginBase {
   protected $mimeType;
 
   /**
+   * The content negotiation library.
+   *
+   * @var \Drupal\Core\ContentNegotiation
+   */
+  protected $contentNegotiation;
+
+  /**
+   * The request object.
+   *
+   * @var \Symfony\Component\HttpFoundation\Request
+   */
+  protected $request;
+
+  /**
+   * Constructs a Drupal\rest\Plugin\ResourceBase object.
+   *
+   * @param array $configuration
+   *   A configuration array containing information about the plugin instance.
+   * @param string $plugin_id
+   *   The plugin_id for the plugin instance.
+   * @param array $plugin_definition
+   *   The plugin implementation definition.
+   * @param \Drupal\Core\ContentNegotiation $content_negotiation
+   *   The content negotiation library.
+   * @param \Symfony\Component\HttpFoundation\Request $request
+   *   The request object.
+   */
+  public function __construct(array $configuration, $plugin_id, array $plugin_definition, ContentNegotiation $content_negotiation, Request $request) {
+    parent::__construct($configuration, $plugin_id, $plugin_definition);
+    $this->contentNegotiation = $content_negotiation;
+    $this->request = $request;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public static function create(ContainerInterface $container, array $configuration, $plugin_id, array $plugin_definition) {
+    return new static(
+      $configuration,
+      $plugin_id,
+      $plugin_definition,
+      $container->get('content_negotiation'),
+      $container->get('request')
+    );
+  }
+
+  /**
    * {@inheritdoc}
    */
   public function initDisplay(ViewExecutable $view, array &$display, array &$options = NULL) {
     parent::initDisplay($view, $display, $options);
 
-    $container = drupal_container();
-    $negotiation = $container->get('content_negotiation');
-    $request = $container->get('request');
-
-    $request_content_type = $negotiation->getContentType($request);
+    $request_content_type = $this->contentNegotiation->getContentType($this->request);
     // Only use the requested content type if it's not 'html'. If it is then
     // default to 'json' to aid debugging.
     // @todo Remove the need for this when we have better content negotiation.
@@ -87,7 +134,7 @@ class RestExport extends PathPluginBase {
       $this->setContentType($request_content_type);
     }
 
-    $this->setMimeType($request->getMimeType($this->contentType));
+    $this->setMimeType($this->request->getMimeType($this->contentType));
   }
 
   /**
@@ -207,16 +254,18 @@ class RestExport extends PathPluginBase {
    */
   public function collectRoutes(RouteCollection $collection) {
     parent::collectRoutes($collection);
+    $view_id = $this->view->storage->id();
+    $display_id = $this->display['id'];
 
-    $style_plugin = $this->getPlugin('style');
-    // REST exports should only respond to get methods.
-    $requirements = array('_method' => 'GET');
+    if ($route = $collection->get("view.$view_id.$display_id")) {
+      $style_plugin = $this->getPlugin('style');
+      // REST exports should only respond to get methods.
+      $requirements = array('_method' => 'GET');
 
-    // Format as a string using pipes as a delimeter.
-    $requirements['_format'] = implode('|', $style_plugin->getFormats());
+      // Format as a string using pipes as a delimeter.
+      $requirements['_format'] = implode('|', $style_plugin->getFormats());
 
-    // Add the new requirements to each route.
-    foreach ($collection as $route) {
+      // Add the new requirements to the route.
       $route->addRequirements($requirements);
     }
   }

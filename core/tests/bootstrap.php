@@ -2,9 +2,7 @@
 
 // Register the namespaces we'll need to autoload from.
 $loader = require __DIR__ . "/../vendor/autoload.php";
-$loader->add('Drupal\\', __DIR__);
-$loader->add('Drupal\Core', __DIR__ . "/../../core/lib");
-$loader->add('Drupal\Component', __DIR__ . "/../../core/lib");
+$loader->add('Drupal\\Tests', __DIR__);
 
 foreach (scandir(__DIR__ . "/../modules") as $module) {
   $loader->add('Drupal\\' . $module, __DIR__ . "/../modules/" . $module . "/lib");
@@ -17,7 +15,6 @@ foreach (scandir(__DIR__ . "/../modules") as $module) {
   }
 }
 
-require __DIR__ . "/../../core/lib/Drupal.php";
 // Look into removing this later.
 define('REQUEST_TIME', (int) $_SERVER['REQUEST_TIME']);
 
@@ -25,3 +22,7 @@ define('REQUEST_TIME', (int) $_SERVER['REQUEST_TIME']);
 // numbers handling.
 // @see drupal_environment_initialize()
 setlocale(LC_ALL, 'C');
+
+// Set the default timezone. While this doesn't cause any tests to fail, PHP
+// complains if 'date.timezone' is not set in php.ini.
+date_default_timezone_set('UTC');

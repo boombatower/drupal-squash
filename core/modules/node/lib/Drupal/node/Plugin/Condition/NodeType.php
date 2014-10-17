@@ -8,16 +8,15 @@
 namespace Drupal\node\Plugin\Condition;
 
 use Drupal\Core\Condition\ConditionPluginBase;
-use Drupal\Component\Annotation\Plugin;
+use Drupal\Core\Condition\Annotation\Condition;
 use Drupal\Core\Annotation\Translation;
 
 /**
  * Provides a 'Node Type' condition.
  *
- * @Plugin(
+ * @Condition(
  *   id = "node_type",
  *   label = @Translation("Node Bundle"),
- *   module = "node",
  *   context = {
  *     "node" = {
  *       "type" = "entity",
@@ -86,7 +85,7 @@ class NodeType extends ConditionPluginBase {
    */
   public function evaluate() {
     $node = $this->getContextValue('node');
-    return in_array($node->type, $this->configuration['bundles']);
+    return in_array($node->getType(), $this->configuration['bundles']);
   }
 
 }

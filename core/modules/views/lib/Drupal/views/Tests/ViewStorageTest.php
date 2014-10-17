@@ -8,7 +8,7 @@
 namespace Drupal\views\Tests;
 
 use Drupal\views\ViewStorageController;
-use Drupal\views\Plugin\Core\Entity\View;
+use Drupal\views\Entity\View;
 use Drupal\views\Plugin\views\display\Page;
 use Drupal\views\Plugin\views\display\DefaultDisplay;
 use Drupal\views\Plugin\views\display\Feed;
@@ -16,7 +16,7 @@ use Drupal\views\Plugin\views\display\Feed;
 /**
  * Tests the functionality of View and ViewStorageController.
  *
- * @see Drupal\views\Plugin\Core\Entity\View
+ * @see Drupal\views\Entity\View
  * @see Drupal\views\ViewStorageController
  */
 class ViewStorageTest extends ViewUnitTestBase {
@@ -73,7 +73,7 @@ class ViewStorageTest extends ViewUnitTestBase {
   function testConfigurationEntityCRUD() {
     // Get the configuration entity information and controller.
     $this->info = entity_get_info('view');
-    $this->controller = $this->container->get('plugin.manager.entity')->getStorageController('view');
+    $this->controller = $this->container->get('entity.manager')->getStorageController('view');
 
     // Confirm that an info array has been returned.
     $this->assertTrue(!empty($this->info) && is_array($this->info), 'The View info array is loaded.');
@@ -95,7 +95,7 @@ class ViewStorageTest extends ViewUnitTestBase {
    */
   protected function loadTests() {
     $view = entity_load('view', 'test_view_storage');
-    $data = config('views.view.test_view_storage')->get();
+    $data = \Drupal::config('views.view.test_view_storage')->get();
 
     // Confirm that an actual view object is loaded and that it returns all of
     // expected properties.
@@ -140,7 +140,7 @@ class ViewStorageTest extends ViewUnitTestBase {
     }
 
     // Create a new View instance with config values.
-    $values = config('views.view.test_view_storage')->get();
+    $values = \Drupal::config('views.view.test_view_storage')->get();
     $created = $this->controller->create($values);
 
     $this->assertTrue($created instanceof View, 'Created object is a View.');
@@ -175,13 +175,15 @@ class ViewStorageTest extends ViewUnitTestBase {
     // Ensure the right display_plugin is created/instantiated.
     $this->assertEqual($display[$new_id]['display_plugin'], 'page', 'New page display "test" uses the right display plugin.');
 
-    $executable = $view->get('executable');
+    $executable = $view->getExecutable();
     $executable->initDisplay();
     $this->assertTrue($executable->displayHandlers->get($new_id) instanceof Page, 'New page display "test" uses the right display plugin.');
 
+    // To save this with a new ID, we should use createDuplicate().
+    $view = $view->createDuplicate();
     $view->set('id', 'test_view_storage_new_new2');
     $view->save();
-    $values = config('views.view.test_view_storage_new_new2')->get();
+    $values = \Drupal::config('views.view.test_view_storage_new_new2')->get();
 
     $this->assertTrue(isset($values['display']['test']) && is_array($values['display']['test']), 'New display was saved.');
   }
@@ -219,15 +221,7 @@ class ViewStorageTest extends ViewUnitTestBase {
     );
     $view = $this->controller->create($config);
 
-    // Paths with a "%" shouldn't not be linked
-    $expected_paths = array();
-    $expected_paths[] = l('/test', 'test');
-    $expected_paths[] = l('/test.xml', 'test.xml');
-    $expected_paths[] = '/test/%/extra';
-
-    $this->assertEqual($view->getPaths(), $expected_paths, 'Make sure the paths in the ui are generated as expected.');
-
-    // Tests Drupal\views\Plugin\Core\Entity\View::addDisplay()
+    // Tests Drupal\views\Entity\View::addDisplay()
     $view = $this->controller->create(array());
     $random_title = $this->randomName();
 
@@ -246,7 +240,7 @@ class ViewStorageTest extends ViewUnitTestBase {
     $display = $view->get('display');
     $this->assertEqual($display[$id]['display_title'], 'Page 3');
 
-    // Tests Drupal\views\Plugin\Core\Entity\View::generateDisplayId().
+    // Tests Drupal\views\Entity\View::generateDisplayId().
     // @todo Sadly this method is not public so it cannot be tested.
     // $view = $this->controller->create(array());
     // $this->assertEqual($view->generateDisplayId('default'), 'default', 'The plugin ID for default is always default.');
@@ -254,7 +248,7 @@ class ViewStorageTest extends ViewUnitTestBase {
     // $view->addDisplay('feed', 'feed title');
     // $this->assertEqual($view->generateDisplayId('feed'), 'feed_2', 'The generated ID for the first instance of a plugin type should have an suffix of _2.');
 
-    // Tests Drupal\views\Plugin\Core\Entity\View::newDisplay().
+    // Tests Drupal\views\Entity\View::newDisplay().
     $view = $this->controller->create(array());
     $view->newDisplay('default');
 
@@ -265,7 +259,7 @@ class ViewStorageTest extends ViewUnitTestBase {
     $display = $view->newDisplay('feed');
     $this->assertEqual($display, 'feed_1');
 
-    $executable = $view->get('executable');
+    $executable = $view->getExecutable();
     $executable->initDisplay();
 
     $this->assertTrue($executable->displayHandlers->get('page_1') instanceof Page);
@@ -278,7 +272,7 @@ class ViewStorageTest extends ViewUnitTestBase {
     // Tests item related methods().
     $view = $this->controller->create(array('base_table' => 'views_test_data'));
     $view->addDisplay('default');
-    $view = $view->get('executable');
+    $view = $view->getExecutable();
 
     $display_id = 'default';
     $expected_items = array();
@@ -292,6 +286,7 @@ class ViewStorageTest extends ViewUnitTestBase {
       'table' => 'views_test_data',
       'field' => 'id',
       'plugin_id' => 'numeric',
+      'provider' => 'views',
     );
     $this->assertEqual($item1, $expected_item);
 
@@ -307,6 +302,7 @@ class ViewStorageTest extends ViewUnitTestBase {
       'table' => 'views_test_data',
       'field' => 'name',
       'plugin_id' => 'standard',
+      'provider' => 'views',
     ) + $options;
     $this->assertEqual($item2, $expected_item);
 

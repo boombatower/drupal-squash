@@ -9,8 +9,8 @@ use Drupal\Core\Cache\CacheBackendInterface;
 use Drupal\Core\Cache\Cache;
 use Drupal\Core\Language\Language;
 use Drupal\Core\Utility\ModuleInfo;
-use Drupal\Core\TypedData\Primitive;
 use Drupal\system\Plugin\Block\SystemMenuBlock;
+use Drupal\user\UserInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Response;
@@ -125,7 +125,7 @@ function system_help($path, $arg) {
       break;
     case 'admin/config/development/maintenance':
       global $user;
-      if ($user->uid == 1) {
+      if ($user->id() == 1) {
         return '<p>' . t('Use maintenance mode when making major updates, particularly if the updates could disrupt visitors or the update process. Examples include upgrading, importing or exporting content, modifying a theme, modifying content types, and making backups.') . '</p>';
       }
       break;
@@ -162,7 +162,7 @@ function system_theme() {
       'file' => 'system.admin.inc',
     ),
     'status_report' => array(
-      'render element' => 'requirements',
+      'variables' => array('requirements' => NULL),
       'file' => 'system.admin.inc',
     ),
     'admin_page' => array(
@@ -188,10 +188,6 @@ function system_theme() {
       'variables' => array(),
     ),
     'system_date_format_localize_form' => array(
-      'render element' => 'form',
-    ),
-    'system_plugin_ui_form' => array(
-      'template' => 'system-plugin-ui-form',
       'render element' => 'form',
     ),
   ));
@@ -224,7 +220,7 @@ function system_permission() {
     ),
     'view the administration theme' => array(
       'title' => t('View the administration theme'),
-      'description' => config('system.theme')->get('admin') ?: t('This is only used when the site is configured to use a separate administration theme on the <a href="@appearance-url">Appearance</a> page.', array('@appearance-url' => url('admin/appearance'))),
+      'description' => Drupal::config('system.theme')->get('admin') ?: t('This is only used when the site is configured to use a separate administration theme on the <a href="@appearance-url">Appearance</a> page.', array('@appearance-url' => url('admin/appearance'))),
     ),
     'access site reports' => array(
       'title' => t('View site reports'),
@@ -284,14 +280,10 @@ function system_element_info() {
   $types['styles'] = array(
     '#items' => array(),
     '#pre_render' => array('drupal_pre_render_styles'),
-    '#group_callback' => 'drupal_group_css',
-    '#aggregate_callback' => 'drupal_aggregate_css',
   );
   $types['scripts'] = array(
     '#items' => array(),
     '#pre_render' => array('drupal_pre_render_scripts'),
-    '#group_callback' => 'drupal_group_js',
-    '#aggregate_callback' => 'drupal_aggregate_js',
   );
 
   // Input elements.
@@ -614,13 +606,6 @@ function system_element_info() {
  * Implements hook_menu().
  */
 function system_menu() {
-  $items['system/files'] = array(
-    'title' => 'File download',
-    'page callback' => 'file_download',
-    'page arguments' => array('private'),
-    'access callback' => TRUE,
-    'type' => MENU_CALLBACK,
-  );
   $items['system/temporary'] = array(
     'title' => 'Temporary files',
     'page callback' => 'file_download',
@@ -630,19 +615,9 @@ function system_menu() {
   );
   $items['system/ajax'] = array(
     'title' => 'AHAH callback',
-    'page callback' => 'ajax_form_callback',
-    'access callback' => TRUE,
+    'route_name' => 'system.ajax',
     'theme callback' => 'ajax_base_page_theme',
     'type' => MENU_CALLBACK,
-    'file path' => 'core/includes',
-    'file' => 'form.inc',
-  );
-  $items['system/timezone'] = array(
-    'title' => 'Time zone',
-    'page callback' => 'system_timezone',
-    'access callback' => TRUE,
-    'type' => MENU_CALLBACK,
-    'file' => 'system.admin.inc',
   );
   $items['admin'] = array(
     'title' => 'Administration',
@@ -650,13 +625,6 @@ function system_menu() {
     'page callback' => 'system_admin_menu_block_page',
     'weight' => 9,
     'menu_name' => 'admin',
-    'file' => 'system.admin.inc',
-  );
-  $items['admin/compact'] = array(
-    'title' => 'Compact mode',
-    'page callback' => 'system_admin_compact_page',
-    'access arguments' => array('access administration pages'),
-    'type' => MENU_CALLBACK,
     'file' => 'system.admin.inc',
   );
   $items['admin/tasks'] = array(
@@ -731,10 +699,7 @@ function system_menu() {
   $items['admin/modules'] = array(
     'title' => 'Extend',
     'description' => 'Add and enable modules to extend site functionality.',
-    'page callback' => 'drupal_get_form',
-    'page arguments' => array('system_modules'),
-    'access arguments' => array('administer modules'),
-    'file' => 'system.admin.inc',
+    'route_name' => 'system_modules_list',
     'weight' => -2,
   );
   $items['admin/modules/list'] = array(
@@ -743,31 +708,26 @@ function system_menu() {
   );
   $items['admin/modules/list/confirm'] = array(
     'title' => 'List',
-    'access arguments' => array('administer modules'),
+    'route_name' => 'system_modules_list_confirm',
     'type' => MENU_VISIBLE_IN_BREADCRUMB,
   );
   $items['admin/modules/uninstall'] = array(
     'title' => 'Uninstall',
-    'page arguments' => array('system_modules_uninstall'),
-    'access arguments' => array('administer modules'),
+    'route_name' => 'system_modules_uninstall',
     'type' => MENU_LOCAL_TASK,
-    'file' => 'system.admin.inc',
     'weight' => 20,
   );
   $items['admin/modules/uninstall/confirm'] = array(
     'title' => 'Uninstall',
-    'access arguments' => array('administer modules'),
+    'route_name' => 'system_modules_uninstall_confirm',
     'type' => MENU_VISIBLE_IN_BREADCRUMB,
-    'file' => 'system.admin.inc',
   );
 
   // Configuration.
   $items['admin/config'] = array(
     'title' => 'Configuration',
     'description' => 'Administer settings.',
-    'page callback' => 'system_admin_config_page',
-    'access arguments' => array('access administration pages'),
-    'file' => 'system.admin.inc',
+    'route_name' => 'system_admin_config',
   );
 
   // Media settings.
@@ -857,10 +817,8 @@ function system_menu() {
   $items['admin/config/regional/date-time'] = array(
     'title' => 'Date and time formats',
     'description' => 'Configure display format strings for date and time.',
-    'page callback' => 'system_date_time_formats',
-    'access arguments' => array('administer site configuration'),
+    'route_name' => 'date_format_list',
     'weight' => -9,
-    'file' => 'system.admin.inc',
   );
   $items['admin/config/regional/date-time/formats/add'] = array(
     'title' => 'Add format',
@@ -869,15 +827,12 @@ function system_menu() {
     'route_name' => 'date_format_add',
     'weight' => -10,
   );
-  $items['admin/config/regional/date-time/formats/%/edit'] = array(
+  $items['admin/config/regional/date-time/formats/manage/%'] = array(
     'title' => 'Edit date format',
     'description' => 'Allow users to edit a configured date format.',
-    'page callback' => 'drupal_get_form',
-    'page arguments' => array('system_configure_date_formats_form', 5),
-    'access arguments' => array('administer site configuration'),
-    'file' => 'system.admin.inc',
+    'route_name' => 'date_format_edit',
   );
-  $items['admin/config/regional/date-time/formats/%/delete'] = array(
+  $items['admin/config/regional/date-time/formats/manage/%/delete'] = array(
     'title' => 'Delete date format',
     'description' => 'Allow users to delete a configured date format.',
     'route_name' => 'date_format_delete',
@@ -996,119 +951,7 @@ function system_menu() {
     );
   }
 
-  foreach (drupal_container()->get('plugin.manager.system.plugin_ui')->getDefinitions() as $plugin_id => $plugin) {
-    if ($plugin['menu'] === TRUE) {
-      $items[$plugin['path'] . '/' . $plugin_id . '/' . $plugin['suffix']] = array(
-        'title' => $plugin['title'],
-        'page callback' => 'drupal_get_form',
-        'page arguments' => array($plugin['id'], $plugin_id),
-        'access callback' => 'system_plugin_ui_access',
-        'access arguments' => array($plugin_id),
-        'type' => $plugin['type'],
-      );
-      if (!empty($plugin['default_task'])) {
-        $items[$plugin['path'] . '/' . $plugin_id . '/' . $plugin['suffix'] . '/' . $plugin['task_suffix']] = array(
-          'title' => $plugin['task_title'],
-          'type' => MENU_DEFAULT_LOCAL_TASK,
-          'weight' => -10,
-        );
-      }
-      $items[$plugin['path'] . '/' . $plugin_id . '/%'] = array(
-        'title' => $plugin['title'],
-        'page callback' => 'drupal_get_form',
-        'page arguments' => array($plugin['id'], $plugin_id, (count(explode('/', $plugin['path'])) + 1)),
-        'access callback' => 'system_plugin_ui_access',
-        'access arguments' => array($plugin_id, (count(explode('/', $plugin['path'])) + 1)),
-        'type' => MENU_CALLBACK,
-      );
-      if (!empty($plugin['file'])) {
-        $items[$plugin['path'] . '/' . $plugin_id . '/' . $plugin['suffix']]['file'] = $plugin['file'];
-        $items[$plugin['path'] . '/' . $plugin_id . '/%']['file'] = $plugin['file'];
-        if (!empty($plugin['file_path'])) {
-          $items[$plugin['path'] . '/' . $plugin_id . '/' . $plugin['suffix']]['file path'] = $plugin['file_path'];
-          $items[$plugin['path'] . '/' . $plugin_id . '/%']['file path'] = $plugin['file_path'];
-        }
-      }
-      $items['system/autocomplete/' . $plugin_id] = array(
-        'page callback' => 'system_plugin_autocomplete',
-        'page arguments' => array($plugin_id),
-        'access callback' => 'system_plugin_ui_access',
-        'access arguments' => array($plugin_id),
-        'type' => MENU_CALLBACK,
-      );
-    }
-  }
-
   return $items;
-}
-
-/**
- * Proxies to the plugin class' form method.
- *
- * @todo This needs more explanation, an @see or two, and parameter
- *   documentation. Also "proxies" is a weird word to use.
- */
-function system_plugin_ui_form($form, &$form_state, $plugin, $facet = NULL) {
-  $plugin_ui = drupal_container()->get('plugin.manager.system.plugin_ui')->createInstance($plugin);
-  $form = $plugin_ui->form($form, $form_state, $facet);
-  $form['#validate'][] = array($plugin_ui, 'formValidate');
-  $form['#submit'][] = array($plugin_ui, 'formSubmit');
-  return $form;
-}
-
-/**
- * Page callback: Autocompletes any plugin system tied to a plugin UI plugin.
- *
- * The passed plugin_id indicates the specific plugin_ui plugin that is in use
- * here. The documentation within the annotation of that plugin will contain a
- * manager for the plugins that need to be autocompleted allowing this function
- * to autocomplete plugins for any plugin type.
- *
- * @param $plugin_id
- *   The plugin id for the calling plugin.
- *
- * @return object JsonResponse
- */
-function system_plugin_autocomplete($plugin_id) {
-  $string_typed = drupal_container()->get('request')->query->get('q');
-  $string_typed = drupal_explode_tags($string_typed);
-  $string = drupal_strtolower(array_pop($string_typed));
-  $matches = array();
-  if ($string) {
-    $plugin_ui = Drupal::service('plugin.manager.system.plugin_ui')->getDefinition($plugin_id);
-    $manager = Drupal::service($plugin_ui['manager']);
-    $titles = array();
-    foreach($manager->getDefinitions() as $plugin_id => $plugin) {
-      $titles[$plugin_id] = $plugin[$plugin_ui['title_attribute']];
-    }
-    $matches = preg_grep("/\b". $string . "/i", $titles);
-  }
-
-  return new JsonResponse($matches);
-}
-
-/**
- * Checks access for a given plugin using the plugin's access() method.
- *
- * @todo This needs more explanation, some @see, and parameter documentation.
- * @todo What the heck kind of parameter name is "facet"?
- */
-function system_plugin_ui_access($plugin, $facet = NULL) {
-  $plugin_ui = drupal_container()->get('plugin.manager.system.plugin_ui')->createInstance($plugin);
-  return $plugin_ui->access($facet);
-}
-
-/**
- * Implements hook_forms().
- */
-function system_forms() {
-  $forms = array();
-  foreach (drupal_container()->get('plugin.manager.system.plugin_ui')->getDefinitions() as $plugin_id => $plugin) {
-    if (empty($forms[$plugin['id']])) {
-      $forms[$plugin['id']]['callback'] = 'system_plugin_ui_form';
-    }
-  }
-  return $forms;
 }
 
 /**
@@ -1234,9 +1077,13 @@ function system_library_info() {
     'js' => array(
       'core/misc/dialog.js' => array('group' => JS_LIBRARY),
     ),
+    'css' => array(
+      'core/misc/dialog.theme.css' => array('weight' => 1),
+    ),
     'dependencies' => array(
       array('system', 'jquery'),
       array('system', 'drupal'),
+      array('system', 'drupal.debounce'),
       array('system', 'drupalSettings'),
       array('system', 'jquery.ui.dialog')
     ),
@@ -1385,7 +1232,7 @@ function system_library_info() {
     'website' => 'https://github.com/ded/domready',
     'version' => 'master',
     'js' => array(
-      'core/misc/domready/ready.min.js' => array('group' => JS_LIBRARY, 'weight' => -21),
+      'core/assets/vendor/domready/ready.min.js' => array('group' => JS_LIBRARY, 'weight' => -21),
     ),
   );
 
@@ -1393,19 +1240,19 @@ function system_library_info() {
   $libraries['jquery'] = array(
     'title' => 'jQuery',
     'website' => 'http://jquery.com',
-    'version' => '2.0',
+    'version' => '2.0.3',
     'js' => array(
-      'core/misc/jquery.js' => array('group' => JS_LIBRARY, 'weight' => -20),
+      'core/assets/vendor/jquery/jquery.js' => array('group' => JS_LIBRARY, 'weight' => -20),
     ),
   );
 
   // jQuery Once.
   $libraries['jquery.once'] = array(
     'title' => 'jQuery Once',
-    'website' => 'http://plugins.jquery.com/project/once',
-    'version' => '1.2',
+    'website' => 'http://plugins.jquery.com/once/',
+    'version' => '1.2.3',
     'js' => array(
-      'core/misc/jquery.once.js' => array('group' => JS_LIBRARY, 'weight' => -19),
+      'core/assets/vendor/jquery-once/jquery.once.js' => array('group' => JS_LIBRARY, 'weight' => -19),
     ),
     'dependencies' => array(
       array('system', 'jquery'),
@@ -1416,9 +1263,9 @@ function system_library_info() {
   $libraries['jquery.form'] = array(
     'title' => 'jQuery Form Plugin',
     'website' => 'http://malsup.com/jquery/form/',
-    'version' => '3.27',
+    'version' => '3.39',
     'js' => array(
-      'core/misc/jquery.form.js' => array(),
+      'core/assets/vendor/jquery-form/jquery.form.js' => array(),
     ),
     'dependencies' => array(
       array('system', 'jquery'),
@@ -1432,7 +1279,7 @@ function system_library_info() {
     'website' => 'http://benalman.com/projects/jquery-bbq-plugin/',
     'version' => '1.3pre',
     'js' => array(
-      'core/misc/jquery.ba-bbq.js' => array(),
+      'core/assets/vendor/jquery-bbq/jquery.ba-bbq.js' => array(),
     ),
     'dependencies' => array(
       array('system', 'jquery'),
@@ -1498,10 +1345,13 @@ function system_library_info() {
     'website' => 'http://code.google.com/p/farbtastic/',
     'version' => '1.2',
     'js' => array(
-      'core/misc/farbtastic/farbtastic.js' => array(),
+      'core/assets/vendor/farbtastic/farbtastic.js' => array(),
     ),
     'css' => array(
-      'core/misc/farbtastic/farbtastic.css' => array(),
+      'core/assets/vendor/farbtastic/farbtastic.css' => array(),
+    ),
+    'dependencies' => array(
+      array('system', 'jquery'),
     ),
   );
 
@@ -1511,7 +1361,7 @@ function system_library_info() {
     'website' => 'https://github.com/aFarkas/html5shiv/',
     'version' => '3.6.2',
     'js' => array(
-      'core/misc/html5.js' => array(
+      'core/assets/vendor/html5shiv/html5.js' => array(
         'group' => JS_LIBRARY,
         'weight' => -22,
         'browsers' => array('IE' => 'lte IE 8', '!IE' => FALSE),
@@ -1525,7 +1375,7 @@ function system_library_info() {
     'website' => 'http://modernizr.com/',
     'version' => '2.6.2',
     'js' => array(
-      'core/misc/modernizr/modernizr.min.js' => array(
+      'core/assets/vendor/modernizr/modernizr.min.js' => array(
         'every_page' => TRUE,
         'group' => JS_LIBRARY,
         'preprocess' => 0,
@@ -1541,12 +1391,24 @@ function system_library_info() {
     'website' => 'http://git.io/normalize',
     'version' => '2.1.2',
     'css' => array(
-      'core/misc/normalize/normalize.css' => array(
+      'core/assets/vendor/normalize-css/normalize.css' => array(
         'every_page' => TRUE,
-        'weight' => -10,
+        'weight' => CSS_BASE - 20,
       ),
     ),
   );
+
+  // Drupal's base CSS.
+  $libraries['drupal.base'] = array(
+    'title' => 'Drupal base CSS',
+    'version' => VERSION,
+    'css' => array(
+      'core/misc/drupal.base.css' => array(
+        'every_page' => TRUE,
+        'weight' => CSS_BASE - 10,
+       ),
+     ),
+   );
 
   // jQuery UI.
   $libraries['jquery.ui.core'] = array(
@@ -1554,11 +1416,11 @@ function system_library_info() {
     'website' => 'http://jqueryui.com',
     'version' => '1.10.2',
     'js' => array(
-      'core/misc/ui/ui/jquery.ui.core.js' => array('group' => JS_LIBRARY, 'weight' => -11),
+      'core/assets/vendor/jquery.ui/ui/jquery.ui.core.js' => array('group' => JS_LIBRARY, 'weight' => -11),
     ),
     'css' => array(
-      'core/misc/ui/themes/base/jquery.ui.core.css' => array(),
-      'core/misc/ui/themes/base/jquery.ui.theme.css' => array(),
+      'core/assets/vendor/jquery.ui/themes/base/jquery.ui.core.css' => array(),
+      'core/assets/vendor/jquery.ui/themes/base/jquery.ui.theme.css' => array(),
     ),
     'dependencies' => array(
       array('system', 'jquery'),
@@ -1569,10 +1431,10 @@ function system_library_info() {
     'website' => 'http://jqueryui.com/demos/accordion/',
     'version' => $libraries['jquery.ui.core']['version'],
     'js' => array(
-      'core/misc/ui/ui/jquery.ui.accordion.js' => array(),
+      'core/assets/vendor/jquery.ui/ui/jquery.ui.accordion.js' => array(),
     ),
     'css' => array(
-      'core/misc/ui/themes/base/jquery.ui.accordion.css' => array(),
+      'core/assets/vendor/jquery.ui/themes/base/jquery.ui.accordion.css' => array(),
     ),
     'dependencies' => array(
       array('system', 'jquery.ui.core'),
@@ -1584,10 +1446,10 @@ function system_library_info() {
     'website' => 'http://jqueryui.com/demos/autocomplete/',
     'version' => $libraries['jquery.ui.core']['version'],
     'js' => array(
-      'core/misc/ui/ui/jquery.ui.autocomplete.js' => array(),
+      'core/assets/vendor/jquery.ui/ui/jquery.ui.autocomplete.js' => array(),
     ),
     'css' => array(
-      'core/misc/ui/themes/base/jquery.ui.autocomplete.css' => array(),
+      'core/assets/vendor/jquery.ui/themes/base/jquery.ui.autocomplete.css' => array(),
     ),
     'dependencies' => array(
       array('system', 'jquery.ui.core'),
@@ -1601,10 +1463,10 @@ function system_library_info() {
     'website' => 'http://jqueryui.com/demos/button/',
     'version' => $libraries['jquery.ui.core']['version'],
     'js' => array(
-      'core/misc/ui/ui/jquery.ui.button.js' => array(),
+      'core/assets/vendor/jquery.ui/ui/jquery.ui.button.js' => array(),
     ),
     'css' => array(
-      'core/misc/ui/themes/base/jquery.ui.button.css' => array(),
+      'core/assets/vendor/jquery.ui/themes/base/jquery.ui.button.css' => array(),
     ),
     'dependencies' => array(
       array('system', 'jquery.ui.core'),
@@ -1616,10 +1478,10 @@ function system_library_info() {
     'website' => 'http://jqueryui.com/demos/datepicker/',
     'version' => $libraries['jquery.ui.core']['version'],
     'js' => array(
-      'core/misc/ui/ui/jquery.ui.datepicker.js' => array(),
+      'core/assets/vendor/jquery.ui/ui/jquery.ui.datepicker.js' => array(),
     ),
     'css' => array(
-      'core/misc/ui/themes/base/jquery.ui.datepicker.css' => array(),
+      'core/assets/vendor/jquery.ui/themes/base/jquery.ui.datepicker.css' => array(),
     ),
     'dependencies' => array(
       array('system', 'jquery.ui.core'),
@@ -1630,10 +1492,10 @@ function system_library_info() {
     'website' => 'http://jqueryui.com/demos/dialog/',
     'version' => $libraries['jquery.ui.core']['version'],
     'js' => array(
-      'core/misc/ui/ui/jquery.ui.dialog.js' => array(),
+      'core/assets/vendor/jquery.ui/ui/jquery.ui.dialog.js' => array(),
     ),
     'css' => array(
-      'core/misc/ui/themes/base/jquery.ui.dialog.css' => array(),
+      'core/assets/vendor/jquery.ui/themes/base/jquery.ui.dialog.css' => array(),
     ),
     'dependencies' => array(
       array('system', 'jquery.ui.core'),
@@ -1650,7 +1512,7 @@ function system_library_info() {
     'website' => 'http://jqueryui.com/demos/draggable/',
     'version' => $libraries['jquery.ui.core']['version'],
     'js' => array(
-      'core/misc/ui/ui/jquery.ui.draggable.js' => array(),
+      'core/assets/vendor/jquery.ui/ui/jquery.ui.draggable.js' => array(),
     ),
     'dependencies' => array(
       array('system', 'jquery.ui.core'),
@@ -1663,7 +1525,7 @@ function system_library_info() {
     'website' => 'http://jqueryui.com/demos/droppable/',
     'version' => $libraries['jquery.ui.core']['version'],
     'js' => array(
-      'core/misc/ui/ui/jquery.ui.droppable.js' => array(),
+      'core/assets/vendor/jquery.ui/ui/jquery.ui.droppable.js' => array(),
     ),
     'dependencies' => array(
       array('system', 'jquery.ui.core'),
@@ -1677,10 +1539,10 @@ function system_library_info() {
     'website' => 'http://docs.jquery.com/UI/Menu',
     'version' => $libraries['jquery.ui.core']['version'],
     'js' => array(
-      'core/misc/ui/ui/jquery.ui.menu.js' => array(),
+      'core/assets/vendor/jquery.ui/ui/jquery.ui.menu.js' => array(),
     ),
     'css' => array(
-      'core/misc/ui/themes/base/jquery.ui.menu.css' => array(),
+      'core/assets/vendor/jquery.ui/themes/base/jquery.ui.menu.css' => array(),
     ),
     'dependencies' => array(
       array('system', 'jquery.ui.core'),
@@ -1692,7 +1554,7 @@ function system_library_info() {
     'website' => 'http://docs.jquery.com/UI/Mouse',
     'version' => $libraries['jquery.ui.core']['version'],
     'js' => array(
-      'core/misc/ui/ui/jquery.ui.mouse.js' => array(),
+      'core/assets/vendor/jquery.ui/ui/jquery.ui.mouse.js' => array(),
     ),
     'dependencies' => array(
       array('system', 'jquery.ui.widget'),
@@ -1703,7 +1565,7 @@ function system_library_info() {
     'website' => 'http://jqueryui.com/demos/position/',
     'version' => $libraries['jquery.ui.core']['version'],
     'js' => array(
-      'core/misc/ui/ui/jquery.ui.position.js' => array(),
+      'core/assets/vendor/jquery.ui/ui/jquery.ui.position.js' => array(),
     ),
   );
   $libraries['jquery.ui.progressbar'] = array(
@@ -1711,10 +1573,10 @@ function system_library_info() {
     'website' => 'http://jqueryui.com/demos/progressbar/',
     'version' => $libraries['jquery.ui.core']['version'],
     'js' => array(
-      'core/misc/ui/ui/jquery.ui.progressbar.js' => array(),
+      'core/assets/vendor/jquery.ui/ui/jquery.ui.progressbar.js' => array(),
     ),
     'css' => array(
-      'core/misc/ui/themes/base/jquery.ui.progressbar.css' => array(),
+      'core/assets/vendor/jquery.ui/themes/base/jquery.ui.progressbar.css' => array(),
     ),
     'dependencies' => array(
       array('system', 'jquery.ui.core'),
@@ -1726,10 +1588,10 @@ function system_library_info() {
     'website' => 'http://jqueryui.com/demos/resizable/',
     'version' => $libraries['jquery.ui.core']['version'],
     'js' => array(
-      'core/misc/ui/ui/jquery.ui.resizable.js' => array(),
+      'core/assets/vendor/jquery.ui/ui/jquery.ui.resizable.js' => array(),
     ),
     'css' => array(
-      'core/misc/ui/themes/base/jquery.ui.resizable.css' => array(),
+      'core/assets/vendor/jquery.ui/themes/base/jquery.ui.resizable.css' => array(),
     ),
     'dependencies' => array(
       array('system', 'jquery.ui.core'),
@@ -1742,10 +1604,10 @@ function system_library_info() {
     'website' => 'http://jqueryui.com/demos/selectable/',
     'version' => $libraries['jquery.ui.core']['version'],
     'js' => array(
-      'core/misc/ui/ui/jquery.ui.selectable.js' => array(),
+      'core/assets/vendor/jquery.ui/ui/jquery.ui.selectable.js' => array(),
     ),
     'css' => array(
-      'core/misc/ui/themes/base/jquery.ui.selectable.css' => array(),
+      'core/assets/vendor/jquery.ui/themes/base/jquery.ui.selectable.css' => array(),
     ),
     'dependencies' => array(
       array('system', 'jquery.ui.core'),
@@ -1758,10 +1620,10 @@ function system_library_info() {
     'website' => 'http://jqueryui.com/demos/slider/',
     'version' => $libraries['jquery.ui.core']['version'],
     'js' => array(
-      'core/misc/ui/ui/jquery.ui.slider.js' => array(),
+      'core/assets/vendor/jquery.ui/ui/jquery.ui.slider.js' => array(),
     ),
     'css' => array(
-      'core/misc/ui/themes/base/jquery.ui.slider.css' => array(),
+      'core/assets/vendor/jquery.ui/themes/base/jquery.ui.slider.css' => array(),
     ),
     'dependencies' => array(
       array('system', 'jquery.ui.core'),
@@ -1774,7 +1636,7 @@ function system_library_info() {
     'website' => 'http://jqueryui.com/demos/sortable/',
     'version' => $libraries['jquery.ui.core']['version'],
     'js' => array(
-      'core/misc/ui/ui/jquery.ui.sortable.js' => array(),
+      'core/assets/vendor/jquery.ui/ui/jquery.ui.sortable.js' => array(),
     ),
     'dependencies' => array(
       array('system', 'jquery.ui.core'),
@@ -1787,7 +1649,7 @@ function system_library_info() {
     'website' => 'http://jqueryui.com/demos/spinner/',
     'version' => $libraries['jquery.ui.core']['version'],
     'js' => array(
-      'core/misc/ui/ui/jquery.ui.spinner.js' => array(),
+      'core/assets/vendor/jquery.ui/ui/jquery.ui.spinner.js' => array(),
     ),
     'dependencies' => array(
       array('system', 'jquery.ui.core'),
@@ -1800,10 +1662,10 @@ function system_library_info() {
     'website' => 'http://jqueryui.com/demos/tabs/',
     'version' => $libraries['jquery.ui.core']['version'],
     'js' => array(
-      'core/misc/ui/ui/jquery.ui.tabs.js' => array(),
+      'core/assets/vendor/jquery.ui/ui/jquery.ui.tabs.js' => array(),
     ),
     'css' => array(
-      'core/misc/ui/themes/base/jquery.ui.tabs.css' => array(),
+      'core/assets/vendor/jquery.ui/themes/base/jquery.ui.tabs.css' => array(),
     ),
     'dependencies' => array(
       array('system', 'jquery.ui.core'),
@@ -1815,10 +1677,10 @@ function system_library_info() {
     'website' => 'http://jqueryui.com/demos/tooltip/',
     'version' => $libraries['jquery.ui.core']['version'],
       'js' => array(
-      'core/misc/ui/ui/jquery.ui.tooltip.js' => array(),
+      'core/assets/vendor/jquery.ui/ui/jquery.ui.tooltip.js' => array(),
     ),
     'css' => array(
-      'core/misc/ui/themes/base/jquery.ui.tooltip.css' => array(),
+      'core/assets/vendor/jquery.ui/themes/base/jquery.ui.tooltip.css' => array(),
     ),
     'dependencies' => array(
       array('system', 'jquery.ui.core'),
@@ -1831,7 +1693,7 @@ function system_library_info() {
     'website' => 'http://docs.jquery.com/UI/Widget',
     'version' => $libraries['jquery.ui.core']['version'],
     'js' => array(
-      'core/misc/ui/ui/jquery.ui.widget.js' => array('group' => JS_LIBRARY, 'weight' => -10),
+      'core/assets/vendor/jquery.ui/ui/jquery.ui.widget.js' => array('group' => JS_LIBRARY, 'weight' => -10),
     ),
     'dependencies' => array(
       array('system', 'jquery.ui.core'),
@@ -1842,7 +1704,7 @@ function system_library_info() {
     'website' => 'http://jqueryui.com/demos/effect/',
     'version' => $libraries['jquery.ui.core']['version'],
     'js' => array(
-      'core/misc/ui/ui/jquery.effects.core.js' => array('group' => JS_LIBRARY, 'weight' => -9),
+      'core/assets/vendor/jquery.ui/ui/jquery.effects.core.js' => array('group' => JS_LIBRARY, 'weight' => -9),
     ),
   );
   $libraries['jquery.effects.blind'] = array(
@@ -1850,7 +1712,7 @@ function system_library_info() {
     'website' => 'http://jqueryui.com/demos/effect/',
     'version' => $libraries['jquery.ui.core']['version'],
     'js' => array(
-      'core/misc/ui/ui/jquery.effects.blind.js' => array(),
+      'core/assets/vendor/jquery.ui/ui/jquery.effects.blind.js' => array(),
     ),
     'dependencies' => array(
       array('system', 'jquery.effects.core'),
@@ -1861,7 +1723,7 @@ function system_library_info() {
     'website' => 'http://jqueryui.com/demos/effect/',
     'version' => $libraries['jquery.ui.core']['version'],
     'js' => array(
-      'core/misc/ui/ui/jquery.effects.bounce.js' => array(),
+      'core/assets/vendor/jquery.ui/ui/jquery.effects.bounce.js' => array(),
     ),
     'dependencies' => array(
       array('system', 'jquery.effects.core'),
@@ -1872,7 +1734,7 @@ function system_library_info() {
     'website' => 'http://jqueryui.com/demos/effect/',
     'version' => $libraries['jquery.ui.core']['version'],
     'js' => array(
-      'core/misc/ui/ui/jquery.effects.clip.js' => array(),
+      'core/assets/vendor/jquery.ui/ui/jquery.effects.clip.js' => array(),
     ),
     'dependencies' => array(
       array('system', 'jquery.effects.core'),
@@ -1883,7 +1745,7 @@ function system_library_info() {
     'website' => 'http://jqueryui.com/demos/effect/',
     'version' => $libraries['jquery.ui.core']['version'],
     'js' => array(
-      'core/misc/ui/ui/jquery.effects.drop.js' => array(),
+      'core/assets/vendor/jquery.ui/ui/jquery.effects.drop.js' => array(),
     ),
     'dependencies' => array(
       array('system', 'jquery.effects.core'),
@@ -1894,7 +1756,7 @@ function system_library_info() {
     'website' => 'http://jqueryui.com/demos/effect/',
     'version' => $libraries['jquery.ui.core']['version'],
     'js' => array(
-      'core/misc/ui/ui/jquery.effects.explode.js' => array(),
+      'core/assets/vendor/jquery.ui/ui/jquery.effects.explode.js' => array(),
     ),
     'dependencies' => array(
       array('system', 'jquery.effects.core'),
@@ -1905,7 +1767,7 @@ function system_library_info() {
     'website' => 'http://jqueryui.com/demos/effect/',
     'version' => $libraries['jquery.ui.core']['version'],
     'js' => array(
-      'core/misc/ui/ui/jquery.effects.fade.js' => array(),
+      'core/assets/vendor/jquery.ui/ui/jquery.effects.fade.js' => array(),
     ),
     'dependencies' => array(
       array('system', 'jquery.effects.core'),
@@ -1916,7 +1778,7 @@ function system_library_info() {
     'website' => 'http://jqueryui.com/demos/effect/',
     'version' => $libraries['jquery.ui.core']['version'],
     'js' => array(
-      'core/misc/ui/ui/jquery.effects.fold.js' => array(),
+      'core/assets/vendor/jquery.ui/ui/jquery.effects.fold.js' => array(),
     ),
     'dependencies' => array(
       array('system', 'jquery.effects.core'),
@@ -1927,7 +1789,7 @@ function system_library_info() {
     'website' => 'http://jqueryui.com/demos/effect/',
     'version' => $libraries['jquery.ui.core']['version'],
     'js' => array(
-      'core/misc/ui/ui/jquery.effects.highlight.js' => array(),
+      'core/assets/vendor/jquery.ui/ui/jquery.effects.highlight.js' => array(),
     ),
     'dependencies' => array(
       array('system', 'jquery.effects.core'),
@@ -1938,7 +1800,7 @@ function system_library_info() {
     'website' => 'http://jqueryui.com/demos/effect/',
     'version' => $libraries['jquery.ui.core']['version'],
     'js' => array(
-      'core/misc/ui/ui/jquery.effects.pulsate.js' => array(),
+      'core/assets/vendor/jquery.ui/ui/jquery.effects.pulsate.js' => array(),
     ),
     'dependencies' => array(
       array('system', 'jquery.effects.core'),
@@ -1949,7 +1811,7 @@ function system_library_info() {
     'website' => 'http://jqueryui.com/demos/effect/',
     'version' => $libraries['jquery.ui.core']['version'],
     'js' => array(
-      'core/misc/ui/ui/jquery.effects.scale.js' => array(),
+      'core/assets/vendor/jquery.ui/ui/jquery.effects.scale.js' => array(),
     ),
     'dependencies' => array(
       array('system', 'jquery.effects.core'),
@@ -1960,7 +1822,7 @@ function system_library_info() {
     'website' => 'http://jqueryui.com/demos/effect/',
     'version' => $libraries['jquery.ui.core']['version'],
     'js' => array(
-      'core/misc/ui/ui/jquery.effects.shake.js' => array(),
+      'core/assets/vendor/jquery.ui/ui/jquery.effects.shake.js' => array(),
     ),
     'dependencies' => array(
       array('system', 'jquery.effects.core'),
@@ -1971,7 +1833,7 @@ function system_library_info() {
     'website' => 'http://jqueryui.com/demos/effect/',
     'version' => $libraries['jquery.ui.core']['version'],
     'js' => array(
-      'core/misc/ui/ui/jquery.effects.slide.js' => array(),
+      'core/assets/vendor/jquery.ui/ui/jquery.effects.slide.js' => array(),
     ),
     'dependencies' => array(
       array('system', 'jquery.effects.core'),
@@ -1982,7 +1844,7 @@ function system_library_info() {
     'website' => 'http://jqueryui.com/demos/effect/',
     'version' => $libraries['jquery.ui.core']['version'],
     'js' => array(
-      'core/misc/ui/ui/jquery.effects.transfer.js' => array(),
+      'core/assets/vendor/jquery.ui/ui/jquery.effects.transfer.js' => array(),
     ),
     'dependencies' => array(
       array('system', 'jquery.effects.core'),
@@ -1995,7 +1857,7 @@ function system_library_info() {
     'website' => 'http://jqueryui.com/demos/effect/',
     'version' => '0.2.2',
     'js' => array(
-      'core/misc/jquery.ui.touch-punch.js' => array(),
+      'core/assets/vendor/jquery-ui-touch-punch/jquery.ui.touch-punch.js' => array(),
     ),
     'dependencies' => array(
       array('system', 'jquery.ui.core'),
@@ -2008,7 +1870,7 @@ function system_library_info() {
     'website' => 'http://underscorejs.org/',
     'version' => '1.4.0',
     'js' => array(
-      'core/misc/underscore/underscore.js' => array('group' => JS_LIBRARY, 'weight' => -20),
+      'core/assets/vendor/underscore/underscore.js' => array('group' => JS_LIBRARY, 'weight' => -20),
     ),
   );
 
@@ -2018,7 +1880,7 @@ function system_library_info() {
     'website' => 'http://backbonejs.org/',
     'version' => '0.9.2',
     'js' => array(
-      'core/misc/backbone/backbone.js' => array('group' => JS_LIBRARY, 'weight' => -19),
+      'core/assets/vendor/backbone/backbone.js' => array('group' => JS_LIBRARY, 'weight' => -19),
     ),
     'dependencies' => array(
       array('system', 'underscore'),
@@ -2031,7 +1893,7 @@ function system_library_info() {
     'website' => 'http://plugins.jquery.com/project/cookie',
     'version' => $libraries['jquery.ui.core']['version'], // Shipped with jQuery UI.
     'js' => array(
-      'core/misc/ui/external/jquery.cookie.js' => array(),
+      'core/assets/vendor/jquery.ui/external/jquery.cookie.js' => array(),
     ),
     'dependencies' => array(
       array('system', 'jquery'),
@@ -2100,19 +1962,6 @@ function system_library_info() {
       array('system', 'jquery.once'),
     ),
   );
-  $libraries['drupal.system.cron'] = array(
-    'title' => 'System cron',
-    'version' => VERSION,
-    'js' => array(
-      drupal_get_path('module', 'system') . '/system.cron.js' => array(),
-    ),
-    'dependencies' => array(
-      array('system', 'jquery'),
-      array('system', 'drupal'),
-      array('system', 'drupalSettings'),
-      array('system', 'jquery.once'),
-    ),
-  );
   $libraries['drupal.system.modules'] = array(
     'title' => 'System modules',
     'version' => VERSION,
@@ -2149,7 +1998,7 @@ function system_stream_wrappers() {
   );
 
   // Only register the private file stream wrapper if a file path has been set.
-  if (config('system.file')->get('path.private')) {
+  if (Drupal::config('system.file')->get('path.private')) {
     $wrappers['private'] = array(
       'name' => t('Private files'),
       'class' => 'Drupal\Core\StreamWrapper\PrivateStream',
@@ -2159,147 +2008,6 @@ function system_stream_wrappers() {
   }
 
   return $wrappers;
-}
-
-/**
- * Implements hook_data_type_info().
- */
-function system_data_type_info() {
-  return array(
-    'boolean' => array(
-      'label' => t('Boolean'),
-      'class' => '\Drupal\Core\TypedData\Type\Boolean',
-      'primitive type' => Primitive::BOOLEAN,
-    ),
-    'string' => array(
-      'label' => t('String'),
-      'class' => '\Drupal\Core\TypedData\Type\String',
-      'primitive type' => Primitive::STRING,
-    ),
-    'integer' => array(
-      'label' => t('Integer'),
-      'class' => '\Drupal\Core\TypedData\Type\Integer',
-      'primitive type' => Primitive::INTEGER,
-    ),
-    'float' => array(
-      'label' => t('Float'),
-      'class' => '\Drupal\Core\TypedData\Type\Float',
-      'primitive type' => Primitive::FLOAT,
-    ),
-    'date' => array(
-      'label' => t('Date'),
-      'class' => '\Drupal\Core\TypedData\Type\Date',
-      'primitive type' => Primitive::DATE,
-    ),
-    'duration' => array(
-      'label' => t('Duration'),
-      'class' => '\Drupal\Core\TypedData\Type\Duration',
-      'primitive type' => Primitive::DURATION,
-    ),
-    'uri' => array(
-      'label' => t('URI'),
-      'class' => '\Drupal\Core\TypedData\Type\Uri',
-      'primitive type' => Primitive::URI,
-    ),
-    'email' => array(
-      'label' => t('Email'),
-      'class' => '\Drupal\Core\TypedData\Type\Email',
-      'primitive type' => Primitive::STRING,
-      'constraints' => array('Email' => array()),
-    ),
-    'binary' => array(
-      'label' => t('Binary'),
-      'class' => '\Drupal\Core\TypedData\Type\Binary',
-      'primitive type' => Primitive::BINARY,
-    ),
-    'map' => array(
-      'label' => t('Map'),
-      'class' =>  '\Drupal\Core\TypedData\Type\Map',
-    ),
-    'any' => array(
-      'label' => t('Any data'),
-      'class' =>  '\Drupal\Core\TypedData\Type\Any',
-    ),
-    'language' => array(
-      'label' => t('Language'),
-      'description' => t('A language object.'),
-      'class' => '\Drupal\Core\TypedData\Type\Language',
-    ),
-    'entity' => array(
-      'label' => t('Entity'),
-      'description' => t('All kind of entities, e.g. nodes, comments or users.'),
-      'class' => '\Drupal\Core\Entity\Field\Type\EntityWrapper',
-    ),
-    'entity_translation' => array(
-      'label' => t('Entity translation'),
-      'description' => t('A translation of an entity'),
-      'class' => '\Drupal\Core\Entity\Field\Type\EntityTranslation',
-    ),
-    'boolean_field' => array(
-      'label' => t('Boolean field item'),
-      'description' => t('An entity field containing a boolean value.'),
-      'class' => '\Drupal\Core\Entity\Field\Type\BooleanItem',
-      'list class' => '\Drupal\Core\Entity\Field\Type\Field',
-    ),
-    'string_field' => array(
-      'label' => t('String field item'),
-      'description' => t('An entity field containing a string value.'),
-      'class' => '\Drupal\Core\Entity\Field\Type\StringItem',
-      'list class' => '\Drupal\Core\Entity\Field\Type\Field',
-    ),
-    'email_field' => array(
-      'label' => t('E-mail field item'),
-      'description' => t('An entity field containing an e-mail value.'),
-      'class' => '\Drupal\Core\Entity\Field\Type\EmailItem',
-      'list class' => '\Drupal\Core\Entity\Field\Type\Field',
-    ),
-    'integer_field' => array(
-      'label' => t('Integer field item'),
-      'description' => t('An entity field containing an integer value.'),
-      'class' => '\Drupal\Core\Entity\Field\Type\IntegerItem',
-      'list class' => '\Drupal\Core\Entity\Field\Type\Field',
-    ),
-    'date_field' => array(
-      'label' => t('Date field item'),
-      'description' => t('An entity field containing a date value.'),
-      'class' => '\Drupal\Core\Entity\Field\Type\DateItem',
-      'list class' => '\Drupal\Core\Entity\Field\Type\Field',
-    ),
-    'language_field' => array(
-      'label' => t('Language field item'),
-      'description' => t('An entity field referencing a language.'),
-      'class' => '\Drupal\Core\Entity\Field\Type\LanguageItem',
-      'list class' => '\Drupal\Core\Entity\Field\Type\Field',
-      'constraints' => array(
-        'ComplexData' => array(
-          'value' => array('Length' => array('max' => 12)),
-        ),
-      ),
-    ),
-    'entity_reference_field' => array(
-      'label' => t('Entity reference field item'),
-      'description' => t('An entity field containing an entity reference.'),
-      'class' => '\Drupal\Core\Entity\Field\Type\EntityReferenceItem',
-      'list class' => '\Drupal\Core\Entity\Field\Type\Field',
-    ),
-    'uri_field' => array(
-      'label' => t('URI field item'),
-      'description' => t('An entity field containing a URI'),
-      'class' => '\Drupal\Core\Entity\Field\Type\UriItem',
-      'list class' => '\Drupal\Core\Entity\Field\Type\Field',
-    ),
-    'uuid_field' => array(
-      'label' => t('UUID field item'),
-      'description' => t('An entity field containing a UUID.'),
-      'class' => '\Drupal\Core\Entity\Field\Type\UuidItem',
-      'list class' => '\Drupal\Core\Entity\Field\Type\Field',
-      'constraints' => array(
-        'ComplexData' => array(
-          'value' => array('Length' => array('max' => 128)),
-        ),
-      ),
-    ),
-  );
 }
 
 /**
@@ -2506,6 +2214,8 @@ function system_filetransfer_info() {
  * Implements hook_page_build().
  */
 function system_page_build(&$page) {
+  // Note: ensure the same CSS is loaded in _drupal_maintenance_theme().
+  $page['#attached']['library'][] = array('system', 'drupal.base');
   $path = drupal_get_path('module', 'system');
   // Adjust the weights to load these early.
   $page['#attached']['css'][$path . '/css/system.module.css'] = array('weight' => CSS_COMPONENT - 10, 'every_page' => TRUE);
@@ -2516,34 +2226,14 @@ function system_page_build(&$page) {
 }
 
 /**
- * Select locale date format details from database.
- *
- * @param $languages
- *   An array of language codes.
- *
- * @return
- *   An array of date formats.
- */
-function system_get_localized_date_format($languages) {
-  // Get list of different format types.
-  foreach ($languages as $language) {
-    $date_formats = config('locale.config.' . $language . '.system.date')->get('formats');
-    if (!empty($date_formats)) {
-      return $date_formats;
-    }
-  }
-  return array();
-}
-
-/**
  * Implements hook_custom_theme().
  */
 function system_custom_theme() {
   if (drupal_container()->isScopeActive('request')) {
     $request = drupal_container()->get('request');
-    $path = $request->attributes->get('system_path');
+    $path = $request->attributes->get('_system_path');
     if (user_access('view the administration theme') && path_is_admin($path)) {
-      return config('system.theme')->get('admin');
+      return Drupal::config('system.theme')->get('admin');
     }
   }
 }
@@ -2551,8 +2241,8 @@ function system_custom_theme() {
 /**
  * Implements hook_form_FORM_ID_alter().
  */
-function system_form_user_profile_form_alter(&$form, &$form_state) {
-  if (config('system.timezone')->get('user.configurable')) {
+function system_form_user_form_alter(&$form, &$form_state) {
+  if (Drupal::config('system.date')->get('timezone.user.configurable')) {
     system_user_timezone($form, $form_state);
   }
 }
@@ -2561,8 +2251,8 @@ function system_form_user_profile_form_alter(&$form, &$form_state) {
  * Implements hook_form_FORM_ID_alter().
  */
 function system_form_user_register_form_alter(&$form, &$form_state) {
-  $config = config('system.timezone');
-  if ($config->get('user.configurable') && $config->get('user.default') == DRUPAL_USER_TIMEZONE_SELECT) {
+  $config = Drupal::config('system.date');
+  if ($config->get('timezone.user.configurable') && $config->get('timezone.user.default') == DRUPAL_USER_TIMEZONE_SELECT) {
     system_user_timezone($form, $form_state);
   }
 }
@@ -2570,10 +2260,10 @@ function system_form_user_register_form_alter(&$form, &$form_state) {
 /**
  * Implements hook_user_presave().
  */
-function system_user_presave($account) {
-  $config = config('system.timezone');
-  if ($config->get('user.configurable') && empty($account->timezone) && !$config->get('user.default')) {
-    $account->timezone = $config->get('default');
+function system_user_presave(UserInterface $account) {
+  $config = Drupal::config('system.date');
+  if ($config->get('timezone.user.configurable') && !$account->getTimeZone() && !$config->get('timezone.user.default')) {
+    $account->timezone = $config->get('timezone.default');
   }
 }
 
@@ -2581,10 +2271,10 @@ function system_user_presave($account) {
  * Implements hook_user_login().
  */
 function system_user_login($account) {
-  $config = config('system.timezone');
+  $config = Drupal::config('system.date');
   // If the user has a NULL time zone, notify them to set a time zone.
-  if (!$account->timezone && $config->get('user.configurable') && $config->get('user.warn')) {
-    drupal_set_message(t('Configure your <a href="@user-edit">account time zone setting</a>.', array('@user-edit' => url("user/$account->uid/edit", array('query' => drupal_get_destination(), 'fragment' => 'edit-timezone')))));
+  if (!$account->getTimezone() && $config->get('timezone.user.configurable') && $config->get('timezone.user.warn')) {
+    drupal_set_message(t('Configure your <a href="@user-edit">account time zone setting</a>.', array('@user-edit' => url("user/$account->id()/edit", array('query' => drupal_get_destination(), 'fragment' => 'edit-timezone')))));
   }
 }
 
@@ -2603,11 +2293,11 @@ function system_user_timezone(&$form, &$form_state) {
   $form['timezone']['timezone'] = array(
     '#type' => 'select',
     '#title' => t('Time zone'),
-    '#default_value' => isset($account->timezone) ? $account->timezone : ($account->uid == $user->uid ? config('system.date')->get('timezone.default') : ''),
-    '#options' => system_time_zones($account->uid != $user->uid),
+    '#default_value' => $account->getTimezone() ? $account->getTimezone() : Drupal::config('system.date')->get('timezone.default'),
+    '#options' => system_time_zones($account->id() != $user->id()),
     '#description' => t('Select the desired local time and time zone. Dates and times throughout this site will be displayed using this time zone.'),
   );
-  if (!isset($account->timezone) && $account->uid == $user->uid && empty($form_state['input']['timezone'])) {
+  if (!$account->getTimezone() && $account->id() == $user->id() && empty($form_state['input']['timezone'])) {
     $form['timezone']['#description'] = t('Your time zone setting will be automatically detected if possible. Confirm the selection and click save.');
     $form['timezone']['timezone']['#attributes'] = array('class' => array('timezone-detect'));
     drupal_add_library('system', 'drupal.timezone');
@@ -2631,19 +2321,6 @@ function system_preprocess_block(&$variables) {
       $variables['attributes']['role'] = 'navigation';
       $variables['attributes']['class'][] = 'block-menu';
   }
-}
-
-/**
- * Prepares variables for system plugin UI form templates.
- *
- * Default template: system-plugin-ui-form.html.twig.
- *
- * @param array $variables
- *   An associative array containing:
- *   - form: The plugin form elements.
-*/
-function template_preprocess_system_plugin_ui_form(&$variables) {
-  drupal_add_css(drupal_get_path('module', 'system') . '/css/system.plugin.ui.css');
 }
 
 /**
@@ -2828,7 +2505,6 @@ function _system_rebuild_module_data() {
     'version' => NULL,
     'php' => DRUPAL_MINIMUM_PHP,
     'files' => array(),
-    'bootstrap' => 0,
   );
 
   // Read info files for each module.
@@ -2894,8 +2570,8 @@ function system_rebuild_module_data() {
     $files = array();
     ksort($modules);
     // Add name, status, weight, and schema version.
-    $enabled_modules = (array) config('system.module')->get('enabled');
-    $disabled_modules = (array) config('system.module.disabled')->get();
+    $enabled_modules = (array) Drupal::config('system.module')->get('enabled');
+    $disabled_modules = (array) Drupal::config('system.module.disabled')->get();
     $all_modules = $enabled_modules + $disabled_modules;
     foreach ($modules as $module => $record) {
       $record->name = $module;
@@ -2915,23 +2591,6 @@ function system_rebuild_module_data() {
 }
 
 /**
- * Refreshes the list of bootstrap modules.
- *
- * This is called internally by module_enable/disable() to flag modules that
- * implement hooks used during bootstrap, such as hook_watchdog(). These modules
- * are loaded earlier to invoke the hooks.
- */
-function _system_update_bootstrap_status() {
-  $bootstrap_modules = array();
-  foreach (bootstrap_hooks() as $hook) {
-    foreach (module_implements($hook) as $module) {
-      $bootstrap_modules[$module] = drupal_get_filename('module', $module);
-    }
-  }
-  Drupal::state()->set('system.module.bootstrap', $bootstrap_modules);
-}
-
-/**
  * Helper function to scan and collect theme .info.yml data and their engines.
  *
  * @return
@@ -2941,7 +2600,7 @@ function _system_rebuild_theme_data() {
   // Find themes
   $themes = drupal_system_listing('/^' . DRUPAL_PHP_FUNCTION_PATTERN . '\.info.yml$/', 'themes');
   // Allow modules to add further themes.
-  if ($module_themes = module_invoke_all('system_theme_info')) {
+  if ($module_themes = Drupal::moduleHandler()->invokeAll('system_theme_info')) {
     foreach ($module_themes as $name => $uri) {
       // @see file_scan_directory()
       $themes[$name] = (object) array(
@@ -3065,7 +2724,7 @@ function system_rebuild_theme_data() {
   //   based on the current config. Remove this code when themes have a proper
   //   installation status.
   // @see http://drupal.org/node/1067408
-  $enabled_themes = (array) config('system.theme')->get('enabled');
+  $enabled_themes = (array) Drupal::config('system.theme')->get('enabled');
   $files = array();
   foreach ($themes as $name => $theme) {
     $theme->status = (int) isset($enabled_themes[$name]);
@@ -3189,64 +2848,6 @@ function system_default_region($theme) {
 }
 
 /**
- * Adds default behavior to a configuration form.
- *
- * This includes a consistent 'Save configuration' button, theme definition,
- * and submit handler.
- *
- * @param array $form
- *   An associative array containing the structure of the form.
- * @param array $form_state
- *   Reference to an associative array containing state of the form.
- *
- * @return array
- *   The form structure.
- *
- * @see system_config_form_submit()
- * @ingroup forms
- */
-function system_config_form($form, &$form_state) {
-  $form['actions']['#type'] = 'actions';
-  $form['actions']['submit'] = array(
-    '#type' => 'submit',
-    '#value' => t('Save configuration'),
-    '#button_type' => 'primary',
-  );
-
-  // Add system_config_form_submit() to output a consistent confirmation
-  // message. Since this prevents drupal_prepare_form() from adding the form's
-  // primary submit handler, do that first, using the same logic.
-  if (!isset($form['#submit'])) {
-    $form['#submit'] = array();
-    if (isset($form_state['build_info']['callback_object'])) {
-      $form['#submit'][] = array($form_state['build_info']['callback_object'], 'submitForm');
-    }
-    elseif (function_exists($form_state['build_info']['form_id'] . '_submit')) {
-      $form['#submit'][] = $form_state['build_info']['form_id'] . '_submit';
-    }
-    elseif (isset($form_state['build_info']['base_form_id']) && function_exists($form_state['build_info']['base_form_id'] . '_submit')) {
-      $form['#submit'][] = $form_state['build_info']['base_form_id'] . '_submit';
-    }
-  }
-  $form['#submit'][] = 'system_config_form_submit';
-
-  // By default, render the form using theme_system_config_form().
-  if (!isset($form['#theme'])) {
-    $form['#theme'] = 'system_config_form';
-  }
-  return $form;
-}
-
-/**
- * Form submission handler for system_config_form().
- *
- * @see system_config_form()
- */
-function system_config_form_submit($form, &$form_state) {
-  drupal_set_message(t('The configuration options have been saved.'));
-}
-
-/**
  * Generates a form array for a confirmation form.
  *
  * This function returns a complete form array for confirming an action. The
@@ -3337,31 +2938,20 @@ function confirm_form($form, $question, $path, $description = NULL, $yes = NULL,
  * such as the configuration page and the permissions page.
  *
  * Whether the user is in compact mode is determined by a cookie, which is set
- * for the user by system_admin_compact_page().
+ * for the user by \Drupal\system\Controller\SystemController::compactPage().
  *
  * If the user does not have the cookie, the default value is given by the
  * system variable 'admin_compact_mode', which itself defaults to FALSE. This
  * does not have a user interface to set it: it is a hidden variable which can
  * be set in the settings.php file.
  *
- * @return
+ * @return bool
  *   TRUE when in compact mode, FALSE when in expanded mode.
  */
 function system_admin_compact_mode() {
   // PHP converts dots into underscores in cookie names to avoid problems with
   // its parser, so we use a converted cookie name.
-  return isset($_COOKIE['Drupal_visitor_admin_compact_mode']) ? $_COOKIE['Drupal_visitor_admin_compact_mode'] : config('system.site')->get('admin_compact_mode');
-}
-
-/**
- * Menu callback; Sets whether the admin menu is in compact mode or not.
- *
- * @param $mode
- *   Valid values are 'on' and 'off'.
- */
-function system_admin_compact_page($mode = 'off') {
-  user_cookie_save(array('admin_compact_mode' => ($mode == 'on')));
-  return new RedirectResponse(url('<front>', array('absolute' => TRUE)));
+  return isset($_COOKIE['Drupal_visitor_admin_compact_mode']) ? $_COOKIE['Drupal_visitor_admin_compact_mode'] : Drupal::config('system.site')->get('admin_compact_mode');
 }
 
 /**
@@ -3426,7 +3016,7 @@ function system_get_module_admin_tasks($module, $info) {
   }
 
   // Append link for permissions.
-  if (module_hook($module, 'permission')) {
+  if (Drupal::moduleHandler()->implementsHook($module, 'permission')) {
     $item = menu_get_item('admin/people/permissions');
     if (!empty($item['access'])) {
       $item['link_path'] = $item['href'];
@@ -3450,7 +3040,7 @@ function system_cron() {
   // Cleanup the flood.
   Drupal::service('flood')->garbageCollection();
 
-  module_invoke_all('cache_flush');
+  Drupal::moduleHandler()->invokeAll('cache_flush');
   foreach (Cache::getBins() as $cache_backend) {
     $cache_backend->garbageCollection();
   }
@@ -3507,17 +3097,6 @@ function system_time_zones($blank = NULL) {
   // Sort the translated time zones alphabetically.
   asort($zones);
   return $zones;
-}
-
-/**
- * Menu callback; Retrieve a JSON object containing a suggested time zone name.
- */
-function system_timezone($abbreviation = '', $offset = -1, $is_daylight_saving_time = NULL) {
-  // An abbreviation of "0" passed in the callback arguments should be
-  // interpreted as the empty string.
-  $abbreviation = $abbreviation ? $abbreviation : '';
-  $timezone = timezone_name_from_abbr($abbreviation, intval($offset), $is_daylight_saving_time);
-  return new JsonResponse($timezone);
 }
 
 /**
@@ -3634,118 +3213,10 @@ function system_run_automated_cron() {
   // If the site is not fully installed, suppress the automated cron run.
   // Otherwise it could be triggered prematurely by Ajax requests during
   // installation.
-  if (($threshold = config('system.cron')->get('threshold.autorun')) > 0 && variable_get('install_task') == 'done') {
+  if (($threshold = Drupal::config('system.cron')->get('threshold.autorun')) > 0 && variable_get('install_task') == 'done') {
     $cron_last = Drupal::state()->get('system.cron_last') ?: NULL;
     if (!isset($cron_last) || (REQUEST_TIME - $cron_last > $threshold)) {
       drupal_cron_run();
-    }
-  }
-}
-
-/**
- * Gets the list of defined date formats and attributes.
- *
- * @return array
- *   An associative array of date formats. The top-level keys are the
- *   machine-readable names of the date formats. The values are associative
- *   arrays with the following keys:
- *   - name: The string human readable name of the date format.
- *   - pattern: An associative array of patterns that will modify the format
- *     of the date, keyed with 'php' for normal PHP date pattern and 'intl'
- *     for the alternate pattern used by the IntlDateFormatter.
- */
-function system_get_date_formats() {
-  return config('system.date')->get('formats');
-}
-
-/**
- * Gets the appropriate date format string for a date type and locale.
- *
- * @param $langcode
- *   (optional) String language code for the current locale. This can be a 2 character
- *   language code like 'en' and 'fr' or a 5 character language code like
- *   'en-gb' and 'en-us'.
- * @param $date_format_id
- *   (optional) String machine name for the date format.
- *
- * @return
- *   If $date_format_id and $langcode are specified, returns the corresponding
- *   date format string. If only $langcode is specified, returns an array of
- *   all date format strings for that locale, keyed by the date type. If
- *   neither is specified returns FALSE.
- */
-function system_date_format_locale($langcode = NULL, $date_format_id = NULL) {
-  $formats = &drupal_static(__FUNCTION__);
-
-  if (!isset($formats[$langcode])) {
-    $formats[$langcode] = config('locale.config.' . $langcode . '.system.date')->get('formats');
-  }
-
-  if ($date_format_id && $langcode && !empty($formats[$langcode][$date_format_id])) {
-    return $formats[$langcode][$date_format_id];
-  }
-  elseif ($langcode && !empty($formats[$langcode])) {
-    return $formats[$langcode];
-  }
-
-  return FALSE;
-}
-
-/**
- * Saves a date format to the database.
- *
- * @param string $date_format_id
- *   If set, replace the existing date format having this ID with the
- *   information specified in $format_info.
- * @param array $format_info
- *   A date format array containing the following keys:
- *   - name: The string name of the date type this format is associated with.
- *   - pattern: An associative array keyed by 'php' and 'intl' with the PHP
- *     and/or IntlDateFormatter date format strings for each.
- *   - locked: A boolean indicating whether or not this format should be
- *     configurable from the user interface.
- *
- * @see http://php.net/date
- */
-function system_date_format_save($date_format_id, $format_info) {
-  config('system.date')
-    ->set('formats.' . $date_format_id, $format_info)
-    ->save();
-
-  $languages = language_list();
-
-  $locale_format = array(
-    'name' => $format_info['name'],
-    'pattern' => $format_info['pattern'],
-  );
-
-  // Check if the suggested language codes are configured.
-  if (!empty($format_info['locales'])) {
-    foreach ($format_info['locales'] as $langcode) {
-      if (isset($languages[$langcode])) {
-        config('locale.config.' . $langcode . '.system.date')
-          ->set('formats.' . $date_format_id, $locale_format)
-          ->save();
-      }
-    }
-  }
-}
-
-/**
- * Deletes a date format from the database.
- *
- * @param $date_format_id
- *   The date format ID.
- */
-function system_date_format_delete($date_format_id) {
-  $format_id = 'formats.' . $date_format_id;
-  config('system.date')->clear($format_id)->save();
-
-  // Clean up the localized entry if required.
-  foreach (language_list() as $langcode => $data) {
-    $config = config('locale.config.' . $langcode . '.system.date');
-    if ($config->get($format_id)) {
-      $config->clear($format_id)->save();
     }
   }
 }

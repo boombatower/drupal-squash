@@ -38,7 +38,18 @@ interface EntityStorageControllerInterface {
    * @return
    *   An array of entity objects indexed by their ids.
    */
-  public function load(array $ids = NULL);
+  public function loadMultiple(array $ids = NULL);
+
+  /**
+   * Loads one entity.
+   *
+   * @param mixed $id
+   *   The ID of the entity to load.
+   *
+   * @return \Drupal\Core\Entity\EntityInterface
+   *   An entity object.
+   */
+  public function load($id);
 
   /**
    * Loads an unchanged entity from the database.
@@ -126,22 +137,28 @@ interface EntityStorageControllerInterface {
   public function save(EntityInterface $entity);
 
   /**
-   * Defines the base fields of the entity type.
-   *
-   * @return array
-   *   An array of entity field definitions as specified by
-   *   \Drupal\Core\Entity\EntityManager::getFieldDefinitions(), keyed by field
-   *   name.
-   *
-   * @see \Drupal\Core\Entity\EntityManager::getFieldDefinitions()
-   */
-  public function baseFieldDefinitions();
-
-  /**
    * Gets the name of the service for the query for this entity storage.
    *
    * @return string
    */
   public function getQueryServicename();
+
+  /**
+   * Invokes a method on the Field objects within an entity.
+   *
+   * @param string $method
+   *   The method name.
+   * @param \Drupal\Core\Entity\EntityInterface $entity
+   *   The entity object.
+   */
+  public function invokeFieldMethod($method, EntityInterface $entity);
+
+  /**
+   * Invokes the prepareCache() method on all the relevant FieldItem objects.
+   *
+   * @param \Drupal\Core\Entity\EntityInterface $entity
+   *   The entity object.
+   */
+  public function invokeFieldItemPrepareCache(EntityInterface $entity);
 
 }

@@ -1,4 +1,3 @@
-api_version: '3.0'
 base_table: node
 core: '8'
 description: ''
@@ -14,6 +13,7 @@ display:
           table: node
           field: nid
           plugin_id: numeric
+          provider: node
     display_plugin: default
     display_title: Master
     id: default

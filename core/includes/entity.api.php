@@ -108,7 +108,7 @@ function hook_entity_bundle_create($entity_type, $bundle) {
  */
 function hook_entity_bundle_rename($entity_type, $bundle_old, $bundle_new) {
   // Update the settings associated with the bundle in my_module.settings.
-  $config = config('my_module.settings');
+  $config = Drupal::config('my_module.settings');
   $bundle_settings = $config->get('bundle_settings');
   if (isset($bundle_settings[$entity_type][$bundle_old])) {
     $bundle_settings[$entity_type][$bundle_new] = $bundle_settings[$entity_type][$bundle_old];
@@ -129,7 +129,7 @@ function hook_entity_bundle_rename($entity_type, $bundle_old, $bundle_new) {
  */
 function hook_entity_bundle_delete($entity_type, $bundle) {
   // Remove the settings associated with the bundle in my_module.settings.
-  $config = config('my_module.settings');
+  $config = Drupal::config('my_module.settings');
   $bundle_settings = $config->get('bundle_settings');
   if (isset($bundle_settings[$entity_type][$bundle])) {
     unset($bundle_settings[$entity_type][$bundle]);
@@ -241,6 +241,35 @@ function hook_entity_update(Drupal\Core\Entity\EntityInterface $entity) {
 }
 
 /**
+ * Acts after storing a new entity translation.
+ *
+ * @param \Drupal\Core\Entity\EntityInterface $translation
+ *   The entity object of the translation just stored.
+ */
+function hook_entity_translation_insert(\Drupal\Core\Entity\EntityInterface $translation) {
+  $variables = array(
+    '@language' => $translation->language()->name,
+    '@label' => $translation->getUntranslated()->label(),
+  );
+  watchdog('example', 'The @language translation of @label has just been stored.', $variables);
+}
+
+/**
+ * Acts after deleting an entity translation from the storage.
+ *
+ * @param \Drupal\Core\Entity\EntityInterface $entity
+ *   The original entity object.
+ */
+function hook_entity_translation_delete(\Drupal\Core\Entity\EntityInterface $translation) {
+  $languages = language_list();
+  $variables = array(
+    '@language' => $languages[$langcode]->name,
+    '@label' => $entity->label(),
+  );
+  watchdog('example', 'The @language translation of @label has just been deleted.', $variables);
+}
+
+/**
  * Act before entity deletion.
  *
  * This hook runs after the entity type-specific predelete hook.
@@ -286,6 +315,18 @@ function hook_entity_delete(Drupal\Core\Entity\EntityInterface $entity) {
 }
 
 /**
+ * Respond to entity revision deletion.
+ *
+ * This hook runs after the entity type-specific revision delete hook.
+ *
+ * @param Drupal\Core\Entity\EntityInterface $entity
+ *   The entity object for the entity revision that has been deleted.
+ */
+function hook_entity_revision_delete(Drupal\Core\Entity\EntityInterface $entity) {
+  // @todo: code example
+}
+
+/**
  * Alter or execute an Drupal\Core\Entity\Query\EntityQueryInterface.
  *
  * @param \Drupal\Core\Entity\Query\QueryInterface $query
@@ -305,7 +346,7 @@ function hook_entity_query_alter(\Drupal\Core\Entity\Query\QueryInterface $query
  *
  * @param \Drupal\Core\Entity\EntityInterface $entity
  *   The entity object.
- * @param \Drupal\entity\Plugin\Core\Entity\EntityDisplay $display
+ * @param \Drupal\entity\Entity\EntityDisplay $display
  *   The entity_display object holding the display options configured for the
  *   entity components.
  * @param $view_mode
@@ -322,7 +363,7 @@ function hook_entity_query_alter(\Drupal\Core\Entity\Query\QueryInterface $query
  * @see hook_node_view()
  * @see hook_user_view()
  */
-function hook_entity_view(\Drupal\Core\Entity\EntityInterface $entity, \Drupal\entity\Plugin\Core\Entity\EntityDisplay $display, $view_mode, $langcode) {
+function hook_entity_view(\Drupal\Core\Entity\EntityInterface $entity, \Drupal\entity\Entity\EntityDisplay $display, $view_mode, $langcode) {
   // Only do the extra work if the component is configured to be displayed.
   // This assumes a 'mymodule_addition' extra field has been defined for the
   // entity bundle in hook_field_extra_fields().
@@ -351,7 +392,7 @@ function hook_entity_view(\Drupal\Core\Entity\EntityInterface $entity, \Drupal\e
  *   A renderable array representing the entity content.
  * @param Drupal\Core\Entity\EntityInterface $entity
  *   The entity object being rendered.
- * @param \Drupal\entity\Plugin\Core\Entity\EntityDisplay $display
+ * @param \Drupal\entity\Entity\EntityDisplay $display
  *   The entity_display object holding the display options configured for the
  *   entity components.
  *
@@ -361,7 +402,7 @@ function hook_entity_view(\Drupal\Core\Entity\EntityInterface $entity, \Drupal\e
  * @see hook_taxonomy_term_view_alter()
  * @see hook_user_view_alter()
  */
-function hook_entity_view_alter(&$build, Drupal\Core\Entity\EntityInterface $entity, \Drupal\entity\Plugin\Core\Entity\EntityDisplay $display) {
+function hook_entity_view_alter(&$build, Drupal\Core\Entity\EntityInterface $entity, \Drupal\entity\Entity\EntityDisplay $display) {
   if ($build['#view_mode'] == 'full' && isset($build['an_additional_field'])) {
     // Change its weight.
     $build['an_additional_field']['#weight'] = -10;
@@ -430,7 +471,7 @@ function hook_entity_view_mode_alter(&$view_mode, Drupal\Core\Entity\EntityInter
 /**
  * Alters the settings used for displaying an entity.
  *
- * @param \Drupal\entity\Plugin\Core\Entity\EntityDisplay $display
+ * @param \Drupal\entity\Entity\EntityDisplay $display
  *   The entity_display object that will be used to display the entity
  *   components.
  * @param array $context
@@ -439,7 +480,7 @@ function hook_entity_view_mode_alter(&$view_mode, Drupal\Core\Entity\EntityInter
  *   - bundle: The bundle, e.g., 'page' or 'article'.
  *   - view_mode: The view mode, e.g. 'full', 'teaser'...
  */
-function hook_entity_display_alter(\Drupal\entity\Plugin\Core\Entity\EntityDisplay $display, array $context) {
+function hook_entity_display_alter(\Drupal\entity\Entity\EntityDisplay $display, array $context) {
   // Leave field labels out of the search index.
   if ($context['entity_type'] == 'node' && $context['view_mode'] == 'search_index') {
     foreach ($display->getComponents() as $name => $options) {
@@ -452,9 +493,34 @@ function hook_entity_display_alter(\Drupal\entity\Plugin\Core\Entity\EntityDispl
 }
 
 /**
+ * Acts on an entity object about to be shown on an entity form.
+ *
+ * This can be typically used to pre-fill entity values or change the form state
+ * before the entity form is built. It is invoked just once when first building
+ * the entity form. Rebuilds will not trigger a new invocation.
+ *
+ * @param \Drupal\Core\Entity\EntityInterface $entity
+ *   The entity that is about to be shown on the form.
+ * @param $form_display
+ *   The current form display.
+ * @param $operation
+ *   The current operation.
+ * @param array $form_state
+ *   An associative array containing the current state of the form.
+ *
+ * @see \Drupal\Core\Entity\EntityFormController::prepareEntity()
+ */
+function hook_entity_prepare_form(\Drupal\Core\Entity\EntityInterface $entity, $form_display, $operation, array &$form_state) {
+  if ($operation == 'edit') {
+    $entity->label->value = 'Altered label';
+    $form_state['mymodule']['label_altered'] = TRUE;
+  }
+}
+
+/**
  * Alters the settings used for displaying an entity form.
  *
- * @param \Drupal\entity\Plugin\Core\Entity\EntityFormDisplay $form_display
+ * @param \Drupal\entity\Entity\EntityFormDisplay $form_display
  *   The entity_form_display object that will be used to display the entity form
  *   components.
  * @param array $context
@@ -463,7 +529,7 @@ function hook_entity_display_alter(\Drupal\entity\Plugin\Core\Entity\EntityDispl
  *   - bundle: The bundle, e.g., 'page' or 'article'.
  *   - form_mode: The form mode, e.g. 'default', 'profile', 'register'...
  */
-function hook_entity_form_display_alter(\Drupal\entity\Plugin\Core\Entity\EntityFormDisplay $form_display, array $context) {
+function hook_entity_form_display_alter(\Drupal\entity\Entity\EntityFormDisplay $form_display, array $context) {
   // Hide the 'user_picture' field from the register form.
   if ($context['entity_type'] == 'user' && $context['form_mode'] == 'register') {
     $form_display->setComponent('user_picture', array(
@@ -558,13 +624,13 @@ function hook_entity_operation_alter(array &$operations, \Drupal\Core\Entity\Ent
 /**
  * Control access to fields.
  *
- * This hook is invoked from \Drupal\Core\Entity\Field\Type\Field::access() to
+ * This hook is invoked from \Drupal\Core\Entity\Field\Field::access() to
  * let modules grant or deny operations on fields.
  *
  * @param string $operation
  *   The operation to be performed. See
  *   \Drupal\Core\TypedData\AccessibleInterface::access() for possible values.
- * @param \Drupal\Core\Entity\Field\Type\Field $field
+ * @param \Drupal\Core\Entity\Field\Field $field
  *   The entity field object on which the operation is to be performed.
  * @param \Drupal\Core\Session\AccountInterface $account
  *   The user account to check.
@@ -592,9 +658,9 @@ function hook_entity_field_access($operation, $field, \Drupal\Core\Session\Accou
  * @param array $context
  *   Context array on the performed operation with the following keys:
  *   - operation: The operation to be performed (string).
- *   - field: The entity field object (\Drupal\Core\Entity\Field\Type\Field).
+ *   - field: The entity field object (\Drupal\Core\Entity\Field\Field).
  *   - account: The user account to check access for
- *     (Drupal\user\Plugin\Core\Entity\User).
+ *     (Drupal\user\Entity\User).
  */
 function hook_entity_field_access_alter(array &$grants, array $context) {
   $field = $context['field'];

@@ -9,15 +9,15 @@ namespace Drupal\picture\Plugin\field\formatter;
 
 use Drupal\field\Annotation\FieldFormatter;
 use Drupal\Core\Annotation\Translation;
-use Drupal\field\Plugin\Type\Formatter\FormatterBase;
 use Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Entity\Field\FieldInterface;
+use Drupal\image\Plugin\field\formatter\ImageFormatterBase;
 
 /**
  * Plugin for picture formatter.
  *
  * @FieldFormatter(
  *   id = "picture",
- *   module = "picture",
  *   label = @Translation("Picture"),
  *   field_types = {
  *     "image",
@@ -29,7 +29,7 @@ use Drupal\Core\Entity\EntityInterface;
  *   }
  * )
  */
-class PictureFormatter extends FormatterBase {
+class PictureFormatter extends ImageFormatterBase {
 
   /**
    * {@inheritdoc}
@@ -115,7 +115,7 @@ class PictureFormatter extends FormatterBase {
   /**
    * {@inheritdoc}
    */
-  public function viewElements(EntityInterface $entity, $langcode, array $items) {
+  public function viewElements(EntityInterface $entity, $langcode, FieldInterface $items) {
     $elements = array();
     // Check if the formatter involves a link.
     if ($this->getSetting('image_link') == 'content') {
@@ -167,7 +167,7 @@ class PictureFormatter extends FormatterBase {
     foreach ($items as $delta => $item) {
       if (isset($link_file)) {
         $uri = array(
-          'path' => file_create_url($item['entity']->getFileUri()),
+          'path' => file_create_url($item->entity->getFileUri()),
           'options' => array(),
         );
       }
@@ -176,7 +176,7 @@ class PictureFormatter extends FormatterBase {
         '#attached' => array('library' => array(
           array('picture', 'picturefill'),
         )),
-        '#item' => $item,
+        '#item' => $item->getValue(TRUE),
         '#image_style' => $fallback_image_style,
         '#breakpoints' => $breakpoint_styles,
         '#path' => isset($uri) ? $uri : '',

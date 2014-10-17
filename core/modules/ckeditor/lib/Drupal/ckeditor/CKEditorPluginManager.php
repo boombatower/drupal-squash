@@ -7,37 +7,40 @@
 
 namespace Drupal\ckeditor;
 
-use Drupal\Component\Plugin\PluginManagerBase;
-use Drupal\Component\Plugin\Factory\DefaultFactory;
-use Drupal\Component\Plugin\Discovery\ProcessDecorator;
 use Drupal\Component\Utility\NestedArray;
-use Drupal\Core\Plugin\Discovery\AlterDecorator;
-use Drupal\Core\Plugin\Discovery\AnnotatedClassDiscovery;
-use Drupal\Core\Plugin\Discovery\CacheDecorator;
-use Drupal\editor\Plugin\Core\Entity\Editor;
+use Drupal\Core\Plugin\DefaultPluginManager;
+use Drupal\Core\Cache\CacheBackendInterface;
+use Drupal\Core\Extension\ModuleHandlerInterface;
+use Drupal\Core\Language\LanguageManager;
+use Drupal\editor\Entity\Editor;
 
 /**
  * CKEditor Plugin manager.
  */
-class CKEditorPluginManager extends PluginManagerBase {
+class CKEditorPluginManager extends DefaultPluginManager {
 
   /**
-   * Overrides \Drupal\Component\Plugin\PluginManagerBase::__construct().
+   * Constructs a CKEditorPluginManager object.
    *
    * @param \Traversable $namespaces
    *   An object that implements \Traversable which contains the root paths
-   *   keyed by the corresponding namespace to look for plugin implementations,
+   *   keyed by the corresponding namespace to look for plugin implementations.
+   * @param \Drupal\Core\Cache\CacheBackendInterface $cache_backend
+   *   Cache backend instance to use.
+   * @param \Drupal\Core\Language\LanguageManager $language_manager
+   *   The language manager.
+   * @param \Drupal\Core\Extension\ModuleHandlerInterface $module_handler
+   *   The module handler to invoke the alter hook with.
    */
-  public function __construct(\Traversable $namespaces) {
+  public function __construct(\Traversable $namespaces, CacheBackendInterface $cache_backend, LanguageManager $language_manager, ModuleHandlerInterface $module_handler) {
     $annotation_namespaces = array('Drupal\ckeditor\Annotation' => $namespaces['Drupal\ckeditor']);
-    $this->discovery = new AnnotatedClassDiscovery('CKEditorPlugin', $namespaces, $annotation_namespaces, 'Drupal\ckeditor\Annotation\CKEditorPlugin');
-    $this->discovery = new AlterDecorator($this->discovery, 'ckeditor_plugin_info');
-    $this->discovery = new CacheDecorator($this->discovery, 'ckeditor_plugin');
-    $this->factory = new DefaultFactory($this->discovery);
+    parent::__construct('Plugin/CKEditorPlugin', $namespaces, $annotation_namespaces, 'Drupal\ckeditor\Annotation\CKEditorPlugin');
+    $this->alterInfo($module_handler, 'ckeditor_plugin_info');
+    $this->setCacheBackend($cache_backend, $language_manager, 'ckeditor_plugin');
   }
 
   /**
-   * Determines which plug-ins are enabled.
+   * Retrieves enabled plugins' files, keyed by plugin ID.
    *
    * For CKEditor plugins that implement:
    *  - CKEditorPluginButtonsInterface, not CKEditorPluginContextualInterface,
@@ -51,7 +54,7 @@ class CKEditorPluginManager extends PluginManagerBase {
    * even implicitly loaded (i.e. internal) plugins, then set the optional
    * second parameter.
    *
-   * @param \Drupal\editor\Plugin\Core\Entity\Editor $editor
+   * @param \Drupal\editor\Entity\Editor $editor
    *   A configured text editor object.
    * @param bool $include_internal_plugins
    *   Defaults to FALSE. When set to TRUE, plugins whose isInternal() method
@@ -61,10 +64,11 @@ class CKEditorPluginManager extends PluginManagerBase {
    *   the Drupal root-relative plugin files as values.
    *   For internal plugins, the value is NULL.
    */
-  public function getEnabledPlugins(Editor $editor, $include_internal_plugins = FALSE) {
+  public function getEnabledPluginFiles(Editor $editor, $include_internal_plugins = FALSE) {
     $plugins = array_keys($this->getDefinitions());
     $toolbar_buttons = array_unique(NestedArray::mergeDeepArray($editor->settings['toolbar']['buttons']));
     $enabled_plugins = array();
+    $additional_plugins = array();
 
     foreach ($plugins as $plugin_id) {
       $plugin = $this->createInstance($plugin_id);
@@ -74,17 +78,27 @@ class CKEditorPluginManager extends PluginManagerBase {
       }
 
       $enabled = FALSE;
+      // Enable this plugin if it provides a button that has been enabled.
       if ($plugin instanceof CKEditorPluginButtonsInterface) {
         $plugin_buttons = array_keys($plugin->getButtons());
         $enabled = (count(array_intersect($toolbar_buttons, $plugin_buttons)) > 0);
       }
+      // Otherwise enable this plugin if it declares itself as enabled.
       if (!$enabled && $plugin instanceof CKEditorPluginContextualInterface) {
         $enabled = $plugin->isEnabled($editor);
       }
 
       if ($enabled) {
         $enabled_plugins[$plugin_id] = ($plugin->isInternal()) ? NULL : $plugin->getFile();
+        // Check if this plugin has dependencies that also need to be enabled.
+        $additional_plugins = array_merge($additional_plugins, array_diff($plugin->getDependencies($editor), $additional_plugins));
       }
+    }
+
+    // Add the list of dependent plugins.
+    foreach ($additional_plugins as $plugin_id) {
+      $plugin = $this->createInstance($plugin_id);
+      $enabled_plugins[$plugin_id] = ($plugin->isInternal()) ? NULL : $plugin->getFile();
     }
 
     // Always return plugins in the same order.
@@ -94,16 +108,15 @@ class CKEditorPluginManager extends PluginManagerBase {
   }
 
   /**
-   * Retrieves all plugins that implement CKEditorPluginButtonsInterface.
+   * Retrieves all available CKEditor buttons, keyed by plugin ID.
    *
    * @return array
-   *   A list of the CKEditor plugins that implement buttons, with the plugin
-   *   IDs as keys and lists of button metadata (as implemented by getButtons())
-   *   as values.
+   *   All availble CKEditor buttons, with plugin IDs as keys and button
+   *   metadata (as implemented by getButtons()) as values.
    *
    * @see CKEditorPluginButtonsInterface::getButtons()
    */
-  public function getButtonsPlugins() {
+  public function getButtons() {
     $plugins = array_keys($this->getDefinitions());
     $buttons_plugins = array();
 
@@ -124,7 +137,7 @@ class CKEditorPluginManager extends PluginManagerBase {
    *   A reference to an associative array containing the structure of the form.
    * @param array &$form_state
    *   A reference to a keyed array containing the current state of the form.
-   * @param \Drupal\editor\Plugin\Core\Entity\Editor $editor
+   * @param \Drupal\editor\Entity\Editor $editor
    *   A configured text editor object.
    */
   public function injectPluginSettingsForm(array &$form, array &$form_state, Editor $editor) {

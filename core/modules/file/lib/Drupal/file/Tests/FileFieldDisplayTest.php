@@ -36,7 +36,7 @@ class FileFieldDisplayTest extends FileFieldTestBase {
       'description_field' => '1',
     );
     $widget_settings = array();
-    $this->createFileField($field_name, $type_name, $field_settings, $instance_settings, $widget_settings);
+    $this->createFileField($field_name, 'node', $type_name, $field_settings, $instance_settings, $widget_settings);
 
     // Create a new node *without* the file field set, and check that the field
     // is not shown for each node display.
@@ -49,8 +49,8 @@ class FileFieldDisplayTest extends FileFieldTestBase {
         "fields[$field_name][type]" => $formatter,
       );
       $this->drupalPost("admin/structure/types/manage/$type_name/display", $edit, t('Save'));
-      $this->drupalGet('node/' . $node->nid);
-      $this->assertNoText($field_name, t('Field label is hidden when no file attached for formatter %formatter', array('%formatter' => $formatter)));
+      $this->drupalGet('node/' . $node->id());
+      $this->assertNoText($field_name, format_string('Field label is hidden when no file attached for formatter %formatter', array('%formatter' => $formatter)));
     }
 
     $test_file = $this->getTestFile('text');
@@ -60,15 +60,19 @@ class FileFieldDisplayTest extends FileFieldTestBase {
 
     // Check that the default formatter is displaying with the file name.
     $node = node_load($nid, TRUE);
-    $node_file = file_load($node->{$field_name}[Language::LANGCODE_NOT_SPECIFIED][0]['fid']);
-    $default_output = theme('file_link', array('file' => $node_file));
-    $this->assertRaw($default_output, t('Default formatter displaying correctly on full node view.'));
+    $node_file = file_load($node->{$field_name}->target_id);
+    $file_link = array(
+      '#theme' => 'file_link',
+      '#file' => $node_file,
+    );
+    $default_output = drupal_render($file_link);
+    $this->assertRaw($default_output, 'Default formatter displaying correctly on full node view.');
 
     // Turn the "display" option off and check that the file is no longer displayed.
     $edit = array($field_name . '[' . Language::LANGCODE_NOT_SPECIFIED . '][0][display]' => FALSE);
     $this->drupalPost('node/' . $nid . '/edit', $edit, t('Save and keep published'));
 
-    $this->assertNoRaw($default_output, t('Field is hidden when "display" option is unchecked.'));
+    $this->assertNoRaw($default_output, 'Field is hidden when "display" option is unchecked.');
 
     // Add a description and make sure that it is displayed.
     $description = $this->randomName();

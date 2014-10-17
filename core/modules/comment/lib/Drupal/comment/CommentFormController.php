@@ -26,12 +26,12 @@ class CommentFormController extends EntityFormControllerNG {
 
     // Use #comment-form as unique jump target, regardless of node type.
     $form['#id'] = drupal_html_id('comment_form');
-    $form['#theme'] = array('comment_form__node_' . $node->type, 'comment_form');
+    $form['#theme'] = array('comment_form__node_' . $node->getType(), 'comment_form');
 
-    $anonymous_contact = variable_get('comment_anonymous_' . $node->type, COMMENT_ANONYMOUS_MAYNOT_CONTACT);
+    $anonymous_contact = variable_get('comment_anonymous_' . $node->getType(), COMMENT_ANONYMOUS_MAYNOT_CONTACT);
     $is_admin = $comment->id() && user_access('administer comments');
 
-    if (!$user->uid && $anonymous_contact != COMMENT_ANONYMOUS_MAYNOT_CONTACT) {
+    if (!$user->isAuthenticated() && $anonymous_contact != COMMENT_ANONYMOUS_MAYNOT_CONTACT) {
       $form['#attached']['library'][] = array('system', 'jquery.cookie');
       $form['#attributes']['class'][] = 'user-info-from-cookie';
     }
@@ -62,11 +62,11 @@ class CommentFormController extends EntityFormControllerNG {
     if ($is_admin) {
       $author = $comment->name->value;
       $status = (isset($comment->status->value) ? $comment->status->value : COMMENT_NOT_PUBLISHED);
-      $date = (!empty($comment->date) ? $comment->date : new DrupalDateTime($comment->created->value));
+      $date = (!empty($comment->date) ? $comment->date : DrupalDateTime::createFromTimestamp($comment->created->value));
     }
     else {
-      if ($user->uid) {
-        $author = $user->name;
+      if ($user->isAuthenticated()) {
+        $author = $user->getUsername();
       }
       else {
         $author = ($comment->name->value ? $comment->name->value : '');
@@ -80,19 +80,23 @@ class CommentFormController extends EntityFormControllerNG {
       '#type' => 'textfield',
       '#title' => t('Your name'),
       '#default_value' => $author,
-      '#required' => (!$user->uid && $anonymous_contact == COMMENT_ANONYMOUS_MUST_CONTACT),
+      '#required' => ($user->isAnonymous() && $anonymous_contact == COMMENT_ANONYMOUS_MUST_CONTACT),
       '#maxlength' => 60,
       '#size' => 30,
     );
     if ($is_admin) {
       $form['author']['name']['#title'] = t('Authored by');
-      $form['author']['name']['#description'] = t('Leave blank for %anonymous.', array('%anonymous' => config('user.settings')->get('anonymous')));
-      $form['author']['name']['#autocomplete_path'] = 'user/autocomplete';
+      $form['author']['name']['#description'] = t('Leave blank for %anonymous.', array('%anonymous' => \Drupal::config('user.settings')->get('anonymous')));
+      $form['author']['name']['#autocomplete_route_name'] = 'user_autocomplete';
     }
-    elseif ($user->uid) {
+    elseif ($user->isAuthenticated()) {
       $form['author']['name']['#type'] = 'item';
       $form['author']['name']['#value'] = $form['author']['name']['#default_value'];
-      $form['author']['name']['#markup'] = theme('username', array('account' => $user));
+      $username = array(
+        '#theme' => 'username',
+        '#account' => $user,
+      );
+      $form['author']['name']['#markup'] = drupal_render($username);
     }
 
     // Add author e-mail and homepage fields depending on the current user.
@@ -100,11 +104,11 @@ class CommentFormController extends EntityFormControllerNG {
       '#type' => 'email',
       '#title' => t('E-mail'),
       '#default_value' => $comment->mail->value,
-      '#required' => (!$user->uid && $anonymous_contact == COMMENT_ANONYMOUS_MUST_CONTACT),
+      '#required' => ($user->isAnonymous() && $anonymous_contact == COMMENT_ANONYMOUS_MUST_CONTACT),
       '#maxlength' => 64,
       '#size' => 30,
       '#description' => t('The content of this field is kept private and will not be shown publicly.'),
-      '#access' => $is_admin || (!$user->uid && $anonymous_contact != COMMENT_ANONYMOUS_MAYNOT_CONTACT),
+      '#access' => $is_admin || ($user->isAnonymous() && $anonymous_contact != COMMENT_ANONYMOUS_MAYNOT_CONTACT),
     );
 
     $form['author']['homepage'] = array(
@@ -113,7 +117,7 @@ class CommentFormController extends EntityFormControllerNG {
       '#default_value' => $comment->homepage->value,
       '#maxlength' => 255,
       '#size' => 30,
-      '#access' => $is_admin || (!$user->uid && $anonymous_contact != COMMENT_ANONYMOUS_MAYNOT_CONTACT),
+      '#access' => $is_admin || ($user->isAnonymous() && $anonymous_contact != COMMENT_ANONYMOUS_MAYNOT_CONTACT),
     );
 
     // Add administrative comment publishing options.
@@ -141,26 +145,27 @@ class CommentFormController extends EntityFormControllerNG {
       '#title' => t('Subject'),
       '#maxlength' => 64,
       '#default_value' => $comment->subject->value,
-      '#access' => variable_get('comment_subject_field_' . $node->type, 1) == 1,
+      '#access' => variable_get('comment_subject_field_' . $node->getType(), 1) == 1,
     );
 
     // Used for conditional validation of author fields.
     $form['is_anonymous'] = array(
       '#type' => 'value',
-      '#value' => ($comment->id() ? !$comment->uid->target_id : !$user->uid),
+      '#value' => ($comment->id() ? !$comment->uid->target_id : $user->isAnonymous()),
     );
 
     // Make the comment inherit the current content language unless specifically
     // set.
     if ($comment->isNew()) {
       $language_content = language(Language::TYPE_CONTENT);
-      $comment->langcode->value = $language_content->langcode;
+      $comment->langcode->value = $language_content->id;
     }
 
     // Add internal comment properties.
+    $original = $comment->getUntranslated();
     foreach (array('cid', 'pid', 'nid', 'uid', 'node_type', 'langcode') as $key) {
       $key_name = key($comment->$key->offsetGet(0)->getPropertyDefinitions());
-      $form[$key] = array('#type' => 'value', '#value' => $comment->$key->{$key_name});
+      $form[$key] = array('#type' => 'value', '#value' => $original->$key->{$key_name});
     }
 
     return parent::form($form, $form_state, $comment);
@@ -173,7 +178,7 @@ class CommentFormController extends EntityFormControllerNG {
     $element = parent::actions($form, $form_state);
     $comment = $this->entity;
     $node = $comment->nid->entity;
-    $preview_mode = variable_get('comment_preview_' . $node->type, DRUPAL_OPTIONAL);
+    $preview_mode = variable_get('comment_preview_' . $node->getType(), DRUPAL_OPTIONAL);
 
     // No delete action on the comment form.
     unset($element['delete']);
@@ -210,7 +215,7 @@ class CommentFormController extends EntityFormControllerNG {
     if (!empty($form_state['values']['cid'])) {
       // Verify the name in case it is being changed from being anonymous.
       $account = user_load_by_name($form_state['values']['name']);
-      $form_state['values']['uid'] = $account ? $account->uid : 0;
+      $form_state['values']['uid'] = $account ? $account->id() : 0;
 
       $date = $form_state['values']['date'];
       if ($date instanceOf DrupalDateTime && $date->hasErrors()) {
@@ -264,12 +269,12 @@ class CommentFormController extends EntityFormControllerNG {
     // @todo Too fragile. Should be prepared and stored in comment_form()
     // already.
     if (!$comment->is_anonymous && !empty($comment->name->value) && ($account = user_load_by_name($comment->name->value))) {
-      $comment->uid->target_id = $account->uid;
+      $comment->uid->target_id = $account->id();
     }
     // If the comment was posted by an anonymous user and no author name was
     // required, use "Anonymous" by default.
     if ($comment->is_anonymous && (!isset($comment->name->value) || $comment->name->value === '')) {
-      $comment->name->value = config('user.settings')->get('anonymous');
+      $comment->name->value = \Drupal::config('user.settings')->get('anonymous');
     }
 
     // Validate the comment's subject. If not specified, extract from comment
@@ -313,7 +318,7 @@ class CommentFormController extends EntityFormControllerNG {
     $node = node_load($form_state['values']['nid']);
     $comment = $this->entity;
 
-    if (user_access('post comments') && (user_access('administer comments') || $node->comment == COMMENT_NODE_OPEN)) {
+    if (user_access('post comments') && (user_access('administer comments') || $node->comment->value == COMMENT_NODE_OPEN)) {
       // Save the anonymous user information to a cookie for reuse.
       if (user_is_anonymous()) {
         user_cookie_save(array_intersect_key($form_state['values'], array_flip(array('name', 'mail', 'homepage'))));
@@ -336,18 +341,18 @@ class CommentFormController extends EntityFormControllerNG {
       }
       $query = array();
       // Find the current display page for this comment.
-      $page = comment_get_display_page($comment->id(), $node->type);
+      $page = comment_get_display_page($comment->id(), $node->getType());
       if ($page > 0) {
         $query['page'] = $page;
       }
       // Redirect to the newly posted comment.
-      $redirect = array('node/' . $node->nid, array('query' => $query, 'fragment' => 'comment-' . $comment->id()));
+      $redirect = array('node/' . $node->id(), array('query' => $query, 'fragment' => 'comment-' . $comment->id()));
     }
     else {
       watchdog('content', 'Comment: unauthorized comment submitted or comment submitted to a closed post %subject.', array('%subject' => $comment->subject->value), WATCHDOG_WARNING);
       drupal_set_message(t('Comment: unauthorized comment submitted or comment submitted to a closed post %subject.', array('%subject' => $comment->subject->value)), 'error');
       // Redirect the user to the node they are commenting on.
-      $redirect = 'node/' . $node->nid;
+      $redirect = 'node/' . $node->id();
     }
     $form_state['redirect'] = $redirect;
     // Clear the block and page caches so that anonymous users see the comment

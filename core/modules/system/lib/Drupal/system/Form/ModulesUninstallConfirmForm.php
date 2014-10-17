@@ -8,27 +8,73 @@
 namespace Drupal\system\Form;
 
 use Drupal\Core\Form\ConfirmFormBase;
-use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\RedirectResponse;
+use Symfony\Component\DependencyInjection\ContainerInterface;
+use Drupal\Core\DependencyInjection\ContainerInjectionInterface;
+use Drupal\Core\KeyValueStore\KeyValueStoreExpirableInterface;
+use Drupal\Core\Extension\ModuleHandlerInterface;
 
 /**
  * Builds a confirmation form to uninstall selected modules.
- *
- * Used internally from system_modules_uninstall().
  */
-class ModulesUninstallConfirmForm extends ConfirmFormBase {
+class ModulesUninstallConfirmForm extends ConfirmFormBase implements ContainerInjectionInterface {
+
+  /**
+   * The module handler service.
+   *
+   * @var \Drupal\Core\Extension\ModuleHandlerInterface
+   */
+  protected $moduleHandler;
+
+  /**
+   * The expirable key value store.
+   *
+   * @var \Drupal\Core\KeyValueStore\KeyValueStoreExpirableInterface
+   */
+  protected $keyValueExpirable;
+
+  /**
+   * An array of modules to uninstall.
+   *
+   * @var array
+   */
+  protected $modules = array();
+
+  /**
+   * Constructs a ModulesUninstallConfirmForm object.
+   *
+   * @param \Drupal\Core\Extension\ModuleHandlerInterface $module_handler
+   *   The module handler.
+   * @param \Drupal\Core\KeyValueStore\KeyValueStoreExpirableInterface $key_value_expirable
+   *   The key value expirable factory.
+   */
+  public function __construct(ModuleHandlerInterface $module_handler, KeyValueStoreExpirableInterface $key_value_expirable) {
+    $this->moduleHandler = $module_handler;
+    $this->keyValueExpirable = $key_value_expirable;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public static function create(ContainerInterface $container) {
+    return new static(
+      $container->get('module_handler'),
+      $container->get('keyvalue.expirable')->get('modules_uninstall')
+    );
+  }
 
   /**
    * {@inheritdoc}
    */
   public function getQuestion() {
-    return t('Confirm uninstall');
+    return $this->t('Confirm uninstall');
   }
 
   /**
    * {@inheritdoc}
    */
   public function getConfirmText() {
-    return t('Uninstall');
+    return $this->t('Uninstall');
   }
 
   /**
@@ -42,7 +88,7 @@ class ModulesUninstallConfirmForm extends ConfirmFormBase {
    * {@inheritdoc}
    */
   public function getDescription() {
-    return t('Would you like to continue with uninstalling the above?');
+    return $this->t('Would you like to continue with uninstalling the above?');
   }
 
   /**
@@ -54,31 +100,42 @@ class ModulesUninstallConfirmForm extends ConfirmFormBase {
 
   /**
    * {@inheritdoc}
-   *
-   * @param array $modules
-   *   The array of modules.
    */
-  public function buildForm(array $form, array &$form_state, $modules = array(), Request $request = NULL) {
-    $uninstall = array();
-    // Construct the hidden form elements and list items.
-    foreach ($modules as $module => $value) {
-      $info = drupal_parse_info_file(drupal_get_path('module', $module) . '/' . $module . '.info.yml');
-      $uninstall[] = $info['name'];
-      $form['uninstall'][$module] = array('#type' => 'hidden', '#value' => 1);
+  public function buildForm(array $form, array &$form_state) {
+    // Retrieve the list of modules from the key value store.
+    $account = $this->getCurrentUser()->id();
+    $this->modules = $this->keyValueExpirable->get($account);
+
+    // Prevent this page from showing when the module list is empty.
+    if (empty($this->modules)) {
+      return new RedirectResponse('/admin/modules/uninstall');
     }
 
-    $form['#confirmed'] = TRUE;
-    $form['uninstall']['#tree'] = TRUE;
-    $form['text'] = array('#markup' => '<p>' . t('The following modules will be completely uninstalled from your site, and <em>all data from these modules will be lost</em>!') . '</p>');
-    $form['modules'] = array('#theme' => 'item_list', '#items' => $uninstall);
+    $data = system_rebuild_module_data();
+    $form['text']['#markup'] = '<p>' . $this->t('The following modules will be completely uninstalled from your site, and <em>all data from these modules will be lost</em>!') . '</p>';
+    $form['modules'] = array(
+      '#theme' => 'item_list',
+      '#items' => array_map(function ($module) use ($data) {
+        return $data[$module]->info['name'];
+      }, $this->modules),
+    );
 
-    return parent::buildForm($form, $form_state, $request);
+    return parent::buildForm($form, $form_state);
   }
 
   /**
    * {@inheritdoc}
    */
   public function submitForm(array &$form, array &$form_state) {
+    // Clear the key value store entry.
+    $account = $this->getCurrentUser()->id();
+    $this->keyValueExpirable->delete($account);
+
+    // Uninstall the modules.
+    $this->moduleHandler->uninstall($this->modules);
+
+    drupal_set_message($this->t('The selected modules have been uninstalled.'));
+    $form_state['redirect'] = 'admin/modules/uninstall';
   }
 
 }

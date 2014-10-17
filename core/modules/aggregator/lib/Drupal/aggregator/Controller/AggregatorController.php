@@ -9,10 +9,11 @@ namespace Drupal\aggregator\Controller;
 
 use Drupal\aggregator\FeedInterface;
 use Drupal\Core\Config\ConfigFactory;
-use Drupal\Core\Controller\ControllerInterface;
+use Drupal\Core\DependencyInjection\ContainerInjectionInterface;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Entity\EntityManager;
 use Drupal\Core\Extension\ModuleHandlerInterface;
+use Drupal\Core\Routing\UrlGeneratorInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -21,7 +22,7 @@ use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 /**
  * Returns responses for aggregator module routes.
  */
-class AggregatorController implements ControllerInterface {
+class AggregatorController implements ContainerInjectionInterface {
 
   /**
    * Stores the Entity manager.
@@ -52,6 +53,13 @@ class AggregatorController implements ControllerInterface {
   protected $moduleHandler;
 
   /**
+   * The url generator.
+   *
+   * @var \Drupal\Core\Routing\UrlGeneratorInterface
+   */
+  protected $urlGenerator;
+
+  /**
    * Constructs a \Drupal\aggregator\Controller\AggregatorController object.
    *
    * @param \Drupal\Core\Entity\EntityManager $entity_manager
@@ -65,11 +73,12 @@ class AggregatorController implements ControllerInterface {
    * @param \Drupal\Core\Extension\ModuleHandlerInterface $module_handler
    *   The module handler.
    */
-  public function __construct(EntityManager $entity_manager, Connection $database, ConfigFactory $config_factory, ModuleHandlerInterface $module_handler) {
+  public function __construct(EntityManager $entity_manager, Connection $database, ConfigFactory $config_factory, ModuleHandlerInterface $module_handler, UrlGeneratorInterface $url_generator) {
     $this->entityManager = $entity_manager;
     $this->database = $database;
     $this->configFactory = $config_factory;
     $this->moduleHandler = $module_handler;
+    $this->urlGenerator = $url_generator;
   }
 
   /**
@@ -77,10 +86,11 @@ class AggregatorController implements ControllerInterface {
    */
   public static function create(ContainerInterface $container) {
     return new static(
-      $container->get('plugin.manager.entity'),
+      $container->get('entity.manager'),
       $container->get('database'),
       $container->get('config.factory'),
-      $container->get('module_handler')
+      $container->get('module_handler'),
+      $container->get('url_generator')
     );
   }
 
@@ -125,7 +135,7 @@ class AggregatorController implements ControllerInterface {
 
     // @todo after https://drupal.org/node/1972246 find a new place for it.
     aggregator_refresh($aggregator_feed);
-    return new RedirectResponse(url('admin/config/services/aggregator', array('absolute' => TRUE)));
+    return new RedirectResponse($this->urlGenerator->generateFromPath('admin/config/services/aggregator', array('absolute' => TRUE)));
   }
 
   /**
@@ -176,7 +186,7 @@ class AggregatorController implements ControllerInterface {
       '#theme' => 'table',
       '#header' => $header,
       '#rows' => $rows,
-      '#empty' =>  t('No feeds available. <a href="@link">Add feed</a>.', array('@link' => url('admin/config/services/aggregator/add/feed'))),
+      '#empty' => t('No feeds available. <a href="@link">Add feed</a>.', array('@link' => $this->urlGenerator->generateFromPath('admin/config/services/aggregator/add/feed'))),
     );
 
     $result = $this->database->query('SELECT c.cid, c.title, COUNT(ci.iid) as items FROM {aggregator_category} c LEFT JOIN {aggregator_category_item} ci ON c.cid = ci.cid GROUP BY c.cid, c.title ORDER BY title');
@@ -192,6 +202,10 @@ class AggregatorController implements ControllerInterface {
         'title' => t('Edit'),
         'href' => "admin/config/services/aggregator/edit/category/$category->cid",
       );
+      $links['delete'] = array(
+        'title' => t('Delete'),
+        'href' => "admin/config/services/aggregator/delete/category/$category->cid",
+      );
       $row[] = array(
         'data' => array(
           '#type' => 'operations',
@@ -205,9 +219,44 @@ class AggregatorController implements ControllerInterface {
       '#theme' => 'table',
       '#header' => $header,
       '#rows' => $rows,
-      '#empty' =>  t('No categories available. <a href="@link">Add category</a>.', array('@link' => url('admin/config/services/aggregator/add/category'))),
+      '#empty' => t('No categories available. <a href="@link">Add category</a>.', array('@link' => $this->urlGenerator->generateFromPath('admin/config/services/aggregator/add/category'))),
     );
 
+    return $build;
+  }
+
+  /**
+   * Displays all the categories used by the Aggregator module.
+   *
+   * @return array
+   *   A render array.
+   */
+  public function categories() {
+    // @todo Refactor this once all controller conversions are complete.
+    $this->moduleHandler->loadInclude('aggregator', 'inc', 'aggregator.pages');
+
+    $result = $this->database->query('SELECT c.cid, c.title, c.description FROM {aggregator_category} c LEFT JOIN {aggregator_category_item} ci ON c.cid = ci.cid LEFT JOIN {aggregator_item} i ON ci.iid = i.iid GROUP BY c.cid, c.title, c.description');
+
+    $build = array(
+      '#type' => 'container',
+      '#attributes' => array('class' => array('aggregator-wrapper')),
+      '#sorted' => TRUE,
+    );
+    $aggregator_summary_items = $this->configFactory->get('aggregator.settings')->get('source.list_max');
+    foreach ($result as $category) {
+      $summary_items = array();
+      if ($aggregator_summary_items) {
+        if ($items = aggregator_load_feed_items('category', $category, $aggregator_summary_items)) {
+          $summary_items = $this->entityManager->getRenderController('aggregator_item')->viewMultiple($items, 'summary');
+        }
+      }
+      $category->url = $this->urlGenerator->generateFromPath('aggregator/categories/' . $category->cid);
+      $build[$category->cid] = array(
+        '#theme' => 'aggregator_summary_items',
+        '#summary_items' => $summary_items,
+        '#source' => $category,
+      );
+    }
     return $build;
   }
 
@@ -238,7 +287,7 @@ class AggregatorController implements ControllerInterface {
    */
   public function sources() {
 
-    $feeds = $this->entityManager->getStorageController('aggregator_feed')->load();
+    $feeds = $this->entityManager->getStorageController('aggregator_feed')->loadMultiple();
 
     $build = array(
       '#type' => 'container',
@@ -263,7 +312,7 @@ class AggregatorController implements ControllerInterface {
             ->viewMultiple($items, 'summary');
         }
       }
-      $feed->url = url('aggregator/sources/' . $feed->id());
+      $feed->url = $this->urlGenerator->generateFromPath('aggregator/sources/' . $feed->id());
       $build[$feed->id()] = array(
         '#theme' => 'aggregator_summary_items',
         '#summary_items' => $summary_items,

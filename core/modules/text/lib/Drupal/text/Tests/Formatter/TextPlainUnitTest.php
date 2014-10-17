@@ -9,7 +9,7 @@ namespace Drupal\text\Tests\Formatter;
 
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Language\Language;
-use Drupal\entity\Plugin\Core\Entity\EntityDisplay;
+use Drupal\entity\Entity\EntityDisplay;
 use Drupal\simpletest\DrupalUnitTestBase;
 
 /**
@@ -26,7 +26,7 @@ class TextPlainUnitTest extends DrupalUnitTestBase {
    *
    * @var array
    */
-  public static $modules = array('entity', 'field', 'field_sql_storage', 'text', 'entity_test', 'system');
+  public static $modules = array('entity', 'field', 'text', 'entity_test', 'system', 'filter');
 
   /**
    * Contains rendered content.
@@ -68,7 +68,8 @@ class TextPlainUnitTest extends DrupalUnitTestBase {
     $this->formatter_settings = array();
 
     $this->field = entity_create('field_entity', array(
-      'field_name' => $this->field_name,
+      'name' => $this->field_name,
+      'entity_type' => $this->entity_type,
       'type' => $this->field_type,
       'settings' => $this->field_settings,
     ));
@@ -117,7 +118,7 @@ class TextPlainUnitTest extends DrupalUnitTestBase {
    *
    * @param \Drupal\Core\Entity\EntityInterface $entity
    *   The entity object with attached fields to render.
-   * @param \Drupal\entity\Plugin\Core\Entity\EntityDisplay $display
+   * @param \Drupal\entity\Entity\EntityDisplay $display
    *   The display to render the fields in.
    */
   protected function renderEntityFields(EntityInterface $entity, EntityDisplay $display) {

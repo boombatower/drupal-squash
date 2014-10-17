@@ -471,8 +471,9 @@ function form_state_defaults() {
  * workflow, to be returned for rendering.
  *
  * Ajax form submissions are almost always multi-step workflows, so that is one
- * common use-case during which form rebuilding occurs. See ajax_form_callback()
- * for more information about creating Ajax-enabled forms.
+ * common use-case during which form rebuilding occurs. See
+ * Drupal\system\FormAjaxController::content() for more information about
+ * creating Ajax-enabled forms.
  *
  * @param $form_id
  *   The unique string identifying the desired form. If a function
@@ -496,7 +497,7 @@ function form_state_defaults() {
  *   The newly built form.
  *
  * @see drupal_process_form()
- * @see ajax_form_callback()
+ * @see \Drupal\system\FormAjaxController::content()
  */
 function drupal_rebuild_form($form_id, &$form_state, $old_form = NULL) {
   $form = drupal_retrieve_form($form_id, $form_state);
@@ -546,7 +547,7 @@ function drupal_rebuild_form($form_id, &$form_state, $old_form = NULL) {
 function form_get_cache($form_build_id, &$form_state) {
   if ($form = Drupal::keyValueExpirable('form')->get($form_build_id)) {
     global $user;
-    if ((isset($form['#cache_token']) && drupal_valid_token($form['#cache_token'])) || (!isset($form['#cache_token']) && !$user->uid)) {
+    if ((isset($form['#cache_token']) && drupal_valid_token($form['#cache_token'])) || (!isset($form['#cache_token']) && $user->isAnonymous())) {
       if ($stored_form_state = Drupal::keyValueExpirable('form_state')->get($form_build_id)) {
         // Re-populate $form_state for subsequent rebuilds.
         $form_state = $stored_form_state + $form_state;
@@ -578,7 +579,7 @@ function form_set_cache($form_build_id, $form, $form_state) {
 
   // Cache form structure.
   if (isset($form)) {
-    if ($GLOBALS['user']->uid) {
+    if ($GLOBALS['user']->isAuthenticated()) {
       $form['#cache_token'] = drupal_get_token();
     }
     Drupal::keyValueExpirable('form')->setWithExpire($form_build_id, $form, $expire);
@@ -819,7 +820,7 @@ function drupal_retrieve_form($form_id, &$form_state) {
     // So, we call the hook if $forms isn't yet populated, OR if it doesn't
     // yet have an entry for the requested form_id.
     if (!isset($forms) || !isset($forms[$form_id])) {
-      $forms = module_invoke_all('forms', $form_id, $args);
+      $forms = Drupal::moduleHandler()->invokeAll('forms', array($form_id, $args));
     }
     $form_definition = $forms[$form_id];
     if (isset($form_definition['callback arguments'])) {
@@ -1069,7 +1070,7 @@ function drupal_prepare_form($form_id, &$form, &$form_state) {
   // tokens are session-bound and forms displayed to anonymous users are very
   // likely cached, we cannot assign a token for them.
   // During installation, there is no $user yet.
-  if (!empty($user->uid) && !$form_state['programmed']) {
+  if ($user && $user->isAuthenticated() && !$form_state['programmed']) {
     // Form constructors may explicitly set #token to FALSE when cross site
     // request forgery is irrelevant to the form, such as search forms.
     if (isset($form['#token']) && $form['#token'] === FALSE) {
@@ -1292,9 +1293,10 @@ function drupal_validate_form($form_id, &$form, &$form_state) {
  * - If $form_state['rebuild'] is TRUE, the form is being rebuilt, and no
  *   redirection is done.
  * - If $form_state['no_redirect'] is TRUE, redirection is disabled. This is
- *   set, for instance, by ajax_get_form() to prevent redirection in Ajax
- *   callbacks. $form_state['no_redirect'] should never be set or altered by
- *   form builder functions or form validation/submit handlers.
+ *   set, for instance, by \Drupal\system\FormAjaxController::getForm() to
+ *   prevent redirection in Ajax callbacks. $form_state['no_redirect'] should
+ *   never be set or altered by form builder functions or form validation/submit
+ *   handlers.
  * - If $form_state['redirect'] is set to FALSE, redirection is disabled.
  * - If none of the above conditions has prevented redirection, then the
  *   redirect is accomplished by returning a RedirectResponse, passing in the
@@ -1344,7 +1346,7 @@ function drupal_redirect_form($form_state) {
         }
       }
     }
-    $url = url(Drupal::request()->attributes->get('system_path'), array(
+    $url = url(Drupal::request()->attributes->get('_system_path'), array(
       'query' => Drupal::request()->query->all(),
       'absolute' => TRUE,
     ));
@@ -3430,36 +3432,6 @@ function form_process_container($element, &$form_state) {
 }
 
 /**
- * Returns HTML to wrap child elements in a container.
- *
- * Used for grouped form items. Can also be used as a #theme_wrapper for any
- * renderable element, to surround it with a <div> and add attributes such as
- * classes or an HTML id.
- *
- * @param $variables
- *   An associative array containing:
- *   - element: An associative array containing the properties of the element.
- *     Properties used: #id, #attributes, #children.
- *
- * @ingroup themeable
- */
-function theme_container($variables) {
-  $element = $variables['element'];
-
-  // Special handling for form elements.
-  if (isset($element['#array_parents'])) {
-    // Assign an html ID.
-    if (!isset($element['#attributes']['id'])) {
-      $element['#attributes']['id'] = $element['#id'];
-    }
-    // Add the 'form-wrapper' class.
-    $element['#attributes']['class'][] = 'form-wrapper';
-  }
-
-  return '<div' . new Attribute($element['#attributes']) . '>' . $element['#children'] . '</div>';
-}
-
-/**
  * Returns HTML for a table with radio buttons or checkboxes.
  *
  * @param $variables
@@ -3854,7 +3826,7 @@ function form_process_machine_name($element, &$form_state) {
       'machineName' => array(
         '#' . $source['#id'] => $element['#machine_name'],
       ),
-      'langcode' => $language->langcode,
+      'langcode' => $language->id,
     ),
   );
   $element['#attached']['library'][] = array('system', 'drupal.machine-name');
@@ -4106,16 +4078,42 @@ function theme_vertical_tabs($variables) {
  * @code
  * '#autocomplete_path' => 'mymodule_autocomplete/' . $some_key . '/' . $some_id,
  * @endcode
+ * Or if your route is called 'mymodule_autocomplete' with the path of
+ * '/mymodule-autocomplete/{a}/{b}':
+ * @code
+ * '#autocomplete_route_name' => 'mymodule_autocomplete',
+ * '#autocomplete_route_parameters' => array('a' => $some_key, 'b' => $some_id),
+ * @endcode
  * The user types in "keywords" so the full path called is:
  * 'mymodule_autocomplete/$some_key/$some_id?q=keywords'
  *
- * @param $element
+ * @param array $element
  *   The form element to process. Properties used:
  *   - #autocomplete_path: A system path to be used as callback URL by the
  *     autocomplete JavaScript library.
+ *   - #autocomplete_route_name: A route to be used as callback URL by the
+ *     autocomplete JavaScript library.
+ *   - #autocomplete_route_parameters: The parameters to be used in conjunction
+ *     with the route name.
+ * @param array $form_state
+ *   An associative array containing the current state of the form.
+ *
+ * @return array
+ *   The form element.
  */
 function form_process_autocomplete($element, &$form_state) {
-  if (!empty($element['#autocomplete_path']) && drupal_valid_path($element['#autocomplete_path'])) {
+  $access = FALSE;
+  if (!empty($element['#autocomplete_route_name'])) {
+    $parameters = isset($element['#autocomplete_route_parameters']) ? $element['#autocomplete_route_parameters'] : array();
+
+    $path = Drupal::urlGenerator()->generate($element['#autocomplete_route_name'], $parameters);
+    $access = Drupal::service('access_manager')->checkNamedRoute($element['#autocomplete_route_name'], $parameters);
+  }
+  elseif (!empty($element['#autocomplete_path'])) {
+    $path = url($element['#autocomplete_path'], array('absolute' => TRUE));
+    $access = drupal_valid_path($element['#autocomplete_path']);
+  }
+  if ($access) {
     $element['#attributes']['class'][] = 'form-autocomplete';
     $element['#attached']['library'][] = array('system', 'drupal.autocomplete');
     // Provide a hidden element for the JavaScript behavior to bind to. Since
@@ -4125,7 +4123,7 @@ function form_process_autocomplete($element, &$form_state) {
     $element['autocomplete'] = array(
       '#type' => 'hidden',
       '#input' => FALSE,
-      '#value' => url($element['#autocomplete_path'], array('absolute' => TRUE)),
+      '#value' => $path,
       '#disabled' => TRUE,
       '#attributes' => array(
         'class' => array('autocomplete'),
@@ -4602,7 +4600,7 @@ function form_process_weight($element) {
   $element['#is_weight'] = TRUE;
 
   // If the number of options is small enough, use a select field.
-  $max_elements = config('system.site')->get('weight_select_max');
+  $max_elements = Drupal::config('system.site')->get('weight_select_max');
   if ($element['#delta'] <= $max_elements) {
     $element['#type'] = 'select';
     for ($n = (-1 * $element['#delta']); $n <= $element['#delta']; $n++) {
@@ -4870,6 +4868,7 @@ function _form_set_attributes(&$element, $class = array()) {
   }
   if (isset($element['#parents']) && form_get_error($element) !== NULL && !empty($element['#validated'])) {
     $element['#attributes']['class'][] = 'error';
+    $element['#attributes']['aria-invalid'] = 'true';
   }
 }
 
@@ -4918,7 +4917,7 @@ function _drupal_form_send_response(Response $response) {
  * $batch = array(
  *   'title' => t('Exporting'),
  *   'operations' => array(
- *     array('my_function_1', array($account->uid, 'story')),
+ *     array('my_function_1', array($account->id(), 'story')),
  *     array('my_function_2', array()),
  *   ),
  *   'finished' => 'my_finished_callback',
@@ -4959,7 +4958,7 @@ function _drupal_form_send_response(Response $response) {
  *
  *   $nodes = entity_load_multiple_by_properties('node', array('uid' => $uid, 'type' => $type));
  *   $node = reset($nodes);
- *   $context['results'][] = $node->nid . ' : ' . check_plain($node->label());
+ *   $context['results'][] = $node->id() . ' : ' . check_plain($node->label());
  *   $context['message'] = check_plain($node->label());
  * }
  *

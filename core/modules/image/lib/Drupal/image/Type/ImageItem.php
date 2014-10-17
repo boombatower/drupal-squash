@@ -7,12 +7,12 @@
 
 namespace Drupal\image\Type;
 
-use Drupal\Core\Entity\Field\FieldItemBase;
+use Drupal\field\Plugin\Type\FieldType\ConfigEntityReferenceItemBase;
 
 /**
  * Defines the 'image_field' entity field item.
  */
-class ImageItem extends FieldItemBase {
+class ImageItem extends ConfigEntityReferenceItemBase {
 
   /**
    * Property definitions of the contained properties.
@@ -24,63 +24,35 @@ class ImageItem extends FieldItemBase {
   static $propertyDefinitions;
 
   /**
-   * Implements \Drupal\Core\TypedData\ComplexDataInterface::getPropertyDefinitions().
+   * {@inheritdoc}
    */
   public function getPropertyDefinitions() {
-    if (!isset(static::$propertyDefinitions)) {
-      static::$propertyDefinitions['fid'] = array(
-        'type' => 'integer',
-        'label' => t('Referenced file id.'),
-      );
-      static::$propertyDefinitions['alt'] = array(
-        'type' => 'boolean',
+    $this->definition['settings']['target_type'] = 'file';
+    // Definitions vary by entity type and bundle, so key them accordingly.
+    $key = $this->definition['settings']['target_type'] . ':';
+    $key .= isset($this->definition['settings']['target_bundle']) ? $this->definition['settings']['target_bundle'] : '';
+
+    if (!isset(static::$propertyDefinitions[$key])) {
+      static::$propertyDefinitions[$key] = parent::getPropertyDefinitions();
+
+      static::$propertyDefinitions[$key]['alt'] = array(
+        'type' => 'string',
         'label' => t("Alternative image text, for the image's 'alt' attribute."),
       );
-      static::$propertyDefinitions['title'] = array(
+      static::$propertyDefinitions[$key]['title'] = array(
         'type' => 'string',
         'label' => t("Image title text, for the image's 'title' attribute."),
       );
-      static::$propertyDefinitions['width'] = array(
+      static::$propertyDefinitions[$key]['width'] = array(
         'type' => 'integer',
         'label' => t('The width of the image in pixels.'),
       );
-      static::$propertyDefinitions['height'] = array(
+      static::$propertyDefinitions[$key]['height'] = array(
         'type' => 'integer',
         'label' => t('The height of the image in pixels.'),
       );
-      static::$propertyDefinitions['entity'] = array(
-        'type' => 'entity',
-        'constraints' => array(
-          'EntityType' => 'file',
-        ),
-        'label' => t('Image'),
-        'description' => t('The referenced file'),
-        // The entity object is computed out of the fid.
-        'computed' => TRUE,
-        'read-only' => FALSE,
-        'settings' => array('id source' => 'fid'),
-      );
     }
-    return static::$propertyDefinitions;
+    return static::$propertyDefinitions[$key];
   }
 
-  /**
-   * Overrides \Drupal\Core\Entity\Field\FieldItemBase::get().
-   */
-  public function setValue($values, $notify = TRUE) {
-    // Treat the values as value of the entity property, if no array is
-    // given as this handles entity IDs and objects.
-    if (isset($values) && !is_array($values)) {
-      // Directly update the property instead of invoking the parent, so that
-      // the entity property can take care of updating the ID property.
-      $this->properties['entity']->setValue($values, $notify);
-    }
-    else {
-      // Make sure that the 'entity' property gets set as 'target_id'.
-      if (isset($values['fid']) && !isset($values['entity'])) {
-        $values['entity'] = $values['fid'];
-      }
-      parent::setValue($values, $notify);
-    }
-  }
 }

@@ -8,7 +8,7 @@
 namespace Drupal\aggregator\Plugin\aggregator\parser;
 
 use Drupal\aggregator\Plugin\ParserInterface;
-use Drupal\aggregator\Plugin\Core\Entity\Feed;
+use Drupal\aggregator\Entity\Feed;
 use Drupal\aggregator\Annotation\AggregatorParser;
 use Drupal\Core\Annotation\Translation;
 use Drupal\Core\Cache\Cache;
@@ -32,6 +32,8 @@ class DefaultParser implements ParserInterface {
    * {@inheritdoc}
    */
   public function parse(Feed $feed) {
+    // Set our bridge extension manager to Zend Feed.
+    Reader::setExtensionManager(\Drupal::service('feed.bridge.reader'));
     try {
       $channel = Reader::importString($feed->source_string);
     }

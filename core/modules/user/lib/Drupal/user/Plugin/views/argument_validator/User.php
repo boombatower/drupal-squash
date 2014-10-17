@@ -7,7 +7,7 @@
 
 namespace Drupal\user\Plugin\views\argument_validator;
 
-use Drupal\Component\Annotation\Plugin;
+use Drupal\views\Annotation\ViewsArgumentValidator;
 use Drupal\Core\Annotation\Translation;
 use Drupal\Core\Database\Connection;
 use Drupal\views\Plugin\views\argument_validator\ArgumentValidatorPluginBase;
@@ -20,7 +20,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  * converts either one into the user's UID.  This validator also sets the
  * argument's title to the username.
  *
- * @Plugin(
+ * @ViewsArgumentValidator(
  *   id = "user",
  *   module = "user",
  *   title = @Translation("User")
@@ -112,7 +112,7 @@ class User extends ArgumentValidatorPluginBase {
     // However, is_integer() will always fail, since $argument is a string.
     if (is_numeric($argument) && $argument == (int)$argument) {
       if ($type == 'uid' || $type == 'either') {
-        if ($argument == $GLOBALS['user']->uid) {
+        if ($argument == $GLOBALS['user']->id()) {
           // If you assign an object to a variable in PHP, the variable
           // automatically acts as a reference, not a copy, so we use
           // clone to ensure that we don't actually mess with the
@@ -124,7 +124,7 @@ class User extends ArgumentValidatorPluginBase {
     }
     else {
       if ($type == 'name' || $type == 'either') {
-        $name = !empty($GLOBALS['user']->name) ? $GLOBALS['user']->name : config('user.settings')->get('anonymous');
+        $name = $GLOBALS['user']->getUserName() ?: \Drupal::config('user.settings')->get('anonymous');
         if ($argument == $name) {
           $account = clone $GLOBALS['user'];
         }
@@ -138,31 +138,28 @@ class User extends ArgumentValidatorPluginBase {
     }
 
     if (!isset($account)) {
-      $account = $this->database->select('users', 'u')
-        ->fields('u', array('uid', 'name'))
+      $uid = $this->database->select('users', 'u')
+        ->fields('u', array('uid'))
         ->condition($condition, $argument)
         ->execute()
-        ->fetchObject();
+        ->fetchField();
+
+      if ($uid === FALSE) {
+        // User not found.
+        return FALSE;
+      }
     }
-    if (empty($account)) {
-      // User not found.
-      return FALSE;
-    }
+    $account = user_load($uid);
 
     // See if we're filtering users based on roles.
     if (!empty($this->options['restrict_roles']) && !empty($this->options['roles'])) {
       $roles = $this->options['roles'];
-      $account->roles = array();
-      $account->roles[] = $account->uid ? DRUPAL_AUTHENTICATED_RID : DRUPAL_ANONYMOUS_RID;
-      foreach ($account->getRoles() as $rid) {
-        $account->roles[] = $rid;
-      }
-      if (!(bool) array_intersect($account->roles, $roles)) {
+      if (!(bool) array_intersect($account->getRoles(), $roles)) {
         return FALSE;
       }
     }
 
-    $this->argument->argument = $account->uid;
+    $this->argument->argument = $account->id();
     $this->argument->validated_title = check_plain(user_format_name($account));
     return TRUE;
   }
@@ -174,7 +171,7 @@ class User extends ArgumentValidatorPluginBase {
     if ($this->options['type'] == 'name') {
       $users = user_load_multiple($args);
       foreach ($users as $uid => $account) {
-        $args[$uids_arg_keys[$uid]] = $account->name;
+        $args[$uids_arg_keys[$uid]] = $account->label();
       }
     }
   }

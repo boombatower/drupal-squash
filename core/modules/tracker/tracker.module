@@ -6,6 +6,8 @@
  */
 
 use Drupal\Core\Entity\EntityInterface;
+use Drupal\node\NodeInterface;
+use Drupal\Core\Session\AccountInterface;
 
 /**
  * Implements hook_help().
@@ -82,7 +84,7 @@ function tracker_cron() {
   $state = Drupal::state();
   $max_nid = $state->get('tracker.index_nid') ?: 0;
   if ($max_nid > 0) {
-    $batch_size = config('tracker.settings')->get('cron_index_limit');
+    $batch_size = Drupal::config('tracker.settings')->get('cron_index_limit');
     $last_nid = FALSE;
     // @todo This should be actually filtering on the desired language and just
     //   fall back to the default language.
@@ -169,9 +171,9 @@ function tracker_cron() {
  *
  * @see tracker_menu()
  */
-function _tracker_myrecent_access($account) {
+function _tracker_myrecent_access(AccountInterface $account) {
   // This path is only allowed for authenticated users looking at their own content.
-  return $account->uid && ($GLOBALS['user']->uid == $account->uid) && user_access('access content');
+  return $account->id() && (Drupal::currentUser()->id() == $account->id()) && $account->hasPermission('access content');
 }
 
 /**
@@ -187,7 +189,7 @@ function _tracker_myrecent_access($account) {
  * @see tracker_menu()
  */
 function _tracker_user_access($account) {
-  return $account->access('view') && user_access('access content');
+  return $account->access('view') && $account->hasPermission('access content');
 }
 
 /**
@@ -195,8 +197,8 @@ function _tracker_user_access($account) {
  *
  * Adds new tracking information for this node since it's new.
  */
-function tracker_node_insert(EntityInterface $node, $arg = 0) {
-  _tracker_add($node->nid, $node->uid, $node->changed);
+function tracker_node_insert(NodeInterface $node, $arg = 0) {
+  _tracker_add($node->id(), $node->getAuthorId(), $node->getChangedTime());
 }
 
 /**
@@ -204,8 +206,8 @@ function tracker_node_insert(EntityInterface $node, $arg = 0) {
  *
  * Adds tracking information for this node since it's been updated.
  */
-function tracker_node_update(EntityInterface $node, $arg = 0) {
-  _tracker_add($node->nid, $node->uid, $node->changed);
+function tracker_node_update(NodeInterface $node, $arg = 0) {
+  _tracker_add($node->id(), $node->getAuthorId(), $node->getChangedTime());
 }
 
 /**
@@ -215,10 +217,10 @@ function tracker_node_update(EntityInterface $node, $arg = 0) {
  */
 function tracker_node_predelete(EntityInterface $node, $arg = 0) {
   db_delete('tracker_node')
-    ->condition('nid', $node->nid)
+    ->condition('nid', $node->id())
     ->execute();
   db_delete('tracker_user')
-    ->condition('nid', $node->nid)
+    ->condition('nid', $node->id())
     ->execute();
 }
 
@@ -302,14 +304,14 @@ function _tracker_add($nid, $uid, $changed) {
 }
 
 /**
- * Determines the max timestamp between $node->changed and the last comment.
+ * Picks the most recent timestamp between node changed and the last comment.
  *
  * @param $nid
  *   A node ID.
  *
  * @return
- *  The $node->changed timestamp, or most recent comment timestamp, whichever
- *  is the greatest.
+ *  The node changed timestamp, or most recent comment timestamp, whichever is
+ *  the greatest.
  */
 function _tracker_calculate_changed($nid) {
   // @todo This should be actually filtering on the desired language and just

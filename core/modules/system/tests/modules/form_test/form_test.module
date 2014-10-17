@@ -376,6 +376,9 @@ function form_test_permission() {
     'access vertical_tab_test tabs' => array(
       'title' => t('Access vertical_tab_test tabs'),
     ),
+    'access autocomplete test' => array(
+      'title' => t('Access autocomplete test'),
+    ),
   );
   return $perms;
 }
@@ -2260,10 +2263,10 @@ function form_test_user_register_form_rebuild($form, &$form_state) {
  * Menu callback that returns two instances of the node form.
  */
 function form_test_two_instances() {
-  global $user;
+  $user = Drupal::currentUser();
   $node1 = entity_create('node', array(
-    'uid' => $user->uid,
-    'name' => (isset($user->name) ? $user->name : ''),
+    'uid' => $user->id(),
+    'name' => $user->getUsername(),
     'type' => 'page',
     'langcode' => Language::LANGCODE_NOT_SPECIFIED,
   ));

@@ -72,7 +72,7 @@ class ForumBlockTest extends WebTestBase {
     }
 
     // Configure the new forum topics block to only show 2 topics.
-    $block->getPlugin()->setConfig('block_count', 2);
+    $block->getPlugin()->setConfigurationValue('block_count', 2);
     $block->save();
 
     $this->drupalGet('');
@@ -105,7 +105,7 @@ class ForumBlockTest extends WebTestBase {
       $node = $this->drupalGetNodeByTitle($topics[$index]);
       $date->modify('+1 minute');
       $comment = entity_create('comment', array(
-        'nid' => $node->nid,
+        'nid' => $node->id(),
         'node_type' => 'node_type_' . $node->bundle(),
         'subject' => $this->randomString(20),
         'comment_body' => $this->randomString(256),
@@ -133,7 +133,7 @@ class ForumBlockTest extends WebTestBase {
     }
 
     // Configure the active forum block to only show 2 topics.
-    $block->getPlugin()->setConfig('block_count', 2);
+    $block->getPlugin()->setConfigurationValue('block_count', 2);
     $block->save();
 
     $this->drupalGet('');

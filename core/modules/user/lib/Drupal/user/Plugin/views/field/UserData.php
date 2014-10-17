@@ -9,9 +9,11 @@ namespace Drupal\user\Plugin\views\field;
 
 use Drupal\views\Plugin\views\display\DisplayPluginBase;
 use Drupal\views\Plugin\views\field\FieldPluginBase;
+use Drupal\views\ResultRow;
 use Drupal\views\ViewExecutable;
 use Drupal\user\UserDataInterface;
 use Drupal\Component\Annotation\PluginID;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
  * Provides access to the user data service.
@@ -32,12 +34,19 @@ class UserData extends FieldPluginBase {
   protected $userData;
 
   /**
-   * Overrides \Drupal\views\Plugin\views\field\FieldPluginBase::init().
+   * {@inheritdoc}
    */
-  public function init(ViewExecutable $view, DisplayPluginBase $display, array &$options = NULL) {
-    parent::init($view, $display, $options);
+  public static function create(ContainerInterface $container, array $configuration, $plugin_id, array $plugin_definition) {
+    return new static($configuration, $plugin_id, $plugin_definition, $container->get('user.data'));
+  }
 
-    $this->userData = drupal_container()->get('user.data');
+  /**
+   * Constructs a UserData object.
+   */
+  public function __construct(array $configuration, $plugin_id, array $plugin_definition, UserDataInterface $user_data) {
+    parent::__construct($configuration, $plugin_id, $plugin_definition);
+
+    $this->userData = $user_data;
   }
 
   /**
@@ -46,8 +55,8 @@ class UserData extends FieldPluginBase {
   protected function defineOptions() {
     $options = parent::defineOptions();
 
-    $options['module'] = array('default' => '');
-    $options['name'] = array('default' => '');
+    $options['data_module'] = array('default' => '');
+    $options['data_name'] = array('default' => '');
 
     return $options;
   }
@@ -58,28 +67,28 @@ class UserData extends FieldPluginBase {
   public function buildOptionsForm(&$form, &$form_state) {
     parent::buildOptionsForm($form, $form_state);
 
-    $form['module'] = array(
+    $form['data_module'] = array(
       '#title' => t('Module name'),
       '#type' => 'select',
       '#description' => t('The module which sets this user data.'),
-      '#default_value' => $this->options['module'],
+      '#default_value' => $this->options['data_module'],
       '#options' => system_get_module_info('name'),
     );
 
-    $form['name'] = array(
+    $form['data_name'] = array(
       '#title' => t('Name'),
       '#type' => 'textfield',
       '#description' => t('The name of the data key.'),
-      '#default_value' => $this->options['name'],
+      '#default_value' => $this->options['data_name'],
     );
   }
 
   /**
-   * Overrides \Drupal\views\Plugin\views\field\FieldPluginBase::render().
+   * {@inheritdoc}
    */
-  function render($values) {
+  public function render(ResultRow $values) {
     $uid = $this->getValue($values);
-    $data = $this->userData->get($this->options['module'], $uid, $this->options['name']);
+    $data = $this->userData->get($this->options['data_module'], $uid, $this->options['data_name']);
 
     // Don't sanitize if no value was found.
     if (isset($data)) {

@@ -7,7 +7,7 @@
 
 namespace Drupal\views\Routing;
 
-use Drupal\Core\Controller\ControllerInterface;
+use Drupal\Core\DependencyInjection\ContainerInjectionInterface;
 use Drupal\Core\Entity\EntityStorageControllerInterface;
 use Drupal\views\ViewExecutableFactory;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -17,7 +17,7 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 /**
  * Defines a page controller to execute and render a view.
  */
-class ViewPageController implements ControllerInterface {
+class ViewPageController implements ContainerInjectionInterface {
 
   /**
    * The entity storage controller.
@@ -51,7 +51,7 @@ class ViewPageController implements ControllerInterface {
    */
   public static function create(ContainerInterface $container) {
     return new static(
-      $container->get('plugin.manager.entity')->getStorageController('view'),
+      $container->get('entity.manager')->getStorageController('view'),
       $container->get('views.executable')
     );
   }
@@ -63,8 +63,7 @@ class ViewPageController implements ControllerInterface {
     $view_id = $request->attributes->get('view_id');
     $display_id = $request->attributes->get('display_id');
 
-    $entities = $this->storageController->load(array($view_id));
-    $entity = reset($entities);
+    $entity = $this->storageController->load($view_id);
     if (empty($entity)) {
       throw new NotFoundHttpException(format_string('Page controller for view %id requested, but view was not found.', array('%id' => $view_id)));
     }

@@ -9,7 +9,9 @@ namespace Drupal\entity_reference\Plugin\field\widget;
 
 use Drupal\Component\Annotation\Plugin;
 use Drupal\Core\Annotation\Translation;
+use Drupal\Core\Entity\Field\FieldInterface;
 use Drupal\field\Plugin\Type\Widget\WidgetBase;
+use Symfony\Component\Validator\ConstraintViolationInterface;
 
 /**
  * Parent plugin for entity reference autocomplete widgets.
@@ -37,22 +39,38 @@ abstract class AutocompleteWidgetBase extends WidgetBase {
       '#min' => 1,
       '#required' => TRUE,
     );
-
     $element['placeholder'] = array(
       '#type' => 'textfield',
       '#title' => t('Placeholder'),
       '#default_value' => $this->getSetting('placeholder'),
       '#description' => t('Text that will be shown inside the field until a value is entered. This hint is usually a sample value or a brief description of the expected format.'),
     );
-
-
     return $element;
   }
 
   /**
    * {@inheritdoc}
    */
-  public function formElement(array $items, $delta, array $element, $langcode, array &$form, array &$form_state) {
+  public function settingsSummary() {
+    $summary = array();
+
+    $summary[] = t('Autocomplete matching: @match_operator', array('@match_operator' => $this->getSetting('match_operator')));
+    $summary[] = t('Textfield size: !size', array('!size' => $this->getSetting('size')));
+    $placeholder = $this->getSetting('placeholder');
+    if (!empty($placeholder)) {
+      $summary[] = t('Placeholder: @placeholder', array('@placeholder' => $placeholder));
+    }
+    else {
+      $summary[] = t('No placeholder');
+    }
+
+    return $summary;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function formElement(FieldInterface $items, $delta, array $element, $langcode, array &$form, array &$form_state) {
     global $user;
     $entity = $element['#entity'];
 
@@ -77,7 +95,7 @@ abstract class AutocompleteWidgetBase extends WidgetBase {
       '#placeholder' => $this->getSetting('placeholder'),
       '#element_validate' => array(array($this, 'elementValidate')),
       // @todo: Use wrapper to get the user if exists or needed.
-      '#autocreate_uid' => isset($entity->uid) ? $entity->uid : $user->uid,
+      '#autocreate_uid' => isset($entity->uid) ? $entity->uid : $user->id(),
     );
 
     return array('target_id' => $element);
@@ -86,7 +104,7 @@ abstract class AutocompleteWidgetBase extends WidgetBase {
   /**
    * {@inheritdoc}
    */
-  public function errorElement(array $element, array $error, array $form, array &$form_state) {
+  public function errorElement(array $element, ConstraintViolationInterface $error, array $form, array &$form_state) {
     return $element['target_id'];
   }
 
@@ -98,13 +116,17 @@ abstract class AutocompleteWidgetBase extends WidgetBase {
   /**
    * Gets the entity labels.
    */
-  protected function getLabels(array $items) {
+  protected function getLabels(FieldInterface $items) {
+    if ($items->isEmpty()) {
+      return array();
+    }
+
     $entity_ids = array();
     $entity_labels = array();
 
     // Build an array of entity IDs.
     foreach ($items as $item) {
-      $entity_ids[] = $item['target_id'];
+      $entity_ids[] = $item->target_id;
     }
 
     // Load those entities and loop through them to extract their labels.
@@ -138,7 +160,7 @@ abstract class AutocompleteWidgetBase extends WidgetBase {
     $target_bundles = $this->getSelectionHandlerSetting('target_bundles');
 
     // Get the bundle.
-    if (!empty($target_bundles) && count($target_bundles) == 1) {
+    if (!empty($target_bundles)) {
       $bundle = reset($target_bundles);
     }
     else {

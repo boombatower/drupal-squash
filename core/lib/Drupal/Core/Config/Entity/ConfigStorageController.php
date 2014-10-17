@@ -14,6 +14,7 @@ use Drupal\Core\Entity\EntityStorageControllerBase;
 use Drupal\Core\Config\Config;
 use Drupal\Core\Config\ConfigFactory;
 use Drupal\Core\Config\StorageInterface;
+use Drupal\Core\Entity\Query\QueryFactory;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
@@ -62,6 +63,13 @@ class ConfigStorageController extends EntityStorageControllerBase {
   protected $configStorage;
 
   /**
+   * The entity query factory.
+   *
+   * @var \Drupal\Core\Entity\Query\QueryFactory
+   */
+  protected $entityQueryFactory;
+
+  /**
    * Constructs a ConfigStorageController object.
    *
    * @param string $entity_type
@@ -72,8 +80,10 @@ class ConfigStorageController extends EntityStorageControllerBase {
    *   The config factory service.
    * @param \Drupal\Core\Config\StorageInterface $config_storage
    *   The config storage service.
+   * @param \Drupal\Core\Entity\Query\QueryFactory $entity_query_factory
+   *   The entity query factory.
    */
-  public function __construct($entity_type, array $entity_info, ConfigFactory $config_factory, StorageInterface $config_storage) {
+  public function __construct($entity_type, array $entity_info, ConfigFactory $config_factory, StorageInterface $config_storage, QueryFactory $entity_query_factory) {
     parent::__construct($entity_type, $entity_info);
 
     $this->idKey = $this->entityInfo['entity_keys']['id'];
@@ -87,6 +97,7 @@ class ConfigStorageController extends EntityStorageControllerBase {
 
     $this->configFactory = $config_factory;
     $this->configStorage = $config_storage;
+    $this->entityQueryFactory = $entity_query_factory;
   }
 
   /**
@@ -97,14 +108,15 @@ class ConfigStorageController extends EntityStorageControllerBase {
       $entity_type,
       $entity_info,
       $container->get('config.factory'),
-      $container->get('config.storage')
+      $container->get('config.storage'),
+      $container->get('entity.query')
     );
   }
 
   /**
-   * Implements Drupal\Core\Entity\EntityStorageControllerInterface::load().
+   * {@inheritdoc}
    */
-  public function load(array $ids = NULL) {
+  public function loadMultiple(array $ids = NULL) {
     $entities = array();
 
     // Create a new variable which is either a prepared version of the $ids
@@ -141,6 +153,14 @@ class ConfigStorageController extends EntityStorageControllerBase {
   }
 
   /**
+   * {@inheritdoc}
+   */
+  public function load($id) {
+    $entities = $this->loadMultiple(array($id));
+    return isset($entities[$id]) ? $entities[$id] : NULL;
+  }
+
+  /**
    * Implements Drupal\Core\Entity\EntityStorageControllerInterface::loadRevision().
    */
   public function loadRevision($revision_id) {
@@ -158,13 +178,29 @@ class ConfigStorageController extends EntityStorageControllerBase {
    * Implements Drupal\Core\Entity\EntityStorageControllerInterface::loadByProperties().
    */
   public function loadByProperties(array $values = array()) {
-    $entities = $this->load();
+    $entities = $this->loadMultiple();
     foreach ($values as $key => $value) {
       $entities = array_filter($entities, function($entity) use ($key, $value) {
         return $value === $entity->get($key);
       });
     }
     return $entities;
+  }
+
+  /**
+   * Returns an entity query instance.
+   *
+   * @param string $conjunction
+   *   - AND: all of the conditions on the query need to match.
+   *   - OR: at least one of the conditions on the query need to match.
+   *
+   * @return \Drupal\Core\Entity\Query\QueryInterface
+   *   The query instance.
+   *
+   * @see \Drupal\Core\Entity\EntityStorageControllerInterface::getQueryServicename()
+   */
+  public function getQuery($conjunction = 'AND') {
+    return $this->entityQueryFactory->get($this->entityType, $conjunction);
   }
 
   /**
@@ -218,27 +254,24 @@ class ConfigStorageController extends EntityStorageControllerBase {
     $config_class = $this->entityInfo['class'];
     $prefix = $this->getConfigPrefix();
 
-    // Load all of the configuration entities.
+    // Get the names of the configuration entities we are going to load.
     if ($ids === NULL) {
       $names = $this->configStorage->listAll($prefix);
-      $result = array();
-      foreach ($names as $name) {
-        $config = $this->configFactory->get($name);
-        $result[$config->get($this->idKey)] = new $config_class($config->get(), $this->entityType);
-      }
-      return $result;
     }
     else {
-      $result = array();
+      $names = array();
       foreach ($ids as $id) {
         // Add the prefix to the ID to serve as the configuration object name.
-        $config = $this->configFactory->get($prefix . $id);
-        if (!$config->isNew()) {
-          $result[$id] = new $config_class($config->get(), $this->entityType);
-        }
+        $names[] = $prefix . $id;
       }
-      return $result;
     }
+
+    // Load all of the configuration entities.
+    $result = array();
+    foreach ($this->configFactory->loadMultiple($names) as $config) {
+      $result[$config->get($this->idKey)] = new $config_class($config->get(), $this->entityType);
+    }
+    return $result;
   }
 
   /**
@@ -260,7 +293,7 @@ class ConfigStorageController extends EntityStorageControllerBase {
    */
   protected function attachLoad(&$queried_entities, $revision_id = FALSE) {
     // Call hook_entity_load().
-    foreach (module_implements('entity_load') as $module) {
+    foreach (\Drupal::moduleHandler()->getImplementations('entity_load') as $module) {
       $function = $module . '_entity_load';
       $function($queried_entities, $this->entityType);
     }
@@ -268,7 +301,7 @@ class ConfigStorageController extends EntityStorageControllerBase {
     // always the queried entities, followed by additional arguments set in
     // $this->hookLoadArguments.
     $args = array_merge(array($queried_entities), $this->hookLoadArguments);
-    foreach (module_implements($this->entityType . '_load') as $module) {
+    foreach (\Drupal::moduleHandler()->getImplementations($this->entityType . '_load') as $module) {
       call_user_func_array($module . '_' . $this->entityType . '_load', $args);
     }
   }
@@ -281,7 +314,7 @@ class ConfigStorageController extends EntityStorageControllerBase {
     $class::preCreate($this, $values);
 
     // Set default language to site default if not provided.
-    $values += array('langcode' => language_default()->langcode);
+    $values += array('langcode' => language_default()->id);
 
     $entity = new $class($values, $this->entityType);
     // Mark this entity as new, so isNew() returns TRUE. This does not check
@@ -318,17 +351,17 @@ class ConfigStorageController extends EntityStorageControllerBase {
 
     $entity_class = $this->entityInfo['class'];
     $entity_class::preDelete($this, $entities);
-    foreach ($entities as $id => $entity) {
+    foreach ($entities as $entity) {
       $this->invokeHook('predelete', $entity);
     }
 
-    foreach ($entities as $id => $entity) {
+    foreach ($entities as $entity) {
       $config = $this->configFactory->get($this->getConfigPrefix() . $entity->id());
       $config->delete();
     }
 
     $entity_class::postDelete($this, $entities);
-    foreach ($entities as $id => $entity) {
+    foreach ($entities as $entity) {
       $this->invokeHook('delete', $entity);
     }
   }
@@ -358,8 +391,7 @@ class ConfigStorageController extends EntityStorageControllerBase {
 
     if (!$is_new && !isset($entity->original)) {
       $this->resetCache(array($id));
-      $result = $this->load(array($id));
-      $entity->original = reset($result);
+      $entity->original = $this->load($id);
     }
 
     if ($id !== $entity->id()) {
@@ -368,6 +400,11 @@ class ConfigStorageController extends EntityStorageControllerBase {
       // - The object needs to be renamed/copied in ConfigFactory and reloaded.
       // - All instances of the object need to be renamed.
       $this->configFactory->rename($prefix . $id, $prefix . $entity->id());
+    }
+
+    // Build an ID if none is set.
+    if (!isset($entity->{$this->idKey})) {
+      $entity->{$this->idKey} = $entity->id();
     }
 
     $entity->preSave($this);
@@ -398,14 +435,6 @@ class ConfigStorageController extends EntityStorageControllerBase {
     unset($entity->original);
 
     return $return;
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  public function baseFieldDefinitions() {
-    // @todo: Define abstract once all entity types have been converted.
-    return array();
   }
 
   /**
@@ -464,8 +493,7 @@ class ConfigStorageController extends EntityStorageControllerBase {
    */
   public function importUpdate($name, Config $new_config, Config $old_config) {
     $id = static::getIDFromConfigName($name, $this->entityInfo['config_prefix']);
-    $entities = $this->load(array($id));
-    $entity = $entities[$id];
+    $entity = $this->load($id);
     $entity->original = clone $entity;
 
     foreach ($old_config->get() as $property => $value) {
@@ -495,8 +523,7 @@ class ConfigStorageController extends EntityStorageControllerBase {
    */
   public function importDelete($name, Config $new_config, Config $old_config) {
     $id = static::getIDFromConfigName($name, $this->entityInfo['config_prefix']);
-    $entities = $this->load(array($id));
-    $entity = $entities[$id];
+    $entity = $this->load($id);
     $entity->delete();
     return TRUE;
   }

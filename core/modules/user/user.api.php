@@ -21,7 +21,7 @@ use Drupal\Core\Entity\EntityInterface;
  * @param \Drupal\user\UserInterface $user
  *   The user object.
  */
-function hook_user_create(\Drupal\user\Plugin\Core\Entity\User $user) {
+function hook_user_create(\Drupal\user\Entity\User $user) {
   if (!isset($user->foo)) {
     $user->foo = 'some_initial_value';
   }
@@ -50,9 +50,8 @@ function hook_user_load($users) {
 /**
  * Act before user deletion.
  *
- * This hook is invoked from user_delete_multiple() before
- * field_attach_delete() is called and before the user is actually removed from
- * the database.
+ * This hook is invoked from user_delete_multiple() before field values are
+ * deleted and before the user is actually removed from the database.
  *
  * Modules should additionally implement hook_user_cancel() to process stored
  * user data for other account cancellation methods.
@@ -65,15 +64,15 @@ function hook_user_load($users) {
  */
 function hook_user_predelete($account) {
   db_delete('mytable')
-    ->condition('uid', $account->uid)
+    ->condition('uid', $account->id())
     ->execute();
 }
 
 /**
  * Respond to user deletion.
  *
- * This hook is invoked from user_delete_multiple() after field_attach_delete()
- * has been called and after the user has been removed from the database.
+ * This hook is invoked from user_delete_multiple() after field values are
+ * deleted and after the user has been removed from the database.
  *
  * Modules should additionally implement hook_user_cancel() to process stored
  * user data for other account cancellation methods.
@@ -85,7 +84,7 @@ function hook_user_predelete($account) {
  * @see user_delete_multiple()
  */
 function hook_user_delete($account) {
-  drupal_set_message(t('User: @name has been deleted.', array('@name' => $account->name)));
+  drupal_set_message(t('User: @name has been deleted.', array('@name' => $account->getUsername())));
 }
 
 /**
@@ -121,7 +120,7 @@ function hook_user_cancel($edit, $account, $method) {
       module_load_include('inc', 'node', 'node.admin');
       $nodes = db_select('node_field_data', 'n')
         ->fields('n', array('nid'))
-        ->condition('uid', $account->uid)
+        ->condition('uid', $account->id())
         ->execute()
         ->fetchCol();
       node_mass_update($nodes, array('status' => 0), NULL, TRUE);
@@ -132,14 +131,14 @@ function hook_user_cancel($edit, $account, $method) {
       module_load_include('inc', 'node', 'node.admin');
       $nodes = db_select('node_field_data', 'n')
         ->fields('n', array('nid'))
-        ->condition('uid', $account->uid)
+        ->condition('uid', $account->id())
         ->execute()
         ->fetchCol();
       node_mass_update($nodes, array('uid' => 0), NULL, TRUE);
       // Anonymize old revisions.
       db_update('node_field_revision')
         ->fields(array('uid' => 0))
-        ->condition('uid', $account->uid)
+        ->condition('uid', $account->id())
         ->execute();
       break;
   }
@@ -200,8 +199,8 @@ function hook_user_cancel_methods_alter(&$methods) {
  */
 function hook_user_format_name_alter(&$name, $account) {
   // Display the user's uid instead of name.
-  if (isset($account->uid)) {
-    $name = t('User !uid', array('!uid' => $account->uid));
+  if ($account->id()) {
+    $name = t('User !uid', array('!uid' => $account->id()));
   }
 }
 
@@ -244,7 +243,7 @@ function hook_user_presave($account) {
 function hook_user_insert($account) {
   db_insert('user_changes')
     ->fields(array(
-      'uid' => $account->uid,
+      'uid' => $account->id(),
       'created' => time(),
     ))
     ->execute();
@@ -271,7 +270,7 @@ function hook_user_insert($account) {
 function hook_user_update($account) {
   db_insert('user_changes')
     ->fields(array(
-      'uid' => $account->uid,
+      'uid' => $account->id(),
       'changed' => time(),
     ))
     ->execute();
@@ -284,10 +283,10 @@ function hook_user_update($account) {
  *   The user object on which the operation was just performed.
  */
 function hook_user_login($account) {
-  $config = config('system.timezone');
+  $config = Drupal::config('system.date');
   // If the user has a NULL time zone, notify them to set a time zone.
-  if (!$account->timezone && $config->get('user.configurable') && $config->get('user.warn')) {
-    drupal_set_message(t('Configure your <a href="@user-edit">account time zone setting</a>.', array('@user-edit' => url("user/$account->uid/edit", array('query' => drupal_get_destination(), 'fragment' => 'edit-timezone')))));
+  if (!$account->getTimezone() && $config->get('timezone.user.configurable') && $config->get('timezone.user.warn')) {
+    drupal_set_message(t('Configure your <a href="@user-edit">account time zone setting</a>.', array('@user-edit' => url("user/" . $account->id() . "/edit", array('query' => drupal_get_destination(), 'fragment' => 'edit-timezone')))));
   }
 }
 
@@ -300,7 +299,7 @@ function hook_user_login($account) {
 function hook_user_logout($account) {
   db_insert('logouts')
     ->fields(array(
-      'uid' => $account->uid,
+      'uid' => $account->id(),
       'time' => time(),
     ))
     ->execute();
@@ -314,7 +313,7 @@ function hook_user_logout($account) {
  *
  * @param \Drupal\user\UserInterface $account
  *   The user object on which the operation is being performed.
- * @param \Drupal\entity\Plugin\Core\Entity\EntityDisplay $display
+ * @param \Drupal\entity\Entity\EntityDisplay $display
  *   The entity_display object holding the display options configured for the
  *   user components.
  * @param $view_mode
@@ -325,7 +324,7 @@ function hook_user_logout($account) {
  * @see hook_user_view_alter()
  * @see hook_entity_view()
  */
-function hook_user_view(\Drupal\user\UserInterface $account, \Drupal\entity\Plugin\Core\Entity\EntityDisplay $display, $view_mode, $langcode) {
+function hook_user_view(\Drupal\user\UserInterface $account, \Drupal\entity\Entity\EntityDisplay $display, $view_mode, $langcode) {
   // Only do the extra work if the component is configured to be displayed.
   // This assumes a 'mymodule_addition' extra field has been defined for the
   // user entity type in hook_field_extra_fields().
@@ -354,14 +353,14 @@ function hook_user_view(\Drupal\user\UserInterface $account, \Drupal\entity\Plug
  *   A renderable array representing the user.
  * @param \Drupal\user\UserInterface $account
  *   The user account being rendered.
- * @param \Drupal\entity\Plugin\Core\Entity\EntityDisplay $display
+ * @param \Drupal\entity\Entity\EntityDisplay $display
  *   The entity_display object holding the display options configured for the
  *   user components.
  *
  * @see user_view()
  * @see hook_entity_view_alter()
  */
-function hook_user_view_alter(&$build, \Drupal\user\UserInterface $account, \Drupal\entity\Plugin\Core\Entity\EntityDisplay $display) {
+function hook_user_view_alter(&$build, \Drupal\user\UserInterface $account, \Drupal\entity\Entity\EntityDisplay $display) {
   // Check for the existence of a field added by another module.
   if (isset($build['an_additional_field'])) {
     // Change its weight.

@@ -8,7 +8,7 @@
 namespace Drupal\editor\Plugin;
 
 use Drupal\Component\Plugin\PluginInspectionInterface;
-use Drupal\editor\Plugin\Core\Entity\Editor;
+use Drupal\editor\Entity\Editor;
 
 /**
  * Defines an interface for configurable text editors.
@@ -24,9 +24,9 @@ interface EditorPluginInterface extends PluginInspectionInterface {
    *
    * @return array
    *   An array of settings as they would be stored by a configured text editor
-   *   entity (\Drupal\editor\Plugin\Core\Entity\Editor).
+   *   entity (\Drupal\editor\Entity\Editor).
    */
-  function getDefaultSettings();
+  public function getDefaultSettings();
 
   /**
    * Returns a settings form to configure this text editor.
@@ -40,13 +40,13 @@ interface EditorPluginInterface extends PluginInspectionInterface {
    *   An empty form array to be populated with a configuration form, if any.
    * @param array $form_state
    *   The state of the entire filter administration form.
-   * @param \Drupal\editor\Plugin\Core\Entity\Editor $editor
+   * @param \Drupal\editor\Entity\Editor $editor
    *   A configured text editor object.
    *
    * @return array
    *   A render array for the settings form.
    */
-  function settingsForm(array $form, array &$form_state, Editor $editor);
+  public function settingsForm(array $form, array &$form_state, Editor $editor);
 
   /**
    * Validates the settings form for an editor.
@@ -60,7 +60,7 @@ interface EditorPluginInterface extends PluginInspectionInterface {
    * @param array $form_state
    *   A reference to a keyed array containing the current state of the form.
    */
-  function settingsFormValidate(array $form, array &$form_state);
+  public function settingsFormValidate(array $form, array &$form_state);
 
   /**
    * Modifies any values in the form state to prepare them for saving.
@@ -73,7 +73,7 @@ interface EditorPluginInterface extends PluginInspectionInterface {
    * @param array $form_state
    *   A reference to a keyed array containing the current state of the form.
    */
-  function settingsFormSubmit(array $form, array &$form_state);
+  public function settingsFormSubmit(array $form, array &$form_state);
 
   /**
    * Returns JavaScript settings to be attached.
@@ -83,7 +83,7 @@ interface EditorPluginInterface extends PluginInspectionInterface {
    * of the text editor into JavaScript variables that will be accessible when
    * the text editor is loaded.
    *
-   * @param \Drupal\editor\Plugin\Core\Entity\Editor $editor
+   * @param \Drupal\editor\Entity\Editor $editor
    *   A configured text editor object.
    *
    * @return array
@@ -93,7 +93,7 @@ interface EditorPluginInterface extends PluginInspectionInterface {
    * @see drupal_process_attached()
    * @see EditorManager::getAttachments()
    */
-  function getJSSettings(Editor $editor);
+  public function getJSSettings(Editor $editor);
 
   /**
    * Returns libraries to be attached.
@@ -102,7 +102,7 @@ interface EditorPluginInterface extends PluginInspectionInterface {
    * different library for different configurations, instead of being forced to
    * always use the same method.
    *
-   * @param \Drupal\editor\Plugin\Core\Entity\Editor $editor
+   * @param \Drupal\editor\Entity\Editor $editor
    *   A configured text editor object.
    *
    * @return array
@@ -112,5 +112,6 @@ interface EditorPluginInterface extends PluginInspectionInterface {
    * @see drupal_process_attached()
    * @see EditorManager::getAttachments()
    */
-  function getLibraries(Editor $editor);
+  public function getLibraries(Editor $editor);
+
 }

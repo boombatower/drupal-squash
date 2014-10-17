@@ -7,16 +7,17 @@
 
 namespace Drupal\number\Plugin\field\widget;
 
-use Drupal\Component\Annotation\Plugin;
+use Drupal\field\Annotation\FieldWidget;
 use Drupal\Core\Annotation\Translation;
+use Drupal\Core\Entity\Field\FieldInterface;
 use Drupal\field\Plugin\Type\Widget\WidgetBase;
+use Symfony\Component\Validator\ConstraintViolationInterface;
 
 /**
  * Plugin implementation of the 'number' widget.
  *
- * @Plugin(
+ * @FieldWidget(
  *   id = "number",
- *   module = "number",
  *   label = @Translation("Text field"),
  *   field_types = {
  *     "number_integer",
@@ -46,8 +47,25 @@ class NumberWidget extends WidgetBase {
   /**
    * {@inheritdoc}
    */
-  public function formElement(array $items, $delta, array $element, $langcode, array &$form, array &$form_state) {
-    $value = isset($items[$delta]['value']) ? $items[$delta]['value'] : NULL;
+  public function settingsSummary() {
+    $summary = array();
+
+    $placeholder = $this->getSetting('placeholder');
+    if (!empty($placeholder)) {
+      $summary[] = t('Placeholder: @placeholder', array('@placeholder' => $placeholder));
+    }
+    else {
+      $summary[] = t('No placeholder');
+    }
+
+    return $summary;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function formElement(FieldInterface $items, $delta, array $element, $langcode, array &$form, array &$form_state) {
+    $value = isset($items[$delta]->value) ? $items[$delta]->value : NULL;
     $field_settings = $this->getFieldSettings();
 
     $element += array(
@@ -91,7 +109,7 @@ class NumberWidget extends WidgetBase {
   /**
    * {@inheritdoc}
    */
-  public function errorElement(array $element, array $error, array $form, array &$form_state) {
+  public function errorElement(array $element, ConstraintViolationInterface $error, array $form, array &$form_state) {
     return $element['value'];
   }
 

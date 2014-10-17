@@ -8,7 +8,7 @@
 namespace Drupal\ckeditor;
 
 use Drupal\Component\Plugin\PluginBase;
-use Drupal\editor\Plugin\Core\Entity\Editor;
+use Drupal\editor\Entity\Editor;
 
 /**
  * Defines a base CKEditor plugin implementation.
@@ -33,10 +33,23 @@ use Drupal\editor\Plugin\Core\Entity\Editor;
 abstract class CKEditorPluginBase extends PluginBase implements CKEditorPluginInterface, CKEditorPluginButtonsInterface {
 
   /**
-   * Implements \Drupal\ckeditor\Plugin\CKEditorPluginInterface::isInternal().
+   * {@inheritdoc}
    */
   function isInternal() {
     return FALSE;
   }
 
+  /**
+   * {@inheritdoc}
+   */
+  function getDependencies(Editor $editor) {
+    return array();
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  function getLibraries(Editor $editor) {
+    return array();
+  }
 }

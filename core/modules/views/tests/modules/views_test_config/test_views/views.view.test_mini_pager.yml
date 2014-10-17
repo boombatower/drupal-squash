@@ -4,7 +4,6 @@ description: ''
 tag: ''
 label: test_mini_pager
 core: 8.x
-api_version: '3.0'
 display:
   default:
     display_plugin: default
@@ -28,8 +27,8 @@ display:
           id: '0'
           total_pages: ''
           tags:
-            previous: ‹‹ test
-            next: ›› test
+            previous: '‹‹ test'
+            next: '›› test'
           expose:
             items_per_page: '0'
             items_per_page_label: 'Items per page'
@@ -65,6 +64,7 @@ display:
           empty_zero: '0'
           link_to_node: '1'
           plugin_id: node
+          provider: views
       filters: {  }
       sorts:
         nid:
@@ -73,6 +73,7 @@ display:
           field: nid
           plugin_id: standard
           order: ASC
+          provider: views
       title: test_mini_pager
       filter_groups:
         operator: AND
@@ -97,6 +98,19 @@ display:
         type: mini
         options:
           items_per_page: '1'
+  page_3:
+    display_plugin: page
+    id: page_3
+    display_title: Page
+    position: ''
+    display_options:
+      path: test_mini_pager_all
+      defaults:
+        pager: '0'
+      pager:
+        type: mini
+        options:
+          items_per_page: '0'
 base_field: nid
 status: '1'
 module: views

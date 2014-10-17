@@ -2,11 +2,12 @@
 
 /**
  * @file
- * Definition of Drupal\views_ui\ViewListController.
+ * Contains \Drupal\views_ui\ViewListController.
  */
 
 namespace Drupal\views_ui;
 
+use Drupal\Component\Utility\String;
 use Drupal\Component\Plugin\PluginManagerInterface;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Config\Entity\ConfigEntityListController;
@@ -33,7 +34,7 @@ class ViewListController extends ConfigEntityListController implements EntityCon
   public static function createInstance(ContainerInterface $container, $entity_type, array $entity_info) {
     return new static(
       $entity_type,
-      $container->get('plugin.manager.entity')->getStorageController($entity_type),
+      $container->get('entity.manager')->getStorageController($entity_type),
       $entity_info,
       $container->get('plugin.manager.views.display'),
       $container->get('module_handler')
@@ -61,7 +62,7 @@ class ViewListController extends ConfigEntityListController implements EntityCon
   }
 
   /**
-   * Overrides Drupal\Core\Entity\EntityListController::load();
+   * {@inheritdoc}
    */
   public function load() {
     $entities = array(
@@ -80,9 +81,10 @@ class ViewListController extends ConfigEntityListController implements EntityCon
   }
 
   /**
-   * Overrides Drupal\Core\Entity\EntityListController::buildRow();
+   * {@inheritdoc}
    */
   public function buildRow(EntityInterface $view) {
+    $row = parent::buildRow($view);
     return array(
       'data' => array(
         'view_name' => array(
@@ -94,18 +96,16 @@ class ViewListController extends ConfigEntityListController implements EntityCon
         ),
         'description' => $view->get('description'),
         'tag' => $view->get('tag'),
-        'path' => implode(', ', $view->getPaths()),
-        'operations' => array(
-          'data' => $this->buildOperations($view),
-        ),
+        'path' => implode(', ', $this->getDisplayPaths($view)),
+        'operations' => $row['operations'],
       ),
-      'title' => t('Machine name: ') . $view->id(),
+      'title' => t('Machine name: @name', array('@name' => $view->id())),
       'class' => array($view->status() ? 'views-ui-list-enabled' : 'views-ui-list-disabled'),
     );
   }
 
   /**
-   * Overrides Drupal\Core\Entity\EntityListController::buildHeader();
+   * {@inheritdoc}
    */
   public function buildHeader() {
     return array(
@@ -133,13 +133,13 @@ class ViewListController extends ConfigEntityListController implements EntityCon
   }
 
   /**
-   * Implements \Drupal\Core\Entity\EntityListController::getOperations().
+   * {@inheritdoc}
    */
-  public function getOperations(EntityInterface $view) {
-    $definition = parent::getOperations($view);
-    $uri = $view->uri();
+  public function getOperations(EntityInterface $entity) {
+    $operations = parent::getOperations($entity);
+    $uri = $entity->uri();
 
-    $definition['clone'] = array(
+    $operations['clone'] = array(
       'title' => t('Clone'),
       'href' => $uri['path'] . '/clone',
       'options' => $uri['options'],
@@ -148,16 +148,17 @@ class ViewListController extends ConfigEntityListController implements EntityCon
 
     // Add AJAX functionality to enable/disable operations.
     foreach (array('enable', 'disable') as $op) {
-      if (isset($definition[$op])) {
-        $definition[$op]['ajax'] = TRUE;
+      if (isset($operations[$op])) {
+        $operations[$op]['ajax'] = TRUE;
+        $operations[$op]['query']['token'] = drupal_get_token($op);
       }
     }
 
-    return $definition;
+    return $operations;
   }
 
   /**
-   * Overrides Drupal\Core\Entity\EntityListController::buildOperations();
+   * {@inheritdoc}
    */
   public function buildOperations(EntityInterface $entity) {
     $build = parent::buildOperations($entity);
@@ -169,15 +170,11 @@ class ViewListController extends ConfigEntityListController implements EntityCon
       }
     }
 
-    // Use the dropbutton #type.
-    unset($build['#theme']);
-    $build['#type'] = 'dropbutton';
-
     return $build;
   }
 
   /**
-   * Overrides Drupal\Core\Entity\EntityListController::render();
+   * {@inheritdoc}
    */
   public function render() {
     $entities = $this->load();
@@ -227,6 +224,33 @@ class ViewListController extends ConfigEntityListController implements EntityCon
 
     ksort($displays);
     return array_keys($displays);
+  }
+
+  /**
+   * Gets a list of paths assigned to the view.
+   *
+   * @param \Drupal\Core\Entity\EntityInterface $view
+   *   The view entity.
+   *
+   * @return array
+   *   An array of paths for this view.
+   */
+  protected function getDisplayPaths(EntityInterface $view) {
+    $all_paths = array();
+    $executable = $view->getExecutable();
+    $executable->initDisplay();
+    foreach ($executable->displayHandlers as $display) {
+      if ($display->hasPath()) {
+        $path = $display->getPath();
+        if ($view->status() && strpos($path, '%') === FALSE) {
+          $all_paths[] = l('/' . $path, $path);
+        }
+        else {
+          $all_paths[] = String::checkPlain('/' . $path);
+        }
+      }
+    }
+    return array_unique($all_paths);
   }
 
 }

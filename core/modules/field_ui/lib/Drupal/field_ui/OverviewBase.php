@@ -7,15 +7,14 @@
 
 namespace Drupal\field_ui;
 
+use Drupal\Core\Form\FormBase;
 use Symfony\Component\DependencyInjection\ContainerInterface;
-use Drupal\Core\Controller\ControllerInterface;
 use Drupal\Core\Entity\EntityManager;
-use Drupal\Core\Form\FormInterface;
 
 /**
  * Abstract base class for Field UI overview forms.
  */
-abstract class OverviewBase implements FormInterface, ControllerInterface {
+abstract class OverviewBase extends FormBase {
 
   /**
    * The name of the entity type.
@@ -67,7 +66,7 @@ abstract class OverviewBase implements FormInterface, ControllerInterface {
    */
   public static function create(ContainerInterface $container) {
     return new static(
-      $container->get('plugin.manager.entity')
+      $container->get('entity.manager')
     );
   }
 
@@ -83,12 +82,11 @@ abstract class OverviewBase implements FormInterface, ControllerInterface {
     $this->entity_type = $entity_type;
     $this->bundle = $bundle;
     $this->adminPath = $this->entityManager->getAdminPath($this->entity_type, $this->bundle);
-  }
 
-  /**
-   * Implements \Drupal\Core\Form\FormInterface::validateForm().
-   */
-  public function validateForm(array &$form, array &$form_state) {
+    // When displaying the form, make sure the list of fields is up-to-date.
+    if (empty($form_state['post'])) {
+      field_info_cache_clear();
+    }
   }
 
   /**
@@ -106,12 +104,12 @@ abstract class OverviewBase implements FormInterface, ControllerInterface {
    *     return array(
    *       'content' => array(
    *         // label for the region.
-   *         'title' => t('Content'),
+   *         'title' => $this->t('Content'),
    *         // Indicates if the region is visible in the UI.
    *         'invisible' => TRUE,
    *         // A mesage to indicate that there is nothing to be displayed in
    *         // the region.
-   *         'message' => t('No field is displayed.'),
+   *         'message' => $this->t('No field is displayed.'),
    *       ),
    *     );
    *   @endcode
@@ -175,7 +173,11 @@ abstract class OverviewBase implements FormInterface, ControllerInterface {
           if ($depth = count($parents[$name])) {
             $children = element_children($row);
             $cell = current($children);
-            $row[$cell]['#prefix'] = theme('indentation', array('size' => $depth)) . (isset($row[$cell]['#prefix']) ? $row[$cell]['#prefix'] : '');
+            $indentation = array(
+              '#theme' => 'indentation',
+              '#size' => $depth,
+            );
+            $row[$cell]['#prefix'] = drupal_render($indentation) . (isset($row[$cell]['#prefix']) ? $row[$cell]['#prefix'] : '');
           }
 
           // Add row id and associate JS settings.

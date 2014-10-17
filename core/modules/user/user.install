@@ -149,42 +149,6 @@ function user_schema() {
     ),
   );
 
-  $schema['role_permission'] = array(
-    'description' => 'Stores the permissions assigned to user roles.',
-    'fields' => array(
-      'rid' => array(
-        'type' => 'varchar',
-        'length' => 64,
-        'not null' => TRUE,
-        'description' => 'Foreign Key: {role}.rid.',
-      ),
-      'permission' => array(
-        'type' => 'varchar',
-        'length' => 128,
-        'not null' => TRUE,
-        'default' => '',
-        'description' => 'A single permission granted to the role identified by rid.',
-      ),
-      'module' => array(
-        'type' => 'varchar',
-        'length' => DRUPAL_EXTENSION_NAME_MAX_LENGTH,
-        'not null' => TRUE,
-        'default' => '',
-        'description' => "The module declaring the permission.",
-      ),
-    ),
-    'primary key' => array('rid', 'permission'),
-    'indexes' => array(
-      'permission' => array('permission'),
-    ),
-    'foreign keys' => array(
-      'role' => array(
-        'table' => 'role',
-        'columns' => array('rid' => 'rid'),
-      ),
-    ),
-  );
-
   $schema['users_data'] = array(
     'description' => 'Stores module data as key/value pairs per user.',
     'fields' => array(
@@ -304,12 +268,13 @@ function user_install() {
  */
 function user_install_picture_field() {
   $field = array(
-    'field_name' => 'user_picture',
+    'name' => 'user_picture',
+    'entity_type' => 'user',
     'module' => 'image',
     'type' => 'image',
     'cardinality' => 1,
     'locked' => FALSE,
-    'indexes' => array('fid' => array('fid')),
+    'indexes' => array('target_id' => array('target_id')),
     'settings' => array(
       'uri_scheme' => 'public',
       'default_image' => FALSE,
@@ -379,12 +344,13 @@ function user_install_picture_field() {
  */
 function user_update_dependencies() {
   // Convert user picture to field after the fields and instances are converted
-  // to ConfigEntities.
+  // to ConfigEntities and the tables are split.
   $dependencies['user'][8011] = array(
-    'field' => 8003,
+    'field' => 8006,
   );
   return $dependencies;
 }
+
 
 /**
  * @addtogroup updates-7.x-to-8.x
@@ -451,9 +417,6 @@ function user_update_8002() {
   );
   db_change_field('role', 'rid', 'rid', $column);
 
-  $column['description'] = 'Foreign Key: {role}.rid.';
-  db_change_field('role_permission', 'rid', 'rid', $column);
-
   $column['description'] = 'Primary Key: {role}.rid for role.';
   db_change_field('users_roles', 'rid', 'rid', $column);
 
@@ -470,32 +433,16 @@ function user_update_8002() {
   db_drop_unique_key('role', 'name');
 
   // Rename the built-in serial role IDs into the hardcoded machine names.
-  db_update('role')
-    ->fields(array('rid' => DRUPAL_ANONYMOUS_RID))
-    ->condition('rid', 1)
-    ->execute();
-  db_update('role')
-    ->fields(array('rid' => DRUPAL_AUTHENTICATED_RID))
-    ->condition('rid', 2)
-    ->execute();
-
-  db_update('role_permission')
-    ->fields(array('rid' => DRUPAL_ANONYMOUS_RID))
-    ->condition('rid', 1)
-    ->execute();
-  db_update('role_permission')
-    ->fields(array('rid' => DRUPAL_AUTHENTICATED_RID))
-    ->condition('rid', 2)
-    ->execute();
-
-  db_update('users_roles')
-    ->fields(array('rid' => DRUPAL_ANONYMOUS_RID))
-    ->condition('rid', 1)
-    ->execute();
-  db_update('users_roles')
-    ->fields(array('rid' => DRUPAL_AUTHENTICATED_RID))
-    ->condition('rid', 2)
-    ->execute();
+  foreach (array(1, 2) as $rid) {
+    db_update('role')
+      ->fields(array('rid' => _user_update_map_rid($rid)))
+      ->condition('rid', $rid)
+      ->execute();
+    db_update('users_roles')
+      ->fields(array('rid' => _user_update_map_rid($rid)))
+      ->condition('rid', $rid)
+      ->execute();
+  }
 }
 
 /**
@@ -548,7 +495,7 @@ function user_update_8004() {
     '2' => 'visitors_admin_approval',
   );
 
-  $config = config('user.settings');
+  $config = Drupal::config('user.settings');
   $user_register = $config->get('register');
   $user_cancel_method = $config->get('cancel_method');
 
@@ -694,7 +641,7 @@ function user_update_8011() {
         'uri' => $destination,
       ))
       ->fields(array(
-        'uid' => $user->uid,
+        'uid' => $user->id(),
         'status' => FILE_STATUS_PERMANENT,
         'filename' => drupal_basename($destination),
         'uuid' => $uuid->generate(),
@@ -709,24 +656,65 @@ function user_update_8011() {
 
   // Create the field and instance.
   $field = array(
-    'id' => 'user_picture',
+    'name' => 'user_picture',
+    'entity_type' => 'user',
     'module' => 'image',
     'type' => 'image',
     'cardinality' => 1,
     'locked' => FALSE,
-    'indexes' => array('fid' => array('fid')),
+    'indexes' => array('target_id' => array('target_id')),
     'settings' => array(
       'uri_scheme' => 'public',
       'default_image' => FALSE,
+    ),
+    'schema' => array(
+      'columns' => array(
+        'target_id' => array(
+          'description' => 'The ID of the target entity.',
+          'type' => 'int',
+          'not null' => TRUE,
+          'unsigned' => TRUE,
+        ),
+        'alt' => array(
+          'description' => "Alternative image text, for the image's 'alt' attribute.",
+          'type' => 'varchar',
+          'length' => 512,
+          'not null' => FALSE,
+        ),
+        'title' => array(
+          'description' => "Image title text, for the image's 'title' attribute.",
+          'type' => 'varchar',
+          'length' => 1024,
+          'not null' => FALSE,
+        ),
+        'width' => array(
+          'description' => 'The width of the image in pixels.',
+          'type' => 'int',
+          'unsigned' => TRUE,
+        ),
+        'height' => array(
+          'description' => 'The height of the image in pixels.',
+          'type' => 'int',
+          'unsigned' => TRUE,
+        ),
+      ),
+      'indexes' => array(
+        'target_id' => array('target_id'),
+      ),
+      'foreign keys' => array(
+        'target_id' => array(
+          'table' => 'file_managed',
+          'columns' => array('target_id' => 'fid'),
+        ),
+      ),
     ),
   );
   _update_8003_field_create_field($field);
 
   $instance = array(
-    'id' => 'user.user.user_picture',
     'entity_type' => 'user',
-    'label' => 'Picture',
     'bundle' => 'user',
+    'label' => 'Picture',
     'description' => update_variable_get('user_picture_guidelines', ''),
     'required' => FALSE,
     'settings' => array(
@@ -829,32 +817,30 @@ function user_update_8012(&$sandbox) {
     $rows = db_query_range('SELECT uid, picture FROM {users} WHERE picture > 0', 0, 20)->fetchAllKeyed();
     foreach ($rows as $uid => $fid) {
       // Add a row to the field data and revision tables.
-      db_insert('field_data_user_picture')
+      db_insert('user__user_picture')
         ->fields(array(
-          'entity_type' => 'user',
           'bundle' => 'user',
           'entity_id' => $uid,
           'revision_id' => $uid,
           'langcode' => Language::LANGCODE_NOT_SPECIFIED,
           'delta' => 0,
-          'user_picture_fid' => $fid,
+          'user_picture_target_id' => $fid,
         ))
         ->execute();
-      db_insert('field_revision_user_picture')
+      db_insert('user_revision__user_picture')
         ->fields(array(
-          'entity_type' => 'user',
           'bundle' => 'user',
           'entity_id' => $uid,
           'revision_id' => $uid,
           'langcode' => Language::LANGCODE_NOT_SPECIFIED,
           'delta' => 0,
-          'user_picture_fid' => $fid,
+          'user_picture_target_id' => $fid,
         ))
         ->execute();
 
       // Update file usage from user to file module.
       // @see file_field_insert()
-      // Old: file_usage_add($picture, 'user', 'user', $entity->uid);
+      // Old: file_usage_add($picture, 'user', 'user', $entity->id();
       // New: file_usage_add(file_load($item['fid']), 'file', $entity_type, $id);
       db_update('file_usage')
         ->condition('fid', $fid)
@@ -1039,7 +1025,7 @@ function user_update_8017() {
     ->fetchAll();
 
   foreach ($roles as $role) {
-    config('user.role.' . $role->rid)
+    Drupal::config('user.role.' . $role->rid)
       ->set('id', $role->rid)
       ->set('uuid', $uuid->generate())
       ->set('label', $role->name)
@@ -1085,6 +1071,62 @@ function user_update_8018() {
     );
     db_change_field('users', 'theme', 'theme', $spec);
   }
+}
+
+/**
+ * Maps a role id to the new string.
+ *
+ * @param int $rid
+ *   A D7 numeric role ID.
+ *
+ * @return string
+ *   A D8 string role ID.
+ */
+function _user_update_map_rid($rid) {
+  $rid_map = array(
+    1 => DRUPAL_ANONYMOUS_RID,
+    2 => DRUPAL_AUTHENTICATED_RID,
+  );
+  return isset($rid_map[$rid]) ? $rid_map[$rid] : $rid;
+}
+
+/**
+ * Migrate roles permissions into configuration.
+ *
+ * @ingroup config_upgrade
+ */
+function user_update_8019() {
+  $db_permissions = db_select('role_permission', 'p')
+    ->fields('p')
+    ->execute()
+    ->fetchAll();
+  $new_permissions = array();
+  foreach ($db_permissions as $permission) {
+    $rid = _user_update_map_rid($permission->rid);
+    if (!isset($new_permissions[$rid]) || !in_array($permission->permission, $new_permissions[$rid])) {
+      $new_permissions[$rid][] = $permission->permission;
+    }
+  }
+  foreach ($new_permissions as $rid => $permissions) {
+    Drupal::config("user.role.$rid")
+      ->set('permissions', $permissions)
+      ->save();
+  }
+}
+
+/**
+ * Create the 'register' form mode.
+ */
+function user_update_8020() {
+  $uuid = new Uuid();
+
+  Drupal::config("entity.form_mode.user.register")
+    ->set('id', "user.register")
+    ->set('uuid', $uuid->generate())
+    ->set('label', 'Register')
+    ->set('targetEntityType', 'user')
+    ->set('status', '1')
+    ->save();
 }
 
 /**

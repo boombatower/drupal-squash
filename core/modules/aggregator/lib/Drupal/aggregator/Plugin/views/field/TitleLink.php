@@ -9,6 +9,7 @@ namespace Drupal\aggregator\Plugin\views\field;
 
 use Drupal\views\Plugin\views\display\DisplayPluginBase;
 use Drupal\views\Plugin\views\field\FieldPluginBase;
+use Drupal\views\ResultRow;
 use Drupal\views\ViewExecutable;
 use Drupal\Component\Annotation\PluginID;
 
@@ -57,9 +58,9 @@ class TitleLink extends FieldPluginBase {
   /**
    * {@inheritdoc}
    */
-  function render($values) {
+  public function render(ResultRow $values) {
     $value = $this->getValue($values);
-    return $this->render_link($this->sanitizeValue($value), $values);
+    return $this->renderLink($this->sanitizeValue($value), $values);
   }
 
   /**
@@ -73,7 +74,7 @@ class TitleLink extends FieldPluginBase {
    * @return data
    *   Returns string for the link text.
    */
-  protected function render_link($data, $values) {
+  protected function renderLink($data, ResultRow $values) {
     $link = $this->getValue($values, 'link');
     if (!empty($this->options['display_as_link'])) {
       $this->options['alter']['make_link'] = TRUE;

@@ -9,14 +9,13 @@ namespace Drupal\menu\Form;
 
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Entity\EntityConfirmFormBase;
-use Drupal\Core\Entity\EntityControllerInterface;
 use Drupal\Core\Entity\EntityStorageControllerInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
  * Defines a confirmation form for deletion of a custom menu.
  */
-class MenuDeleteForm extends EntityConfirmFormBase implements EntityControllerInterface {
+class MenuDeleteForm extends EntityConfirmFormBase {
 
   /**
    * The menu link storage controller.
@@ -48,9 +47,9 @@ class MenuDeleteForm extends EntityConfirmFormBase implements EntityControllerIn
   /**
    * {@inheritdoc}
    */
-  public static function createInstance(ContainerInterface $container, $entity_type, array $entity_info) {
+  public static function create(ContainerInterface $container) {
     return new static(
-      $container->get('plugin.manager.entity')->getStorageController('menu_link'),
+      $container->get('entity.manager')->getStorageController('menu_link'),
       $container->get('database')
     );
   }
@@ -104,7 +103,7 @@ class MenuDeleteForm extends EntityConfirmFormBase implements EntityControllerIn
     // Reset all the menu links defined by the system via hook_menu().
     // @todo Convert this to an EFQ once we figure out 'ORDER BY m.number_parts'.
     $result = $this->connection->query("SELECT mlid FROM {menu_links} ml INNER JOIN {menu_router} m ON ml.router_path = m.path WHERE ml.menu_name = :menu AND ml.module = 'system' ORDER BY m.number_parts ASC", array(':menu' => $this->entity->id()), array('fetch' => \PDO::FETCH_ASSOC))->fetchCol();
-    $menu_links = $this->storageController->load($result);
+    $menu_links = $this->storageController->loadMultiple($result);
     foreach ($menu_links as $link) {
       $link->reset();
     }

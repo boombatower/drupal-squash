@@ -13,7 +13,8 @@ use Drupal\block_test\Plugin\Block\TestHtmlIdBlock;
 use Drupal\Component\Plugin\Exception\PluginException;
 use Drupal\block\BlockStorageController;
 use Drupal\Core\Entity\EntityMalformedException;
-use Drupal\block\Plugin\Core\Entity\Block;
+use Drupal\block\Entity\Block;
+use Drupal\block\BlockInterface;
 
 /**
  * Tests the storage of blocks.
@@ -47,7 +48,7 @@ class BlockStorageUnitTest extends DrupalUnitTestBase {
   protected function setUp() {
     parent::setUp();
 
-    $this->controller = $this->container->get('plugin.manager.entity')->getStorageController('block');
+    $this->controller = $this->container->get('entity.manager')->getStorageController('block');
   }
 
   /**
@@ -87,7 +88,7 @@ class BlockStorageUnitTest extends DrupalUnitTestBase {
     $this->assertTrue($entity instanceof Block, 'The newly created entity is a Block.');
 
     // Verify all of the block properties.
-    $actual_properties = config('block.block.stark.test_block')->get();
+    $actual_properties = \Drupal::config('block.block.stark.test_block')->get();
     $this->assertTrue(!empty($actual_properties['uuid']), 'The block UUID is set.');
     unset($actual_properties['uuid']);
 
@@ -96,14 +97,14 @@ class BlockStorageUnitTest extends DrupalUnitTestBase {
       'id' => 'stark.test_block',
       'weight' => '',
       'status' => '1',
-      'langcode' => language_default()->langcode,
+      'langcode' => language_default()->id,
       'region' => '-1',
       'plugin' => 'test_html_id',
       'settings' => array(
         'cache' => '1',
         'label' => '',
         'module' => 'block_test',
-        'label_display' => BLOCK_LABEL_VISIBLE,
+        'label_display' => BlockInterface::BLOCK_LABEL_VISIBLE,
       ),
       'visibility' => '',
     );
@@ -116,8 +117,7 @@ class BlockStorageUnitTest extends DrupalUnitTestBase {
    * Tests the rendering of blocks.
    */
   protected function loadTests() {
-    $entities = $this->controller->load(array('stark.test_block'));
-    $entity = reset($entities);
+    $entity = $this->controller->load('stark.test_block');
 
     $this->assertTrue($entity instanceof Block, 'The loaded entity is a Block.');
 
@@ -182,8 +182,7 @@ class BlockStorageUnitTest extends DrupalUnitTestBase {
    * Tests the deleting of blocks.
    */
   protected function deleteTests() {
-    $entities = $this->controller->load(array('stark.test_block'));
-    $entity = reset($entities);
+    $entity = $this->controller->load('stark.test_block');
 
     // Ensure that the storage isn't currently empty.
     $config_storage = $this->container->get('config.storage');
@@ -202,13 +201,13 @@ class BlockStorageUnitTest extends DrupalUnitTestBase {
    * Tests the installation of default blocks.
    */
   public function testDefaultBlocks() {
-    $entities = $this->controller->load();
+    $entities = $this->controller->loadMultiple();
     $this->assertTrue(empty($entities), 'There are no blocks initially.');
 
     // Install the block_test.module, so that its default config is installed.
     $this->installConfig(array('block_test'));
 
-    $entities = $this->controller->load();
+    $entities = $this->controller->loadMultiple();
     $entity = reset($entities);
     $this->assertEqual($entity->id(), 'stark.test_block', 'The default test block was loaded.');
   }
