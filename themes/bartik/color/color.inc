@@ -23,14 +23,14 @@ $info = array(
       'title' => t('Blue Lagoon (default)'),
       'colors' => array(
         'bg' => '#ffffff',
-        'link' => '#288cc9',
+        'link' => '#0071B3',
         'top' => '#0779bf',
         'bottom' => '#48a9e4',
         'text' => '#3b3b3b',
         'sidebar' => '#f6f6f2',
         'sidebarborders' => '#f9f9f9',
         'footer' => '#292929',
-        'titleslogan' => '#ffffff',
+        'titleslogan' => '#fffeff',
       ),
     ),
     'firehouse' => array(
@@ -124,7 +124,6 @@ $info = array(
   'blend_target' => '#ffffff',
 
   // Preview files.
-  'preview_image' => 'color/preview.png',
   'preview_css' => 'color/preview.css',
   'preview_js' => 'color/preview.js',
   'preview_html' => 'color/preview.html',

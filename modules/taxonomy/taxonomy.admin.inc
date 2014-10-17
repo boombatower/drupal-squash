@@ -627,13 +627,13 @@ function theme_taxonomy_overview_terms($variables) {
   }
 
   if (empty($rows)) {
-    $rows[] = array(array('data' => $form['#empty_text'], 'colspan' => '2'));
+    $rows[] = array(array('data' => $form['#empty_text'], 'colspan' => '3'));
   }
 
   $header = array(t('Name'), t('Weight'), t('Operations'));
   $output = theme('table', array('header' => $header, 'rows' => $rows, 'attributes' => array('id' => 'taxonomy')));
   $output .= drupal_render_children($form);
-  $output .= theme('pager', array('tags' => NULL));
+  $output .= theme('pager');
 
   return $output;
 }
@@ -656,7 +656,7 @@ function taxonomy_form_term($form, &$form_state, $edit = array(), $vocabulary = 
     $defaults = array(
       'name' => '',
       'description' => '',
-      'format' => filter_default_format(),
+      'format' => NULL,
       'vocabulary_machine_name' => isset($vocabulary) ? $vocabulary->machine_name : NULL,
       'tid' => NULL,
       'weight' => 0,
@@ -868,8 +868,6 @@ function taxonomy_form_term_submit($form, &$form_state) {
 
   $form_state['values']['tid'] = $term->tid;
   $form_state['tid'] = $term->tid;
-  // Do not rebuild here. The term is saved by now and the form should clear.
-  $form_state['rebuild'] = FALSE;
 }
 
 /**

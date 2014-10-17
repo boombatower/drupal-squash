@@ -63,12 +63,14 @@
     <?php print $picture; ?>
 
     <div class="submitted">
-      <?php print $permalink; ?>
       <p class="commenter-name">
         <?php print $author; ?>
       </p>
       <p class="comment-time">
         <?php print $created; ?>
+      </p>
+      <p class="comment-permalink">
+        <?php print $permalink; ?>
       </p>
     </div>
   </div>

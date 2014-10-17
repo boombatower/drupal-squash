@@ -126,22 +126,23 @@ class DatabaseConnection_pgsql extends DatabaseConnection {
     return 'pgsql';
   }
 
-  public function version() {
-    return $this->query('SHOW SERVER_VERSION')->fetchField();
-  }
-
   public function databaseType() {
     return 'pgsql';
   }
 
   public function mapConditionOperator($operator) {
-    static $specials = array(
-      // In PostgreSQL, 'LIKE' is case-sensitive. For case-insensitive LIKE
-      // statements, we need to use ILIKE instead. Use backslash for escaping
-      // wildcard characters.
-      'LIKE' => array('operator' => 'ILIKE', 'postfix' => " ESCAPE '\\\\'"),
-      'NOT LIKE' => array('operator' => 'NOT ILIKE', 'postfix' => " ESCAPE '\\\\'"),
-    );
+    static $specials;
+
+    // Function calls not allowed in static declarations, thus this method.
+    if (!isset($specials)) {
+      $specials = array(
+        // In PostgreSQL, 'LIKE' is case-sensitive. For case-insensitive LIKE
+        // statements, we need to use ILIKE instead. Use backslash for escaping
+        // wildcard characters.
+        'LIKE' => array('operator' => 'ILIKE', 'postfix' => ' ESCAPE ' . $this->quote("\\")),
+        'NOT LIKE' => array('operator' => 'NOT ILIKE', 'postfix' => ' ESCAPE ' . $this->quote("\\")),
+      );
+    }
 
     return isset($specials[$operator]) ? $specials[$operator] : NULL;
   }
