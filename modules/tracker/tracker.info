@@ -1,0 +1,10 @@
+; $Id$
+name = Tracker
+description = Enables tracking of recent content for users.
+dependencies[] = comment
+package = Core
+version = VERSION
+core = 7.x
+files[] = tracker.module
+files[] = tracker.pages.inc
+files[] = tracker.test
