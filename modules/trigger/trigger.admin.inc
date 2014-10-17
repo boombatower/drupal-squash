@@ -179,7 +179,10 @@ function trigger_assign_form($form, $form_state, $module, $hook, $label) {
   if (count($options) != 0) {
     $form[$hook]['parent']['aid'] = array(
       '#type' => 'select',
+      '#title' => t('List of trigger actions when !description', array('!description' => $label)),
+      '#title_display' => 'invisible',
       '#options' => $options,
+      '#empty_option' => t('Choose an action'),
     );
     $form[$hook]['parent']['submit'] = array(
       '#type' => 'submit',
