@@ -536,9 +536,13 @@ function _menu_check_access(&$item, $map) {
 function _menu_item_localize(&$item, $map, $link_translate = FALSE) {
   $callback = $item['title_callback'];
   $item['localized_options'] = $item['options'];
-  // If we are not doing link translation or if the title matches the
-  // link title of its router item, localize it.
-  if (!$link_translate || (!empty($item['title']) && ($item['title'] == $item['link_title']))) {
+  // If we are translating the title of a menu link, and its title is the same
+  // as the corresponding router item, then we can use the title information
+  // from the router. If it's customized, then we need to use the link title
+  // itself; can't localize.
+  // If we are translating a router item (tabs, page, breadcrumb), then we
+  // can always use the information from the router item.
+  if (!$link_translate || ($item['title'] == $item['link_title'])) {
     // t() is a special case. Since it is used very close to all the time,
     // we handle it directly instead of using indirect, slower methods.
     if ($callback == 't') {
@@ -2059,16 +2063,17 @@ function menu_link_save(&$item) {
       // If not derived from a router item, we respect the specified menu name.
       $query->condition('menu_name', $item['menu_name']);
     }
+
     // Find the parent - it must be unique.
     $parent_path = $item['link_path'];
     do {
       $parent = FALSE;
       $parent_path = substr($parent_path, 0, strrpos($parent_path, '/'));
-      $query->condition('link_path', $parent_path);
-      $query_cnt = $query;
+      $new_query = clone $query;
+      $new_query->condition('link_path', $parent_path);
       // Only valid if we get a unique result.
-      if ($query_cnt->countQuery()->execute()->fetchField() == 1) {
-        $parent = $query->fields('menu_links')->execute()->fetchAssoc();
+      if ($new_query->countQuery()->execute()->fetchField() == 1) {
+        $parent = $new_query->fields('menu_links')->execute()->fetchAssoc();
       }
     } while ($parent === FALSE && $parent_path);
   }

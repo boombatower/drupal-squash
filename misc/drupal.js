@@ -2,6 +2,19 @@
 
 var Drupal = Drupal || { 'settings': {}, 'behaviors': {}, 'locale': {} };
 
+// Allow other JavaScript libraries to use $.
+jQuery.noConflict();
+
+// Indicate when other scripts use $ with out wrapping their code.
+if ($ === undefined) {
+  $ = function() {
+    alert("Please wrap your JavaScript code in (function($) { ... })(jQuery); to be compatible. See http://docs.jquery.com/Using_jQuery_with_Other_Libraries.");
+  };
+}
+
+
+(function($) {
+
 /**
  * Set the variable that indicates if JavaScript behaviors should be applied.
  */
@@ -38,13 +51,17 @@ Drupal.jsEnabled = document.getElementsByTagName && document.createElement && do
  * @param context
  *   An element to attach behaviors to. If none is given, the document element
  *   is used.
+ * @param settings
+ *   An object containing settings for the current context. If none given, the
+ *   global Drupal.settings object is used.
  */
-Drupal.attachBehaviors = function(context) {
+Drupal.attachBehaviors = function(context, settings) {
   context = context || document;
+  settings = settings || Drupal.settings;
   // Execute all of them.
-  jQuery.each(Drupal.behaviors, function() {
-    if (jQuery.isFunction(this.attach)) {
-      this.attach(context);
+  $.each(Drupal.behaviors, function() {
+    if ($.isFunction(this.attach)) {
+      this.attach(context, settings);
     }
   });
 };
@@ -68,12 +85,13 @@ Drupal.attachBehaviors = function(context) {
  *
  * @see Drupal.attachBehaviors
  */
-Drupal.detachBehaviors = function(context) {
+Drupal.detachBehaviors = function(context, settings) {
   context = context || document;
+  settings = settings || Drupal.settings;
   // Execute all of them.
-  jQuery.each(Drupal.behaviors, function() {
-    if (jQuery.isFunction(this.detach)) {
-      this.detach(context);
+  $.each(Drupal.behaviors, function() {
+    if ($.isFunction(this.detach)) {
+      this.detach(context, settings);
     }
   });
 };
@@ -286,7 +304,7 @@ Drupal.getSelection = function (element) {
  */
 Drupal.ahahError = function(xmlhttp, uri) {
   if (xmlhttp.status == 200) {
-    if (jQuery.trim(xmlhttp.responseText)) {
+    if ($.trim(xmlhttp.responseText)) {
       var message = Drupal.t("An error occurred. \n@uri\n@text", {'@uri': uri, '@text': xmlhttp.responseText });
     }
     else {
@@ -296,8 +314,8 @@ Drupal.ahahError = function(xmlhttp, uri) {
   else {
     var message = Drupal.t("An HTTP error @status occurred. \n@uri", {'@uri': uri, '@status': xmlhttp.status });
   }
-  return message.replace(/\n/g, '<br />');;
-}
+  return message.replace(/\n/g, '<br />');
+};
 
 // Global Killswitch on the <html> element.
 if (Drupal.jsEnabled) {
@@ -307,7 +325,7 @@ if (Drupal.jsEnabled) {
   document.cookie = 'has_js=1; path=/';
   // Attach all behaviors.
   $(document).ready(function() {
-    Drupal.attachBehaviors(this);
+    Drupal.attachBehaviors(this, Drupal.settings);
   });
 }
 
@@ -328,3 +346,5 @@ Drupal.theme.prototype = {
     return '<em>' + Drupal.checkPlain(str) + '</em>';
   }
 };
+
+})(jQuery);

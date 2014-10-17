@@ -1,10 +1,11 @@
 // $Id$
+(function($) {
 
 /**
  * Set the client's system time zone as default values of form fields.
  */
 Drupal.behaviors.setTimezone = {
-  attach: function(context) {
+  attach: function(context, settings) {
     $('select.timezone-detect:not(.timezone-processed)', context).addClass('timezone-processed').each(function() {
       var dateString = Date();
       // In some client environments, date strings include a time zone
@@ -50,15 +51,17 @@ Drupal.behaviors.setTimezone = {
       var element = this;
       $.ajax({
         async: false,
-        url: Drupal.settings.basePath,
+        url: settings.basePath,
         data: { q: path, date: dateString },
         dataType: 'json',
         success: function (data) {
           if (data) {
             $(element).val(data);
           }
-        },
+        }
       });
     });
   }
 };
+
+})(jQuery);

@@ -1,4 +1,5 @@
 // $Id$
+(function($) {
 
 /**
  * Add functionality to the profile drag and drop table.
@@ -8,7 +9,7 @@
  * a warning message when removing the last field from a profile category.
  */
 Drupal.behaviors.profileDrag = {
-  attach: function(context) {
+  attach: function(context, settings) {
     var table = $('#profile-fields');
     var tableDrag = Drupal.tableDrag['profile-fields']; // Get the profile tableDrag object.
 
@@ -54,3 +55,5 @@ Drupal.behaviors.profileDrag = {
     };
   }
 };
+
+})(jQuery);

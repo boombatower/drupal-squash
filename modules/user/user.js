@@ -1,12 +1,13 @@
 // $Id$
+(function($) {
 
 /**
  * Attach handlers to evaluate the strength of any password fields and to check
  * that its confirmation is correct.
  */
 Drupal.behaviors.password = {
-  attach: function(context) {
-    var translate = Drupal.settings.password;
+  attach: function(context, settings) {
+    var translate = settings.password;
     $("input.password-field:not(.password-processed)", context).each(function() {
       var passwordInput = $(this).addClass('password-processed');
       var innerWrapper = $(this).parent();
@@ -33,7 +34,7 @@ Drupal.behaviors.password = {
       var passwordCheck = function () {
 
         // Evaluate the password strength.
-        var result = Drupal.evaluatePasswordStrength(passwordInput.val());
+        var result = Drupal.evaluatePasswordStrength(passwordInput.val(), settings.password);
 
         // Update the suggestions for how to improve the password.
         if (passwordDescription.html() != result.message) {
@@ -76,7 +77,7 @@ Drupal.behaviors.password = {
         else {
           confirmResult.css({ visibility: "hidden" });
         }
-      }
+      };
 
       // Monitor keyup and blur events.
       // Blur must be used because a mouse paste does not trigger keyup.
@@ -91,8 +92,8 @@ Drupal.behaviors.password = {
  *
  * Returns the estimated strength and the relevant output message.
  */
-Drupal.evaluatePasswordStrength = function (password) {
-  var weaknesses = 0, strength = 100, msg = [], translate = Drupal.settings.password;
+Drupal.evaluatePasswordStrength = function (password, translate) {
+  var weaknesses = 0, strength = 100, msg = [];
 
   var hasLowercase = password.match(/[a-z]+/);
   var hasUppercase = password.match(/[A-Z]+/);
@@ -165,9 +166,11 @@ Drupal.evaluatePasswordStrength = function (password) {
  * "Picture support" radio buttons.
  */
 Drupal.behaviors.userSettings = {
-  attach: function(context) {
+  attach: function(context, settings) {
     $('div.user-admin-picture-radios input[type=radio]:not(.userSettings-processed)', context).addClass('userSettings-processed').click(function () {
       $('div.user-admin-picture-settings', context)[['hide', 'show'][this.value]]();
     });
   }
 };
+
+})(jQuery);

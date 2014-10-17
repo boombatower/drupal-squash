@@ -1462,19 +1462,33 @@ function system_file_system_settings() {
  */
 function system_image_toolkit_settings() {
   $toolkits_available = image_get_available_toolkits();
+  $current_toolkit = image_get_toolkit();
+
+  if (count($toolkits_available) == 0) {
+    variable_del('image_toolkit');
+    $form['image_toolkit_help'] = array(
+      '#markup' => t("No image toolkits were detected. Drupal includes support for <a href='!gd-link'>PHP's built-in image processing functions</a> but they were not detected on this system. You should consult your system administrator to have them enabled, or try using a third party toolkit.", array('gd-link' => url('http://php.net/gd'))),
+    );
+    return $form;
+  }
+
   if (count($toolkits_available) > 1) {
     $form['image_toolkit'] = array(
       '#type' => 'radios',
       '#title' => t('Select an image processing toolkit'),
-      '#default_value' => image_get_toolkit(),
+      '#default_value' => $current_toolkit,
       '#options' => $toolkits_available
     );
   }
-  elseif (count($toolkits_available) == 1) {
+  else {
     variable_set('image_toolkit', key($toolkits_available));
   }
 
-  $form['image_toolkit_settings'] = image_toolkit_invoke('settings');
+  // Get the toolkit's settings form.
+  $function = 'image_' . $current_toolkit . '_settings';
+  if (drupal_function_exists($function)) {
+    $form['image_toolkit_settings'] = $function();
+  }
 
   return system_settings_form($form, TRUE);
 }
@@ -1510,11 +1524,16 @@ function system_rss_feeds_settings() {
  *
  * @ingroup forms
  * @see system_settings_form()
- * @see system_date_time_settings_submit()
+ * @see system_regional_settings_submit()
  */
-function system_date_time_settings() {
+function system_regional_settings() {
   drupal_add_js(drupal_get_path('module', 'system') . '/system.js');
-  drupal_add_js(array('dateTime' => array('lookup' => url('admin/settings/date-time/lookup'))), 'setting');
+  drupal_add_js(array('dateTime' => array('lookup' => url('admin/settings/regional-settings/lookup'))), 'setting');
+
+  include_once DRUPAL_ROOT . '/includes/locale.inc';
+  $countries = country_get_list();
+  // Add a 'No default country' option to the start of the list.
+  $countries = array_merge(array('' => t('No default country')), $countries);
 
   // Date settings:
   $zones = system_time_zones();
@@ -1549,12 +1568,21 @@ function system_date_time_settings() {
     '#title' => t('Locale settings'),
   );
 
+  $form['locale']['site_default_country'] = array(
+    '#type' => 'select',
+    '#title' => t('Default country'),
+    '#default_value' => variable_get('site_default_country', ''),
+    '#options' => $countries,
+    '#description' => t('Select the default country for the site.'),
+    '#attributes' => array('class' => 'country-detect'),
+  );
+
   $form['locale']['date_default_timezone'] = array(
     '#type' => 'select',
     '#title' => t('Default time zone'),
     '#default_value' => variable_get('date_default_timezone', date_default_timezone_get()),
     '#options' => $zones,
-    '#description' => t('Select the default site time zone.')
+    '#description' => t('Select the default time zone for the site.'),
   );
 
   $form['locale']['date_first_day'] = array(
@@ -1682,9 +1710,9 @@ function system_date_time_settings() {
 }
 
 /**
- * Process system_date_time_settings form submissions.
+ * Process system_regional_settings form submissions.
  */
-function system_date_time_settings_submit($form, &$form_state) {
+function system_regional_settings_submit($form, &$form_state) {
   if ($form_state['values']['date_format_short'] == 'custom') {
     $form_state['values']['date_format_short'] = $form_state['values']['date_format_short_custom'];
   }
@@ -1808,7 +1836,7 @@ function system_run_cron() {
  * Menu callback: return information about PHP.
  */
 function system_php() {
-  phpinfo(INFO_ALL);
+  phpinfo();
   exit();
 }
 
@@ -1983,11 +2011,11 @@ function theme_admin_page($blocks) {
     }
   }
 
-  $output = '<div class="admin clear-block">';
+  $output = '<div class="admin clearfix">';
   $output .= theme('system_compact_link');
 
   foreach ($container as $id => $data) {
-    $output .= '<div class="' . $id . ' clear-block">';
+    $output .= '<div class="' . $id . ' clearfix">';
     $output .= $data;
     $output .= '</div>';
   }
@@ -2031,9 +2059,9 @@ function theme_system_admin_by_module($menu_items) {
     }
   }
 
-  $output = '<div class="admin clear-block">';
+  $output = '<div class="admin clearfix">';
   foreach ($container as $id => $data) {
-    $output .= '<div class="' . $id . ' clear-block">';
+    $output .= '<div class="' . $id . ' clearfix">';
     $output .= $data;
     $output .= '</div>';
   }

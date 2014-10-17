@@ -1,7 +1,8 @@
 // $Id$
+(function($) {
 
 Drupal.behaviors.comment = {
-  attach: function(context) {
+  attach: function(context, settings) {
     var parts = new Array("name", "homepage", "mail");
     var cookie = '';
     for (i=0;i<3;i++) {
@@ -35,3 +36,5 @@ Drupal.comment.getCookie = function(name) {
 
   return returnValue;
 };
+
+})(jQuery);

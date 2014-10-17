@@ -834,6 +834,7 @@ function file_unmanaged_delete_recursive($path) {
       $entry_path = $path . '/' . $entry;
       file_unmanaged_delete_recursive($entry_path);
     }
+    $dir->close();
     return rmdir($path);
   }
   return file_unmanaged_delete($path);
@@ -1072,7 +1073,7 @@ function file_validate_name_length($file) {
  * @param $file
  *   A Drupal file object.
  * @param $extensions
- *   A string with a space separated
+ *   A string with a space separated list of allowed extensions.
  * @return
  *   An array. If the file extension is not allowed, it will contain an error
  *   message.
@@ -1183,13 +1184,11 @@ function file_validate_image_resolution($file, $maximum_dimensions = 0, $minimum
       list($width, $height) = explode('x', $maximum_dimensions);
       if ($info['width'] > $width || $info['height'] > $height) {
         // Try to resize the image to fit the dimensions.
-        if (image_get_toolkit() && image_scale($file->filepath, $file->filepath, $width, $height)) {
+        if ($image = image_load($file->filepath)) {
+          image_scale($image, $width, $height);
+          image_save($image);
+          $file->filesize = $image->info['file_size'];
           drupal_set_message(t('The image was resized to fit within the maximum allowed dimensions of %dimensions pixels.', array('%dimensions' => $maximum_dimensions)));
-
-          // Clear the cached filesize and refresh the image information.
-          clearstatcache();
-          $info = image_get_info($file->filepath);
-          $file->filesize = $info['file_size'];
         }
         else {
           $errors[] = t('The image is too large; the maximum dimensions are %dimensions pixels.', array('%dimensions' => $maximum_dimensions));
@@ -1382,51 +1381,64 @@ function file_download() {
  *   The base directory for the scan, without trailing slash.
  * @param $mask
  *   The preg_match() regular expression of the files to find.
- * @param $nomask
- *   The preg_match() regular expression of the files to ignore.
- * @param $callback
- *   The callback function to call for each match.
- * @param $recurse
- *   When TRUE, the directory scan will recurse the entire tree
- *   starting at the provided directory.
- * @param $key
- *   The key to be used for the returned array of files. Possible
- *   values are "filename", for the path starting with $dir,
- *   "basename", for the basename of the file, and "name" for the name
- *   of the file without an extension.
- * @param $min_depth
- *   Minimum depth of directories to return files from.
+ * @param $options
+ *   An associative array of additional options, with the following keys:
+ *   - 'nomask'
+ *     The preg_match() regular expression of the files to ignore. Defaults to
+ *     '/(\.\.?|CVS)$/'.
+ *   - 'callback'
+ *     The callback function to call for each match. There is no default
+ *     callback.
+ *   - 'recurse'
+ *     When TRUE, the directory scan will recurse the entire tree starting at
+ *     the provided directory. Defaults to TRUE.
+ *   - 'key'
+ *     The key to be used for the returned array of files. Possible values are
+ *     'filepath', for the path starting with $dir, 'filename', for the
+ *     basename of the file, and 'name' for the name of the file without an
+ *     extension. Defaults to 'filepath'.
+ *   - 'min_depth'
+ *     Minimum depth of directories to return files from. Defaults to 0.
  * @param $depth
  *   Current depth of recursion. This parameter is only used internally and
  *   should not be passed.
  * @return
  *   An associative array (keyed on the provided key) of objects with
- *   "path", "basename", and "name" members corresponding to the
- *   matching files.
+ *   'filepath', 'filename', and 'name' members corresponding to the
+ *   matching files. 
  */
-function file_scan_directory($dir, $mask, $nomask = '/(\.\.?|CVS)$/', $callback = 0, $recurse = TRUE, $key = 'filename', $min_depth = 0, $depth = 0) {
-  $key = (in_array($key, array('filename', 'basename', 'name')) ? $key : 'filename');
-  $files = array();
+function file_scan_directory($dir, $mask, $options = array(), $depth = 0) {
+  // Merge in defaults.
+  $options += array(
+    'nomask' => '/(\.\.?|CVS)$/',
+    'callback' => 0,
+    'recurse' => TRUE,
+    'key' => 'filepath',
+    'min_depth' => 0,
+  );
 
+  $options['key'] = in_array($options['key'], array('filepath', 'filename', 'name')) ? $options['key'] : 'filepath';
+  $files = array();
   if (is_dir($dir) && $handle = opendir($dir)) {
-    while (FALSE !== ($file = readdir($handle))) {
-      if (!preg_match($nomask, $file) && $file[0] != '.') {
-        if (is_dir("$dir/$file") && $recurse) {
+    while (FALSE !== ($filename = readdir($handle))) {
+      if (!preg_match($options['nomask'], $filename) && $filename[0] != '.') {
+        $filepath = "$dir/$filename";
+        if (is_dir($filepath) && $options['recurse']) {
           // Give priority to files in this folder by merging them in after any subdirectory files.
-          $files = array_merge(file_scan_directory("$dir/$file", $mask, $nomask, $callback, $recurse, $key, $min_depth, $depth + 1), $files);
+          $files = array_merge(file_scan_directory($filepath, $mask, $options, $depth + 1), $files);
         }
-        elseif ($depth >= $min_depth && preg_match($mask, $file)) {
+        elseif ($depth >= $options['min_depth'] && preg_match($mask, $filename)) {
           // Always use this match over anything already set in $files with the
-          // same $$key.
-          $filename = "$dir/$file";
-          $basename = basename($file);
-          $name = substr($basename, 0, strrpos($basename, '.'));
-          $files[$$key] = new stdClass();
-          $files[$$key]->filename = $filename;
-          $files[$$key]->basename = $basename;
-          $files[$$key]->name = $name;
-          if ($callback) {
-            $callback($filename);
+          // same $$options['key'].
+          $file = (object) array(
+            'filepath' => $filepath,
+            'filename' => $filename,
+            'name' => pathinfo($filename, PATHINFO_FILENAME),
+          );
+          $key = $options['key'];
+          $files[$file->$key] = $file;
+          if ($options['callback']) {
+            $options['callback']($filepath);
           }
         }
       }

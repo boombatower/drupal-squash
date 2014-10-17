@@ -14,6 +14,61 @@
 class DatabaseSchema_pgsql extends DatabaseSchema {
 
   /**
+   * A cache of information about blob columns and sequences of tables.
+   *
+   * This is collected by DatabaseConnection_pgsql->queryTableInformation(),
+   * by introspecting the database.
+   *
+   * @see DatabaseConnection_pgsql->queryTableInformation().
+   * @var array
+   */
+  protected $tableInformation = array();
+
+  /**
+   * Fetch the list of blobs and sequences used on a table.
+   *
+   * We introspect the database to collect the information required by insert
+   * and update queries.
+   *
+   * @param $table_name
+   *   The non-prefixed name of the table.
+   * @return
+   *   An object with two member variables:
+   *     - 'blob_fields' that lists all the blob fields in the table.
+   *     - 'sequences' that lists the sequences used in that table.
+   */
+  public function queryTableInformation($table) {
+    // Generate a key to reference this table's information on.
+    $key = $this->connection->prefixTables('{' . $table . '}');
+    if (!strpos($key, '.')) {
+      $key = 'public.' . $key;
+    }
+
+    if (!isset($this->tableInformation[$key])) {
+      // Split the key into schema and table for querying.
+      list($schema,$table_name) = explode('.', $key);
+      $table_information = (object) array(
+        'blob_fields' => array(),
+        'sequences' => array(),
+      );
+      $result = db_query("SELECT column_name, data_type, column_default FROM information_schema.columns WHERE table_schema = :schema AND table_name = :table AND (data_type = 'bytea' OR (numeric_precision IS NOT NULL AND column_default LIKE :default))", array(':schema' => $schema, ':table' => $table_name, ':default' => '%nextval%'));
+      foreach ($result as $column) {
+        if ($column->data_type == 'bytea') {
+          $table_information->blob_fields[$column->column_name] = TRUE;
+        }
+        else if (preg_match("/nextval\('([^']+)'/", $column->column_default, $matches)) {
+          // We must know of any sequences in the table structure to help us
+          // return the last insert id. If there is more than 1 sequences the
+          // first one (index 0 of the sequences array) will be used.
+          $table_information->sequences[] = $matches[1];
+        }
+      }
+      $this->tableInformation[$key] = $table_information;
+    }
+    return $this->tableInformation[$key];
+  }
+
+  /**
    * Generate SQL to create a new table from a Drupal schema definition.
    *
    * @param $name
@@ -51,6 +106,18 @@ class DatabaseSchema_pgsql extends DatabaseSchema {
     if (isset($table['indexes']) && is_array($table['indexes'])) {
       foreach ($table['indexes'] as $key_name => $key) {
         $statements[] = $this->_createIndexSql($name, $key_name, $key);
+      }
+    }
+
+    // Add table comment.
+    if (!empty($table['description'])) {
+      $statements[] = 'COMMENT ON TABLE {' . $name . '} IS ' . $this->prepareComment($table['description']);
+    }
+
+    // Add column comments.
+    foreach ($table['fields'] as $field_name => $field) {
+      if (!empty($field['description'])) {
+        $statements[] = 'COMMENT ON COLUMN {' . $name . '}.' . $field_name . ' IS ' . $this->prepareComment($field['description']);
       }
     }
 
@@ -266,6 +333,10 @@ class DatabaseSchema_pgsql extends DatabaseSchema {
     }
     if (isset($new_keys)) {
       $this->_createKeys($ret, $table, $new_keys);
+    }
+    // Add column comment.
+    if (!empty($spec['description'])) {
+      $ret[] = update_sql('COMMENT ON COLUMN {' . $table . '}.' . $field . ' IS ' . $this->prepareComment($spec['description']));
     }
   }
 
@@ -511,5 +582,16 @@ class DatabaseSchema_pgsql extends DatabaseSchema {
         $this->addIndex($ret, $table, $name, $fields);
       }
     }
+  }
+
+  /**
+   * Retrieve a table or column comment.
+   */
+  public function getComment($table, $column = NULL) {
+    $table = $this->connection->prefixTables('{' . $table . '}');
+    if (isset($column)) {
+      return db_query('SELECT col_description(oid, attnum) FROM pg_class, pg_attribute WHERE attrelid = oid AND relname = ? AND attname = ?', array($table, $column))->fetchField();
+    }
+    return db_query('SELECT obj_description(oid, ?) FROM pg_class WHERE relname = ?', array('pg_class', $table))->fetchField();
   }
 }

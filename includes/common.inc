@@ -1836,7 +1836,7 @@ function l($text, $path, array $options = array()) {
     $options['attributes']['title'] = strip_tags($options['attributes']['title']);
   }
 
-  return '<a href="' . url($path, $options) . '"' . drupal_attributes($options['attributes']) . '>' . ($options['html'] ? $text : check_plain($text)) . '</a>';
+  return '<a href="' . check_plain(url($path, $options)) . '"' . drupal_attributes($options['attributes']) . '>' . ($options['html'] ? $text : check_plain($text)) . '</a>';
 }
 
 /**
@@ -2315,7 +2315,7 @@ function _drupal_load_stylesheet($matches) {
  * Delete all cached CSS files.
  */
 function drupal_clear_css_cache() {
-  file_scan_directory(file_create_path('css'), '/.*/', '/(\.\.?|CVS)$/', 'file_unmanaged_delete', TRUE);
+  file_scan_directory(file_create_path('css'), '/.*/', array('callback' => 'file_unmanaged_delete'));
 }
 
 /**
@@ -2334,6 +2334,13 @@ function drupal_clear_css_cache() {
  *   directly in the page. This can, for example, be useful to tell the user that
  *   a new message arrived, by opening a pop up, alert box etc. This should only
  *   be used for JavaScript which cannot be placed and executed from a file.
+ *   When adding inline code, make sure that you are not relying on $ being jQuery.
+ *   Wrap your code in (function($) { ... })(jQuery); or use jQuery instead of $.
+ *
+ * - Add external JavaScript ('external'):
+ *   Allows the inclusion of external JavaScript files that are not hosted on the
+ *   local server. Note that these external JavaScript references do not get
+ *   aggregated when preprocessing is on.
  *
  * - Add settings ('setting'):
  *   Adds a setting to Drupal's global storage of JavaScript settings. Per-page
@@ -2344,16 +2351,18 @@ function drupal_clear_css_cache() {
  * @code
  *   drupal_add_js('misc/collapse.js');
  *   drupal_add_js('misc/collapse.js', 'file');
- *   drupal_add_js('$(document).ready(function(){alert("Hello!");});', 'inline');
- *   drupal_add_js('$(document).ready(function(){alert("Hello!");});',
+ *   drupal_add_js('jQuery(document).ready(function(){alert("Hello!");});', 'inline');
+ *   drupal_add_js('jQuery(document).ready(function(){alert("Hello!");});',
  *     array('type' => 'inline', 'scope' => 'footer', 'weight' => 5)
  *   );
+ *   drupal_add_js('http://example.com/example.js', 'external');
  * @endcode
  *
  * @param $data
  *   (optional) If given, the value depends on the $options parameter:
  *   - 'file': Path to the file relative to base_path().
  *   - 'inline': The JavaScript code that should be placed in the given scope.
+ *   - 'external': The absolute path to a JavaScript file hosted externally.
  *   - 'setting': An array with configuration options as associative array. The
  *       array is directly placed in Drupal.settings. All modules should wrap
  *       their actual configuration settings in another variable to prevent
@@ -2367,8 +2376,8 @@ function drupal_clear_css_cache() {
  *   always pass the string 'setting' only.
  *   - type
  *       The type of JavaScript that is to be added to the page. Allowed
- *       values are 'file', 'inline', 'setting', or 'reset'. Defaults to
- *       'file'. Note that if type is 'reset', then $data and all other
+ *       values are 'file', 'inline', 'external', 'setting', or 'reset'. Defaults
+ *       to 'file'. Note that if type is 'reset', then $data and all other
  *       $options will be ignored and the JavaScript added so far will be
  *       reset.
  *   - scope
@@ -2402,7 +2411,8 @@ function drupal_clear_css_cache() {
  *       a JavaScript file. Defaults to TRUE.
  *   - preprocess
  *       Aggregate the JavaScript if the JavaScript optimization setting has
- *       been toggled in admin/settings/performance. Defaults to TRUE.
+ *       been toggled in admin/settings/performance. Note that JavaScript of
+ *       type 'external' is not aggregated. Defaults to TRUE.
  * @return
  *   The contructed array of JavaScript files.
  * @see drupal_get_js()
@@ -2474,9 +2484,9 @@ function drupal_add_js($data = NULL, $options = NULL) {
         $javascript[] = $options;
         break;
 
-      case 'file':
-        // Files must keep their name as the associative key so the same
-        // JavaScript files can not be added twice.
+      default: // 'file' and 'external'
+        // Local and external files must keep their name as the associative key
+        // so the same JavaScript file is not be added twice.
         $javascript[$options['data']] = $options;
         break;
     }
@@ -2593,6 +2603,11 @@ function drupal_get_js($scope = 'header', $javascript = NULL) {
         else {
           $files[$item['data']] = $item;
         }
+        break;
+
+      case 'external':
+        // Preprocessing for external JavaScript files is ignored.
+        $output .= '<script type="text/javascript"' . ($item['defer'] ? ' defer="defer"' : '') . ' src="' . $item['data'] . "\"></script>\n";
         break;
     }
   }
@@ -2777,7 +2792,7 @@ function drupal_build_js_cache($files, $filename) {
  * Delete all cached JS files.
  */
 function drupal_clear_js_cache() {
-  file_scan_directory(file_create_path('js'), '/.*/', '/(\.\.?|CVS)$/', 'file_unmanaged_delete', TRUE);
+  file_scan_directory(file_create_path('js'), '/.*/', array('callback' => 'file_unmanaged_delete'));
   variable_set('javascript_parsed', array());
 }
 
@@ -3146,7 +3161,7 @@ function drupal_system_listing($mask, $directory, $key = 'name', $min_depth = 1)
 
   // Get current list of items
   foreach ($searchdir as $dir) {
-    $files = array_merge($files, file_scan_directory($dir, $mask, '/(\.\.?|CVS)$/', 0, TRUE, $key, $min_depth));
+    $files = array_merge($files, file_scan_directory($dir, $mask, array('key' => $key, 'min_depth' => $min_depth)));
   }
 
   return $files;
@@ -3254,7 +3269,7 @@ function drupal_render_page($page) {
  *
  * Recursively iterates over each of the array elements, generating HTML code.
  *
- * HTML generation is controlled by two properties containing theme functions, 
+ * HTML generation is controlled by two properties containing theme functions,
  * #theme and #theme_wrapper.
  *
  * #theme is the theme function called first. If it is set and the element has any
@@ -3265,13 +3280,13 @@ function drupal_render_page($page) {
  *
  * The theme function in #theme_wrapper will be called after #theme has run. It
  * can be used to add further markup around the rendered children, e.g. fieldsets
- * add the required markup for a fieldset around their rendered child elements. 
+ * add the required markup for a fieldset around their rendered child elements.
  * A wrapper theme function always has to include the element's #children property
- * in its output, as this contains the rendered children. 
+ * in its output, as this contains the rendered children.
  *
  * For example, for the form element type, by default only the #theme_wrapper
  * property is set, which adds the form markup around the rendered child elements
- * of the form. This allows you to set the #theme property on a specific form to 
+ * of the form. This allows you to set the #theme property on a specific form to
  * a custom theme function, giving you complete control over the placement of the
  * form's children while not at all having to deal with the form markup itself.
  *
@@ -3305,7 +3320,7 @@ function drupal_render(&$elements) {
   else {
     $elements += element_basic_defaults();
   }
-  
+
   // If #markup is not empty and no theme function is set, use theme_markup.
   // This allows to specify just #markup on an element without setting the #type.
   if (!empty($elements['#markup']) && empty($elements['#theme'])) {

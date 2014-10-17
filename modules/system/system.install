@@ -65,10 +65,10 @@ function system_requirements($phase) {
   $memory_limit = ini_get('memory_limit');
   $requirements['php_memory_limit'] = array(
     'title' => $t('PHP memory limit'),
-    'value' => $memory_limit,
+    'value' => $memory_limit == -1 ? t('-1 (Unlimited)') : $memory_limit,
   );
 
-  if ($memory_limit && parse_size($memory_limit) < parse_size(DRUPAL_MINIMUM_PHP_MEMORY_LIMIT)) {
+  if ($memory_limit && $memory_limit != -1 && parse_size($memory_limit) < parse_size(DRUPAL_MINIMUM_PHP_MEMORY_LIMIT)) {
     $description = '';
     if ($phase == 'install') {
       $description = $t('Consider increasing your PHP memory limit to %memory_minimum_limit to help prevent errors in the installation process.', array('%memory_minimum_limit' => DRUPAL_MINIMUM_PHP_MEMORY_LIMIT));
@@ -1179,7 +1179,7 @@ function system_schema() {
       'type' => array(
         'description' => 'The type of the item, either module, theme, or theme_engine.',
         'type' => 'varchar',
-        'length' => 255,
+        'length' => 12,
         'not null' => TRUE,
         'default' => '',
       ),
@@ -1217,7 +1217,8 @@ function system_schema() {
     ),
     'primary key' => array('filename'),
     'indexes' => array(
-      'modules' => array(array('type', 12), 'status', 'weight', 'filename'),
+      'modules' => array('type', 'status', 'weight', 'filename'),
+      'type_name' => array('type', 'name'),
     ),
   );
 
@@ -3115,7 +3116,7 @@ function system_update_7013() {
     $timezone = 'UTC';
   }
   variable_set('date_default_timezone', $timezone);
-  drupal_set_message('The default time zone has been set to <em>' . check_plain($timezone) . '</em>. Please check the ' . l('date and time configuration page', 'admin/settings/date-time') . ' to configure it correctly.', 'warning');
+  drupal_set_message('The default time zone has been set to <em>' . check_plain($timezone) . '</em>. Please check the ' . l('date and time configuration page', 'admin/settings/regional-settings') . ' to configure it correctly.', 'warning');
   return $ret;
 }
 
@@ -3209,6 +3210,29 @@ function system_update_7018() {
   db_add_index($ret, 'url_alias', 'src_language', array('src', 'language'));
   db_drop_index($ret, 'url_alias', 'src');
 
+  return $ret;
+}
+
+/**
+ * Shorten the {system}.type column and add an index on type and name.
+ */
+function system_update_7019() {
+  $ret = array();
+  db_drop_index($ret, 'system', 'modules');
+  db_change_field($ret, 'system', 'type', 'type', array('type' => 'varchar', 'length' => 12, 'not null' => TRUE, 'default' => ''));
+  db_add_index($ret, 'system', 'modules', array('type', 'status', 'weight', 'filename'));
+  db_add_index($ret, 'system', 'type_name', array('type', 'name'));
+  return $ret;
+}
+
+/**
+ * Enable field module.
+ */
+function system_update_7020() {
+  $ret = array();
+  $module_list = array('field_sql_storage', 'field');
+  drupal_install_modules($module_list);
+  module_enable($module_list);
   return $ret;
 }
 

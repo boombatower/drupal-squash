@@ -276,7 +276,7 @@ function user_update_7000(&$sandbox) {
 }
 
 /**
- * Remove the 'threshold', 'mode' and 'sort' columns from the {user} table.
+ * Remove the 'threshold', 'mode' and 'sort' columns from the {users} table.
  *
  * These fields were previously used to store per-user comment settings.
  */
@@ -351,7 +351,7 @@ function user_update_7002(&$sandbox) {
       $ret[] = array('success' => TRUE, 'query' => "Migrate user time zones.");
       if ($sandbox['user_not_migrated'] > 0) {
         variable_set('empty_timezone_message', 1);
-        drupal_set_message('Some user time zones have been emptied and need to be set to the correct values. Use the new ' . l('time zone options', 'admin/settings/date-time') . ' to choose whether to remind users at login to set the correct time zone.', 'warning');
+        drupal_set_message('Some user time zones have been emptied and need to be set to the correct values. Use the new ' . l('time zone options', 'admin/settings/regional-settings') . ' to choose whether to remind users at login to set the correct time zone.', 'warning');
       }
     }
   }
@@ -414,7 +414,7 @@ function user_update_7004(&$sandbox) {
   }
 
   // As a batch operation move the photos into the {files} table and update the
-  // {user} records.
+  // {users} records.
   $limit = 500;
   $result = db_query_range("SELECT uid, picture FROM {users} WHERE picture <> '' AND uid > :uid ORDER BY uid", array(':uid' => $sandbox['last_user_processed']), 0, $limit);
   foreach ($result as $user) {

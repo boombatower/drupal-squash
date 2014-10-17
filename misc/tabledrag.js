@@ -1,4 +1,5 @@
 // $Id$
+(function($) {
 
 /**
  * Drag and drop table rows with field manipulation.
@@ -12,10 +13,10 @@
  * See blocks.js for an example of adding additional functionality to tableDrag.
  */
 Drupal.behaviors.tableDrag = {
-  attach: function(context) {
-    for (var base in Drupal.settings.tableDrag) {
+  attach: function(context, settings) {
+    for (var base in settings.tableDrag) {
       if (!$('#' + base + '.tabledrag-processed', context).size()) {
-        var tableSettings = Drupal.settings.tableDrag[base];
+        var tableSettings = settings.tableDrag[base];
 
         $('#' + base).filter(':not(.tabledrag-processed)').each(function() {
           // Create the new tableDrag instance. Save in the Drupal variable
@@ -205,7 +206,7 @@ Drupal.tableDrag.prototype.makeDraggable = function(item) {
     self.rowObject = new self.row(item, 'mouse', self.indentEnabled, self.maxDepth, true);
 
     // Save the position of the table.
-    self.table.topY = self.getPosition(self.table).y;
+    self.table.topY = $(self.table).offset().top;
     self.table.bottomY = self.table.topY + self.table.offsetHeight;
 
     // Add classes to the handle and row.
@@ -321,7 +322,9 @@ Drupal.tableDrag.prototype.makeDraggable = function(item) {
             var groupHeight = 0;
             nextGroup = new self.row(nextRow, 'keyboard', self.indentEnabled, self.maxDepth, false);
             if (nextGroup) {
-              $(nextGroup.group).each(function () {groupHeight += $(this).is(':hidden') ? 0 : this.offsetHeight});
+              $(nextGroup.group).each(function () { 
+                groupHeight += $(this).is(':hidden') ? 0 : this.offsetHeight;
+              });
               nextGroupRow = $(nextGroup.group).filter(':last').get(0);
               self.rowObject.swap('after', nextGroupRow);
               // No need to check for indentation, 0 is the only valid one.
@@ -483,31 +486,6 @@ Drupal.tableDrag.prototype.dropRow = function(event, self) {
 };
 
 /**
- * Get the position of an element by adding up parent offsets in the DOM tree.
- */
-Drupal.tableDrag.prototype.getPosition = function(element){
-  var left = 0;
-  var top  = 0;
-  // Because Safari doesn't report offsetHeight on table rows, but does on table
-  // cells, grab the firstChild of the row and use that instead.
-  // http://jacob.peargrove.com/blog/2006/technical/table-row-offsettop-bug-in-safari
-  if (element.offsetHeight == 0) {
-    element = element.firstChild; // A table cell.
-  }
-
-  while (element.offsetParent){
-    left   += element.offsetLeft;
-    top    += element.offsetTop;
-    element = element.offsetParent;
-  }
-
-  left += element.offsetLeft;
-  top  += element.offsetTop;
-
-  return {x:left, y:top};
-};
-
-/**
  * Get the mouse coordinates from the event (allowing for browser differences).
  */
 Drupal.tableDrag.prototype.mouseCoords = function(event){
@@ -525,9 +503,9 @@ Drupal.tableDrag.prototype.mouseCoords = function(event){
  * element. To do this we need the element's position and the mouse position.
  */
 Drupal.tableDrag.prototype.getMouseOffset = function(target, event) {
-  var docPos   = this.getPosition(target);
+  var docPos   = $(target).offset();
   var mousePos = this.mouseCoords(event);
-  return {x:mousePos.x - docPos.x, y:mousePos.y - docPos.y};
+  return { x: mousePos.x - docPos.left, y: mousePos.y - docPos.top };
 };
 
 /**
@@ -544,15 +522,16 @@ Drupal.tableDrag.prototype.findDropTargetRow = function(x, y) {
   for (var n=0; n<rows.length; n++) {
     var row = rows[n];
     var indentDiff = 0;
-    // Safari fix see Drupal.tableDrag.prototype.getPosition()
+    var rowY = $(row).offset().top;
+    // Because Safari does not report offsetHeight on table rows, but does on
+    // table cells, grab the firstChild of the row and use that instead.
+    // http://jacob.peargrove.com/blog/2006/technical/table-row-offsettop-bug-in-safari.
     if (row.offsetHeight == 0) {
-      var rowY = this.getPosition(row.firstChild).y;
-      var rowHeight = parseInt(row.firstChild.offsetHeight)/2;
+      var rowHeight = parseInt(row.firstChild.offsetHeight) / 2;
     }
     // Other browsers.
     else {
-      var rowY = this.getPosition(row).y;
-      var rowHeight = parseInt(row.offsetHeight)/2;
+      var rowHeight = parseInt(row.offsetHeight) / 2;
     }
 
     // Because we always insert before, we need to offset the height a bit.
@@ -565,6 +544,13 @@ Drupal.tableDrag.prototype.findDropTargetRow = function(x, y) {
           }
         }
       }
+      else {
+        // Do not allow a row to be swapped with itself.
+        if (row == this.rowObject.element) {
+          return null;
+        }
+      }
+
       // Check that swapping with this row is allowed.
       if (!this.rowObject.isValidSwap(row)) {
         return null;
@@ -957,7 +943,7 @@ Drupal.tableDrag.prototype.row.prototype.validIndentInterval = function (prevRow
   }
 
   return {'min':minIndent, 'max':maxIndent};
-}
+};
 
 /**
  * Indent a row within the legal bounds of the table.
@@ -1021,7 +1007,7 @@ Drupal.tableDrag.prototype.row.prototype.findSiblings = function(rowSettings) {
         // Either add immediately if this is a flat table, or check to ensure
         // that this row has the same level of indentation.
         if (this.indentEnabled) {
-          var checkRowIndentation = $('.indentation', checkRow).length
+          var checkRowIndentation = $('.indentation', checkRow).length;
         }
 
         if (!(this.indentEnabled) || (checkRowIndentation == rowIndentation)) {
@@ -1096,3 +1082,5 @@ Drupal.theme.prototype.tableDragIndentation = function () {
 Drupal.theme.prototype.tableDragChangedWarning = function () {
   return '<div class="warning">' + Drupal.theme('tableDragChangedMarker') + ' ' + Drupal.t("Changes made in this table will not be saved until the form is submitted.") + '</div>';
 };
+
+})(jQuery);

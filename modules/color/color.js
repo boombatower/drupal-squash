@@ -1,7 +1,8 @@
 // $Id$
+(function($) {
 
 Drupal.behaviors.color = {
-  attach: function(context) {
+  attach: function(context, settings) {
     // This behavior attaches by ID, so is only valid once on a page.
     if ($('#color_scheme_form .color-form.color-processed').size()) {
       return;
@@ -17,7 +18,7 @@ Drupal.behaviors.color = {
     var farb = $.farbtastic('#placeholder');
 
     // Decode reference colors to HSL.
-    var reference = Drupal.settings.color.reference;
+    var reference = settings.color.reference;
     for (i in reference) {
       reference[i] = farb.RGBToHSL(farb.unpack(reference[i]));
     }
@@ -251,3 +252,5 @@ Drupal.behaviors.color = {
     preview();
   }
 };
+
+})(jQuery);

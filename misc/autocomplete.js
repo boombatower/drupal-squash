@@ -1,10 +1,11 @@
 // $Id$
+(function($) {
 
 /**
  * Attaches the autocomplete behavior to all required fields.
  */
 Drupal.behaviors.autocomplete = {
-  attach: function(context) {
+  attach: function(context, settings) {
     var acdb = [];
     $('input.autocomplete:not(.autocomplete-processed)', context).each(function () {
       var uri = this.value;
@@ -298,3 +299,5 @@ Drupal.ACDB.prototype.cancel = function() {
   if (this.timer) clearTimeout(this.timer);
   this.searchString = '';
 };
+
+})(jQuery);

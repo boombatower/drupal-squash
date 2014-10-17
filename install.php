@@ -254,7 +254,6 @@ function install_settings_form(&$form_state, $profile, $install_locale, $setting
       '#title' => st('Database name'),
       '#default_value' => empty($database['database']) ? '' : $database['database'],
       '#size' => 45,
-      '#maxlength' => 45,
       '#required' => TRUE,
       '#description' => st('The name of the database your @drupal data will be stored in. It must exist on your server before @drupal can be installed.', array('@drupal' => drupal_install_profile_name())),
     );
@@ -265,7 +264,6 @@ function install_settings_form(&$form_state, $profile, $install_locale, $setting
       '#title' => st('Database username'),
       '#default_value' => empty($database['username']) ? '' : $database['username'],
       '#size' => 45,
-      '#maxlength' => 45,
     );
 
     // Database username
@@ -274,7 +272,6 @@ function install_settings_form(&$form_state, $profile, $install_locale, $setting
       '#title' => st('Database password'),
       '#default_value' => empty($database['password']) ? '' : $database['password'],
       '#size' => 45,
-      '#maxlength' => 45,
     );
 
     $form['advanced_options'] = array(
@@ -291,7 +288,8 @@ function install_settings_form(&$form_state, $profile, $install_locale, $setting
       '#title' => st('Database host'),
       '#default_value' => empty($database['host']) ? 'localhost' : $database['host'],
       '#size' => 45,
-      '#maxlength' => 45,
+      // Hostnames can be 255 characters long.
+      '#maxlength' => 255,
       '#required' => TRUE,
       '#description' => st('If your database is located on a different server, change this.'),
     );
@@ -302,7 +300,8 @@ function install_settings_form(&$form_state, $profile, $install_locale, $setting
       '#title' => st('Database port'),
       '#default_value' => empty($database['port']) ? '' : $database['port'],
       '#size' => 45,
-      '#maxlength' => 45,
+      // The maximum port number is 65536, 5 digits.
+      '#maxlength' => 5,
       '#description' => st('If your database server is listening to a non-standard port, enter its number.'),
     );
 
@@ -313,7 +312,6 @@ function install_settings_form(&$form_state, $profile, $install_locale, $setting
       '#title' => st('Table prefix'),
       '#default_value' => '',
       '#size' => 45,
-      '#maxlength' => 45,
       '#description' => st('If more than one application will be sharing this database, enter a table prefix such as %prefix for your @drupal site here.', array('@drupal' => drupal_install_profile_name(), '%prefix' => $db_prefix)),
     );
 
@@ -404,7 +402,7 @@ function install_settings_form_submit($form, &$form_state) {
  * Find all .profile files.
  */
 function install_find_profiles() {
-  return file_scan_directory('./profiles', '/\.profile$/', '/(\.\.?|CVS)$/', 0, TRUE, 'name', 0);
+  return file_scan_directory('./profiles', '/\.profile$/', array('key' => 'name'));
 }
 
 /**
@@ -420,7 +418,7 @@ function install_select_profile() {
   // Don't need to choose profile if only one available.
   if (sizeof($profiles) == 1) {
     $profile = array_pop($profiles);
-    require_once $profile->filename;
+    require_once $profile->filepath;
     return $profile->name;
   }
   elseif (sizeof($profiles) > 1) {
@@ -451,7 +449,7 @@ function install_select_profile_form(&$form_state, $profile_files) {
   $names = array();
 
   foreach ($profile_files as $profile) {
-    include_once DRUPAL_ROOT . '/' . $profile->filename;
+    include_once DRUPAL_ROOT . '/' . $profile->filepath;
 
     // Load profile details and store them for later retrieval.
     $function = $profile->name . '_profile_details';
@@ -490,7 +488,7 @@ function install_select_profile_form(&$form_state, $profile_files) {
  * Find all .po files for the current profile.
  */
 function install_find_locales($profilename) {
-  $locales = file_scan_directory('./profiles/' . $profilename . '/translations', '/\.po$/', '/(\.\.?|CVS)$/', 0, FALSE);
+  $locales = file_scan_directory('./profiles/' . $profilename . '/translations', '/\.po$/', array('recurse' => FALSE));
   array_unshift($locales, (object) array('name' => 'en'));
   return $locales;
 }
@@ -569,7 +567,7 @@ function install_select_locale($profilename) {
  * Form API array definition for language selection.
  */
 function install_select_locale_form(&$form_state, $locales) {
-  include_once DRUPAL_ROOT . '/includes/locale.inc';
+  include_once DRUPAL_ROOT . '/includes/iso.inc';
   $languages = _locale_get_predefined_list();
   foreach ($locales as $locale) {
     // Try to use verbose locale name
@@ -731,7 +729,7 @@ function install_tasks($profile, $task) {
       drupal_add_js('
 // Global Killswitch
 if (Drupal.jsEnabled) {
-  $(document).ready(function() {
+  jQuery(document).ready(function() {
     Drupal.cleanURLsInstallCheck();
   });
 }', 'inline');
@@ -893,64 +891,6 @@ function install_reserved_tasks() {
 }
 
 /**
- * Check installation requirements and report any errors.
- */
-function install_check_requirements($profile, $verify) {
-  // Check the profile requirements.
-  $requirements = drupal_check_profile($profile);
-
-  // If Drupal is not set up already, we need to create a settings file.
-  if (!$verify) {
-    $writable = FALSE;
-    $conf_path = './' . conf_path(FALSE, TRUE);
-    $settings_file = $conf_path . '/settings.php';
-    $file = $conf_path;
-    $exists = FALSE;
-    // Verify that the directory exists.
-    if (drupal_verify_install_file($conf_path, FILE_EXIST, 'dir')) {
-      // Check to make sure a settings.php already exists.
-      $file = $settings_file;
-      if (drupal_verify_install_file($settings_file, FILE_EXIST)) {
-        $exists = TRUE;
-        // If it does, make sure it is writable.
-        $writable = drupal_verify_install_file($settings_file, FILE_READABLE|FILE_WRITABLE);
-        $exists = TRUE;
-      }
-    }
-
-    if (!$exists) {
-      $requirements['settings file exists'] = array(
-        'title'       => st('Settings file'),
-        'value'       => st('The settings file does not exist.'),
-        'severity'    => REQUIREMENT_ERROR,
-        'description' => st('The @drupal installer requires that you create a settings file as part of the installation process. Copy the %default_file file to %file. More details about installing Drupal are available in <a href="@install_txt">INSTALL.txt</a>.', array('@drupal' => drupal_install_profile_name(), '%file' => $file, '%default_file' => $conf_path .'/default.settings.php', '@install_txt' => base_path() .'INSTALL.txt')),
-      );
-    }
-    else {
-      $requirements['settings file exists'] = array(
-        'title'       => st('Settings file'),
-        'value'       => st('The %file file exists.', array('%file' => $file)),
-      );
-      if (!$writable) {
-        $requirements['settings file writable'] = array(
-          'title'       => st('Settings file'),
-          'value'       => st('The settings file is not writable.'),
-          'severity'    => REQUIREMENT_ERROR,
-          'description' => st('The @drupal installer requires write permissions to %file during the installation process. If you are unsure how to grant file permissions, please consult the <a href="@handbook_url">online handbook</a>.', array('@drupal' => drupal_install_profile_name(), '%file' => $file, '@handbook_url' => 'http://drupal.org/server-permissions')),
-        );
-      }
-      else {
-        $requirements['settings file'] = array(
-          'title'       => st('Settings file'),
-          'value'       => st('Settings file is writable.'),
-        );
-      }
-    }
-  }
-  return $requirements;
-}
-
-/**
  * Add the installation task list to the current page.
  */
 function install_task_list($active = NULL) {
@@ -1013,6 +953,7 @@ function install_task_list($active = NULL) {
  * Form API array definition for site configuration.
  */
 function install_configure_form(&$form_state, $url) {
+  include_once DRUPAL_ROOT . '/includes/locale.inc';
 
   $form['intro'] = array(
     '#markup' => st('To configure your website, please provide the following information.'),
@@ -1076,6 +1017,18 @@ function install_configure_form(&$form_state, $url) {
     '#title' => st('Server settings'),
     '#collapsible' => FALSE,
   );
+
+  $countries = country_get_list();
+  $countries = array_merge(array('' => st('No default country')), $countries);
+  $form['server_settings']['site_default_country'] = array(
+    '#type' => 'select',
+    '#title' => t('Default country'),
+    '#default_value' => variable_get('site_default_country', ''),
+    '#options' => $countries,
+    '#description' => st('Select the default country for the site.'),
+    '#weight' => 0,
+  );
+
   $form['server_settings']['date_default_timezone'] = array(
     '#type' => 'select',
     '#title' => st('Default time zone'),
@@ -1149,6 +1102,7 @@ function install_configure_form_submit($form, &$form_state) {
   variable_set('site_name', $form_state['values']['site_name']);
   variable_set('site_mail', $form_state['values']['site_mail']);
   variable_set('date_default_timezone', $form_state['values']['date_default_timezone']);
+  variable_set('site_default_country', $form_state['values']['site_default_country']);
 
   // Enable update.module if this option was selected.
   if ($form_state['values']['update_status_module'][1]) {

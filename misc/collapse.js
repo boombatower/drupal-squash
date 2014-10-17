@@ -1,4 +1,5 @@
 // $Id$
+(function($) {
 
 /**
  * Toggle the visibility of a fieldset using smooth animations
@@ -51,7 +52,7 @@ Drupal.collapseScrollIntoView = function (node) {
 };
 
 Drupal.behaviors.collapse = {
-  attach: function(context) {
+  attach: function(context, settings) {
     $('fieldset.collapsible > legend:not(.collapse-processed)', context).each(function() {
       var fieldset = $(this.parentNode);
       // Expand if there are errors inside
@@ -77,3 +78,5 @@ Drupal.behaviors.collapse = {
     });
   }
 };
+
+})(jQuery);

@@ -48,6 +48,26 @@ interface QueryConditionInterface {
   public function where($snippet, $args = array());
 
   /**
+   * Set a condition that the specified field be NULL.
+   *
+   * @param $field
+   *   The name of the field to check.
+   * @return
+   *   The called object.
+   */
+  public function isNull($field);
+
+  /**
+   * Set a condition that the specified field be NOT NULL.
+   *
+   * @param $field
+   *   The name of the field to check.
+   * @return
+   *   The called object.
+   */
+  public function isNotNull($field);
+
+  /**
    * Gets a complete list of all conditions in this conditional clause.
    *
    * This method returns by reference. That allows alter hooks to access the
@@ -108,6 +128,8 @@ interface QueryAlterableInterface {
    *
    * @param $tag
    *   The tag to add.
+   * @return
+   *   The called object.
    */
   public function addTag($tag);
 
@@ -154,7 +176,8 @@ interface QueryAlterableInterface {
    *   follows the same rules as any other PHP identifier.
    * @param $object
    *   The additional data to add to the query. May be any valid PHP variable.
-   *
+   * @return
+   *   The called object.
    */
   public function addMetaData($key, $object);
 
@@ -201,7 +224,12 @@ abstract class Query {
   abstract protected function execute();
 
   /**
-   * Returns the query as a prepared statement string.
+   * __toString() magic method.
+   *
+   * The toString operation is how we compile a query object to a prepared statement.
+   *
+   * @return
+   *   A prepared statement query string for this object.
    */
   abstract public function __toString();
 }
@@ -676,14 +704,17 @@ class MergeQuery extends Query {
           unset($update_fields[$exclude_field]);
         }
       }
-      $update = $this->connection->update($this->table, $this->queryOptions)->fields($update_fields);
-      foreach ($this->keyFields as $field => $value) {
-        $update->condition($field, $value);
+      if ($update_fields || $this->expressionFields) {
+        // Only run the update if there are no fields or expressions to update.
+        $update = $this->connection->update($this->table, $this->queryOptions)->fields($update_fields);
+        foreach ($this->keyFields as $field => $value) {
+          $update->condition($field, $value);
+        }
+        foreach ($this->expressionFields as $field => $expression) {
+          $update->expression($field, $expression['expression'], $expression['arguments']);
+        }
+        $update->execute();
       }
-      foreach ($this->expressionFields as $field => $expression) {
-        $update->expression($field, $expression['expression'], $expression['arguments']);
-      }
-      $update->execute();
     }
     else {
       // If there is no existing record, run an insert query.
@@ -735,6 +766,16 @@ class DeleteQuery extends Query implements QueryConditionInterface {
       $num_args = func_num_args();
     }
     $this->condition->condition($field, $value, $operator, $num_args);
+    return $this;
+  }
+
+  public function isNull($field) {
+    $this->condition->isNull($field);
+    return $this;
+  }
+
+  public function isNotNull($field) {
+    $this->condition->isNotNull($field);
     return $this;
   }
 
@@ -838,6 +879,16 @@ class UpdateQuery extends Query implements QueryConditionInterface {
       $num_args = func_num_args();
     }
     $this->condition->condition($field, $value, $operator, $num_args);
+    return $this;
+  }
+
+  public function isNull($field) {
+    $this->condition->isNull($field);
+    return $this;
+  }
+
+  public function isNotNull($field) {
+    $this->condition->isNotNull($field);
     return $this;
   }
 
@@ -1001,6 +1052,14 @@ class DatabaseCondition implements QueryConditionInterface, Countable {
     return $this;
   }
 
+  public function isNull($field) {
+    return $this->condition($field, NULL, 'IS NULL');
+  }
+
+  public function isNotNull($field) {
+    return $this->condition($field, NULL, 'IS NOT NULL');
+  }
+
   public function &conditions() {
     return $this->conditions;
   }
@@ -1050,6 +1109,7 @@ class DatabaseCondition implements QueryConditionInterface, Countable {
               'postfix' => '',
               'delimiter' => '',
               'operator' => $condition['operator'],
+              'use_value' => TRUE,
             );
             $operator = $connection->mapConditionOperator($condition['operator']);
             if (!isset($operator)) {
@@ -1068,10 +1128,12 @@ class DatabaseCondition implements QueryConditionInterface, Countable {
               $condition['value'] = array($condition['value']);
             }
             $placeholders = array();
-            foreach ($condition['value'] as $value) {
-              $placeholder = ':db_condition_placeholder_' . $next_placeholder++;
-              $arguments[$placeholder] = $value;
-              $placeholders[] = $placeholder;
+            if ($operator['use_value']) {
+              foreach ($condition['value'] as $value) {
+                $placeholder = ':db_condition_placeholder_' . $next_placeholder++;
+                $arguments[$placeholder] = $value;
+                $placeholders[] = $placeholder;
+              }
             }
             $condition_fragments[] = ' (' . $condition['field'] . ' ' . $operator['operator'] . ' ' . $operator['prefix'] . implode($operator['delimiter'], $placeholders) . $operator['postfix'] . ') ';
 
@@ -1111,6 +1173,8 @@ class DatabaseCondition implements QueryConditionInterface, Countable {
       'IN' => array('delimiter' => ', ', 'prefix' => ' (', 'postfix' => ')'),
       'NOT IN' => array('delimiter' => ', ', 'prefix' => ' (', 'postfix' => ')'),
       'LIKE' => array('operator' => 'LIKE'),
+      'IS NULL' => array('use_value' => FALSE),
+      'IS NOT NULL' => array('use_value' => FALSE),
     );
 
     $return = isset($specials[$operator]) ? $specials[$operator] : array();

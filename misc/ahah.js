@@ -1,4 +1,5 @@
 // $Id$
+(function($) {
 
 /**
  * Provides AJAX-like page updating via AHAH (Asynchronous HTML and HTTP).
@@ -16,10 +17,10 @@
  * Attaches the ahah behavior to each ahah form element.
  */
 Drupal.behaviors.ahah = {
-  attach: function(context) {
-    for (var base in Drupal.settings.ahah) {
+  attach: function(context, settings) {
+    for (var base in settings.ahah) {
       if (!$('#'+ base + '.ahah-processed').size()) {
-        var element_settings = Drupal.settings.ahah[base];
+        var element_settings = settings.ahah[base];
 
         $(element_settings.selector).each(function() {
           element_settings.element = this;
@@ -138,7 +139,7 @@ Drupal.ahah.prototype.beforeSubmit = function (form_values, element, options) {
   else if (this.progress.type == 'throbber') {
     this.progress.element = $('<div class="ahah-progress ahah-progress-throbber"><div class="throbber">&nbsp;</div></div>');
     if (this.progress.message) {
-      $('.throbber', this.progress.element).after('<div class="message">' + this.progress.message + '</div>')
+      $('.throbber', this.progress.element).after('<div class="message">' + this.progress.message + '</div>');
     }
     $(this.element).after(this.progress.element);
   }
@@ -183,12 +184,8 @@ Drupal.ahah.prototype.success = function (response, status) {
   }
 
   // Determine what effect use and what content will receive the effect, then
-  // show the new content. For browser compatibility, Safari is excluded from
-  // using effects on table rows.
-  if (($.browser.safari && $("tr.ahah-new-content", new_content).size() > 0)) {
-    new_content.show();
-  }
-  else if ($('.ahah-new-content', new_content).size() > 0) {
+  // show the new content.
+  if ($('.ahah-new-content', new_content).size() > 0) {
     $('.ahah-new-content', new_content).hide();
     new_content.show();
     $(".ahah-new-content", new_content)[this.showEffect](this.showSpeed);
@@ -225,3 +222,5 @@ Drupal.ahah.prototype.error = function (response, uri) {
   // Re-enable the element.
   $(this.element).removeClass('progess-disabled').attr('disabled', false);
 };
+
+})(jQuery);

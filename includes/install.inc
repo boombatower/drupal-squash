@@ -215,10 +215,10 @@ function drupal_detect_database_types() {
   // Because we have no registry yet, we need to also include the install.inc
   // file for the driver explicitly.
 
-  foreach (file_scan_directory(DRUPAL_ROOT . '/includes/database', '/^[a-z]*$/i', '/(\.\.?|CVS)$/', 0, FALSE) as $file) {
-    include_once "{$file->filename}/install.inc";
-    include_once "{$file->filename}/database.inc";
-    $drivers[$file->basename] = $file->filename;
+  foreach (file_scan_directory(DRUPAL_ROOT . '/includes/database', '/^[a-z]*$/i', array('recurse' => FALSE)) as $file) {
+    include_once "{$file->filepath}/install.inc";
+    include_once "{$file->filepath}/database.inc";
+    $drivers[$file->filename] = $file->filepath;
   }
 
   foreach ($drivers as $driver => $file) {
@@ -934,7 +934,7 @@ function drupal_check_profile($profile) {
   // Collect requirement testing results
   $requirements = array();
   foreach ($installs as $install) {
-    require_once DRUPAL_ROOT . '/' . $install->filename;
+    require_once DRUPAL_ROOT . '/' . $install->filepath;
     $function = $install->name. '_requirements';
     if (function_exists($function)) {
       $requirements = array_merge($requirements, $function('install'));
@@ -974,7 +974,7 @@ function drupal_check_module($module) {
   // Include install file
   $install = drupal_get_install_files(array($module));
   if (isset($install[$module])) {
-    require_once DRUPAL_ROOT . '/' . $install[$module]->filename;
+    require_once DRUPAL_ROOT . '/' . $install[$module]->filepath;
 
     // Check requirements
     $requirements = module_invoke($module, 'requirements', 'install');
@@ -993,4 +993,62 @@ function drupal_check_module($module) {
     }
   }
   return TRUE;
+}
+
+/**
+ * Check installation requirements and report any errors.
+ */
+function install_check_requirements($profile, $verify) {
+  // Check the profile requirements.
+  $requirements = $profile ? drupal_check_profile($profile) : array();
+
+  // If Drupal is not set up already, we need to create a settings file.
+  if (!$verify) {
+    $writable = FALSE;
+    $conf_path = './' . conf_path(FALSE, TRUE);
+    $settings_file = $conf_path . '/settings.php';
+    $file = $conf_path;
+    $exists = FALSE;
+    // Verify that the directory exists.
+    if (drupal_verify_install_file($conf_path, FILE_EXIST, 'dir')) {
+      // Check to make sure a settings.php already exists.
+      $file = $settings_file;
+      if (drupal_verify_install_file($settings_file, FILE_EXIST)) {
+        $exists = TRUE;
+        // If it does, make sure it is writable.
+        $writable = drupal_verify_install_file($settings_file, FILE_READABLE|FILE_WRITABLE);
+        $exists = TRUE;
+      }
+    }
+
+    if (!$exists) {
+      $requirements['settings file exists'] = array(
+        'title'       => st('Settings file'),
+        'value'       => st('The settings file does not exist.'),
+        'severity'    => REQUIREMENT_ERROR,
+        'description' => st('The @drupal installer requires that you create a settings file as part of the installation process. Copy the %default_file file to %file. More details about installing Drupal are available in <a href="@install_txt">INSTALL.txt</a>.', array('@drupal' => drupal_install_profile_name(), '%file' => $file, '%default_file' => $conf_path .'/default.settings.php', '@install_txt' => base_path() .'INSTALL.txt')),
+      );
+    }
+    else {
+      $requirements['settings file exists'] = array(
+        'title'       => st('Settings file'),
+        'value'       => st('The %file file exists.', array('%file' => $file)),
+      );
+      if (!$writable) {
+        $requirements['settings file writable'] = array(
+          'title'       => st('Settings file'),
+          'value'       => st('The settings file is not writable.'),
+          'severity'    => REQUIREMENT_ERROR,
+          'description' => st('The @drupal installer requires write permissions to %file during the installation process. If you are unsure how to grant file permissions, please consult the <a href="@handbook_url">online handbook</a>.', array('@drupal' => drupal_install_profile_name(), '%file' => $file, '@handbook_url' => 'http://drupal.org/server-permissions')),
+        );
+      }
+      else {
+        $requirements['settings file'] = array(
+          'title'       => st('Settings file'),
+          'value'       => st('Settings file is writable.'),
+        );
+      }
+    }
+  }
+  return $requirements;
 }

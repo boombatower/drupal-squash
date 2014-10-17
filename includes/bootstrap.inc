@@ -457,7 +457,7 @@ function conf_init() {
   global $base_url, $base_path, $base_root;
 
   // Export the following settings.php variables to the global namespace
-  global $databases, $db_prefix, $cookie_domain, $conf, $installed_profile, $update_free_access;
+  global $databases, $db_prefix, $cookie_domain, $conf, $installed_profile, $update_free_access, $db_url;
   $conf = array();
 
   if (file_exists(DRUPAL_ROOT . '/' . conf_path() . '/settings.php')) {
@@ -698,7 +698,7 @@ function page_get_cache($retrieve) {
   global $user, $base_root;
   static $ob_started = FALSE;
 
-  if ($user->uid || ($_SERVER['REQUEST_METHOD'] != 'GET' && $_SERVER['REQUEST_METHOD'] != 'HEAD') || count(drupal_get_messages(NULL, FALSE))) {
+  if ($user->uid || ($_SERVER['REQUEST_METHOD'] != 'GET' && $_SERVER['REQUEST_METHOD'] != 'HEAD') || count(drupal_get_messages(NULL, FALSE)) || $_SERVER['SERVER_SOFTWARE'] === 'PHP CLI') {
     return FALSE;
   }
   if ($retrieve) {
@@ -979,7 +979,7 @@ function watchdog($type, $message, $variables = array(), $severity = WATCHDOG_NO
  */
 function drupal_set_message($message = NULL, $type = 'status', $repeat = TRUE) {
   if ($message) {
-    if (!isset($_SESSION['messages'])) {
+    if (!isset($_SESSION['messages']) && function_exists('drupal_set_session')) {
       drupal_set_session('messages', array());
     }
 
@@ -1351,10 +1351,11 @@ function ip_address($reset = FALSE) {
         // the XFF header if request really comes from one of them.
         $reverse_proxy_addresses = variable_get('reverse_proxy_addresses', array());
         if (!empty($reverse_proxy_addresses) && in_array($ip_address, $reverse_proxy_addresses, TRUE)) {
-          // If there are several arguments, we need to check the most
-          // recently added one, i.e. the last one.
+          // The "X-Forwarded-For" header is a comma+space separated list of IP addresses,
+          // the left-most being the farthest downstream client. If there is more than
+          // one proxy, we are interested in the most recent one (i.e. last one in the list).
           $ip_address_parts = explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']);
-          $ip_address = array_pop($ip_address_parts);
+          $ip_address = trim(array_pop($ip_address_parts));
         }
       }
 
