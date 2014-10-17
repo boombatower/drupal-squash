@@ -4,12 +4,16 @@
 
 #content,
 .sidebar,
-#triptych-first,
-#triptych-middle,
-#triptych-last,
-#footer-firstcolumn,
-#footer-secondcolumn,
-#footer-thirdcolumn,
-#footer-fourthcolumn {
+.region-triptych-first,
+.region-triptych-middle,
+.region-triptych-last,
+.region-footer-firstcolumn,
+.region-footer-secondcolumn,
+.region-footer-thirdcolumn,
+.region-footer-fourthcolumn {
   float: right;
+}
+#secondary-menu {
+  left: 0;
+  right: auto;
 }

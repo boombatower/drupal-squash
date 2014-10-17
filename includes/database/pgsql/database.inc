@@ -33,7 +33,7 @@ class DatabaseConnection_pgsql extends DatabaseConnection {
 
     // PostgreSQL in trust mode doesn't require a password to be supplied.
     if (empty($connection_options['password'])) {
-      $connection_options['password'] = null;
+      $connection_options['password'] = NULL;
     }
 
     $this->connectionOptions = $connection_options;
@@ -124,6 +124,10 @@ class DatabaseConnection_pgsql extends DatabaseConnection {
 
   public function driver() {
     return 'pgsql';
+  }
+
+  public function version() {
+    return $this->query('SHOW SERVER_VERSION')->fetchField();
   }
 
   public function databaseType() {
