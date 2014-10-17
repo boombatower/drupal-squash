@@ -584,7 +584,7 @@ function install_select_locale_form(&$form_state, $locales) {
     $form['locale'][$locale->name] = array(
       '#type' => 'radio',
       '#return_value' => $locale->name,
-      '#default_value' => ($locale->name == 'en' ? TRUE : FALSE),
+      '#default_value' => $locale->name == 'en',
       '#title' => $name . ($locale->name == 'en' ? ' ' . st('(built-in)') : ''),
       '#parents' => array('locale')
     );
@@ -726,7 +726,7 @@ function install_tasks($profile, $task) {
 
       // Add JavaScript validation.
       _user_password_dynamic_validation();
-      drupal_add_js(drupal_get_path('module', 'system') . '/system.js', 'module');
+      drupal_add_js(drupal_get_path('module', 'system') . '/system.js');
       // We add these strings as settings because JavaScript translation does not
       // work on install time.
       drupal_add_js(array('copyFieldValue' => array('edit-site-mail' => array('edit-account-mail')), 'cleanURL' => array('success' => st('Your server has been successfully tested to support this feature.'), 'failure' => st('Your system configuration does not currently support this feature. The <a href="http://drupal.org/node/15365">handbook page on Clean URLs</a> has additional troubleshooting information.'), 'testing' => st('Testing clean URLs...'))), 'setting');
@@ -835,6 +835,11 @@ if (Drupal.jsEnabled) {
   install_task_list($task);
   variable_set('install_task', $task);
 
+  // Run cron to populate update status tables (if available) so that users
+  // will be warned if they've installed an out of date Drupal version.
+  // Will also trigger indexing of profile-supplied content or feeds.
+  drupal_cron_run();
+
   // Output page, if some output was required. Otherwise it is possible
   // that we are printing a JSON page and theme output should not be there.
   if (isset($output)) {
@@ -853,7 +858,7 @@ function _install_module_batch($module, $module_name, &$context) {
   // steps.
   module_enable(array($module));
   $context['results'][] = $module;
-  $context['message'] = 'Installed ' . $module_name . ' module.';
+  $context['message'] = st('Installed %module module.', array('%module' => $module_name));
 }
 
 /**
@@ -940,7 +945,7 @@ function install_check_requirements($profile, $verify) {
     }
     elseif ($writable) {
       $requirements['settings file'] = array(
-        'title'       => st('Settings file'), 
+        'title'       => st('Settings file'),
         'value'       => st('Settings file is writable.'),
       );
     }
@@ -1052,6 +1057,7 @@ function install_configure_form(&$form_state, $url) {
     '#description' => st('Spaces are allowed; punctuation is not allowed except for periods, hyphens, and underscores.'),
     '#required' => TRUE,
     '#weight' => -10,
+    '#attributes' => array('class' => 'username'),
   );
 
   $form['admin_account']['account']['mail'] = array('#type' => 'textfield',

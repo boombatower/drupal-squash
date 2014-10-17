@@ -73,7 +73,7 @@ function profile_browse() {
       $title = check_plain($field->page);
     }
 
-    drupal_set_title($title);
+    drupal_set_title($title, PASS_THROUGH);
     return $output;
   }
   elseif ($name && !$field->fid) {
@@ -82,7 +82,7 @@ function profile_browse() {
   else {
     // Compile a list of fields to show.
     $fields = array();
-    $result = db_query('SELECT name, title, type, weight, page FROM {profile_fields} WHERE visibility = %d ORDER BY category, weight', PROFILE_PUBLIC_LISTINGS);
+    $result = db_query('SELECT name, title, type, weight, page, visibility FROM {profile_fields} WHERE visibility = %d ORDER BY category, weight', PROFILE_PUBLIC_LISTINGS);
     while ($record = db_fetch_object($result)) {
       $fields[] = $record;
     }
@@ -99,7 +99,7 @@ function profile_browse() {
     $output = theme('profile_wrapper', $content);
     $output .= theme('pager', NULL, 20);
 
-    drupal_set_title(t('User list'));
+    drupal_set_title(t('User list'), PASS_THROUGH);
     return $output;
   }
 }

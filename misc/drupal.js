@@ -12,10 +12,15 @@ Drupal.jsEnabled = document.getElementsByTagName && document.createElement && do
  *
  * Behaviors are event-triggered actions that attach to page elements, enhancing
  * default non-Javascript UIs. Behaviors are registered in the Drupal.behaviors
- * object as follows:
+ * object using the method 'attach' and optionally also 'detach' as follows:
  * @code
- *    Drupal.behaviors.behaviorName = function () {
- *      ...
+ *    Drupal.behaviors.behaviorName = {
+ *      attach: function(context) {
+ *        ...
+ *      },
+ *      detach: function(context) {
+ *        ...
+ *      }
  *    };
  * @endcode
  *
@@ -38,7 +43,38 @@ Drupal.attachBehaviors = function(context) {
   context = context || document;
   // Execute all of them.
   jQuery.each(Drupal.behaviors, function() {
-    this(context);
+    if (jQuery.isFunction(this.attach)) {
+      this.attach(context);
+    }
+  });
+};
+
+/**
+ * Detach registered behaviors from a page element.
+ *
+ * Developers implementing AHAH/AJAX in their solutions should call this
+ * function before page content is about to be removed, feeding in an element
+ * to be processed, in order to allow special behaviors to detach from the
+ * content.
+ *
+ * Such implementations should look for the class name that was added in their
+ * corresponding Drupal.behaviors.behaviorName.attach implementation, i.e.
+ * behaviorName-processed, to ensure the behavior is detached only from
+ * previously processed elements.
+ *
+ * @param context
+ *   An element to detach behaviors from. If none is given, the document element
+ *   is used.
+ *
+ * @see Drupal.attachBehaviors
+ */
+Drupal.detachBehaviors = function(context) {
+  context = context || document;
+  // Execute all of them.
+  jQuery.each(Drupal.behaviors, function() {
+    if (jQuery.isFunction(this.detach)) {
+      this.detach(context);
+    }
   });
 };
 
@@ -250,17 +286,17 @@ Drupal.getSelection = function (element) {
  */
 Drupal.ahahError = function(xmlhttp, uri) {
   if (xmlhttp.status == 200) {
-    if (jQuery.trim($(xmlhttp.responseText).text())) {
+    if (jQuery.trim(xmlhttp.responseText)) {
       var message = Drupal.t("An error occurred. \n@uri\n@text", {'@uri': uri, '@text': xmlhttp.responseText });
     }
     else {
-      var message = Drupal.t("An error occurred. \n@uri\n(no information available).", {'@uri': uri, '@text': xmlhttp.responseText });
+      var message = Drupal.t("An error occurred. \n@uri\n(no information available).", {'@uri': uri });
     }
   }
   else {
     var message = Drupal.t("An HTTP error @status occurred. \n@uri", {'@uri': uri, '@status': xmlhttp.status });
   }
-  return message;
+  return message.replace(/\n/g, '<br />');;
 }
 
 // Global Killswitch on the <html> element.

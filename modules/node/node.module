@@ -135,6 +135,9 @@ function node_theme() {
     'node_submitted' => array(
       'arguments' => array('node' => NULL),
     ),
+    'node_admin_overview' => array(
+      'arguments' => array('name' => NULL, 'type' => NULL),
+    ),
   );
 }
 
@@ -426,7 +429,7 @@ function node_teaser($body, $format = NULL, $size = NULL) {
  *
  * @param $op
  *   The format in which to return the list. When this is set to 'type',
- *   'module', or 'name', only the specified node type is returned. When set to
+ *   'base', or 'name', only the specified node type is returned. When set to
  *   'types' or 'names', all node types are returned.
  * @param $node
  *   A node object, array, or string that indicates the node type to return.
@@ -591,8 +594,9 @@ function _node_types_build() {
   while ($type_object = db_fetch_object($type_result)) {
     // Check for node types from disabled modules and mark their types for removal.
     // Types defined by the node module in the database (rather than by a separate
-    // module using hook_node_info) have a base value of 'node_content'.
-    if ($type_object->base != 'node_content' && empty($info_array[$type_object->type])) {
+    // module using hook_node_info) have a base value of 'node_content'. The isset()
+    // check prevents errors on old (pre-Drupal 7) databases.
+    if (isset($type_object->base) && $type_object->base != 'node_content' && empty($info_array[$type_object->type])) {
       $type_object->disabled = TRUE;
     }
     if (!isset($_node_types[$type_object->type]) || $type_object->modified) {
@@ -842,8 +846,8 @@ function node_validate($node, $form = array()) {
       form_set_error('name', t('The username %name does not exist.', array('%name' => $node->name)));
     }
 
-    // Validate the "authored on" field. As of PHP 5.1.0, strtotime returns FALSE instead of -1 upon failure.
-    if (!empty($node->date) && strtotime($node->date) <= 0) {
+    // Validate the "authored on" field.
+    if (!empty($node->date) && strtotime($node->date) === FALSE) {
       form_set_error('date', t('You have to specify a valid date.'));
     }
   }
@@ -1084,10 +1088,10 @@ function node_prepare($node, $teaser = FALSE) {
   $node->readmore = (strlen($node->teaser) < strlen($node->body));
 
   if ($teaser == FALSE) {
-    $node->body = check_markup($node->body, $node->format, FALSE);
+    $node->body = check_markup($node->body, $node->format, $node->language, FALSE);
   }
   else {
-    $node->teaser = check_markup($node->teaser, $node->format, FALSE);
+    $node->teaser = check_markup($node->teaser, $node->format, $node->language, FALSE);
   }
 
   $node->content['body'] = array(
@@ -1142,7 +1146,7 @@ function node_build_content($node, $teaser = FALSE, $page = FALSE) {
  */
 function node_show($node, $cid, $message = FALSE) {
   if ($message) {
-    drupal_set_title(t('Revision of %title from %date', array('%title' => $node->title, '%date' => format_date($node->revision_timestamp))));
+    drupal_set_title(t('Revision of %title from %date', array('%title' => $node->title, '%date' => format_date($node->revision_timestamp))), PASS_THROUGH);
   }
   $output = node_view($node, FALSE, TRUE);
 
@@ -1329,13 +1333,13 @@ function node_search($op = 'search', $keys = NULL) {
         $total = 1;
         $arguments2 = array();
         $join2 = '';
-        $select2 = 'i.relevance AS score';
+        $select2 = 'i.relevance AS calculated_score';
       }
       else {
         $total = $rankings['total'];
         $arguments2 = $rankings['arguments'];
         $join2 = implode(' ', $rankings['join']);
-        $select2 = '('. implode(' + ', $rankings['score']) .') AS score';
+        $select2 = '('. implode(' + ', $rankings['score']) .') AS calculated_score';
       }
 
       // Do search.
@@ -1365,7 +1369,7 @@ function node_search($op = 'search', $keys = NULL) {
           'date' => $node->changed,
           'node' => $node,
           'extra' => $extra,
-          'score' => $total ? ($item->score / $total) : 0,
+          'score' => $total ? ($item->calculated_score / $total) : 0,
           'snippet' => search_excerpt($keys, $node->body),
         );
       }
@@ -1757,7 +1761,7 @@ function node_feed($nids = FALSE, $channel = array()) {
     $item->link = url("node/$nid", array('absolute' => TRUE));
 
     if ($item_length != 'title') {
-      $teaser = ($item_length == 'teaser') ? TRUE : FALSE;
+      $teaser = ($item_length == 'teaser');
 
       // Filter and prepare node teaser
       if (node_hook($item, 'view')) {
@@ -1857,7 +1861,7 @@ function node_page_default() {
  * Menu callback; view a single node.
  */
 function node_page_view($node, $cid = NULL) {
-  drupal_set_title(check_plain($node->title));
+  drupal_set_title($node->title);
   return node_show($node, $cid);
 }
 

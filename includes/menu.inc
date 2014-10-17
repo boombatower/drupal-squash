@@ -393,7 +393,6 @@ function menu_execute_active_handler($path = NULL) {
     menu_rebuild();
   }
   if ($router_item = menu_get_item($path)) {
-    registry_load_path_files();
     if ($router_item['access']) {
       if (drupal_function_exists($router_item['page_callback'])) {
         return call_user_func_array($router_item['page_callback'], $router_item['page_arguments']);
@@ -547,7 +546,7 @@ function _menu_item_localize(&$item, $map, $link_translate = FALSE) {
         $item['title'] = t($item['title'], menu_unserialize($item['title_arguments'], $map));
       }
     }
-    elseif ($callback) {
+    elseif (drupal_function_exists($callback)) {
       if (empty($item['title_arguments'])) {
         $item['title'] = $callback($item['title']);
       }
@@ -1317,19 +1316,15 @@ function menu_navigation_links($menu_name, $level = 0) {
   $links = array();
   foreach ($tree as $item) {
     if (!$item['link']['hidden']) {
+      $class = '';
       $l = $item['link']['localized_options'];
       $l['href'] = $item['link']['href'];
       $l['title'] = $item['link']['title'];
       if ($item['link']['in_active_trail']) {
-        if (empty($l['attributes']['class'])) {
-          $l['attributes']['class'] = 'active-trail';
-        }
-        else {
-          $l['attributes']['class'] .= ' active-trail';
-        }
+        $class = ' active-trail';
       }
-      // Keyed with unique menu id to generate classes from theme_links().
-      $links['menu-' . $item['link']['mlid']] = $l;
+      // Keyed with the unique mlid to generate classes in theme_links().
+      $links['menu-' . $item['link']['mlid'] . $class] = $l;
     }
   }
   return $links;
@@ -1732,7 +1727,7 @@ function menu_router_build($reset = FALSE) {
       // We need to manually call each module so that we can know which module
       // a given item came from.
       $callbacks = array();
-      foreach (module_implements('menu', NULL, TRUE) as $module) {
+      foreach (module_implements('menu', TRUE) as $module) {
         $router_items = call_user_func($module . '_menu');
         if (isset($router_items) && is_array($router_items)) {
           foreach (array_keys($router_items) as $path) {
@@ -1890,7 +1885,7 @@ function _menu_delete_item($item, $force = FALSE) {
  *   - plid        The mlid of the parent.
  *   - router_path The path of the relevant router item.
  * @return
- *   The mlid of the saved menu link, or FALSE if the menu link could not be 
+ *   The mlid of the saved menu link, or FALSE if the menu link could not be
  *   saved.
  */
 function menu_link_save(&$item) {
@@ -1900,7 +1895,7 @@ function menu_link_save(&$item) {
 
   // This is the easiest way to handle the unique internal path '<front>',
   // since a path marked as external does not need to match a router path.
-  $item['_external'] = (menu_path_is_external($item['link_path'])  || $item['link_path'] == '<front>') ? 1 : 0;
+  $item['external'] = (menu_path_is_external($item['link_path'])  || $item['link_path'] == '<front>') ? 1 : 0;
   // Load defaults.
   $item += array(
     'menu_name' => 'navigation',
@@ -1916,11 +1911,19 @@ function menu_link_save(&$item) {
   );
   $existing_item = FALSE;
   if (isset($item['mlid'])) {
-    $existing_item = db_fetch_array(db_query("SELECT * FROM {menu_links} WHERE mlid = %d", $item['mlid']));
+    if ($existing_item = db_fetch_array(db_query("SELECT * FROM {menu_links} WHERE mlid = %d", $item['mlid']))) {
+      $existing_item['options'] = unserialize($existing_item['options']);
+    }
   }
 
   if (isset($item['plid'])) {
-    $parent = db_fetch_array(db_query("SELECT * FROM {menu_links} WHERE mlid = %d", $item['plid']));
+    if ($item['plid']) {
+      $parent = db_fetch_array(db_query("SELECT * FROM {menu_links} WHERE mlid = %d", $item['plid']));
+    }
+    else {
+      // Don't bother with the query - mlid can never equal zero..
+      $parent = FALSE;
+    }
   }
   else {
     // Find the parent - it must be unique.
@@ -1972,7 +1975,7 @@ function menu_link_save(&$item) {
       %d, %d,
       '%s', '%s', '%s', %d, %d)",
       $item['menu_name'], $item['plid'], $item['link_path'],
-      $item['hidden'], $item['_external'], $item['has_children'],
+      $item['hidden'], $item['external'], $item['has_children'],
       $item['expanded'], $item['weight'],
       $item['module'],  $item['link_title'], serialize($item['options']),
       $item['customized'], $item['updated']);
@@ -2004,10 +2007,9 @@ function menu_link_save(&$item) {
   if ($existing_item && ($item['plid'] != $existing_item['plid'] || $menu_name != $existing_item['menu_name'])) {
     _menu_link_move_children($item, $existing_item);
   }
-  // Find the callback. During the menu update we store empty paths to be
-  // fixed later, so we skip this.
-  if (!isset($_SESSION['system_update_6021']) && (empty($item['router_path'])  || !$existing_item || ($existing_item['link_path'] != $item['link_path']))) {
-    if ($item['_external']) {
+  // Find the router_path.
+  if (empty($item['router_path'])  || !$existing_item || ($existing_item['link_path'] != $item['link_path'])) {
+    if ($item['external']) {
       $item['router_path'] = '';
     }
     else {
@@ -2016,24 +2018,31 @@ function menu_link_save(&$item) {
       $item['router_path'] = _menu_find_router_path($menu, $item['link_path']);
     }
   }
-  db_query("UPDATE {menu_links} SET menu_name = '%s', plid = %d, link_path = '%s',
-    router_path = '%s', hidden = %d, external = %d, has_children = %d,
-    expanded = %d, weight = %d, depth = %d,
-    p1 = %d, p2 = %d, p3 = %d, p4 = %d, p5 = %d, p6 = %d, p7 = %d, p8 = %d, p9 = %d,
-    module = '%s', link_title = '%s', options = '%s', customized = %d WHERE mlid = %d",
-    $item['menu_name'], $item['plid'], $item['link_path'],
-    $item['router_path'], $item['hidden'], $item['_external'], $item['has_children'],
-    $item['expanded'], $item['weight'],  $item['depth'],
-    $item['p1'], $item['p2'], $item['p3'], $item['p4'], $item['p5'], $item['p6'], $item['p7'], $item['p8'], $item['p9'],
-    $item['module'],  $item['link_title'], serialize($item['options']), $item['customized'], $item['mlid']);
-  // Check the has_children status of the parent.
-  _menu_update_parental_status($item);
-  menu_cache_clear($menu_name);
-  if ($existing_item && $menu_name != $existing_item['menu_name']) {
-    menu_cache_clear($existing_item['menu_name']);
-  }
+  // If every value in $existing_item is the same in the $item, there is no
+  // reason to run the update queries or clear the caches. We use
+  // array_diff_assoc() with the $existing_item as the first parameter
+  // because $item has additional keys left over from the process of building
+  // the router item.
+  if (!$existing_item || array_diff_assoc($existing_item, $item)) {
+    db_query("UPDATE {menu_links} SET menu_name = '%s', plid = %d, link_path = '%s',
+      router_path = '%s', hidden = %d, external = %d, has_children = %d,
+      expanded = %d, weight = %d, depth = %d,
+      p1 = %d, p2 = %d, p3 = %d, p4 = %d, p5 = %d, p6 = %d, p7 = %d, p8 = %d, p9 = %d,
+      module = '%s', link_title = '%s', options = '%s', customized = %d WHERE mlid = %d",
+      $item['menu_name'], $item['plid'], $item['link_path'],
+      $item['router_path'], $item['hidden'], $item['external'], $item['has_children'],
+      $item['expanded'], $item['weight'],  $item['depth'],
+      $item['p1'], $item['p2'], $item['p3'], $item['p4'], $item['p5'], $item['p6'], $item['p7'], $item['p8'], $item['p9'],
+      $item['module'],  $item['link_title'], serialize($item['options']), $item['customized'], $item['mlid']);
+    // Check the has_children status of the parent.
+    _menu_update_parental_status($item);
+    menu_cache_clear($menu_name);
+    if ($existing_item && $menu_name != $existing_item['menu_name']) {
+      menu_cache_clear($existing_item['menu_name']);
+    }
 
-  _menu_clear_page_cache();
+    _menu_clear_page_cache();
+  }
   return $item['mlid'];
 }
 
@@ -2280,7 +2289,10 @@ function _menu_router_build($callbacks) {
     // Extract load and to_arg functions.
     foreach ($parts as $k => $part) {
       $match = FALSE;
-      if (preg_match('/^%([a-z_]*)$/', $part, $matches)) {
+      // Look for wildcards in the form allowed to be used in PHP functions,
+      // because we are using these to construct the load function names.
+      // See http://php.net/manual/en/language.functions.php for reference.
+      if (preg_match('/^%(|[a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*)$/', $part, $matches)) {
         if (empty($matches[1])) {
           $match = TRUE;
           $load_functions[$k] = NULL;
@@ -2466,7 +2478,7 @@ function _menu_site_is_offline() {
       // page redirects], and specifically suppress its display on the site
       // maintenance page.
       if (drupal_get_normal_path($_GET['q']) != 'admin/settings/site-maintenance') {
-        drupal_set_message(t('Operating in offline mode.'), 'status', FALSE);
+        drupal_set_message(t('Operating in offline mode. <a href="@url">Go online.</a>', array('@url' => url('admin/settings/site-maintenance'))), 'status', FALSE);
       }
     }
     else {

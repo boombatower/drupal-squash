@@ -394,7 +394,7 @@ function system_menu() {
   // menu items that are basically just menu blocks
   $items['admin/settings'] = array(
     'title' => 'Site configuration',
-    'description' => 'Adjust basic site configuration options.',
+    'description' => 'Configure site settings.',
     'position' => 'right',
     'weight' => -5,
     'page callback' => 'system_settings_overview',
@@ -706,13 +706,13 @@ function system_init() {
   if (arg(0) == 'admin' || (variable_get('node_admin_theme', '0') && arg(0) == 'node' && (arg(1) == 'add' || arg(2) == 'edit'))) {
     global $custom_theme;
     $custom_theme = variable_get('admin_theme', '0');
-    drupal_add_css(drupal_get_path('module', 'system') . '/admin.css', 'module');
+    drupal_add_css(drupal_get_path('module', 'system') . '/admin.css');
   }
 
   // Add the CSS for this module.
-  drupal_add_css(drupal_get_path('module', 'system') . '/defaults.css', 'module');
-  drupal_add_css(drupal_get_path('module', 'system') . '/system.css', 'module');
-  drupal_add_css(drupal_get_path('module', 'system') . '/system-menus.css', 'module');
+  drupal_add_css(drupal_get_path('module', 'system') . '/defaults.css');
+  drupal_add_css(drupal_get_path('module', 'system') . '/system.css');
+  drupal_add_css(drupal_get_path('module', 'system') . '/system-menus.css');
 }
 
 /**
@@ -935,7 +935,7 @@ function system_check_directory($form_element) {
  */
 function system_get_files_database(&$files, $type) {
   // Extract current files from database.
-  $result = db_query("SELECT filename, name, type, status, schema_version FROM {system} WHERE type = '%s'", $type);
+  $result = db_query("SELECT filename, name, type, status, schema_version, weight FROM {system} WHERE type = '%s'", $type);
   while ($file = db_fetch_object($result)) {
     if (isset($files[$file->name]) && is_object($files[$file->name])) {
       $file->old_filename = $file->filename;
@@ -1296,6 +1296,11 @@ function system_node_type($op, $info) {
  * confirmed the action. You should never directly inspect $_POST to see if an
  * action was confirmed.
  *
+ * Note - if the parameters $question, $description, $yes, or $no could contain
+ * any user input (such as node titles or taxonomy terms), it is the
+ * responsibility of the code calling confirm_form() to sanitize them first with
+ * a function like check_plain() or filter_xss().
+ *
  * @ingroup forms
  * @param $form
  *   Additional elements to inject into the form, for example hidden elements.
@@ -1329,7 +1334,7 @@ function confirm_form($form, $question, $path, $description = NULL, $yes = NULL,
   }
   $cancel = l($no ? $no : t('Cancel'), $path, array('query' => $query, 'fragment' => $fragment));
 
-  drupal_set_title($question);
+  drupal_set_title($question, PASS_THROUGH);
 
   // Confirm form fails duplication check, as the form values rarely change -- so skip it.
   $form['#skip_duplicate_check'] = TRUE;
@@ -1393,12 +1398,12 @@ function system_get_module_admin_tasks($module) {
   $admin_tasks = array();
   $admin_task_count = 0;
   // Check for permissions.
-  if (module_hook($module, 'perm') && $admin_access) {
+  if (in_array($module, module_implements('perm')) && $admin_access) {
     $admin_tasks[-1] = l(t('Configure permissions'), 'admin/user/permissions', array('fragment' => 'module-' . $module));
   }
 
   // Check for menu items that are admin links.
-  if ($menu = module_invoke($module, 'menu')) {
+  if (in_array($module, module_implements('menu')) && $menu = module_invoke($module, 'menu')) {
     foreach (array_keys($menu) as $path) {
       if (isset($items[$path])) {
         $admin_tasks[$items[$path]['title'] . $admin_task_count ++] = l($items[$path]['title'], $path);
@@ -2049,7 +2054,7 @@ function system_goto_action($object, $context) {
  */
 function system_block_ip_action() {
   $ip = ip_address();
-  db_query("INSERT INTO {blocked_ips} (ip) VALUES ('%s')", $ip);;
+  db_query("INSERT INTO {blocked_ips} (ip) VALUES ('%s')", $ip);
   watchdog('action', 'Banned IP address %ip', array('%ip' => $ip));
 }
 

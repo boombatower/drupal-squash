@@ -28,8 +28,8 @@ function openid_authentication_page() {
  * Menu callback; Manage OpenID identities for the specified user.
  */
 function openid_user_identities($account) {
-  drupal_set_title(check_plain($account->name));
-  drupal_add_css(drupal_get_path('module', 'openid') . '/openid.css', 'module');
+  drupal_set_title($account->name);
+  drupal_add_css(drupal_get_path('module', 'openid') . '/openid.css');
 
   // Check to see if we got a response
   $result = openid_complete();

@@ -70,7 +70,7 @@ function book_admin_settings_validate($form, &$form_state) {
  * @ingroup forms.
  */
 function book_admin_edit($form_state, $node) {
-  drupal_set_title(check_plain($node->title));
+  drupal_set_title($node->title);
   $form = array();
   $form['#node'] = $node;
   _book_admin_table($node, $form);
@@ -173,8 +173,8 @@ function _book_admin_table($node, &$form) {
  * @see book_admin_edit()
  */
 function _book_admin_table_tree($tree, &$form) {
-  foreach ($tree as $key => $data) {
-    $form[$key] = array(
+  foreach ($tree as $data) {
+    $form['book-admin-' . $data['link']['nid']] = array(
       '#item' => $data['link'],
       'nid' => array('#type' => 'value', '#value' => $data['link']['nid']),
       'depth' => array('#type' => 'value', '#value' => $data['link']['depth']),

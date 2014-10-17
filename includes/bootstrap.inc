@@ -125,26 +125,31 @@ define('DRUPAL_BOOTSTRAP_ACCESS', 3);
 define('DRUPAL_BOOTSTRAP_SESSION', 4);
 
 /**
- * Sixth bootstrap phase: load bootstrap.inc and module.inc, start
+ * Sixth bootstrap phase: initialize the variable system.
+ */
+define('DRUPAL_BOOTSTRAP_VARIABLES', 5);
+
+/**
+ * Seventh bootstrap phase: load bootstrap.inc and module.inc, start
  * the variable system and try to serve a page from the cache.
  */
-define('DRUPAL_BOOTSTRAP_LATE_PAGE_CACHE', 5);
+define('DRUPAL_BOOTSTRAP_LATE_PAGE_CACHE', 6);
 
 /**
- * Seventh bootstrap phase: find out language of the page.
+ * Eighth bootstrap phase: find out language of the page.
  */
-define('DRUPAL_BOOTSTRAP_LANGUAGE', 6);
+define('DRUPAL_BOOTSTRAP_LANGUAGE', 7);
 
 /**
- * Eighth bootstrap phase: set $_GET['q'] to Drupal path of request.
+ * Nineth bootstrap phase: set $_GET['q'] to Drupal path of request.
  */
-define('DRUPAL_BOOTSTRAP_PATH', 7);
+define('DRUPAL_BOOTSTRAP_PATH', 8);
 
 /**
  * Final bootstrap phase: Drupal is fully loaded; validate and fix
  * input data.
  */
-define('DRUPAL_BOOTSTRAP_FULL', 8);
+define('DRUPAL_BOOTSTRAP_FULL', 9);
 
 /**
  * Role ID for anonymous users; should match what's in the "role" table.
@@ -186,6 +191,37 @@ define('LANGUAGE_NEGOTIATION_DOMAIN', 3);
 define('REQUEST_TIME', $_SERVER['REQUEST_TIME']);
 
 /**
+ * @name Title text filtering flags
+ * @{
+ * Flags for use in drupal_set_title().
+ */
+
+/**
+ * Flag for drupal_set_title(); text is not sanitized, so run check_plain().
+ */
+define('CHECK_PLAIN', 0);
+
+/**
+ * Flag for drupal_set_title(); text has already been sanitized.
+ */
+define('PASS_THROUGH', -1);
+
+/**
+ * Signals that the registry lookup cache should be reset. 
+ */
+define('REGISTRY_RESET_LOOKUP_CACHE', 1);
+
+/**
+ * Signals that the registry lookup cache should be written to storage. 
+ */
+define('REGISTRY_WRITE_LOOKUP_CACHE', 2);
+
+/**
+ * @} End of "Title text filtering flags".
+ */
+
+
+/**
  * Start the timer with the specified name. If you start and stop
  * the same timer multiple times, the measured intervals will be
  * accumulated.
@@ -196,8 +232,7 @@ define('REQUEST_TIME', $_SERVER['REQUEST_TIME']);
 function timer_start($name) {
   global $timers;
 
-  list($usec, $sec) = explode(' ', microtime());
-  $timers[$name]['start'] = (float)$usec + (float)$sec;
+  $timers[$name]['start'] = microtime(TRUE);
   $timers[$name]['count'] = isset($timers[$name]['count']) ? ++$timers[$name]['count'] : 1;
 }
 
@@ -213,8 +248,7 @@ function timer_read($name) {
   global $timers;
 
   if (isset($timers[$name]['start'])) {
-    list($usec, $sec) = explode(' ', microtime());
-    $stop = (float)$usec + (float)$sec;
+    $stop = microtime(TRUE);
     $diff = round(($stop - $timers[$name]['start']) * 1000, 2);
 
     if (isset($timers[$name]['time'])) {
@@ -350,6 +384,25 @@ function drupal_initialize_variables() {
   if (!isset($_SERVER['SERVER_PROTOCOL']) || ($_SERVER['SERVER_PROTOCOL'] != 'HTTP/1.0' && $_SERVER['SERVER_PROTOCOL'] != 'HTTP/1.1')) {
     $_SERVER['SERVER_PROTOCOL'] = 'HTTP/1.0';
   }
+  // Enforce E_ALL, but allow users to set levels not part of E_ALL.
+  error_reporting(E_ALL | error_reporting());
+  // Prevent PHP from generating HTML errors messages.
+  ini_set('html_errors', 0);
+}
+
+/**
+ * Validate that $_SERVER['HTTP_HOST'] is safe.
+ *
+ * As $_SERVER['HTTP_HOST'] is user input, ensure it only contains characters
+ * allowed in hostnames.  See RFC 952 (and RFC 2181). $_SERVER['HTTP_HOST'] is
+ * lowercased.
+ *
+ * @return
+ *  TRUE if only containing valid characters, or FALSE otherwise.
+ */
+function drupal_valid_http_host() {
+  $_SERVER['HTTP_HOST'] = strtolower($_SERVER['HTTP_HOST']);
+  return preg_match('/^\[?(?:[a-z0-9-:\]_]+\.?)+$/', $_SERVER['HTTP_HOST']);
 }
 
 /**
@@ -362,6 +415,12 @@ function conf_init() {
   // Export the following settings.php variables to the global namespace
   global $databases, $db_prefix, $cookie_domain, $conf, $installed_profile, $update_free_access;
   $conf = array();
+
+  if (!drupal_valid_http_host()) {
+    // HTTP_HOST is invalid, e.g. if containing slashes it may be an attack.
+    header($_SERVER['SERVER_PROTOCOL'] . ' 400 Bad Request');
+    exit;
+  }
 
   if (file_exists(DRUPAL_ROOT . '/' . conf_path() . '/settings.php')) {
     include_once DRUPAL_ROOT . '/' . conf_path() . '/settings.php';
@@ -381,9 +440,7 @@ function conf_init() {
     // Create base URL
     $base_root = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] == 'on') ? 'https' : 'http';
 
-    // As $_SERVER['HTTP_HOST'] is user input, ensure it only contains
-    // characters allowed in hostnames.
-    $base_url = $base_root .= '://' . preg_replace('/[^a-z0-9-:._]/i', '', $_SERVER['HTTP_HOST']);
+    $base_url = $base_root .= '://' . $_SERVER['HTTP_HOST'];
 
     // $_SERVER['SCRIPT_NAME'] can, in contrast to $_SERVER['PHP_SELF'], not
     // be modified by a visitor.
@@ -608,7 +665,7 @@ function page_get_cache() {
  *   The name of the bootstrap hook we wish to invoke.
  */
 function bootstrap_invoke_all($hook) {
-  foreach (module_list(TRUE, TRUE) as $module) {
+  foreach (module_implements($hook) as $module) {
     module_invoke($module, $hook);
   }
 }
@@ -768,14 +825,8 @@ function check_plain($text) {
  * is outside of a tag, and thus deemed safe by a filter, can be interpreted
  * by the browser as if it were inside the tag.
  *
- * This function exploits preg_match behaviour (since PHP 4.3.5) when used
- * with the u modifier, as a fast way to find invalid UTF-8. When the matched
- * string contains an invalid byte sequence, it will fail silently.
- *
- * preg_match may not fail on 4 and 5 octet sequences, even though they
- * are not supported by the specification.
- *
- * The specific preg_match behaviour is present since PHP 4.3.5.
+ * The function does not return FALSE for strings containing character codes
+ * above U+10FFFF, even though these are prohibited by RFC 3629.
  *
  * @param $text
  *   The text to check.
@@ -786,6 +837,9 @@ function drupal_validate_utf8($text) {
   if (strlen($text) == 0) {
     return TRUE;
   }
+  // With the PCRE_UTF8 modifier 'u', preg_match() fails silently on strings
+  // containing invalid UTF-8 byte sequences. It does not reject character
+  // codes above U+10FFFF (represented by 4 or more octets), though.
   return (preg_match('/^./us', $text) == 1);
 }
 
@@ -991,23 +1045,24 @@ function drupal_anonymous_user($session = '') {
  *     DRUPAL_BOOTSTRAP_DATABASE: initialize database layer.
  *     DRUPAL_BOOTSTRAP_ACCESS: identify and reject banned hosts.
  *     DRUPAL_BOOTSTRAP_SESSION: initialize session handling.
+ *     DRUPAL_BOOTSTRAP_VARIABLES: initialize variable handling.
  *     DRUPAL_BOOTSTRAP_LATE_PAGE_CACHE: load bootstrap.inc and module.inc, start
  *       the variable system and try to serve a page from the cache.
  *     DRUPAL_BOOTSTRAP_LANGUAGE: identify the language used on the page.
  *     DRUPAL_BOOTSTRAP_PATH: set $_GET['q'] to Drupal path of request.
  *     DRUPAL_BOOTSTRAP_FULL: Drupal is fully loaded, validate and fix input data.
  */
-function drupal_bootstrap($phase) {
-  static $phases = array(DRUPAL_BOOTSTRAP_CONFIGURATION, DRUPAL_BOOTSTRAP_EARLY_PAGE_CACHE, DRUPAL_BOOTSTRAP_DATABASE, DRUPAL_BOOTSTRAP_ACCESS, DRUPAL_BOOTSTRAP_SESSION, DRUPAL_BOOTSTRAP_LATE_PAGE_CACHE, DRUPAL_BOOTSTRAP_LANGUAGE, DRUPAL_BOOTSTRAP_PATH, DRUPAL_BOOTSTRAP_FULL), $phase_index = 0;
+function drupal_bootstrap($phase = NULL) {
+  static $phases = array(DRUPAL_BOOTSTRAP_CONFIGURATION, DRUPAL_BOOTSTRAP_EARLY_PAGE_CACHE, DRUPAL_BOOTSTRAP_DATABASE, DRUPAL_BOOTSTRAP_ACCESS, DRUPAL_BOOTSTRAP_SESSION, DRUPAL_BOOTSTRAP_VARIABLES, DRUPAL_BOOTSTRAP_LATE_PAGE_CACHE, DRUPAL_BOOTSTRAP_LANGUAGE, DRUPAL_BOOTSTRAP_PATH, DRUPAL_BOOTSTRAP_FULL), $completed_phase = -1;
 
-  while ($phase >= $phase_index && isset($phases[$phase_index])) {
-    $current_phase = $phases[$phase_index];
-    unset($phases[$phase_index++]);
-    _drupal_bootstrap($current_phase);
-
-    global $_drupal_current_bootstrap_phase;
-    $_drupal_current_bootstrap_phase = $current_phase;
+  if (isset($phase)) {
+    while ($phases && $phase > $completed_phase) {
+      $current_phase = array_shift($phases);
+      _drupal_bootstrap($current_phase);
+      $completed_phase = $current_phase;
+    }
   }
+  return $completed_phase;
 }
 
 /**
@@ -1018,8 +1073,7 @@ function drupal_bootstrap($phase) {
  * @see drupal_bootstrap
  */
 function drupal_get_bootstrap_phase() {
-  global $_drupal_current_bootstrap_phase;
-  return $_drupal_current_bootstrap_phase;
+  return drupal_bootstrap();
 }
 
 function _drupal_bootstrap($phase) {
@@ -1072,9 +1126,12 @@ function _drupal_bootstrap($phase) {
       session_start();
       break;
 
-    case DRUPAL_BOOTSTRAP_LATE_PAGE_CACHE:
+    case DRUPAL_BOOTSTRAP_VARIABLES:
       // Initialize configuration variables, using values from settings.php if available.
       $conf = variable_init(isset($conf) ? $conf : array());
+      break;
+
+    case DRUPAL_BOOTSTRAP_LATE_PAGE_CACHE:
       // Load module handling.
       require_once DRUPAL_ROOT . '/includes/module.inc';
       $cache_mode = variable_get('cache', CACHE_DISABLED);
@@ -1365,23 +1422,11 @@ function drupal_function_exists($function) {
   $checked[$function] = FALSE;
 
   if (function_exists($function)) {
-    registry_mark_code('function', $function);
     $checked[$function] = TRUE;
     return TRUE;
   }
 
-  $file = db_query("SELECT filename FROM {registry} WHERE name = :name AND type = :type", array(
-      ':name' => $function,
-      ':type' => 'function',
-    ))
-    ->fetchField();
-  if ($file) {
-    require_once DRUPAL_ROOT . '/' . $file;
-    $checked[$function] = function_exists($function);
-    if ($checked[$function]) {
-      registry_mark_code('function', $function);
-    }
-  }
+  $checked[$function] = _registry_check_code('function', $function);
 
   return $checked[$function];
 }
@@ -1419,45 +1464,75 @@ function drupal_autoload_class($class) {
 }
 
 /**
- * Helper for registry_check_{interface, class}.
+ * Helper to check for a resource in the registry.
+ *
+ * @param $type
+ *   The type of resource we are looking up, or one of the constants 
+ *   REGISTRY_RESET_LOOKUP_CACHE or REGISTRY_WRITE_LOOKUP_CACHE, which
+ *   signal that we should reset or write the cache, respectively.
+ * @param $name
+ *   The name of the resource, or NULL if either of the REGISTRY_* constants
+ *   is passed in.
+ * @return
+ *   TRUE if the resource was found, FALSE if not.
+ *   NULL if either of the REGISTRY_* constants is passed in as $type.
  */
-function _registry_check_code($type, $name) {
-  $file = db_query("SELECT filename FROM {registry} WHERE name = :name AND type = :type", array(
+function _registry_check_code($type, $name = NULL) {
+  static $lookup_cache, $cache_update_needed;
+
+  if (!isset($lookup_cache)) {
+    $lookup_cache = _registry_get_lookup_cache();
+  }
+  
+  // When we rebuild the registry, we need to reset this cache so
+  // we don't keep lookups for resources that changed during the rebuild.
+  if ($type == REGISTRY_RESET_LOOKUP_CACHE) {
+    $cache_update_needed = TRUE;
+    $lookup_cache = NULL;
+    return;
+  }
+
+  // Called from drupal_page_footer, we write to permanent storage if there
+  // changes to the lookup cache for this request.
+  if ($type == REGISTRY_WRITE_LOOKUP_CACHE) {
+    if ($cache_update_needed) {
+      _registry_set_lookup_cache($lookup_cache);
+    }
+    return;
+  }
+  
+  // $type can be one of 'function', 'interface' or 'class', so we only need the 
+  // first letter to keep the cache key unique.
+  $cache_key = $type[0] . $name;
+  if (isset($lookup_cache[$cache_key])) {
+    if ($lookup_cache[$cache_key]) {
+      require_once DRUPAL_ROOT . '/' . $lookup_cache[$cache_key];
+    }
+    return $lookup_cache[$cache_key];
+  }
+  
+  // This function may get called when the default database is not active, but
+  // there is no reason we'd ever want to not use the default database for
+  // this query.
+  $file = Database::getConnection('default')->query("SELECT filename FROM {registry} WHERE name = :name AND type = :type", array(
       ':name' => $name,
       ':type' => $type,
     ))
     ->fetchField();
+
+  // Flag that we've run a lookup query and need to update the cache.
+  $cache_update_needed = TRUE;
+
+  // Misses are valuable information worth caching, so cache even if
+  // $file is FALSE.
+  $lookup_cache[$cache_key] = $file;
+
   if ($file) {
     require_once DRUPAL_ROOT . '/' . $file;
-    registry_mark_code($type, $name);
     return TRUE;
   }
-}
-
-/**
- * Collect the resources used for this request.
- *
- * @param $type
- *   The type of resource.
- * @param $name
- *   The name of the resource.
- * @param $return
- *   Boolean flag to indicate whether to return the resources.
- */
-function registry_mark_code($type, $name, $return = FALSE) {
-  static $resources = array();
-
-  if ($type && $name) {
-    if (!isset($resources[$type])) {
-      $resources[$type] = array();
-    }
-    if (!in_array($name, $resources[$type])) {
-      $resources[$type][] = $name;
-    }
-  }
-
-  if ($return) {
-    return $resources;
+  else {
+    return FALSE;
   }
 }
 
@@ -1473,82 +1548,35 @@ function registry_rebuild() {
 }
 
 /**
- * Save hook implementations cache.
- *
- * @param $hook
- *   Array with the hook name and list of modules that implement it.
- * @param $write_to_persistent_cache
- *   Whether to write to the persistent cache.
+ * Wrapper function to perform array to string conversion of lookup cache.
  */
-function registry_cache_hook_implementations($hook, $write_to_persistent_cache = FALSE) {
-  static $implementations;
-
-  if ($hook) {
-    // Newer is always better, so overwrite anything that's come before.
-    $implementations[$hook['hook']] = $hook['modules'];
+function _registry_set_lookup_cache(array $lookup_cache) {
+  // Cache a string, not an array, so we can avoid the memory usage hit 
+  // from serialize() in the cache system.
+  $key_value_pairs = array();
+  foreach ($lookup_cache as $key => $value) {
+    $key_value_pairs[] =  "$key|" . ($value ? $value : '');
   }
-
-  if ($write_to_persistent_cache === TRUE) {
-    // Only write this to cache if the implementations data we are going to cache
-    // is different to what we loaded earlier in the request.
-    if ($implementations != module_implements()) {
-      cache_set('hooks', $implementations, 'cache_registry');
-    }
-  }
+  return cache_set('lookup_cache', implode(';', $key_value_pairs), 'cache_registry');
 }
 
 /**
- * Save the files required by the registry for this path.
+ * Wrapper function to perform string to array conversion of lookup cache.
  */
-function registry_cache_path_files() {
-  if ($used_code = registry_mark_code(NULL, NULL, TRUE)) {
-    $files = array();
-    $type_sql = array();
-    $params = array();
-
-    $select = db_select('registry')->distinct();
-    $select->addField('registry', 'filename');
-
-    // This creates a series of 2-clause AND conditions that are then ORed together.
-    $ors = db_or();
-    foreach ($used_code as $type => $names) {
-      $and = db_and()
-        ->condition('name', $names, 'IN')
-        ->condition('type', $type);
-      $ors->condition($and);
-    }
-    $select->condition($ors);
-    $files = $select->execute()->fetchCol();
-
-    if ($files) {
-      sort($files);
-      // Only write this to cache if the file list we are going to cache
-      // is different to what we loaded earlier in the request.
-      if ($files != registry_load_path_files(TRUE)) {
-        $menu = menu_get_item();
-        cache_set('registry:' . $menu['path'], implode(';', $files), 'cache_registry');
-      }
+function _registry_get_lookup_cache() {
+  // In _registry_set_lookup_cache, we cache a string, not an array, to avoid 
+  // serialize() in the cache system. serialize() makes a copy, and thus uses
+  // extra memory, which we are trying to avoid.
+  $lookup_cache = array();
+  if ($cache = cache_get('lookup_cache', 'cache_registry')) {
+    // Each item is separated by ';'.
+    foreach (explode(';', $cache->data) as $lookup) {
+      // Key value pairs are separated by '|'.
+      list($resource, $result) = explode('|', $lookup);
+      $lookup_cache[$resource] = $result;
     }
   }
-}
-
-/**
- * registry_load_path_files
- */
-function registry_load_path_files($return = FALSE) {
-  static $file_cache_data = array();
-  if ($return) {
-    sort($file_cache_data);
-    return $file_cache_data;
-  }
-  $menu = menu_get_item();
-  $cache = cache_get('registry:' . $menu['path'], 'cache_registry');
-  if (!empty($cache->data)) {
-    foreach(explode(';', $cache->data) as $file) {
-      require_once DRUPAL_ROOT . '/' . $file;
-      $file_cache_data[] = $file;
-    }
-  }
+  return $lookup_cache;
 }
 
 /**

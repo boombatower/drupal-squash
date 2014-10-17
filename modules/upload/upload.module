@@ -102,10 +102,6 @@ function upload_menu() {
   return $items;
 }
 
-function upload_menu_alter(&$items) {
-  $items['system/files']['access arguments'] = array('view uploaded files');
-}
-
 /**
  * Determine the limitations on files that a given user may upload. The user
  * may be in multiple roles so we select the most permissive limitations from
@@ -483,7 +479,8 @@ function upload_save(&$node) {
     else {
       db_query("UPDATE {upload} SET list = %d, description = '%s', weight = %d WHERE fid = %d AND vid = %d", $file->list, $file->description, $file->weight, $file->fid, $node->vid);
     }
-    file_set_status($file, FILE_STATUS_PERMANENT);
+    $file->status &= FILE_STATUS_PERMANENT;
+    $file = file_save($file);
   }
 }
 

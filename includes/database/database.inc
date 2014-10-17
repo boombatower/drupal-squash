@@ -7,13 +7,6 @@
  */
 
 /**
- * A hash value to check when outputting database errors, md5('DB_ERROR').
- *
- * @see drupal_error_handler()
- */
-define('DB_ERROR', 'a515ac9c2796ca0e23adbe92c68fc9fc');
-
-/**
  * @defgroup database Database abstraction layer
  * @{
  * Allow the use of different database servers using the same code base.
@@ -141,15 +134,104 @@ abstract class DatabaseConnection extends PDO {
    *
    * We only need this for the legacy db_affected_rows() call, which will be removed.
    *
-   * @var DatabaseStatement
+   * @var DatabaseStatementInterface
    * @todo Remove this variable.
    */
   public $lastStatement;
 
+  /**
+   * The database target this connection is for.
+   *
+   * We need this information for later auditing and logging.
+   *
+   * @var string
+   */
+  protected $target = NULL;
+
+  /**
+   * The current database logging object for this connection.
+   *
+   * @var DatabaseLog
+   */
+  protected $logger = NULL;
+
+  /**
+   * Cache of prepared statements.
+   *
+   * This cache only lasts as long as the current page request, so it's not
+   * as useful as it could be, but every little bit helps.
+   *
+   * @var Array
+   */
+  protected $preparedStatements = array();
+
+  /**
+   * The name of the Select class for this connection.
+   *
+   * Normally this and the following class names would be static variables,
+   * but statics in methods are still global and shared by all instances.
+   *
+   * @var string
+   */
+  protected $selectClass = NULL;
+
+  /**
+   * The name of the Delete class for this connection.
+   *
+   * @var string
+   */
+  protected $deleteClass = NULL;
+
+  /**
+   * The name of the Insert class for this connection.
+   *
+   * @var string
+   */
+  protected $insertClass = NULL;
+
+  /**
+   * The name of the Merge class for this connection.
+   *
+   * @var string
+   */
+  protected $mergeClass = NULL;
+
+  /**
+   * The name of the Update class for this connection.
+   *
+   * @var string
+   */
+  protected $updateClass = NULL;
+
+  /**
+   * The name of the Transaction class for this connection.
+   *
+   * @var string
+   */
+  protected $transactionClass = NULL;
+
+  /**
+   * The schema object for this connection.
+   *
+   * @var object
+   */
+  protected $schema = NULL;
+
   function __construct($dsn, $username, $password, $driver_options = array()) {
-    $driver_options[PDO::ATTR_ERRMODE] = PDO::ERRMODE_EXCEPTION; // Because the other methods don't seem to work right.
+    // Fallback to DatabaseStatementBase if the driver has not specified one.
+    $statement_class = isset($driver_options['statement_class']) ? $driver_options['statement_class'] : 'DatabaseStatementBase';
+    unset($driver_options['statement_class']);
+
+    // Because the other methods don't seem to work right.
+    $driver_options[PDO::ATTR_ERRMODE] = PDO::ERRMODE_EXCEPTION;
+
+    // Call PDO::__construct and PDO::setAttribute.
     parent::__construct($dsn, $username, $password, $driver_options);
-    $this->setAttribute(PDO::ATTR_STATEMENT_CLASS, array('DatabaseStatement', array($this)));
+
+    // Set a specific PDOStatement class if the driver requires that.
+    if (!empty($statement_class)) {
+      $this->setAttribute(PDO::ATTR_STATEMENT_CLASS, array($statement_class, array($this)));
+    }
   }
 
   /**
@@ -251,7 +333,7 @@ abstract class DatabaseConnection extends PDO {
   /**
    * Prepare a query string and return the prepared statement.
    *
-   * This method statically caches prepared statements, reusing them when
+   * This method caches prepared statements, reusing them when
    * possible.  It also prefixes tables names enclosed in curly-braces.
    *
    * @param $query
@@ -261,12 +343,61 @@ abstract class DatabaseConnection extends PDO {
    *   A PDO prepared statement ready for its execute() method.
    */
   protected function prepareQuery($query) {
-    static $statements = array();
     $query = self::prefixTables($query);
-    if (empty($statements[$query])) {
-      $statements[$query] = parent::prepare($query);
+    if (empty($this->preparedStatements[$query])) {
+      // Call PDO::prepare.
+      $this->preparedStatements[$query] = parent::prepare($query);
     }
-    return $statements[$query];
+    return $this->preparedStatements[$query];
+  }
+
+  /**
+   * Tell this connection object what its target value is.
+   *
+   * This is needed for logging and auditing.  It's sloppy to do in the
+   * constructor because the constructor for child classes has a different
+   * signature.  We therefore also ensure that this function is only ever
+   * called once.
+   *
+   * @param $target
+   *   The target this connection is for.  Set to NULL (default) to disable
+   *   logging entirely.
+   */
+  public function setTarget($target = NULL) {
+    if (!isset($this->target)) {
+      $this->target = $target;
+    }
+  }
+
+  /**
+   * Returns the target this connection is associated with.
+   *
+   * @return
+   *   The target string of this connection.
+   */
+  public function getTarget() {
+    return $this->target;
+  }
+
+  /**
+   * Associate a logging object with this connection.
+   *
+   * @param $logger
+   *   The logging object we want to use.
+   */
+  public function setLogger(DatabaseLog $logger) {
+    $this->logger = $logger;
+  }
+
+  /**
+   * Get the current logging object for this connection.
+   *
+   * @return
+   *   The current logging object for this connection.  If there isn't one,
+   *   NULL is returned.
+   */
+  public function getLogger() {
+    return $this->logger;
   }
 
   /**
@@ -291,14 +422,13 @@ abstract class DatabaseConnection extends PDO {
    *
    * This method provides a central handler for the actual execution
    * of every query.  All queries executed by Drupal are executed as
-   * PDO prepared statements.  This method statically caches those
-   * prepared statements, reusing them when possible.
+   * PDO prepared statements.
    *
    * @param $query
    *   The query to execute.  In most cases this will be a string containing
    *   an SQL query with placeholders.  An already-prepared instance of
-   *   DatabaseStatement may also be passed in order to allow calling code
-   *   to manually bind variables to a query.  If a DatabaseStatement object
+   *   DatabaseStatementInterface may also be passed in order to allow calling code
+   *   to manually bind variables to a query.  If a DatabaseStatementInterface
    *   is passed, the $args array will be ignored.
    *
    *   It is extremely rare that module code will need to pass a statement
@@ -326,8 +456,9 @@ abstract class DatabaseConnection extends PDO {
 
     try {
       // We allow either a pre-bound statement object or a literal string.
-      // In either case, we want to end up with an executed statement object.
-      if ($query instanceof DatabaseStatement) {
+      // In either case, we want to end up with an executed statement object,
+      // which we pass to PDOStatement::execute.
+      if ($query instanceof DatabaseStatementInterface) {
         $stmt = $query;
         $stmt->execute(NULL, $options);
       }
@@ -352,12 +483,10 @@ abstract class DatabaseConnection extends PDO {
       }
     }
     catch (PDOException $e) {
-      if (!function_exists('module_implements')) {
-        _db_need_install();
-      }
+      _db_check_install_needed();
       if ($options['throw_exception']) {
-        if ($query instanceof DatabaseStatement) {
-          $query_string = $stmt->queryString;
+        if ($query instanceof DatabaseStatementInterface) {
+          $query_string = $stmt->getQueryString();
         }
         else {
           $query_string = $query;
@@ -384,14 +513,18 @@ abstract class DatabaseConnection extends PDO {
    *   A new SelectQuery object.
    */
   public function select($table, $alias = NULL, Array $options = array()) {
-    static $class_type;
-    if (empty($class_type)) {
-      $class_type = 'SelectQuery_' . $this->driver();
-      if (!class_exists($class_type)) {
-        $class_type = 'SelectQuery';
+    if (empty($this->selectClass)) {
+      $this->selectClass = 'SelectQuery_' . $this->driver();
+      if (!class_exists($this->selectClass)) {
+        $this->selectClass = 'SelectQuery';
       }
     }
-    return new $class_type($table, $alias, $this, $options);
+    $class = $this->selectClass;
+    // new is documented as the highest precedence operator so this will
+    // create a class named $class and pass the arguments into the constructor,
+    // instead of calling a function named $class with the arguments listed and
+    // then creating using the return value as the class name.
+    return new $class($table, $alias, $this, $options);
   }
 
   /**
@@ -404,14 +537,14 @@ abstract class DatabaseConnection extends PDO {
    *   A new InsertQuery object.
    */
   public function insert($table, Array $options = array()) {
-    static $class_type;
-    if (empty($class_type)) {
-      $class_type = 'InsertQuery_' . $this->driver();
-      if (!class_exists($class_type)) {
-        $class_type = 'InsertQuery';
+    if (empty($this->insertClass)) {
+      $this->insertClass = 'InsertQuery_' . $this->driver();
+      if (!class_exists($this->insertClass)) {
+        $this->insertClass = 'InsertQuery';
       }
     }
-    return new $class_type($this, $table, $options);
+    $class = $this->insertClass;
+    return new $class($this, $table, $options);
   }
 
   /**
@@ -424,15 +557,16 @@ abstract class DatabaseConnection extends PDO {
    *   A new MergeQuery object.
    */
   public function merge($table, Array $options = array()) {
-    static $class_type;
-    if (empty($class_type)) {
-      $class_type = 'MergeQuery_' . $this->driver();
-      if (!class_exists($class_type)) {
-        $class_type = 'MergeQuery';
+    if (empty($this->mergeClass)) {
+      $this->mergeClass = 'MergeQuery_' . $this->driver();
+      if (!class_exists($this->mergeClass)) {
+        $this->mergeClass = 'MergeQuery';
       }
     }
-    return new $class_type($this, $table, $options);
+    $class = $this->mergeClass;
+    return new $class($this, $table, $options);
   }
+
 
   /**
    * Prepare and return an UPDATE query object with the specified ID.
@@ -444,14 +578,14 @@ abstract class DatabaseConnection extends PDO {
    *   A new UpdateQuery object.
    */
   public function update($table, Array $options = array()) {
-    static $class_type;
-    if (empty($class_type)) {
-      $class_type = 'UpdateQuery_' . $this->driver();
-      if (!class_exists($class_type)) {
-        $class_type = 'UpdateQuery';
+    if (empty($this->updateClass)) {
+      $this->updateClass = 'UpdateQuery_' . $this->driver();
+      if (!class_exists($this->updateClass)) {
+        $this->updateClass = 'UpdateQuery';
       }
     }
-    return new $class_type($this, $table, $options);
+    $class = $this->updateClass;
+    return new $class($this, $table, $options);
   }
 
   /**
@@ -464,14 +598,14 @@ abstract class DatabaseConnection extends PDO {
    *   A new DeleteQuery object.
    */
   public function delete($table, Array $options = array()) {
-    static $class_type;
-    if (empty($class_type)) {
-      $class_type = 'DeleteQuery_' . $this->driver();
-      if (!class_exists($class_type)) {
-        $class_type = 'DeleteQuery';
+    if (empty($this->deleteClass)) {
+      $this->deleteClass = 'DeleteQuery_' . $this->driver();
+      if (!class_exists($this->deleteClass)) {
+        $this->deleteClass = 'DeleteQuery';
       }
     }
-    return new $class_type($this, $table, $options);
+    $class = $this->deleteClass;
+    return new $class($this, $table, $options);
   }
 
   /**
@@ -483,12 +617,11 @@ abstract class DatabaseConnection extends PDO {
    *   The DatabaseSchema object for this connection.
    */
   public function schema() {
-    static $schema;
-    if (empty($schema)) {
+    if (empty($this->schema)) {
       $class_type = 'DatabaseSchema_' . $this->driver();
-      $schema = new $class_type($this);
+      $this->schema = new $class_type($this);
     }
-    return $schema;
+    return $this->schema;
   }
 
   /**
@@ -502,7 +635,7 @@ abstract class DatabaseConnection extends PDO {
    *   The sanitized table name string.
    */
   public function escapeTable($table) {
-    return preg_replace('/[^A-Za-z0-9_]+/', '', $string);
+    return preg_replace('/[^A-Za-z0-9_]+/', '', $table);
   }
 
   /**
@@ -515,19 +648,17 @@ abstract class DatabaseConnection extends PDO {
    * @see DatabaseTransaction
    */
   public function startTransaction($required = FALSE) {
-    static $class_type;
-
     if ($required && !$this->supportsTransactions()) {
       throw new TransactionsNotSupportedException();
     }
 
-    if (empty($class_type)) {
-      $class_type = 'DatabaseTransaction_' . $this->driver();
-      if (!class_exists($class_type)) {
-        $class_type = 'DatabaseTransaction';
+    if (empty($this->transactionClass)) {
+      $this->transactionClass = 'DatabaseTransaction_' . $this->driver();
+      if (!class_exists($this->transactionClass)) {
+        $this->transactionClass = 'DatabaseTransaction';
       }
     }
-    return new $class_type($this);
+    return new $this->transactionClass($this);
   }
 
   /**
@@ -573,11 +704,14 @@ abstract class DatabaseConnection extends PDO {
    * @param $tablename
    *   The name of the temporary table to select into. This name will not be
    *   prefixed as there is no risk of collision.
+   * @param $options
+   *   An associative array of options to control how the query is run.  See
+   *   the documentation for DatabaseConnection::defaultOptions() for details.
    * @return
    *   A database query result resource, or FALSE if the query was not executed
    *   correctly.
    */
-   abstract function queryTemporary($query, Array $args, $tablename);
+  abstract function queryTemporary($query, Array $args, $tablename, Array $options = array());
 
   /**
    * Returns the type of database driver.
@@ -680,6 +814,75 @@ abstract class Database {
   static protected $activeKey = 'default';
 
   /**
+   * An array of active query log objects.
+   *
+   * Every connection has one and only one logger object for all targets
+   * and logging keys.
+   *
+   * array(
+   *   '$db_key' => DatabaseLog object.
+   * );
+   *
+   * @var array
+   */
+  static protected $logs = array();
+
+  /**
+   * Start logging a given logging key on the specified connection.
+   *
+   * @see DatabaseLog
+   * @param $logging_key
+   *   The logging key to log.
+   * @param $key
+   *   The database connection key for which we want to log.
+   * @return
+   *   The query log object.  Note that the log object does support richer
+   *   methods than the few exposed through the Database class, so in some
+   *   cases it may be desirable to access it directly.
+   */
+  final public static function startLog($logging_key, $key = 'default') {
+    if (empty(self::$logs[$key])) {
+      self::$logs[$key] = new DatabaseLog($key);
+
+      // Every target already active for this connection key needs to have
+      // the logging object associated with it.
+      if (!empty(self::$connections[$key])) {
+        foreach (self::$connections[$key] as $connection) {
+          $connection->setLogger(self::$logs[$key]);
+        }
+      }
+    }
+
+    self::$logs[$key]->start($logging_key);
+    return self::$logs[$key];
+  }
+
+  /**
+   * Retrieve the queries logged on for given logging key.
+   *
+   * This method also ends logging for the specified key.  To get the query log
+   * to date without ending the logger request the logging object by starting
+   * it again (which does nothing to an open log key) and call methods on it as
+   * desired.
+   *
+   * @see DatabaseLog
+   * @param $logging_key
+   *   The logging key to log.
+   * @param $key
+   *   The database connection key for which we want to log.
+   * @return
+   *   The query log for the specified logging key and connection.
+   */
+  final public static function getLog($logging_key, $key = 'default') {
+    if (empty(self::$logs[$key])) {
+      return NULL;
+    }
+    $queries = self::$logs[$key]->get($logging_key);
+    self::$logs[$key]->end($logging_key);
+    return $queries;
+  }
+
+  /**
    * Gets the active connection object for the specified target.
    *
    * @return
@@ -688,8 +891,14 @@ abstract class Database {
   final public static function getActiveConnection($target = 'default') {
     // This could just be a call to getConnection(), but that's an extra
     // method call for every single query.
+    if (!empty(self::$ignoreTargets[self::$activeKey][$target])) {
+      $target = 'default';
+    }
+
     if (!isset(self::$connections[self::$activeKey][$target])) {
-      self::openConnection(self::$activeKey, $target);
+      // If we're trying to open a target that doesn't exist, we need to know
+      // what the actual target we got was.
+      $target = self::openConnection(self::$activeKey, $target);
     }
 
     return isset(self::$connections[self::$activeKey][$target]) ? self::$connections[self::$activeKey][$target] : NULL;
@@ -707,7 +916,9 @@ abstract class Database {
     }
 
     if (!isset(self::$connections[$key][$target])) {
-      self::openConnection($key, $target);
+      // If we're trying to open a target that doesn't exist, we need to know
+      // what the actual target we got was.
+      $target = self::openConnection(self::$activeKey, $target);
     }
 
     return isset(self::$connections[$key][$target]) ? self::$connections[$key][$target] : NULL;
@@ -750,11 +961,9 @@ abstract class Database {
   final protected static function parseConnectionInfo() {
     global $databases;
 
-    if (empty($databases)) {
-      _db_need_install();
-    }
-    $databaseInfo = $databases;
+    _db_check_install_needed();
 
+    $databaseInfo = $databases;
     foreach ($databaseInfo as $index => $info) {
       foreach ($databaseInfo[$index] as $target => $value) {
         // If there is no "driver" property, then we assume it's an array of
@@ -821,6 +1030,8 @@ abstract class Database {
    * @param $target
    *   The database target to open.  If the specified target does not exist,
    *   the "default" target will be used instead.
+   * @return
+   *   The name of the target that was actually opened.
    */
   final protected static function openConnection($key, $target) {
     global $db_prefix;
@@ -850,18 +1061,29 @@ abstract class Database {
       $driver_class = 'DatabaseConnection_' . $driver;
       require_once DRUPAL_ROOT . '/includes/database/' . $driver . '/database.inc';
       self::$connections[$key][$target] = new $driver_class(self::$databaseInfo[$key][$target]);
+      self::$connections[$key][$target]->setTarget($target);
+
+      // If we have any active logging objects for this connection key, we need
+      // to associate them with the connection we just opened.
+      if (!empty(self::$logs[$key])) {
+        self::$connections[$key][$target]->setLogger(self::$logs[$key]);
+      }
 
       // We need to pass around the simpletest database prefix in the request
       // and we put that in the user_agent header.
       if (preg_match("/^simpletest\d+$/", $_SERVER['HTTP_USER_AGENT'])) {
-        $db_prefix = $_SERVER['HTTP_USER_AGENT'];
+        $db_prefix .= $_SERVER['HTTP_USER_AGENT'];
       }
+
+      // Return the target that was actually opened in case the requested one
+      // didn't exist.
+      return $target;
     }
     catch (Exception $e) {
       // It is extremely rare that an exception will be generated here other
       // than when installing.  We therefore intercept it and try the installer,
       // passing on the exception otherwise.
-      _db_need_install();
+      _db_check_install_needed();
       throw $e;
     }
   }
@@ -1009,7 +1231,190 @@ class DatabaseTransaction {
 }
 
 /**
- * Prepared statement class.
+ * A prepared statement.
+ *
+ * Some methods in that class are purposely commented out. Due to a change in
+ * how PHP defines PDOStatement, we can't define a signature for those methods that
+ * will work the same way between versions older than 5.2.6 and later versions.
+ *
+ * Please refer to http://bugs.php.net/bug.php?id=42452 for more details.
+ *
+ * Child implementations should either extend PDOStatement:
+ * @code
+ * class DatabaseStatement_oracle extends PDOStatement implements DatabaseStatementInterface {}
+ * @endcode
+ *
+ * or implement their own class, but in that case they will also have to implement
+ * the Iterator or IteratorArray interfaces before DatabaseStatementInterface:
+ * @code
+ * class DatabaseStatement_oracle implements Iterator, DatabaseStatementInterface {}
+ * @endcode
+ */
+interface DatabaseStatementInterface extends Traversable {
+
+  /**
+   * Executes a prepared statement
+   *
+   * @param $args
+   *   An array of values with as many elements as there are bound parameters in the SQL statement being executed.
+   * @param $options
+   *   An array of options for this query.
+   * @return
+   *   TRUE on success, or FALSE on failure.
+   */
+  public function execute($args, $options);
+
+  /**
+   * Get the query string of that statement.
+   *
+   * @return
+   *   The query string, in its form with placeholders.
+   */
+  public function getQueryString();
+
+  /**
+   * Returns the number of rows affected by the last SQL statement.
+   *
+   * @return
+   *   The number of rows affected by the last DELETE, INSERT, or UPDATE
+   *   statement executed
+   */
+  public function rowCount();
+
+  /**
+   * Set the default fetch mode for this statement.
+   *
+   * See http://php.net/manual/en/pdo.constants.php for the definition of the
+   * constants used.
+   *
+   * @param $mode
+   *   One of the PDO::FETCH_* constants.
+   * @param $a1
+   *   An option depending of the fetch mode specified by $mode:
+   *    - for PDO::FETCH_COLUMN, it is the index of the column to fetch,
+   *    - for PDO::FETCH_CLASS, it is the name of the class to create, and
+   *    - for PDO::FETCH_INTO, it is the object to add the data to.
+   * @param $a2
+   *  In case of when mode is PDO::FETCH_CLASS, the optional arguments to
+   *  pass to the constructor.
+   */
+  // public function setFetchMode($mode, $a1 = NULL, $a2 = array());
+
+  /**
+   * Fetches the next row from a result set.
+   *
+   * See http://php.net/manual/en/pdo.constants.php for the definition of the
+   * constants used.
+   *
+   * @param $mode
+   *   One of the PDO::FETCH_* constants.
+   *   Default to what was specified by setFetchMode().
+   * @param $cursor_orientation
+   *   Not implemented in all database drivers, don't use.
+   * @param $cursor_offset
+   *   Not implemented in all database drivers, don't use.
+   * @return
+   *   A result, formatted according to $mode.
+   */
+  // public function fetch($mode = NULL, $cursor_orientation = NULL, $cursor_offset = NULL);
+
+  /**
+   * Return a single field out of the current
+   *
+   * @param $index
+   *   The numeric index of the field to return.  Defaults to the first field.
+   * @return
+   *   A single field from the next record.
+   */
+  public function fetchField($index = 0);
+
+  /**
+   * Fetches the next row and returns it as an object.
+   *
+   * The object will be of the class specified by DatabaseStatementInterface::setFetchMode()
+   * or stdClass if not specified.
+   */
+  // public function fetchObject();
+
+  /**
+   * Fetches the next row and returns it as an associative array.
+   *
+   * This method corresponds to PDOStatement::fetchObject(),
+   * but for associative arrays.  For some reason PDOStatement does
+   * not have a corresponding array helper method, so one is added.
+   *
+   * @return
+   *   An associative array.
+   */
+  public function fetchAssoc();
+
+  /**
+   * Returns an array containing all of the result set rows.
+   *
+   * @param $mode
+   *   One of the PDO::FETCH_* constants.
+   * @param $column_index
+   *   If $mode is PDO::FETCH_COLUMN, the index of the column to fetch.
+   * @param $constructor_arguments
+   *   If $mode is PDO::FETCH_CLASS, the arguments to pass to the constructor.
+   * @return
+   *   An array of results.
+   */
+  // function fetchAll($mode = NULL, $column_index = NULL, Array $constructor_arguments);
+
+  /**
+   * Returns an entire single column of a result set as an indexed array.
+   *
+   * Note that this method will run the result set to the end.
+   *
+   * @param $index
+   *   The index of the column number to fetch.
+   * @return
+   *   An indexed array.
+   */
+  public function fetchCol($index = 0);
+
+  /**
+   * Returns the entire result set as a single associative array.
+   *
+   * This method is only useful for two-column result sets. It will return
+   * an associative array where the key is one column from the result set
+   * and the value is another field. In most cases, the default of the first two
+   * columns is appropriate.
+   *
+   * Note that this method will run the result set to the end.
+   *
+   * @param $key_index
+   *   The numeric index of the field to use as the array key.
+   * @param $value_index
+   *   The numeric index of the field to use as the array value.
+   * @return
+   *   An associative array.
+   */
+  public function fetchAllKeyed($key_index = 0, $value_index = 1);
+
+  /**
+   * Returns an entire result set as an associative array keyed by the named field.
+   *
+   * If the given key appears multiple times, later records will overwrite
+   * earlier ones.
+   *
+   * Note that this method will run the result set to the end.
+   *
+   * @param $key
+   *   The name of the field on which to index the array.
+   * @param $fetch
+   *   The fetchmode to use.  If set to PDO::FETCH_ASSOC, PDO::FETCH_NUM, or
+   *   PDO::FETCH_BOTH the returned value with be an array of arrays. For any
+   *   other value it will be an array of objects.
+   * @return
+   *   An associative array.
+   */
+  public function fetchAllAssoc($key, $fetch = PDO::FETCH_OBJ);
+}
+
+/**
+ * Default implementation of DatabaseStatementInterface.
  *
  * PDO allows us to extend the PDOStatement class to provide additional
  * functionality beyond that offered by default.  We do need extra
@@ -1018,7 +1423,7 @@ class DatabaseTransaction {
  *
  * @link http://us.php.net/pdostatement
  */
-class DatabaseStatement extends PDOStatement {
+class DatabaseStatementBase extends PDOStatement implements DatabaseStatementInterface {
 
   /**
    * Reference to the database connection object for this statement.
@@ -1034,16 +1439,6 @@ class DatabaseStatement extends PDOStatement {
     $this->setFetchMode(PDO::FETCH_OBJ);
   }
 
-  /**
-   * Executes a prepared statement
-   *
-   * @param $args
-   *   An array of values with as many elements as there are bound parameters in the SQL statement being executed.
-   * @param $options
-   *   An array of options for this query.
-   * @return
-   *   TRUE on success, or FALSE on failure.
-   */
   public function execute($args, $options) {
     if (isset($options['fetch'])) {
       if (is_string($options['fetch'])) {
@@ -1057,40 +1452,30 @@ class DatabaseStatement extends PDOStatement {
       }
     }
     $this->dbh->lastStatement = $this;
-    return parent::execute($args);
+
+    $logger = $this->dbh->getLogger();
+    if (!empty($logger)) {
+      $query_start = microtime(TRUE);
+    }
+
+    $return = parent::execute($args);
+
+    if (!empty($logger)) {
+      $query_end = microtime(TRUE);
+      $logger->log($this, $args, $query_end - $query_start);
+    }
+
+    return $return;
   }
 
-  /**
-   * Returns an entire single column of a result set as an indexed array.
-   *
-   * Note that this method will run the result set to the end.
-   *
-   * @param $index
-   *   The index of the column number to fetch.
-   * @return
-   *   An indexed array.
-   */
+  public function getQueryString() {
+    return $this->queryString;
+  }
+
   public function fetchCol($index = 0) {
     return $this->fetchAll(PDO::FETCH_COLUMN, $index);
   }
 
-  /**
-   * Returns an entire result set as an associative array keyed by the named field.
-   *
-   * If the given key appears multiple times, later records will overwrite
-   * earlier ones.
-   *
-   * Note that this method will run the result set to the end.
-   *
-   * @param $key
-   *   The name of the field on which to index the array.
-   * @param $fetch
-   *   The fetchmode to use.  If set to   PDO::FETCH_ASSOC, PDO::FETCH_NUM, or
-   *   PDO::FETCH_BOTH the returned value with be an array of arrays.  For any
-   *   other value it will be an array of objects.
-   * @return
-   *   An associative array.
-   */
   public function fetchAllAssoc($key, $fetch = PDO::FETCH_OBJ) {
     $return = array();
     $this->setFetchMode($fetch);
@@ -1107,23 +1492,6 @@ class DatabaseStatement extends PDOStatement {
     return $return;
   }
 
-  /**
-   * Returns the entire result set as a single associative array.
-   *
-   * This method is only useful for two-column result sets.  It will return
-   * an associative array where the key is one column from the result set
-   * and the value is another field.  In most cases, the default of the first two
-   * columns is appropriate.
-   *
-   * Note that this method will run the result set to the end.
-   *
-   * @param $key_index
-   *   The numeric index of the field to use as the array key.
-   * @param $value_index
-   *   The numeric index of the field to use as the array value.
-   * @return
-   *   An associative array.
-   */
   public function fetchAllKeyed($key_index = 0, $value_index = 1) {
     $return = array();
     $this->setFetchMode(PDO::FETCH_NUM);
@@ -1133,29 +1501,13 @@ class DatabaseStatement extends PDOStatement {
     return $return;
   }
 
-  /**
-   * Return a single field out of the current
-   *
-   * @param $index
-   *   The numeric index of the field to return.  Defaults to the first field.
-   * @return
-   *   A single field from the next record.
-   */
   public function fetchField($index = 0) {
+    // Call PDOStatement::fetchColumn to fetch the field.
     return $this->fetchColumn($index);
   }
 
-  /**
-   * Fetches the next row and returns it as an associative array.
-   *
-   * This method corresponds to PDOStatement::fetchObject(),
-   * but for associative arrays.  For some reason PDOStatement does
-   * not have a corresponding array helper method, so one is added.
-   *
-   * @return
-   *   An associative array.
-   */
   public function fetchAssoc() {
+    // Call PDOStatement::fetch to fetch the row.
     return $this->fetch(PDO::FETCH_ASSOC);
   }
 }
@@ -1244,10 +1596,9 @@ function db_query_range($query, $args, $from = 0, $count = 0, $options = array()
  *   placeholders, this is an associative array in any order.  If the query uses
  *   unnamed placeholders (?), this is an indexed array and the order must match
  *   the order of placeholders in the query string.
- * @param $from
- *   The first record from the result set to return.
- * @param $limit
- *   The number of records to return from the result set.
+ * @param $tablename
+ *   The name of the temporary table to select into. This name will not be
+ *   prefixed as there is no risk of collision.
  * @param $options
  *   An array of options to control how the query operates.
  */
@@ -1504,6 +1855,18 @@ function db_column_exists($table, $column) {
   return Database::getActiveConnection()->schema()->columnExists($table, $column);
 }
 
+/**
+ * Find all tables that are like the specified base table name.
+ *
+ * @param $table_expression
+ *   An SQL expression, for example "simpletest%" (without the quotes).
+ *   BEWARE: this is not prefixed, the caller should take care of that.
+ * @return
+ *   Array, both the keys and the values are the matching tables.
+ */
+function db_find_tables($table_expression) {
+  return Database::getActiveConnection()->schema()->findTables($table_expression);
+}
 
 /**
  * Given a Schema API field type, return the correct %-placeholder.
@@ -1669,7 +2032,7 @@ function db_field_set_no_default(&$ret, $table, $field) {
  *   Fields for the primary key.
  */
 function db_add_primary_key(&$ret, $table, $fields) {
-  return Database::getActiveConnection()->schema()->addPrimaryKey($ret, $table, $field);
+  return Database::getActiveConnection()->schema()->addPrimaryKey($ret, $table, $fields);
 }
 
 /**
@@ -1741,7 +2104,7 @@ function db_add_index(&$ret, $table, $name, $fields) {
  *   The name of the index.
  */
 function db_drop_index(&$ret, $table, $name) {
-  return Database::getActiveConnection()->schema()->addIndex($ret, $table, $name);
+  return Database::getActiveConnection()->schema()->dropIndex($ret, $table, $name);
 }
 
 /**
@@ -1822,6 +2185,7 @@ function db_change_field(&$ret, $table, $field, $field_new, $spec, $keys_new = a
  */
 function _db_error_page($error = '') {
   global $db_type;
+  drupal_init_language();
   drupal_maintenance_theme();
   drupal_set_header($_SERVER['SERVER_PROTOCOL'] . ' 503 Service Unavailable');
   drupal_set_title('Site offline');
@@ -1830,27 +2194,33 @@ function _db_error_page($error = '') {
 /**
  * @ingroup database-legacy
  *
- * These functions are no longer necessary, as the DatabaseStatement object
+ * These functions are no longer necessary, as the DatabaseStatementInterface interface
  * offers this and much more functionality.  They are kept temporarily for backward
  * compatibility during conversion and should be removed as soon as possible.
  *
  * @{
  */
 
-function db_fetch_object(DatabaseStatement $statement) {
+function db_fetch_object(DatabaseStatementInterface $statement) {
   return $statement->fetch(PDO::FETCH_OBJ);
 }
 
-function db_fetch_array(DatabaseStatement $statement) {
+function db_fetch_array(DatabaseStatementInterface $statement) {
   return $statement->fetch(PDO::FETCH_ASSOC);
 }
 
-function db_result(DatabaseStatement $statement) {
+function db_result(DatabaseStatementInterface $statement) {
   return $statement->fetchField();
 }
 
-function _db_need_install() {
-  if (!function_exists('install_goto')) {
+/**
+ * Redirect the user to the installation script if Drupal has not been
+ * installed yet (i.e., if no $databases array has been defined in the
+ * settings file) and we are not already there. Otherwise, do nothing.
+ */
+function _db_check_install_needed() {
+  global $databases;
+  if (empty($databases) && !function_exists('install_main')) {
     include_once DRUPAL_ROOT . '/includes/install.inc';
     install_goto('install.php');
   }
@@ -2026,12 +2396,8 @@ function db_rewrite_sql($query, $primary_table = 'n', $primary_field = 'nid',  $
       $n = strlen($matches[1]);
       $second_part = substr($query, $n);
       $first_part = substr($matches[1], 0, $n - 5) ." $join WHERE $where AND ( ";
-      // PHP 4 does not support strrpos for strings. We emulate it.
-      $haystack_reverse = strrev($second_part);
-      // No need to use strrev on the needle, we supply GROUP, ORDER, LIMIT
-      // reversed.
-      foreach (array('PUORG', 'REDRO', 'TIMIL') as $needle_reverse) {
-        $pos = strpos($haystack_reverse, $needle_reverse);
+      foreach (array('GROUP', 'ORDER', 'LIMIT') as $needle) {
+        $pos = strrpos($second_part, $needle);
         if ($pos !== FALSE) {
           // All needles are five characters long.
           $pos += 5;

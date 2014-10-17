@@ -528,7 +528,7 @@ function user_access($string, $account = NULL, $reset = FALSE) {
   static $perm = array();
 
   if ($reset) {
-    unset($perm);
+    $perm = array();
   }
 
   if (is_null($account)) {
@@ -1120,7 +1120,7 @@ function user_menu() {
 }
 
 function user_init() {
-  drupal_add_css(drupal_get_path('module', 'user') . '/user.css', 'module');
+  drupal_add_css(drupal_get_path('module', 'user') . '/user.css');
 }
 
 function user_uid_optional_load($arg) {
@@ -1451,6 +1451,7 @@ function user_edit_form(&$form_state, $uid, $edit, $register = FALSE) {
       '#maxlength' => USERNAME_MAX_LENGTH,
       '#description' => t('Spaces are allowed; punctuation is not allowed except for periods, hyphens, apostrophes, and underscores.'),
       '#required' => TRUE,
+      '#attributes' => array('class' => 'username'),
     );
   }
   $form['account']['mail'] = array('#type' => 'textfield',
@@ -1916,7 +1917,7 @@ function user_help($path, $arg) {
 function _user_categories($account) {
   $categories = array();
 
-  foreach (module_list() as $module) {
+  foreach (module_implements('user_categories') as $module) {
     if ($data = module_invoke($module, 'user_categories', NULL, $account, '')) {
       $categories = array_merge($data, $categories);
     }
@@ -2159,22 +2160,20 @@ function _user_password_dynamic_validation() {
   global $user;
   // Only need to do once per page.
   if (!$complete) {
-    drupal_add_js(drupal_get_path('module', 'user') . '/user.js', 'module');
+    drupal_add_js(drupal_get_path('module', 'user') . '/user.js');
 
     drupal_add_js(array(
       'password' => array(
         'strengthTitle' => t('Password strength:'),
-        'lowStrength' => t('Low'),
-        'mediumStrength' => t('Medium'),
-        'highStrength' => t('High'),
-        'tooShort' => t('It is recommended to choose a password that contains at least six characters. It should include numbers, punctuation, and both upper and lowercase letters.'),
-        'needsMoreVariation' => t('The password does not include enough variation to be secure. Try:'),
-        'addLetters' => t('Adding both upper and lowercase letters.'),
-        'addNumbers' => t('Adding numbers.'),
-        'addPunctuation' => t('Adding punctuation.'),
-        'sameAsUsername' => t('It is recommended to choose a password different from the username.'),
-        'confirmSuccess' => t('Yes'),
-        'confirmFailure' => t('No'),
+        'hasWeaknesses' => t('To make your password stronger:'),
+        'tooShort' => t('Make it at least 6 characters'),
+        'addLowerCase' => t('Add lowercase letters'),
+        'addUpperCase' => t('Add uppercase letters'),
+        'addNumbers' => t('Add numbers'),
+        'addPunctuation' => t('Add punctuation'),
+        'sameAsUsername' => t('Make it different from your username'),
+        'confirmSuccess' => t('yes'),
+        'confirmFailure' => t('no'),
         'confirmTitle' => t('Passwords match:'),
         'username' => (isset($user->name) ? $user->name : ''))),
       'setting');

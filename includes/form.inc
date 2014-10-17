@@ -1503,7 +1503,7 @@ function form_get_options($element, $key) {
  * @ingroup themeable
  */
 function theme_fieldset($element) {
-  if ($element['#collapsible']) {
+  if (!empty($element['#collapsible'])) {
     drupal_add_js('misc/collapse.js');
 
     if (!isset($element['#attributes']['class'])) {
@@ -1511,7 +1511,7 @@ function theme_fieldset($element) {
     }
 
     $element['#attributes']['class'] .= ' collapsible';
-    if ($element['#collapsed']) {
+    if (!empty($element['#collapsed'])) {
       $element['#attributes']['class'] .= ' collapsed';
     }
   }
@@ -1716,7 +1716,21 @@ function date_validate($form) {
  * Helper function for usage with drupal_map_assoc to display month names.
  */
 function map_month($month) {
-  return format_date(gmmktime(0, 0, 0, $month, 2, 1970), 'custom', 'M', 0);
+  static $months = array(
+    1 => 'Jan',
+    2 => 'Feb',
+    3 => 'Mar',
+    4 => 'Apr',
+    5 => 'May',
+    6 => 'Jun',
+    7 => 'Jul',
+    8 => 'Aug',
+    9 => 'Sep',
+    10 => 'Oct',
+    11 => 'Nov',
+    12 => 'Dec',
+  );
+  return t($months[$month]);
 }
 
 /**
@@ -1761,7 +1775,7 @@ function form_process_radios($element) {
 /**
  * Add input format selector to text elements with the #input_format property.
  *
- * The #input_format property should be the ID of an input format, found in 
+ * The #input_format property should be the ID of an input format, found in
  * {filter_formats}.format, which gets passed to filter_form().
  *
  * If the property #input_format is set, the form element will be expanded into
@@ -1777,7 +1791,7 @@ function form_process_radios($element) {
  *     '#type' => 'textarea',
  *     '#title' => t('Body'),
  *     '#input_format' => isset($node->format) ? $node->format : FILTER_FORMAT_DEFAULT,
- *   ); 
+ *   );
  * @endcode
  *
  * Becomes:
@@ -1879,7 +1893,7 @@ function form_process_ahah($element) {
   // Adding the same javascript settings twice will cause a recursion error,
   // we avoid the problem by checking if the javascript has already been added.
   if (isset($element['#ahah']['path']) && isset($element['#ahah']['event']) && !isset($js_added[$element['#id']])) {
-    drupal_add_js('misc/jquery.form.js');
+    drupal_add_js('misc/jquery.form.js', array('weight' => JS_LIBRARY));
     drupal_add_js('misc/ahah.js');
 
     $ahah_binding = array(
@@ -1905,7 +1919,7 @@ function form_process_ahah($element) {
 
     // Add progress.js if we're doing a bar display.
     if ($ahah_binding['progress']['type'] == 'bar') {
-      drupal_add_js('misc/progress.js');
+      drupal_add_js('misc/progress.js', array('cache' => FALSE));
     }
 
     drupal_add_js(array('ahah' => array($element['#id'] => $ahah_binding)), 'setting');
@@ -1994,7 +2008,15 @@ function form_process_checkboxes($element) {
     }
     foreach ($element['#options'] as $key => $choice) {
       if (!isset($element[$key])) {
-        $element[$key] = array('#type' => 'checkbox', '#processed' => TRUE, '#title' => $choice, '#return_value' => $key, '#default_value' => isset($value[$key]), '#attributes' => $element['#attributes']);
+        $element[$key] = array(
+          '#type' => 'checkbox',
+          '#processed' => TRUE,
+          '#title' => $choice,
+          '#return_value' => $key,
+          '#default_value' => isset($value[$key]),
+          '#attributes' => $element['#attributes'],
+          '#ahah' => isset($element['#ahah']) ? $element['#ahah'] : NULL,
+        );
       }
     }
   }
@@ -2379,6 +2401,11 @@ function form_clean_id($id = NULL, $flush = FALSE) {
  * batch_process();
  * @endcode
  *
+ * Note - if the batch 'title', 'init_message', 'progress_message',
+ * or 'error_message' could contain any user input, it is the responsibility of
+ * the code calling batch_set() to sanitize them first with a function like
+ * check_plain() or filter_xss().
+ *
  * Sample batch operations:
  * @code
  * // Simple and artificial: load a node of a given type for a given user
@@ -2539,8 +2566,8 @@ function batch_set($batch_definition) {
  * Unless the batch has been marked with 'progressive' = FALSE, the function
  * issues a drupal_goto and thus ends page execution.
  *
- * This function is not needed in form submit handlers; Form API takes care
- * of batches that were set during form submission.
+ * This function is generally not needed in form submit handlers;
+ * Form API takes care of batches that were set during form submission.
  *
  * @param $redirect
  *   (optional) Path to redirect to when the batch has finished processing.
@@ -2574,8 +2601,12 @@ function batch_process($redirect = NULL, $url = NULL) {
 
       // Initiate db storage in order to get a batch id. We have to provide
       // at least an empty string for the (not null) 'token' column.
-      db_query("INSERT INTO {batch} (token, timestamp) VALUES ('', %d)", REQUEST_TIME);
-      $batch['id'] = db_last_insert_id('batch', 'bid');
+      $batch['id'] = db_insert('batch')
+        ->fields(array(
+          'token' => '',
+          'timestamp' => REQUEST_TIME,
+        ))
+        ->execute();
 
       // Now that we have a batch id, we can generate the redirection link in
       // the generic error message.
@@ -2583,7 +2614,13 @@ function batch_process($redirect = NULL, $url = NULL) {
       $batch['error_message'] = $t('Please continue to <a href="@error_url">the error page</a>', array('@error_url' => url($url, array('query' => array('id' => $batch['id'], 'op' => 'finished')))));
 
       // Actually store the batch data and the token generated form the batch id.
-      db_query("UPDATE {batch} SET token = '%s', batch = '%s' WHERE bid = %d", drupal_get_token($batch['id']), serialize($batch), $batch['id']);
+      db_update('batch')
+        ->condition('bid', $batch['id'])
+        ->fields(array(
+          'token' => drupal_get_token($batch['id']),
+          'batch' => serialize($batch),
+        ))
+        ->execute();
 
       drupal_goto($batch['url'], 'op=start&id=' . $batch['id']);
     }

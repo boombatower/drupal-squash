@@ -27,7 +27,10 @@ class DatabaseConnection_pgsql extends DatabaseConnection {
       $dsn .= ' port=' . $connection_options['port'];
     }
 
-    parent::__construct($dsn, $connection_options['username'], $connection_options['password'], array(PDO::ATTR_STRINGIFY_FETCHES => TRUE));
+    parent::__construct($dsn, $connection_options['username'], $connection_options['password'], array(
+      // Convert numeric values to strings when fetching.
+      PDO::ATTR_STRINGIFY_FETCHES => TRUE,
+    ));
   }
 
   public function query($query, Array $args = array(), $options = array()) {
@@ -35,7 +38,7 @@ class DatabaseConnection_pgsql extends DatabaseConnection {
     $options += $this->defaultOptions();
 
     try {
-      if ($query instanceof DatabaseStatement) {
+      if ($query instanceof DatabaseStatementInterface) {
         $stmt = $query;
         $stmt->execute(NULL, $options);
       }
@@ -58,13 +61,10 @@ class DatabaseConnection_pgsql extends DatabaseConnection {
       }
     }
     catch (PDOException $e) {
-      if (!function_exists('module_implements')) {
-        _db_need_install();
-      }
-      //watchdog('database', var_export($e, TRUE) . $e->getMessage(), NULL, WATCHDOG_ERROR);
+      _db_check_install_needed();
       if ($options['throw_exception']) {
-        if ($query instanceof DatabaseStatement) {
-          $query_string = $stmt->queryString;
+        if ($query instanceof DatabaseStatementInterface) {
+          $query_string = $stmt->getQueryString();
         }
         else {
           $query_string = $query;
@@ -82,10 +82,8 @@ class DatabaseConnection_pgsql extends DatabaseConnection {
     return $this->query($query . ' LIMIT ' . $count . ' OFFSET ' . $from, $args, $options);
   }
 
-  public function queryTemporary($query, Array $args, $tablename) {
-    $query = preg_replace('/^SELECT/i', 'CREATE TEMPORARY TABLE ' . $tablename . ' Engine=HEAP SELECT', $this->prefixTables($query));
-
-    return $this->query($query, $args, $options);
+  public function queryTemporary($query, Array $args, $tablename, Array $options = array()) {
+    return $this->query(preg_replace('/^SELECT/i', 'CREATE TEMPORARY TABLE ' . $tablename . ' AS SELECT', $query), $args, $options);
   }
 
   public function driver() {
@@ -98,10 +96,6 @@ class DatabaseConnection_pgsql extends DatabaseConnection {
 
   public function supportsTransactions() {
     return $this->transactionSupport;
-  }
-
-  public function escapeTable($table) {
-    return preg_replace('/[^A-Za-z0-9_]+/', '', $table);
   }
 
   public function mapConditionOperator($operator) {

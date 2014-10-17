@@ -645,19 +645,19 @@ function system_modules($form_state = array()) {
     if (is_array($module->info['dependencies'])) {
       foreach ($module->info['dependencies'] as $dependency) {
         if (!isset($files[$dependency])) {
-          $extra['dependencies'][$dependency] = drupal_ucfirst($dependency) . t(' (<span class="admin-missing">missing</span>)');
+          $extra['dependencies'][$dependency] = t('@module (<span class="admin-missing">missing</span>)', array('@module' => drupal_ucfirst($dependency)));
           $extra['disabled'] = TRUE;
         }
         elseif (!$files[$dependency]->status) {
-          $extra['dependencies'][$dependency] = $files[$dependency]->info['name'] . t(' (<span class="admin-disabled">disabled</span>)');
+          $extra['dependencies'][$dependency] = t('@module (<span class="admin-disabled">disabled</span>)', array('@module' => $files[$dependency]->info['name']));
         }
         else {
-          $extra['dependencies'][$dependency] = $files[$dependency]->info['name'] . t(' (<span class="admin-enabled">enabled</span>)');
+          $extra['dependencies'][$dependency] = t('@module (<span class="admin-enabled">enabled</span>)', array('@module' => $files[$dependency]->info['name']));
         }
       }
     }
     // Generate link for module's help page, if there is one.
-    if ($help_arg && module_hook($filename, 'help')) {
+    if ($help_arg && $module->status && in_array($filename, module_implements('help'))) {
       if (module_invoke($filename, 'help', "admin/help#$filename", $help_arg)) {
         // Module has a help page.
         $extra['help'] = theme('more_help_link', url("admin/help/$filename"));
@@ -667,11 +667,11 @@ function system_modules($form_state = array()) {
     $dependents = array();
     foreach ($module->info['dependents'] as $dependent) {
       if ($files[$dependent]->status == 1) {
-        $extra['dependents'][] = $files[$dependent]->info['name'] . t(' (<span class="admin-enabled">enabled</span>)');
+        $extra['dependents'][] = t('@module (<span class="admin-enabled">enabled</span>)', array('@module' => $files[$dependent]->info['name']));
         $extra['disabled'] = TRUE;
       }
       else {
-        $extra['dependents'][] = $files[$dependent]->info['name'] . t(' (<span class="admin-disabled">disabled</span>)');
+        $extra['dependents'][] = t('@module (<span class="admin-disabled">disabled</span>)', array('@module' => $files[$dependent]->info['name']));
       }
     }
     $form['modules'][$module->info['package']][$filename] = _system_modules_build_row($module->info, $extra);
@@ -1528,7 +1528,7 @@ function system_rss_feeds_settings() {
  * @see system_date_time_settings_submit()
  */
 function system_date_time_settings() {
-  drupal_add_js(drupal_get_path('module', 'system') . '/system.js', 'module');
+  drupal_add_js(drupal_get_path('module', 'system') . '/system.js');
   drupal_add_js(array('dateTime' => array('lookup' => url('admin/settings/date-time/lookup'))), 'setting');
 
   // Date settings:
@@ -1736,7 +1736,7 @@ function system_clean_url_settings() {
 
   if (!variable_get('clean_url', 0)) {
     if (strpos(request_uri(), '?q=') !== FALSE) {
-      drupal_add_js(drupal_get_path('module', 'system') . '/system.js', 'module');
+      drupal_add_js(drupal_get_path('module', 'system') . '/system.js');
 
       $form['clean_url']['#description'] .= ' <span>' . t('Before enabling clean URLs, you must perform a test to determine if your server is properly configured. If you are able to see this page again after clicking the "Run the clean URL test" link, the test has succeeded and the radio buttons above will be available. If instead you are directed to a "Page not found" error, you will need to change the configuration of your server. The <a href="@handbook">handbook page on Clean URLs</a> has additional troubleshooting information.', array('@handbook' => 'http://drupal.org/node/15365')) . '</span>';
 

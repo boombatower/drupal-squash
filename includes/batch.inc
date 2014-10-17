@@ -80,11 +80,11 @@ function _batch_start() {
 function _batch_progress_page_js() {
   $batch = batch_get();
 
-  // The first batch set gets to set the page title
-  // and the initialization and error messages.
+  // The first batch set gets to set the page title and the initialization and
+  // error messages. Only safe strings should be passed in to batch_set().
   $current_set = _batch_current_set();
-  drupal_set_title($current_set['title']);
-  drupal_add_js('misc/progress.js', 'core', 'header', FALSE, FALSE);
+  drupal_set_title($current_set['title'], PASS_THROUGH);
+  drupal_add_js('misc/progress.js', array('cache' => FALSE));
 
   $url = url($batch['url'], array('query' => array('id' => $batch['id'])));
   $js_setting = array(
@@ -95,7 +95,7 @@ function _batch_progress_page_js() {
     ),
   );
   drupal_add_js($js_setting, 'setting');
-  drupal_add_js('misc/batch.js', 'core', 'header', FALSE, FALSE);
+  drupal_add_js('misc/batch.js', array('cache' => FALSE));
 
   $output = '<div id="progress"></div>';
   return $output;
@@ -126,7 +126,7 @@ function _batch_progress_page_nojs() {
   $batch =& batch_get();
   $current_set = _batch_current_set();
 
-  drupal_set_title($current_set['title']);
+  drupal_set_title($current_set['title'], PASS_THROUGH);
 
   $new_op = 'do_nojs';
 
@@ -255,8 +255,11 @@ function _batch_process() {
       '@total'      => $total,
       '@current'    => floor($current),
       '@percentage' => $percentage,
-      );
-    $message = strtr($progress_message, $values) . '<br/>';
+    );
+    $message = strtr($progress_message, $values);
+    if (!empty($message)) {
+      $message .= '<br/>';
+    }
     $message .= $task_message ? $task_message : '&nbsp';
 
     return array($percentage, $message);

@@ -213,7 +213,7 @@ function block_block($op = 'list', $delta = 0, $edit = array()) {
 
     case 'view':
       $block = db_fetch_object(db_query('SELECT body, format FROM {boxes} WHERE bid = %d', $delta));
-      $data['content'] = check_markup($block->body, $block->format, FALSE);
+      $data['content'] = check_markup($block->body, $block->format, '', FALSE);
       return $data;
   }
 }
@@ -239,7 +239,7 @@ function _block_rehash() {
   // Valid region names for the theme.
   $regions = system_region_list($theme_key);
 
-  foreach (module_list() as $module) {
+  foreach (module_implements('block') as $module) {
     $module_blocks = module_invoke($module, 'block', 'list');
     if ($module_blocks) {
       foreach ($module_blocks as $delta => $block) {

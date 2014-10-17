@@ -115,6 +115,56 @@ class DrupalTagsHandlingTestCase extends DrupalWebTestCase {
 }
 
 /**
+ * Test the Drupal CSS system.
+ */
+class CascadingStylesheetsTestCase extends DrupalWebTestCase {
+  /**
+   * Implementation of getInfo().
+   */
+  function getInfo() {
+    return array(
+      'name' => t('Cascading stylesheets'),
+      'description' => t('Tests adding various cascading stylesheets to the page.'),
+      'group' => t('System')
+    );
+  }
+
+  /**
+   * Implementation of setUp().
+   */
+  function setUp() {
+    parent::setUp();
+    // Reset drupal_add_css() before each test.
+    drupal_add_css(NULL, NULL, TRUE);
+  }
+
+  /**
+   * Check default stylesheets as empty.
+   */
+  function testDefault() {
+    $this->assertEqual(array(), drupal_add_css(), t('Default CSS is empty.'));
+  }
+
+  /**
+   * Tests adding a file stylesheet.
+   */
+  function testAddFile() {
+    $path = drupal_get_path('module', 'simpletest') . '/simpletest.css';
+    $css = drupal_add_css($path);
+    $this->assertEqual($css['all']['module'][$path], TRUE, t('Adding a CSS file caches it properly.'));
+  }
+
+  /**
+   * Tests rendering the stylesheets.
+   */
+  function testRenderFile() {
+    $css = drupal_get_path('module', 'simpletest') . '/simpletest.css';
+    drupal_add_css($css);
+    $this->assertTrue(strpos(drupal_get_css(), $css) > 0, t('Rendered CSS includes the added stylesheet.'));
+  }
+}
+
+/**
  * Test drupal_http_request().
  */
 class DrupalHTTPRequestTestCase extends DrupalWebTestCase {
@@ -249,5 +299,192 @@ class DrupalSetContentTestCase extends DrupalWebTestCase {
       $region_content = drupal_get_content($region, $delimiter);
       $this->assertEqual($region_content, $values[$region], t('@region region text verified when fetching single region.', array('@region' => $region)));
     }
+  }
+}
+
+/**
+ * Tests for the JavaScript system.
+ */
+class JavaScriptTestCase extends DrupalWebTestCase {
+  /**
+   * Store configured value for JavaScript preprocessing.
+   */
+  var $preprocess_js = NULL;
+
+  /**
+   * Implementation of getInfo().
+   */
+  function getInfo() {
+    return array(
+      'name' => t('JavaScript'),
+      'description' => t("Tests the JavaScript system."),
+      'group' => t('System')
+    );
+  }
+
+  /**
+   * Implementation of setUp().
+   */
+  function setUp() {
+    // Enable locale in test environment.
+    parent::setUp('locale');
+
+    // Disable preprocessing
+    $this->preprocess_js = variable_get('preprocess_js', 0);
+    variable_set('preprocess_js', 0);
+
+    // Reset drupal_add_js() before each test.
+    drupal_add_js(NULL, NULL, TRUE);
+  }
+
+  /**
+   * Implementation of tearDown().
+   */
+  function tearDown() {
+    // Restore configured value for JavaScript preprocessing.
+    variable_set('preprocess_js', $this->preprocess_js);
+    parent::tearDown();
+  }
+
+  /**
+   * Test default JavaScript is empty.
+   */
+  function testDefault() {
+    $this->assertEqual(array(), drupal_add_js(), t('Default JavaScript is empty.'));
+  }
+
+  /**
+   * Test adding a JavaScript file.
+   */
+  function testAddFile() {
+    $javascript = drupal_add_js('misc/collapse.js');
+    $this->assertTrue(array_key_exists('misc/jquery.js', $javascript), t('jQuery is added when a file is added.'));
+    $this->assertTrue(array_key_exists('misc/drupal.js', $javascript), t('Drupal.js is added when file is added.'));
+    $this->assertTrue(array_key_exists('misc/collapse.js', $javascript), t('JavaScript files are correctly added.'));
+    $this->assertEqual(base_path(), $javascript['settings']['data'][0]['basePath'], t('Base path JavaScript setting is correctly set.'));
+  }
+
+  /**
+   * Test adding settings.
+   */
+  function testAddSetting() {
+    $javascript = drupal_add_js(array('drupal' => 'rocks', 'dries' => 280342800), 'setting');
+    $this->assertEqual(280342800, $javascript['settings']['data'][1]['dries'], t('JavaScript setting is set correctly.'));
+    $this->assertEqual('rocks', $javascript['settings']['data'][1]['drupal'], t('The other JavaScript setting is set correctly.'));
+  }
+
+  /**
+   * Test drupal_get_js() for JavaScript settings.
+   */
+  function testHeaderSetting() {
+    drupal_add_js(array('testSetting' => 'testValue'), 'setting');
+    $javascript = drupal_get_js('header');
+    $this->assertTrue(strpos($javascript, 'basePath') > 0, t('Rendered JavaScript header returns basePath setting.'));
+    $this->assertTrue(strpos($javascript, 'testSetting') > 0, t('Rendered JavaScript header returns custom setting.'));
+    $this->assertTrue(strpos($javascript, 'misc/jquery.js') > 0, t('Rendered JavaScript header includes jQuery.'));
+  }
+
+  /**
+   * Test to see if resetting the JavaScript empties the cache.
+   */
+  function testReset() {
+    drupal_add_js('misc/collapse.js');
+    drupal_add_js(NULL, NULL, TRUE);
+    $this->assertEqual(array(), drupal_add_js(), t('Resetting the JavaScript correctly empties the cache.'));
+  }
+
+  /**
+   * Test adding inline scripts.
+   */
+  function testAddInline() {
+    $inline = '$(document).ready(function(){});';
+    $javascript = drupal_add_js($inline, array('type' => 'inline', 'scope' => 'footer'));
+    $this->assertTrue(array_key_exists('misc/jquery.js', $javascript), t('jQuery is added when inline scripts are added.'));
+    $data = end($javascript);
+    $this->assertEqual($inline, $data['data'], t('Inline JavaScript is correctly added to the footer.'));
+  }
+
+  /**
+   * Test drupal_get_js() with a footer scope.
+   */
+  function testFooterHTML() {
+    $inline = '$(document).ready(function(){});';
+    drupal_add_js($inline, array('type' => 'inline', 'scope' => 'footer'));
+    $javascript = drupal_get_js('footer');
+    $this->assertTrue(strpos($javascript, $inline) > 0, t('Rendered JavaScript footer returns the inline code.'));
+  }
+
+  /**
+   * Test drupal_add_js() sets preproccess to false when cache is set to false.
+   */
+  function testNoCache() {
+    $javascript = drupal_add_js('misc/collapse.js', array('cache' => FALSE));
+    $this->assertFalse($javascript['misc/collapse.js']['preprocess'], t('Setting cache to FALSE sets proprocess to FALSE when adding JavaScript.'));
+  }
+
+  /**
+   * Test adding a JavaScript file with a different weight.
+   */
+  function testDifferentWeight() {
+    $javascript = drupal_add_js('misc/collapse.js', array('weight' => JS_THEME));
+    $this->assertEqual($javascript['misc/collapse.js']['weight'], JS_THEME, t('Adding a JavaScript file with a different weight caches the given weight.'));
+  }
+
+  /**
+   * Test rendering the JavaScript with a file's weight above jQuery's.
+   */
+  function testRenderDifferentWeight() {
+    drupal_add_js('misc/collapse.js', array('weight' => JS_LIBRARY - 10));
+    $javascript = drupal_get_js();
+    $this->assertTrue(strpos($javascript, 'misc/collapse.js') < strpos($javascript, 'misc/jquery.js'), t('Rendering a JavaScript file above jQuery.'));
+  }
+}
+
+/**
+ * Tests Drupal error and exception handlers.
+ */
+class DrupalErrorHandlerUnitTest extends DrupalWebTestCase {
+  function getInfo() {
+    return array(
+      'name' => t('Drupal error handlers'),
+      'description' => t("Performs tests on the Drupal error and exception handler."),
+      'group' => t('System'),
+    );
+  }
+
+  function setUp() {
+    parent::setUp('system_test');
+  }
+
+  /**
+   * Test the error handler.
+   */
+  function testErrorHandler() {
+    $this->drupalGet('system-test/generate-warnings');
+
+    $this->assertErrorMessage('Notice', 'system_test.module', 'system_test_generate_warnings() ', 'Undefined variable');
+    $this->assertErrorMessage('Warning', 'system_test.module', 'system_test_generate_warnings() ', 'Division by zero');
+    $this->assertErrorMessage('User notice', 'system_test.module', 'system_test_generate_warnings() ', 'Drupal is awesome');
+  }
+
+  /**
+   * Test the exception handler.
+   */
+  function testExceptionHandler() {
+    $this->drupalGet('system-test/trigger-exception');
+    $this->assertErrorMessage('Exception', 'system_test.module', 'system_test_trigger_exception()', 'Drupal is awesome');
+
+    $this->drupalGet('system-test/trigger-pdo-exception');
+    $this->assertErrorMessage('PDOException', 'system_test.module', 'system_test_trigger_pdo_exception()', 'Base table or view not found');
+  }
+
+  /**
+   * Helper function: assert that the logged message is correct.
+   */
+  function assertErrorMessage($type, $file, $function, $message) {
+    $this->assertText($type, t("Found '%type' in error page.", array('%type' => $type)));
+    $this->assertText($file, t("Found '%file' in error page.", array('%file' => $file)));
+    $this->assertText($function, t("Found '%function' in error page.", array('%function' => $function)));
+    $this->assertText($message, t("Found '%message' in error page.", array('%message' => $message)));
   }
 }

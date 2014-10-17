@@ -28,7 +28,7 @@ function block_admin_display($theme = NULL) {
 function block_admin_display_form(&$form_state, $blocks, $theme = NULL) {
   global $theme_key, $custom_theme;
 
-  drupal_add_css(drupal_get_path('module', 'block') . '/block.css', 'module', 'all', FALSE);
+  drupal_add_css(drupal_get_path('module', 'block') . '/block.css', array('preprocess' => FALSE));
 
   // If non-default theme configuration has been selected, set the custom theme.
   $custom_theme = isset($theme) ? $theme : variable_get('theme_default', 'garland');
@@ -38,7 +38,7 @@ function block_admin_display_form(&$form_state, $blocks, $theme = NULL) {
 
   // Build the form tree.
   $form = array(
-    '#action' => arg(3) ? url('admin/build/block/list/' . $theme_key) : url('admin/build/block'),
+    '#action' => arg(4) ? url('admin/build/block/list/' . $theme_key) : url('admin/build/block'),
     '#tree' => TRUE,
   );
 
@@ -174,7 +174,7 @@ function block_admin_configure(&$form_state, $module = NULL, $delta = 0) {
   // Get the block subject for the page title.
   $info = module_invoke($module, 'block', 'list');
   if (isset($info[$delta])) {
-    drupal_set_title(t("'%name' block", array('%name' => $info[$delta]['info'])));
+    drupal_set_title(t("'%name' block", array('%name' => $info[$delta]['info'])), PASS_THROUGH);
   }
 
   // Standard block configurations.
@@ -301,12 +301,12 @@ function block_add_block_form_validate($form, &$form_state) {
  * Save the new custom block.
  */
 function block_add_block_form_submit($form, &$form_state) {
-  db_query("INSERT INTO {boxes} (body, info, format) VALUES ('%s', '%s', %d)", $form_state['values']['body'], $form_state['values']['info'], $form_state['values']['format']);
+  db_query("INSERT INTO {boxes} (body, info, format) VALUES ('%s', '%s', %d)", $form_state['values']['body'], $form_state['values']['info'], $form_state['values']['body_format']);
   $delta = db_last_insert_id('boxes', 'bid');
 
   foreach (list_themes() as $key => $theme) {
     if ($theme->status) {
-      db_query("INSERT INTO {blocks} (visibility, pages, custom, title, module, theme, status, weight, delta, cache) VALUES(%d, '%s', %d, '%s', '%s', '%s', %d, %d, %d, %d)", $form_state['values']['visibility'], trim($form_state['values']['pages']), $form_state['values']['custom'], $form_state['values']['title'], $form_state['values']['module'], $theme->name, 0, 0, $delta, BLOCK_NO_CACHE);
+      db_query("INSERT INTO {blocks} (visibility, pages, custom, title, module, theme, status, weight, delta, cache) VALUES(%d, '%s', %d, '%s', '%s', '%s', %d, %d, '%s', %d)", $form_state['values']['visibility'], trim($form_state['values']['pages']), $form_state['values']['custom'], $form_state['values']['title'], $form_state['values']['module'], $theme->name, 0, 0, $delta, BLOCK_NO_CACHE);
     }
   }
 
@@ -318,8 +318,6 @@ function block_add_block_form_submit($form, &$form_state) {
   cache_clear_all();
 
   $form_state['redirect'] = 'admin/build/block';
-
-  return;
 }
 
 /**
@@ -338,7 +336,7 @@ function block_box_delete(&$form_state, $bid = 0) {
  */
 function block_box_delete_submit($form, &$form_state) {
   db_query('DELETE FROM {boxes} WHERE bid = %d', $form_state['values']['bid']);
-  db_query("DELETE FROM {blocks} WHERE module = 'block' AND delta = %d", $form_state['values']['bid']);
+  db_query("DELETE FROM {blocks} WHERE module = 'block' AND delta = '%s'", $form_state['values']['bid']);
   drupal_set_message(t('The block %name has been removed.', array('%name' => $form_state['values']['info'])));
   cache_clear_all();
   $form_state['redirect'] = 'admin/build/block';
@@ -385,7 +383,7 @@ function template_preprocess_block_admin_display_form(&$variables) {
       $variables['form'][$i]['weight']['#attributes']['class'] = 'block-weight block-weight-' . $region;
 
       $variables['block_listing'][$region][$i]->row_class = isset($block['#attributes']['class']) ? $block['#attributes']['class'] : '';
-      $variables['block_listing'][$region][$i]->block_modified = isset($block['#attributes']['class']) && strpos($block['#attributes']['class'], 'block-modified') !== FALSE ? TRUE : FALSE;
+      $variables['block_listing'][$region][$i]->block_modified = isset($block['#attributes']['class']) && strpos($block['#attributes']['class'], 'block-modified') !== FALSE;
       $variables['block_listing'][$region][$i]->block_title =  drupal_render($block['info']);
       $variables['block_listing'][$region][$i]->region_select = drupal_render($block['region']) . drupal_render($block['theme']);
       $variables['block_listing'][$region][$i]->weight_select = drupal_render($block['weight']);

@@ -12,14 +12,14 @@
  */
 function tracker_page($account = NULL, $set_title = FALSE) {
   // Add CSS
-  drupal_add_css(drupal_get_path('module', 'tracker') . '/tracker.css', 'module', 'all', FALSE);
+  drupal_add_css(drupal_get_path('module', 'tracker') . '/tracker.css', array('preprocess' => FALSE));
 
   if ($account) {
     if ($set_title) {
       // When viewed from user/%user/track, display the name of the user
       // as page title -- the tab title remains Track so this needs to be done
       // here and not in the menu definiton.
-      drupal_set_title(check_plain($account->name));
+      drupal_set_title($account->name);
     }
   // TODO: These queries are very expensive, see http://drupal.org/node/105639
     $sql = 'SELECT DISTINCT(n.nid), n.title, n.type, n.changed, n.uid, u.name, GREATEST(n.changed, l.last_comment_timestamp) AS last_updated, l.comment_count FROM {node} n INNER JOIN {node_comment_statistics} l ON n.nid = l.nid INNER JOIN {users} u ON n.uid = u.uid LEFT JOIN {comments} c ON n.nid = c.nid AND (c.status = %d OR c.status IS NULL) WHERE n.status = 1 AND (n.uid = %d OR c.uid = %d) ORDER BY last_updated DESC';

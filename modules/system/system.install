@@ -10,6 +10,7 @@
  *   An array of system requirements.
  */
 function system_requirements($phase) {
+  global $base_url;
   $requirements = array();
   // Ensure translations don't break at install time
   $t = get_t();
@@ -132,12 +133,9 @@ function system_requirements($phase) {
     // Cron configuration help text.
     $help = $t('For more information, see the online handbook entry for <a href="@cron-handbook">configuring cron jobs</a>.', array('@cron-handbook' => 'http://drupal.org/cron'));
 
-    // Determine when cron last ran. If never, use the install time to
-    // determine the warning or error status.
+    // Determine when cron last ran.
     $cron_last = variable_get('cron_last', NULL);
-    $never_run = FALSE;
     if (!is_numeric($cron_last)) {
-      $never_run = TRUE;
       $cron_last = variable_get('install_time', 0);
     }
 
@@ -146,32 +144,19 @@ function system_requirements($phase) {
     if (REQUEST_TIME - $cron_last > $threshold_error) {
       $severity = REQUIREMENT_ERROR;
     }
-    elseif ($never_run || (REQUEST_TIME - $cron_last > $threshold_warning)) {
+    elseif (REQUEST_TIME - $cron_last > $threshold_warning) {
       $severity = REQUIREMENT_WARNING;
     }
 
-    // If cron hasn't been run, and the user is viewing the main
-    // administration page, instead of an error, we display a helpful reminder
-    // to configure cron jobs.
-    if ($never_run && $severity != REQUIREMENT_ERROR && $_GET['q'] == 'admin' && user_access('administer site configuration')) {
-      drupal_set_message($t('Cron has not run. Please visit the <a href="@status">status report</a> for more information.', array('@status' => url('admin/reports/status'))));
-    }
-
     // Set summary and description based on values determined above.
-    if ($never_run) {
-      $summary = $t('Never run');
-      $description = $t('Cron has not run.') . ' ' . $help;
-    }
-    else {
-      $summary = $t('Last run !time ago', array('!time' => format_interval(REQUEST_TIME - $cron_last)));
-      $description = '';
-      if ($severity != REQUIREMENT_OK) {
-        $description = $t('Cron has not run recently.') . ' ' . $help;
-      }
+    $summary = $t('Last run !time ago', array('!time' => format_interval(REQUEST_TIME - $cron_last)));
+    $description = '';
+    if ($severity != REQUIREMENT_OK) {
+      $description = $t('Cron has not run recently.') . ' ' . $help;
     }
 
     $description .= ' ' . $t('You can <a href="@cron">run cron manually</a>.', array('@cron' => url('admin/reports/status/run-cron')));
-    $description .= '<br />' . $t('To run cron from outside the site, go to <a href="!cron">!cron</a>', array('!cron' => url('cron.php', array('absolute' => TRUE, 'query' => 'cron_key=' . variable_get('cron_key', 'drupal')))));
+    $description .= '<br />' . $t('To run cron from outside the site, go to <a href="!cron">!cron</a>', array('!cron' => url($base_url . '/cron.php', array('external' => TRUE, 'query' => 'cron_key=' . variable_get('cron_key', 'drupal')))));
 
     $requirements['cron'] = array(
       'title' => $t('Cron maintenance tasks'),
@@ -1091,8 +1076,31 @@ function system_schema() {
         'length' => 255,
         'not null' => TRUE,
       ),
+      'module' => array(
+        'description' => t('Name of the module the file belongs to.'),
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => ''
+      ),
+      'suffix' => array(
+        'description' => t("The part of the function name after the module, which is the hook this function implements, if any."),
+        'type' => 'varchar',
+        'length' => 68,
+        'not null' => TRUE,
+        'default' => ''
+      ),
+      'weight' => array(
+        'description' => t("The order in which this module's hooks should be invoked relative to other modules. Equal-weighted modules are ordered by name."),
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
     ),
     'primary key' => array('name', 'type'),
+    'indexes' => array(
+      'hook' => array('type', 'suffix', 'weight', 'module'),
+    ),
   );
 
   $schema['registry_file'] = array(
@@ -2930,8 +2938,14 @@ function system_update_7006() {
       'name'   => array('type' => 'varchar', 'length' => 255, 'not null' => TRUE, 'default' => ''),
       'type'   => array('type' => 'varchar', 'length' => 9, 'not null' => TRUE, 'default' => ''),
       'filename'   => array('type' => 'varchar', 'length' => 255, 'not null' => TRUE, 'default' => ''),
+      'module'   => array('type' => 'varchar', 'length' => 255, 'not null' => TRUE, 'default' => ''),
+      'suffix'   => array('type' => 'varchar', 'length' => 68, 'not null' => TRUE, 'default' => ''),
+      'weight'   => array('type' => 'int', 'not null' => TRUE, 'default' => 0),
     ),
     'primary key' => array('name', 'type'),
+    'indexes' => array(
+      'hook' => array('type', 'suffix', 'weight', 'module'),
+    ),
   );
   $schema['registry_file'] = array(
     'fields' => array(
@@ -3041,8 +3055,8 @@ function system_update_7009() {
  */
 function system_update_7010() {
   $ret = array();
-  db_change_field($ret, 'menu_router', 'load_functions', 'load_functions', array('type' => 'text', 'not null' => TRUE, 'default' => ''));
-  db_change_field($ret, 'menu_router', 'to_arg_functions', 'to_arg_functions', array('type' => 'text', 'not null' => TRUE, 'default' => '',));
+  db_change_field($ret, 'menu_router', 'load_functions', 'load_functions', array('type' => 'text', 'not null' => TRUE));
+  db_change_field($ret, 'menu_router', 'to_arg_functions', 'to_arg_functions', array('type' => 'text', 'not null' => TRUE));
 
   return $ret;
 }
@@ -3066,7 +3080,7 @@ function system_update_7011() {
     'permission' => 'bypass node access',
     ));
   }
-  $insert->execute();  
+  $insert->execute();
   return $ret;
 }
 

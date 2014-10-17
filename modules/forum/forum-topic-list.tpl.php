@@ -2,8 +2,8 @@
 // $Id$
 
 /**
- * @file forum-topic-list.tpl.php
- * Theme implementation to display a list of forum topics.
+ * @file
+ * Default theme implementation to display a list of forum topics.
  *
  * Available variables:
  * - $header: The table header. This is pre-generated with click-sorting
@@ -52,8 +52,8 @@
           <a href="<?php print $topic->new_url; ?>"><?php print $topic->new_text; ?></a>
         <?php endif; ?>
       </td>
-      <td class="created"><?php print $topic->created; ?>
-      <td class="last-reply"><?php print $topic->last_reply; ?>
+      <td class="created"><?php print $topic->created; ?></td>
+      <td class="last-reply"><?php print $topic->last_reply; ?></td>
     <?php endif; ?>
     </tr>
   <?php endforeach; ?>

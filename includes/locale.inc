@@ -97,7 +97,7 @@ function theme_locale_languages_overview_form($form) {
   $header = array(array('data' => t('English name')), array('data' => t('Native name')), array('data' => t('Code')), array('data' => t('Direction')), array('data' => t('Enabled')), array('data' => t('Default')), array('data' => t('Weight')), array('data' => t('Operations')));
   $output = theme('table', $header, $rows, array('id' => 'language-order'));
   $output .= drupal_render($form);
-  
+
   drupal_add_tabledrag('language-order', 'order', 'sibling', 'language-order-weight');
 
   return $output;
@@ -1046,7 +1046,7 @@ function _locale_import_po($file, $langcode, $mode, $group = NULL) {
  */
 function _locale_import_read_po($op, $file, $mode = NULL, $lang = NULL, $group = 'default') {
 
-  $fd = fopen(DRUPAL_ROOT . '/' . $file->filepath, "rb"); // File will get closed by PHP on return
+  $fd = fopen($file->filepath, "rb"); // File will get closed by PHP on return
   if (!$fd) {
     _locale_import_message('The translation import failed, because the file %filename could not be read.', $file);
     return FALSE;
@@ -2215,7 +2215,7 @@ function _locale_rebuild_js($langcode = NULL) {
  */
 function _locale_translate_language_list($translation, $limit_language) {
   // Add CSS
-  drupal_add_css(drupal_get_path('module', 'locale') . '/locale.css', 'module', 'all', FALSE);
+  drupal_add_css(drupal_get_path('module', 'locale') . '/locale.css', array('preprocess' => FALSE));
 
   $languages = language_list();
   unset($languages['en']);

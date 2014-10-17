@@ -25,6 +25,22 @@ define('SAVED_UPDATED', 2);
 define('SAVED_DELETED', 3);
 
 /**
+ * The weight of JavaScript libraries, settings or jQuery plugins being
+ * added to the page.
+ */
+define('JS_LIBRARY', -100);
+
+/**
+ * The default weight of JavaScript being added to the page.
+ */
+define('JS_DEFAULT', 0);
+
+/**
+ * The weight of theme JavaScript code being added to the page.
+ */
+define('JS_THEME', 100);
+
+/**
  * Set content for a specified region.
  *
  * @param $region
@@ -451,7 +467,7 @@ function drupal_http_request($url, $headers = array(), $method = 'GET', $data = 
       $fp = @fsockopen($uri['host'], $port, $errno, $errstr, 15);
       break;
     case 'https':
-      // Note: Only works for PHP 4.3 compiled with OpenSSL.
+      // Note: Only works when PHP is compiled with OpenSSL support.
       $port = isset($uri['port']) ? $uri['port'] : 443;
       $host = $uri['host'] . ($port != 443 ? ':' . $port : '');
       $fp = @fsockopen('ssl://' . $uri['host'], $port, $errno, $errstr, 20);
@@ -497,8 +513,8 @@ function drupal_http_request($url, $headers = array(), $method = 'GET', $data = 
   // user-agent is used to ensure that multiple testing sessions running at the
   // same time won't interfere with each other as they would if the database
   // prefix were stored statically in a file or database variable.
-  if (preg_match("/^simpletest\d+/", $db_prefix)) {
-    $headers['User-Agent'] = $db_prefix;
+  if (preg_match("/simpletest\d+/", $db_prefix, $matches)) {
+    $headers['User-Agent'] = $matches[0];
   }
 
   foreach ($headers as $header => $value) {
@@ -583,55 +599,138 @@ function drupal_http_request($url, $headers = array(), $method = 'GET', $data = 
  */
 
 /**
- * Log errors as defined by administrator.
+ * Custom PHP error handler.
  *
- * Error levels:
- * - 0 = Log errors to database.
- * - 1 = Log errors to database and to screen.
+ * @param $error_level
+ *   The level of the error raised.
+ * @param $message
+ *   The error message.
+ * @param $filename
+ *   The filename that the error was raised in.
+ * @param $line
+ *   The line number the error was raised at.
+ * @param $context
+ *   An array that points to the active symbol table at the point the error occurred.
  */
-function drupal_error_handler($errno, $message, $filename, $line, $context) {
-  // If the @ error suppression operator was used, error_reporting will have
-  // been temporarily set to 0.
-  if (error_reporting() == 0) {
-    return;
-  }
+function _drupal_error_handler($error_level, $message, $filename, $line, $context) {
+  if ($error_level & error_reporting()) {
+    // All these constants are documented at http://php.net/manual/en/errorfunc.constants.php
+    $types = array(
+      E_ERROR => 'Error',
+      E_WARNING => 'Warning',
+      E_PARSE => 'Parse error',
+      E_NOTICE => 'Notice',
+      E_CORE_ERROR => 'Core error',
+      E_CORE_WARNING => 'Core warning',
+      E_COMPILE_ERROR => 'Compile error',
+      E_COMPILE_WARNING => 'Compile warning',
+      E_USER_ERROR => 'User error',
+      E_USER_WARNING => 'User warning',
+      E_USER_NOTICE => 'User notice',
+      E_STRICT => 'Strict warning',
+      E_RECOVERABLE_ERROR => 'Recoverable fatal error'
+    );
+    $backtrace = debug_backtrace();
 
-  if ($errno & (E_ALL)) {
-    $types = array(1 => 'error', 2 => 'warning', 4 => 'parse error', 8 => 'notice', 16 => 'core error', 32 => 'core warning', 64 => 'compile error', 128 => 'compile warning', 256 => 'user error', 512 => 'user warning', 1024 => 'user notice', 2048 => 'strict warning', 4096 => 'recoverable fatal error');
-
-    // For database errors, we want the line number/file name of the place that
-    // the query was originally called, not _db_query().
-    if (isset($context[DB_ERROR])) {
-      $backtrace = array_reverse(debug_backtrace());
-
-      // List of functions where SQL queries can originate.
-      $query_functions = array('db_query', 'pager_query', 'db_query_range', 'db_query_temporary', 'update_sql');
-
-      // Determine where query function was called, and adjust line/file
-      // accordingly.
-      foreach ($backtrace as $index => $function) {
-        if (in_array($function['function'], $query_functions)) {
-          $line = $backtrace[$index]['line'];
-          $filename = $backtrace[$index]['file'];
-          break;
-        }
-      }
-    }
-
-    $entry = $types[$errno] . ': ' . $message . ' in ' . $filename . ' on line ' . $line . '.';
-
-    // Force display of error messages in update.php.
-    if (variable_get('error_level', 1) == 1 || strstr($_SERVER['SCRIPT_NAME'], 'update.php')) {
-      drupal_set_message($entry, 'error');
-    }
-
-    watchdog('php', '%message in %file on line %line.', array('%error' => $types[$errno], '%message' => $message, '%file' => $filename, '%line' => $line), WATCHDOG_ERROR);
+    // We treat recoverable errors as fatal.
+    _drupal_log_error(isset($types[$error_level]) ? $types[$error_level] : 'Unknown error', $message, $backtrace, $error_level == E_RECOVERABLE_ERROR);
   }
 }
 
 /**
- * Gets the last caller (file name and line of the call, function in which the
- * call originated) from a backtrace.
+ * Custom PHP exception handler.
+ *
+ * Uncaught exceptions are those not enclosed in a try/catch block. They are
+ * always fatal: the execution of the script will stop as soon as the exception
+ * handler exits.
+ *
+ * @param $exception
+ *   The exception object that was thrown.
+ */
+function _drupal_exception_handler($exception) {
+  $backtrace = $exception->getTrace();
+  // Add the line throwing the exception to the backtrace.
+  array_unshift($backtrace, array('line' => $exception->getLine(), 'file' => $exception->getFile()));
+
+  // For PDOException errors, we try to return the initial caller,
+  // skipping internal functions of the database layer.
+  if ($exception instanceof PDOException) {
+    // The first element in the stack is the call, the second element gives us the caller.
+    // We skip calls that occurred in one of the classes of the database layer
+    // or in one of its global functions.
+    $db_functions = array('db_query', 'pager_query', 'db_query_range', 'db_query_temporary', 'update_sql');
+    while (($caller = $backtrace[1]) &&
+         ((isset($caller['class']) && (strpos($caller['class'], 'Query') !== FALSE || strpos($caller['class'], 'Database') !== FALSE)) ||
+         in_array($caller['function'], $db_functions))) {
+      // We remove that call.
+      array_shift($backtrace);
+    }
+  }
+
+  // Log the message to the watchdog and return an error page to the user.
+  _drupal_log_error(get_class($exception), $exception->getMessage(), $backtrace, TRUE);
+}
+
+/**
+ * Log a PHP error or exception, display an error page in fatal cases.
+ *
+ * @param $type
+ *   The type of the error (Error, Warning, ...).
+ * @param $message
+ *   The message associated to the error.
+ * @param $backtrace
+ *   The backtrace of function calls that led to this error.
+ * @param $fatal
+ *   TRUE if the error is fatal.
+ */
+function _drupal_log_error($type, $message, $backtrace, $fatal) {
+  $caller = _drupal_get_last_caller($backtrace);
+
+  // Initialize a maintenance theme early if the boostrap was not complete.
+  // Do it early because drupal_set_message() triggers an init_theme().
+  if ($fatal && (drupal_get_bootstrap_phase() != DRUPAL_BOOTSTRAP_FULL)) {
+    unset($GLOBALS['theme']);
+    if (!defined('MAINTENANCE_MODE')) {
+      define('MAINTENANCE_MODE', 'error');
+    }
+    drupal_maintenance_theme();
+  }
+
+  // When running inside the testing framework, we relay the errors
+  // to the tested site by the way of HTTP headers.
+  if (preg_match("/^simpletest\d+/", $_SERVER['HTTP_USER_AGENT']) && !headers_sent() && !defined('SIMPLETEST_DONT_COLLECT_ERRORS')) {
+    static $number = 0;
+    $assertion = array(
+      $message,
+      $type,
+      $caller
+    );
+    header('X-Drupal-Assertion-' . $number . ': ' . rawurlencode(serialize($assertion)));
+    $number++;
+  }
+
+  // Force display of error messages in update.php.
+  if (variable_get('error_level', 1) == 1 || (defined('MAINTENANCE_MODE') && MAINTENANCE_MODE == 'update')) {
+    drupal_set_message(t('@type: %message in %function (line %line of %file).', array('@type' => $type, '%message' => $message, '%function' => $caller['function'], '%line' => $caller['line'], '%file' => $caller['file'])), 'error');
+  }
+
+  watchdog('php', '%type: %message in %function (line %line of %file).', array('%type' => $type, '%message' => $message, '%function' => $caller['function'], '%file' => $caller['file'], '%line' => $caller['line']), WATCHDOG_ERROR);
+
+  if ($fatal) {
+    drupal_set_header($_SERVER['SERVER_PROTOCOL'] . ' Service unavailable');
+    drupal_set_title(t('Error'));
+    if (drupal_get_bootstrap_phase() == DRUPAL_BOOTSTRAP_FULL) {
+      print theme('page', t('The website encountered an unexpected error. Please try again later.'), FALSE);
+    }
+    else {
+      print theme('maintenance_page', t('The website encountered an unexpected error. Please try again later.'), FALSE);
+    }
+    exit;
+  }
+}
+
+/**
+ * Gets the last caller from a backtrace.
  *
  * @param $backtrace
  *   A standard PHP backtrace.
@@ -907,7 +1006,13 @@ function valid_url($url, $absolute = FALSE) {
  *   The name of an event.
  */
 function flood_register_event($name) {
-  db_query("INSERT INTO {flood} (event, hostname, timestamp) VALUES ('%s', '%s', %d)", $name, ip_address(), REQUEST_TIME);
+  db_insert('flood')
+    ->fields(array(
+      'event' => $name,
+      'hostname' => ip_address(),
+      'timestamp' => REQUEST_TIME,
+    ))
+    ->execute();
 }
 
 /**
@@ -924,8 +1029,12 @@ function flood_register_event($name) {
  *   True if the user did not exceed the hourly threshold. False otherwise.
  */
 function flood_is_allowed($name, $threshold) {
-  $number = db_result(db_query("SELECT COUNT(*) FROM {flood} WHERE event = '%s' AND hostname = '%s' AND timestamp > %d", $name, ip_address(), REQUEST_TIME - 3600));
-  return ($number < $threshold ? TRUE : FALSE);
+  $number = db_query("SELECT COUNT(*) FROM {flood} WHERE event = :event AND hostname = :hostname AND timestamp > :timestamp", array(
+    ':event' => $name,
+    ':hostname' => ip_address(),
+    ':timestamp' => REQUEST_TIME - 3600))
+    ->fetchField();
+  return ($number < $threshold);
 }
 
 function check_file($filename) {
@@ -1531,8 +1640,8 @@ function drupal_page_footer() {
 
   module_invoke_all('exit');
 
-  registry_cache_hook_implementations(FALSE, TRUE);
-  registry_cache_path_files();
+  module_implements(MODULE_IMPLEMENTS_WRITE_CACHE);
+  _registry_check_code(REGISTRY_WRITE_LOOKUP_CACHE);
 }
 
 /**
@@ -1664,55 +1773,84 @@ function drupal_add_link($attributes) {
  *   file added to the list, if exists in the same directory. This CSS file
  *   should contain overrides for properties which should be reversed or
  *   otherwise different in a right-to-left display.
- * @param $type
- *   (optional) The type of stylesheet that is being added. Types are: module
- *   or theme.
- * @param $media
- *   (optional) The media type for the stylesheet, e.g., all, print, screen.
- * @param $preprocess
- *   (optional) Should this CSS file be aggregated and compressed if this
- *   feature has been turned on under the performance section?
+ * @param $options
+ *   (optional) A string defining the type of CSS that is being added in the
+ *   $path parameter ('module' or 'theme'), or an associative array of
+ *   additional options, with the following keys:
+ *     - 'type'
+ *       The type of stylesheet that is being added. Types are: module or
+ *       theme. Defaults to 'module'.
+ *     - 'media'
+ *       The media type for the stylesheet, e.g., all, print, screen. Defaults
+ *       to 'all'.
+ *     - 'preprocess':
+ *       Allow this CSS file to be aggregated and compressed if the Optimize
+ *       CSS feature has been turned on under the performance section. Defaults
+ *       to TRUE.
  *
- *   What does this actually mean?
- *   CSS preprocessing is the process of aggregating a bunch of separate CSS
- *   files into one file that is then compressed by removing all extraneous
- *   white space.
+ *       What does this actually mean?
+ *       CSS preprocessing is the process of aggregating a bunch of separate CSS
+ *       files into one file that is then compressed by removing all extraneous
+ *       white space.
  *
- *   The reason for merging the CSS files is outlined quite thoroughly here:
- *   http://www.die.net/musings/page_load_time/
- *   "Load fewer external objects. Due to request overhead, one bigger file
- *   just loads faster than two smaller ones half its size."
+ *       The reason for merging the CSS files is outlined quite thoroughly here:
+ *       http://www.die.net/musings/page_load_time/
+ *       "Load fewer external objects. Due to request overhead, one bigger file
+ *       just loads faster than two smaller ones half its size."
  *
- *   However, you should *not* preprocess every file as this can lead to
- *   redundant caches. You should set $preprocess = FALSE when:
+ *       However, you should *not* preprocess every file as this can lead to
+ *       redundant caches. You should set $preprocess = FALSE when your styles
+ *       are only used rarely on the site. This could be a special admin page,
+ *       the homepage, or a handful of pages that does not represent the
+ *       majority of the pages on your site.
  *
- *     - Your styles are only used rarely on the site. This could be a special
- *       admin page, the homepage, or a handful of pages that does not represent
- *       the majority of the pages on your site.
- *
- *   Typical candidates for caching are for example styles for nodes across
- *   the site, or used in the theme.
+ *       Typical candidates for caching are for example styles for nodes across
+ *       the site, or used in the theme.
+ * @param $reset
+ *   (optional) Resets the currently loaded cascading stylesheets.
  * @return
  *   An array of CSS files.
  */
-function drupal_add_css($path = NULL, $type = 'module', $media = 'all', $preprocess = TRUE) {
+function drupal_add_css($path = NULL, $options = NULL, $reset = FALSE) {
   static $css = array();
   global $language;
+
+  // Request made to reset the CSS added so far.
+  if ($reset) {
+    $css = array();
+  }
 
   // Create an array of CSS files for each media type first, since each type needs to be served
   // to the browser differently.
   if (isset($path)) {
+    // Construct the options, taking the defaults into consideration.
+    if (isset($options)) {
+      if (!is_array($options)) {
+        $options = array('type' => $options);
+      }
+    }
+    else {
+      $options = array();
+    }
+    $options += array(
+      'type' => 'module',
+      'media' => 'all',
+      'preprocess' => TRUE
+    );
+    $media = $options['media'];
+    $type = $options['type'];
+
     // This check is necessary to ensure proper cascading of styles and is faster than an asort().
     if (!isset($css[$media])) {
       $css[$media] = array('module' => array(), 'theme' => array());
     }
-    $css[$media][$type][$path] = $preprocess;
+    $css[$media][$type][$path] = $options['preprocess'];
 
     // If the current language is RTL, add the CSS file with RTL overrides.
     if (defined('LANGUAGE_RTL') && $language->direction == LANGUAGE_RTL) {
       $rtl_path = str_replace('.css', '-rtl.css', $path);
       if (file_exists($rtl_path)) {
-        $css[$media][$type][$rtl_path] = $preprocess;
+        $css[$media][$type][$rtl_path] = $options['preprocess'];
       }
     }
   }
@@ -1873,7 +2011,7 @@ function _drupal_build_css_path($matches, $base = NULL) {
   $last = '';
   while ($path != $last) {
     $last = $path;
-    $path = preg_replace('`(^|/)(?!../)([^/]+)/../`', '$1', $path);
+    $path = preg_replace('`(^|/)(?!\.\./)([^/]+)/\.\./`', '$1', $path);
   }
   return 'url(' . $path . ')';
 }
@@ -1963,109 +2101,166 @@ function drupal_clear_css_cache() {
  * reference to an existing file or as inline code. The following actions can be
  * performed using this function:
  *
- * - Add a file ('core', 'module' and 'theme'):
- *   Adds a reference to a JavaScript file to the page. JavaScript files
- *   are placed in a certain order, from 'core' first, to 'module' and finally
- *   'theme' so that files, that are added later, can override previously added
- *   files with ease.
+ * - Add a file ('file'):
+ *   Adds a reference to a JavaScript file to the page.
  *
  * - Add inline JavaScript code ('inline'):
  *   Executes a piece of JavaScript code on the current page by placing the code
  *   directly in the page. This can, for example, be useful to tell the user that
- *   a new message arrived, by opening a pop up, alert box etc.
+ *   a new message arrived, by opening a pop up, alert box etc. This should only
+ *   be used for JavaScript which cannot be placed and executed from a file.
  *
  * - Add settings ('setting'):
  *   Adds a setting to Drupal's global storage of JavaScript settings. Per-page
- *   settings are required by some modules to function properly. The settings
+ *   settings are required by some modules to function properly. All settings
  *   will be accessible at Drupal.settings.
  *
+ * Examples:
+ * @code
+ *   drupal_add_js('misc/collapse.js');
+ *   drupal_add_js('misc/collapse.js', 'file');
+ *   drupal_add_js('$(document).ready(function(){alert("Hello!");});', 'inline');
+ *   drupal_add_js('$(document).ready(function(){alert("Hello!");});',
+ *     array('type' => 'inline', 'scope' => 'footer', 'weight' => 5)
+ *   );
+ * @endcode
+ *
  * @param $data
- *   (optional) If given, the value depends on the $type parameter:
- *   - 'core', 'module' or 'theme': Path to the file relative to base_path().
+ *   (optional) If given, the value depends on the $options parameter:
+ *   - 'file': Path to the file relative to base_path().
  *   - 'inline': The JavaScript code that should be placed in the given scope.
  *   - 'setting': An array with configuration options as associative array. The
- *       array is directly placed in Drupal.settings. You might want to wrap your
- *       actual configuration settings in another variable to prevent the pollution
- *       of the Drupal.settings namespace.
- * @param $type
- *   (optional) The type of JavaScript that should be added to the page. Allowed
- *   values are 'core', 'module', 'theme', 'inline' and 'setting'. You
- *   can, however, specify any value. It is treated as a reference to a JavaScript
- *   file. Defaults to 'module'.
- * @param $scope
- *   (optional) The location in which you want to place the script. Possible
- *   values are 'header' and 'footer' by default. If your theme implements
- *   different locations, however, you can also use these.
- * @param $defer
- *   (optional) If set to TRUE, the defer attribute is set on the <script> tag.
- *   Defaults to FALSE. This parameter is not used with $type == 'setting'.
- * @param $cache
- *   (optional) If set to FALSE, the JavaScript file is loaded anew on every page
- *   call, that means, it is not cached. Defaults to TRUE. Used only when $type
- *   references a JavaScript file.
- * @param $preprocess
- *   (optional) Should this JS file be aggregated if this
- *   feature has been turned on under the performance section?
+ *       array is directly placed in Drupal.settings. All modules should wrap
+ *       their actual configuration settings in another variable to prevent
+ *       the pollution of the Drupal.settings namespace.
+ * @param $options
+ *   (optional) A string defining the type of JavaScript that is being added
+ *   in the $data parameter ('file'/'setting'/'inline'), or an array which
+ *   can have any or all of the following keys. JavaScript settings should
+ *   always pass the string 'setting' only.
+ *   - type
+ *       The type of JavaScript that is to be added to the page. Allowed
+ *       values are 'file', 'inline' or 'setting'. Defaults to 'file'.
+ *   - scope
+ *       The location in which you want to place the script. Possible values
+ *       are 'header' or 'footer'. If your theme implements different regions,
+ *       however, you can also use these. Defaults to 'header'.
+ *   - weight
+ *       A number defining the order in which the JavaScript is added to the
+ *       page. In some cases, the order in which the JavaScript is presented
+ *       on the page is very important. jQuery, for example, must be added to
+ *       to the page before any jQuery code is run, so jquery.js uses a weight
+ *       of JS_LIBRARY - 2, drupal.js uses a weight of JS_LIBRARY - 1, and all
+ *       following scripts depending on jQuery and Drupal behaviors are simply
+ *       added using the default weight of JS_DEFAULT.
+ *
+ *       Available constants are:
+ *       - JS_LIBRARY: Any libraries, settings, or jQuery plugins.
+ *       - JS_DEFAULT: Any module-layer JavaScript.
+ *       - JS_THEME: Any theme-layer JavaScript.
+ *
+ *       If you need to invoke a JavaScript file before any other module's
+ *       JavaScript, for example, you would use JS_DEFAULT - 1.
+ *       Note that inline JavaScripts are simply appended to the end of the
+ *       specified scope (region), so they always come last.
+ *   - defer
+ *       If set to TRUE, the defer attribute is set on the &lt;script&gt; tag.
+ *       Defaults to FALSE.
+ *   - cache
+ *       If set to FALSE, the JavaScript file is loaded anew on every page
+ *       call, that means, it is not cached. Used only when 'type' references
+ *       a JavaScript file. Defaults to TRUE.
+ *   - preprocess
+ *       Aggregate the JavaScript if the JavaScript optimization setting has
+ *       been toggled in admin/settings/performance. Defaults to TRUE.
+ * @param $reset
+ *   (optional) Resets the currently loaded JavaScript.
  * @return
- *   If the first parameter is NULL, the JavaScript array that has been built so
- *   far for $scope is returned. If the first three parameters are NULL,
- *   an array with all scopes is returned.
+ *   The contructed array of JavaScript files.
+ * @see drupal_get_js()
  */
-function drupal_add_js($data = NULL, $type = 'module', $scope = 'header', $defer = FALSE, $cache = TRUE, $preprocess = TRUE) {
+function drupal_add_js($data = NULL, $options = NULL, $reset = FALSE) {
   static $javascript = array();
 
-  if (isset($data)) {
-
-    // Add jquery.js and drupal.js, as well as the basePath setting, the
-    // first time a Javascript file is added.
-    if (empty($javascript)) {
-      $javascript['header'] = array(
-        'core' => array(
-          'misc/jquery.js' => array('cache' => TRUE, 'defer' => FALSE, 'preprocess' => TRUE),
-          'misc/drupal.js' => array('cache' => TRUE, 'defer' => FALSE, 'preprocess' => TRUE),
-        ),
-        'module' => array(),
-        'theme' => array(),
-        'setting' => array(
-          array('basePath' => base_path()),
-        ),
-        'inline' => array(),
-      );
-    }
-
-    if (isset($scope) && !isset($javascript[$scope])) {
-      $javascript[$scope] = array('core' => array(), 'module' => array(), 'theme' => array(), 'setting' => array(), 'inline' => array());
-    }
-
-    if (isset($type) && isset($scope) && !isset($javascript[$scope][$type])) {
-      $javascript[$scope][$type] = array();
-    }
-
-    switch ($type) {
-      case 'setting':
-        $javascript[$scope][$type][] = $data;
-        break;
-      case 'inline':
-        $javascript[$scope][$type][] = array('code' => $data, 'defer' => $defer);
-        break;
-      default:
-        // If cache is FALSE, don't preprocess the JS file.
-        $javascript[$scope][$type][$data] = array('cache' => $cache, 'defer' => $defer, 'preprocess' => (!$cache ? FALSE : $preprocess));
-    }
-  }
-
-  if (isset($scope)) {
-
-    if (isset($javascript[$scope])) {
-      return $javascript[$scope];
-    }
-    else {
-      return array();
+  // Construct the options, taking the defaults into consideration.
+  if (isset($options)) {
+    if (!is_array($options)) {
+      $options = array('type' => $options);
     }
   }
   else {
-    return $javascript;
+    $options = array();
   }
+  $options += array(
+    'type' => 'file',
+    'weight' => JS_DEFAULT,
+    'scope' => 'header',
+    'cache' => TRUE,
+    'defer' => FALSE,
+    'preprocess' => TRUE,
+    'data' => $data,
+  );
+  // Preprocess can only be set if caching is enabled.
+  $options['preprocess'] = $options['cache'] ? $options['preprocess'] : FALSE;
+
+  // Request made to reset the JavaScript added so far.
+  if ($reset) {
+    $javascript = array();
+  }
+
+  if (isset($data)) {
+    // Add jquery.js and drupal.js, as well as the basePath setting, the
+    // first time a Javascript file is added.
+    if (empty($javascript)) {
+      $javascript = array(
+        'settings' => array(
+          'data' => array(
+            array('basePath' => base_path()),
+          ),
+          'type' => 'setting',
+          'scope' => 'header',
+          'weight' => JS_LIBRARY,
+        ),
+        'misc/jquery.js' => array(
+          'data' => 'misc/jquery.js',
+          'type' => 'file',
+          'scope' => 'header',
+          'weight' => JS_LIBRARY - 2,
+          'cache' => TRUE,
+          'defer' => FALSE,
+          'preprocess' => TRUE,
+        ),
+        'misc/drupal.js' => array(
+          'data' => 'misc/drupal.js',
+          'type' => 'file',
+          'scope' => 'header',
+          'weight' => JS_LIBRARY - 1,
+          'cache' => TRUE,
+          'defer' => FALSE,
+          'preprocess' => TRUE,
+        ),
+      );
+    }
+
+    switch ($options['type']) {
+      case 'setting':
+        // All JavaScript settings are placed in the header of the page with
+        // the library weight so that inline scripts appear afterwards.
+        $javascript['settings']['data'][] = $data;
+        break;
+
+      case 'inline':
+        $javascript[] = $options;
+        break;
+
+      case 'file':
+        // Files must keep their name as the associative key so the same
+        // JavaScript files can not be added twice.
+        $javascript[$options['data']] = $options;
+        break;
+    }
+  }
+  return $javascript;
 }
 
 /**
@@ -2084,23 +2279,30 @@ function drupal_add_js($data = NULL, $type = 'module', $scope = 'header', $defer
  *   JavaScript array for the given scope.
  * @return
  *   All JavaScript code segments and includes for the scope as HTML tags.
+ * @see drupal_add_js()
  */
 function drupal_get_js($scope = 'header', $javascript = NULL) {
   if ((!defined('MAINTENANCE_MODE') || MAINTENANCE_MODE != 'update') && function_exists('locale_update_js_files')) {
     locale_update_js_files();
   }
-
   if (!isset($javascript)) {
-    $javascript = drupal_add_js(NULL, NULL, $scope);
+    $javascript = drupal_add_js();
   }
-
   if (empty($javascript)) {
     return '';
   }
 
+  // Filter out elements of the given scope.
+  $items = array();
+  foreach ($javascript as $item) {
+    if ($item['scope'] == $scope) {
+      $items[] = $item;
+    }
+  }
+
   $output = '';
   $preprocessed = '';
-  $no_preprocess = array('core' => '', 'module' => '', 'theme' => '');
+  $no_preprocess = '';
   $files = array();
   $preprocess_js = (variable_get('preprocess_js', FALSE) && (!defined('MAINTENANCE_MODE') || MAINTENANCE_MODE != 'update'));
   $directory = file_directory_path();
@@ -2120,29 +2322,28 @@ function drupal_get_js($scope = 'header', $javascript = NULL) {
   $embed_prefix = "\n<!--//--><![CDATA[//><!--\n";
   $embed_suffix = "\n//--><!]]>\n";
 
-  foreach ($javascript as $type => $data) {
-    if (!$data) continue;
+  // Sort the JavaScript by weight so that it appears in the correct order.
+  uasort($items, 'drupal_sort_weight');
 
-    switch ($type) {
+  // Loop through the JavaScript to construct the rendered output.
+  foreach ($items as $item) {
+    switch ($item['type']) {
       case 'setting':
-        $output .= '<script type="text/javascript">' . $embed_prefix . 'jQuery.extend(Drupal.settings, ' . drupal_to_js(call_user_func_array('array_merge_recursive', $data)) . ");" . $embed_suffix . "</script>\n";
+        $output .= '<script type="text/javascript">' . $embed_prefix . 'jQuery.extend(Drupal.settings, ' . drupal_to_js(call_user_func_array('array_merge_recursive', $item['data'])) . ");" . $embed_suffix . "</script>\n";
         break;
+
       case 'inline':
-        foreach ($data as $info) {
-          $output .= '<script type="text/javascript"' . ($info['defer'] ? ' defer="defer"' : '') . '>' . $embed_prefix . $info['code'] . $embed_suffix . "</script>\n";
+        $output .= '<script type="text/javascript"' . ($item['defer'] ? ' defer="defer"' : '') . '>' . $embed_prefix . $item['data'] . $embed_suffix . "</script>\n";
+        break;
+
+      case 'file':
+        if (!$item['preprocess'] || !$is_writable || !$preprocess_js) {
+          $no_preprocess .= '<script type="text/javascript"' . ($item['defer'] ? ' defer="defer"' : '') . ' src="' . base_path() . $item['data'] . ($item['cache'] ? $query_string : '?' . REQUEST_TIME) . "\"></script>\n";
+        }
+        else {
+          $files[$item['data']] = $item;
         }
         break;
-      default:
-        // If JS preprocessing is off, we still need to output the scripts.
-        // Additionally, go through any remaining scripts if JS preprocessing is on and output the non-cached ones.
-        foreach ($data as $path => $info) {
-          if (!$info['preprocess'] || !$is_writable || !$preprocess_js) {
-            $no_preprocess[$type] .= '<script type="text/javascript"' . ($info['defer'] ? ' defer="defer"' : '') . ' src="' . base_path() . $path . ($info['cache'] ? $query_string : '?' . REQUEST_TIME) . "\"></script>\n";
-          }
-          else {
-            $files[$path] = $info;
-          }
-        }
     }
   }
 
@@ -2155,9 +2356,7 @@ function drupal_get_js($scope = 'header', $javascript = NULL) {
 
   // Keep the order of JS files consistent as some are preprocessed and others are not.
   // Make sure any inline or JS setting variables appear last after libraries have loaded.
-  $output = $preprocessed . implode('', $no_preprocess) . $output;
-
-  return $output;
+  return $preprocessed . $no_preprocess . $output;
 }
 
 /**
@@ -2270,7 +2469,10 @@ function drupal_get_js($scope = 'header', $javascript = NULL) {
 function drupal_add_tabledrag($table_id, $action, $relationship, $group, $subgroup = NULL, $source = NULL, $hidden = TRUE, $limit = 0) {
   static $js_added = FALSE;
   if (!$js_added) {
-    drupal_add_js('misc/tabledrag.js', 'core');
+    // Add the table drag JavaScript to the page before the module JavaScript
+    // to ensure that table drag behaviors are registered before any module
+    // uses it.
+    drupal_add_js('misc/tabledrag.js', array('weight' => JS_DEFAULT - 1));
     $js_added = TRUE;
   }
 
@@ -2514,7 +2716,9 @@ function _drupal_bootstrap_full() {
   require_once DRUPAL_ROOT . '/includes/mail.inc';
   require_once DRUPAL_ROOT . '/includes/actions.inc';
   // Set the Drupal custom error handler.
-  set_error_handler('drupal_error_handler');
+  set_error_handler('_drupal_error_handler');
+  set_exception_handler('_drupal_exception_handler');
+
   // Emit the correct charset HTTP header.
   drupal_set_header('Content-Type: text/html; charset=utf-8');
   // Detect string handling method
@@ -2523,8 +2727,6 @@ function _drupal_bootstrap_full() {
   fix_gpc_magic();
   // Load all enabled modules
   module_load_all();
-  // Rebuild the module hook cache
-  module_implements('', NULL, TRUE);
 
   // Let all modules take action before menu system handles the request
   // We do not want this while running update.php.
@@ -2704,7 +2906,7 @@ function drupal_system_listing($mask, $directory, $key = 'name', $min_depth = 1)
 
 /**
  * Hands off structured Drupal arrays to type-specific *_alter implementations.
- * 
+ *
  * This dispatch function hands off structured Drupal arrays to type-specific
  * *_alter implementations. It ensures a consistent interface for all altering
  * operations.
@@ -2867,6 +3069,18 @@ function element_sort($a, $b) {
 }
 
 /**
+ * Function used by uasort to sort structured arrays by weight, without the property weight prefix.
+ */
+function drupal_sort_weight($a, $b) {
+  $a_weight = (is_array($a) && isset($a['weight'])) ? $a['weight'] : 0;
+  $b_weight = (is_array($b) && isset($b['weight'])) ? $b['weight'] : 0;
+  if ($a_weight == $b_weight) {
+    return 0;
+  }
+  return ($a_weight < $b_weight) ? -1 : 1;
+}
+
+/**
  * Check if the key is a property.
  */
 function element_property($key) {
@@ -2910,6 +3124,8 @@ function drupal_common_theme() {
     'maintenance_page' => array(
       'arguments' => array('content' => NULL, 'show_blocks' => TRUE, 'show_messages' => TRUE),
       'template' => 'maintenance-page',
+      'path' => 'includes',
+      'file' => 'theme.maintenance.inc',
     ),
     'update_page' => array(
       'arguments' => array('content' => NULL, 'show_messages' => TRUE),
@@ -3246,7 +3462,7 @@ function drupal_schema_fields_sql($table, $prefix = NULL) {
  *   The object to write. This is a reference, as defaults according to
  *   the schema may be filled in on the object, as well as ID on the serial
  *   type(s). Both array an object types may be passed.
- * @param $update
+ * @param $primary_keys
  *   If this is an update, specify the primary keys' field names. It is the
  *   caller's responsibility to know if a record for this object already
  *   exists in the database. If there is only 1 key, you may pass a simple string.
@@ -3257,10 +3473,10 @@ function drupal_schema_fields_sql($table, $prefix = NULL) {
  *   the $table. For example, $object->nid will be populated after inserting
  *   a new node.
  */
-function drupal_write_record($table, &$object, $update = array()) {
-  // Standardize $update to an array.
-  if (is_string($update)) {
-    $update = array($update);
+function drupal_write_record($table, &$object, $primary_keys = array()) {
+  // Standardize $primary_keys to an array.
+  if (is_string($primary_keys)) {
+    $primary_keys = array($primary_keys);
   }
 
   $schema = drupal_get_schema($table);
@@ -3277,42 +3493,61 @@ function drupal_write_record($table, &$object, $update = array()) {
     $array = FALSE;
   }
 
-  $fields = $defs = $values = $serials = $placeholders = array();
+  $fields = array();
 
   // Go through our schema, build SQL, and when inserting, fill in defaults for
   // fields that are not set.
   foreach ($schema['fields'] as $field => $info) {
     // Special case -- skip serial types if we are updating.
-    if ($info['type'] == 'serial' && count($update)) {
+    if ($info['type'] == 'serial' && !empty($primary_keys)) {
       continue;
     }
 
-    // For inserts, populate defaults from Schema if not already provided
-    if (!isset($object->$field) && !count($update) && isset($info['default'])) {
+    // For inserts, populate defaults from schema if not already provided.
+    if (!isset($object->$field) && empty($primary_keys) && isset($info['default'])) {
       $object->$field = $info['default'];
     }
 
-    // Track serial fields so we can helpfully populate them after the query.
+    // Track serial field so we can helpfully populate them after the query.
+    // NOTE: Each table should come with one serial field only.
     if ($info['type'] == 'serial') {
-      $serials[] = $field;
-      // Ignore values for serials when inserting data. Unsupported.
+      $serial = $field;
+      // Ignore values for serial when inserting data. Unsupported.
       unset($object->$field);
     }
 
-    // Build arrays for the fields, placeholders, and values in our query.
+    // Build arrays for the fields and values in our query.
     if (isset($object->$field)) {
-      $fields[] = $field;
-      $placeholders[] = db_type_placeholder($info['type']);
-
       if (empty($info['serialize'])) {
-        $values[] = $object->$field;
+        $fields[$field] = $object->$field;
       }
       elseif (!empty($object->$field)) {
-        $values[] = serialize($object->$field);
+        $fields[$field] = serialize($object->$field);
       }
       else {
-        $values[] = '';
+        $fields[$field] = '';
       }
+    }
+
+    // We don't need to care about type casting if value does not exist.
+    if (!isset($fields[$field])) {
+      continue;
+    }
+
+    // Special case -- skip null value if field allows null.
+    if ($fields[$field] == NULL && $info['not null'] == FALSE) {
+      continue;
+    }
+
+    // Type cast if field does not allow null. Required by DB API.
+    if ($info['type'] == 'int' || $info['type'] == 'serial') {
+      $fields[$field] = (int) $fields[$field];
+    }
+    elseif ($info['type'] == 'float') {
+      $fields[$field] = (float) $fields[$field];
+    }
+    else {
+      $fields[$field] = (string) $fields[$field];
     }
   }
 
@@ -3320,42 +3555,29 @@ function drupal_write_record($table, &$object, $update = array()) {
     // No changes requested.
     // If we began with an array, convert back so we don't surprise the caller.
     if ($array) {
-      $object = (array)$object;
+      $object = (array) $object;
     }
     return;
   }
 
   // Build the SQL.
-  $query = '';
-  if (!count($update)) {
-    $query = "INSERT INTO {" . $table . "} (" . implode(', ', $fields) . ') VALUES (' . implode(', ', $placeholders) . ')';
+  if (empty($primary_keys)) {
+    $query = db_insert($table)->fields($fields);
     $return = SAVED_NEW;
   }
   else {
-    $query = '';
-    foreach ($fields as $id => $field) {
-      if ($query) {
-        $query .= ', ';
-      }
-      $query .= $field . ' = ' . $placeholders[$id];
+    $query = db_update($table)->fields($fields);
+    foreach ($primary_keys as $key){
+      $query->condition($key, $object->$key);
     }
-
-    foreach ($update as $key){
-      $conditions[] = "$key = " . db_type_placeholder($schema['fields'][$key]['type']);
-      $values[] = $object->$key;
-    }
-
-    $query = "UPDATE {" . $table . "} SET $query WHERE " . implode(' AND ', $conditions);
     $return = SAVED_UPDATED;
   }
 
   // Execute the SQL.
-  if (db_query($query, $values)) {
-    if ($serials) {
-      // Get last insert ids and fill them in.
-      foreach ($serials as $field) {
-        $object->$field = db_last_insert_id($table, $field);
-      }
+  if ($last_insert_id = $query->execute()) {
+    if (isset($serial)) {
+      // Populate the serial field.
+      $object->$serial = $last_insert_id;
     }
   }
   else {

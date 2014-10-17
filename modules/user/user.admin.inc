@@ -83,7 +83,7 @@ function user_filter_form() {
     );
   }
 
-  drupal_add_js('misc/form.js', 'core');
+  drupal_add_js('misc/form.js');
 
   return $form;
 }
@@ -415,7 +415,7 @@ function user_admin_settings() {
   // If picture support is enabled, check whether the picture directory exists:
   if (variable_get('user_pictures', 0)) {
     $picture_path = file_create_path(variable_get('user_picture_path', 'pictures'));
-    file_check_directory($picture_path, 1, 'user_picture_path');
+    file_check_directory($picture_path, FILE_CREATE_DIRECTORY, 'user_picture_path');
   }
 
   $form['pictures'] = array(
@@ -510,7 +510,7 @@ function user_admin_perm($form_state, $rid = NULL) {
   // Render role/permission overview:
   $options = array();
   $hide_descriptions = !system_admin_compact_mode();
-  foreach (module_list(FALSE, FALSE, TRUE) as $module) {
+  foreach (module_implements('perm') as $module) {
     if ($permissions = module_invoke($module, 'perm')) {
       $form['permission'][] = array(
         '#markup' => $module,

@@ -133,7 +133,7 @@ function _init_theme($theme, $base_theme = array(), $registry_callback = '_theme
   // And now add the stylesheets properly
   foreach ($final_stylesheets as $media => $stylesheets) {
     foreach ($stylesheets as $stylesheet) {
-      drupal_add_css($stylesheet, 'theme', $media);
+      drupal_add_css($stylesheet, array('type' => 'theme', 'media' => $media));
     }
   }
 
@@ -158,7 +158,7 @@ function _init_theme($theme, $base_theme = array(), $registry_callback = '_theme
 
   // Add scripts used by this theme.
   foreach ($final_scripts as $script) {
-    drupal_add_js($script, 'theme');
+    drupal_add_js($script, array('weight' => JS_THEME));
   }
 
   $theme_engine = NULL;
@@ -279,6 +279,7 @@ function drupal_theme_rebuild() {
  * over how and when the preprocess functions are run.
  */
 function _theme_process_registry(&$cache, $name, $type, $theme, $path) {
+  $result = array();
   $function = $name . '_theme';
   if (function_exists($function)) {
     $result = $function($cache, $type, $theme, $path);
@@ -367,6 +368,26 @@ function _theme_process_registry(&$cache, $name, $type, $theme, $path) {
 
     // Merge the newly created theme hooks into the existing cache.
     $cache = array_merge($cache, $result);
+  }
+
+  // Let themes have preprocess functions even if they didn't register a template.
+  if ($type == 'theme' || $type == 'base_theme') {
+    foreach ($cache as $hook => $info) {
+      // Check only if it's a template and not registered by the theme or engine.
+      if (!empty($info['template']) && empty($result[$hook])) {
+        if (!isset($info['preprocess functions'])) {
+          $cache[$hook]['preprocess functions'] = array();
+        }
+        if (function_exists($name . '_preprocess')) {
+          $cache[$hook]['preprocess functions'][] = $name . '_preprocess';
+        }
+        if (function_exists($name . '_preprocess_' . $hook)) {
+          $cache[$hook]['preprocess functions'][] = $name . '_preprocess_' . $hook;
+        }
+        // Ensure uniqueness.
+        $cache[$hook]['preprocess functions'] = array_unique($cache[$hook]['preprocess functions']);
+      }
+    }
   }
 }
 
@@ -703,7 +724,14 @@ function drupal_discover_template($paths, $suggestions, $extension = '.tpl.php')
 }
 
 /**
- * Return the path to the currently selected theme.
+ * Return the path to the current themed element.
+ *
+ * It can point to the active theme or the module handling a themed implementation.
+ * For example, when invoked within the scope of a theming call it will depend
+ * on where the theming function is handled. If implemented from a module, it
+ * will point to the module. If implemented from the active theme, it will point
+ * to the active theme. When called outside the scope of a theming call, it will
+ * always point to the active theme.
  */
 function path_to_theme() {
   global $theme_path;
@@ -870,7 +898,7 @@ function theme_get_settings($key = NULL) {
     'toggle_logo'                   =>  1,
     'toggle_favicon'                =>  1,
     'toggle_name'                   =>  1,
-    'toggle_search'                 =>  1,
+    'toggle_search'                 =>  0,
     'toggle_slogan'                 =>  0,
     'toggle_mission'                =>  1,
     'toggle_node_user_picture'      =>  0,
@@ -891,8 +919,8 @@ function theme_get_settings($key = NULL) {
   }
 
   // Only offer search box if search.module is enabled.
-  if (!module_exists('search') || !user_access('search content')) {
-    $settings['toggle_search'] = 0;
+  if (!defined('MAINTENANCE_MODE') && module_exists('search') && user_access('search content')) {
+    $settings['toggle_search'] = 1;
   }
 
   return $settings;
@@ -1094,9 +1122,14 @@ function theme_status_messages($display = NULL) {
  * Return a themed set of links.
  *
  * @param $links
- *   A keyed array of links to be themed.
+ *   A keyed array of links to be themed. The key for each link is used as its css class.
+ *   Each link should be itself an array, with the following keys:
+ *    - title: the link text
+ *    - href: the link URL. If omitted, the 'title' is shown as a plain text item in the links list.
+ *    - html: (optional) set this to TRUE if 'title' is HTML so it will be escaped.
+ *   Array items are passed on to the l() function's $options parameter when creating the link.
  * @param $attributes
- *   A keyed array of attributes
+ *   A keyed array of attributes.
  * @return
  *   A string containing an unordered list of links.
  */
@@ -1129,7 +1162,7 @@ function theme_links($links, $attributes = array('class' => 'links')) {
         $output .= l($link['title'], $link['href'], $link);
       }
       elseif (!empty($link['title'])) {
-        // Some links are actually not links, but we wrap these in <span> for adding title and class attributes
+        // Some links are actually not links, but we wrap these in <span> for adding title and class attributes.
         if (empty($link['html'])) {
           $link['title'] = check_plain($link['title']);
         }
@@ -1792,7 +1825,7 @@ function template_preprocess_page(&$variables) {
   // Load all region content assigned via blocks.
   foreach (array_keys($regions) as $region) {
     // Prevent left and right regions from rendering blocks when 'show_blocks' == FALSE.
-    if (!(!$variables['show_blocks'] && ($region == 'left' || $region == 'right'))) {
+    if ($variables['show_blocks'] || ($region != 'left' && $region != 'right')) {
       $blocks = theme('blocks', $region);
     }
     else {
