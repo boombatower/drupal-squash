@@ -112,7 +112,7 @@ function hook_admin_paths_alter(&$paths) {
 function hook_cron() {
   // Short-running operation example, not using a queue:
   // Delete all expired records since the last cron run.
-  $expires = \Drupal::state()->get('mymodule.cron_last_run') ?: REQUEST_TIME;
+  $expires = \Drupal::state()->get('mymodule.cron_last_run', REQUEST_TIME);
   db_delete('mymodule_table')
     ->condition('expires', $expires, '>=')
     ->execute();
@@ -669,7 +669,7 @@ function hook_menu_local_actions_alter(&$local_actions) {
  * @see \Drupal\Core\Menu\LocalTaskInterface
  * @see \Drupal\Core\Menu\LocalTaskManager
  */
-function hook_local_task_alter(&$local_tasks) {
+function hook_local_tasks_alter(&$local_tasks) {
   // Remove a specified local task plugin.
   unset($local_tasks['example_plugin_id']);
 }
@@ -677,45 +677,59 @@ function hook_local_task_alter(&$local_tasks) {
 /**
  * Alter contextual links before they are rendered.
  *
- * This hook is invoked by menu_contextual_links(). The system-determined
- * contextual links are passed in by reference. Additional links may be added
- * or existing links can be altered.
+ * This hook is invoked by
+ * \Drupal\Core\Menu\ContextualLinkManager::getContextualLinkPluginsByGroup().
+ * The system-determined contextual links are passed in by reference. Additional
+ * links may be added and existing links can be altered.
  *
- * Each contextual link must at least contain:
+ * Each contextual link contains the following entries:
  * - title: The localized title of the link.
- * - href: The system path to link to.
+ * - route_name: The route name of the link.
+ * - route_parameters: The route parameters of the link.
  * - localized_options: An array of options to pass to url().
+ * - (optional) weight: The weight of the link, which is used to sort the links.
  *
- * @param $links
- *   An associative array containing contextual links for the given $root_path,
+ *
+ * @param array $links
+ *   An associative array containing contextual links for the given $group,
  *   as described above. The array keys are used to build CSS class names for
  *   contextual links and must therefore be unique for each set of contextual
  *   links.
- * @param $router_item
- *   The menu router item belonging to the $root_path being requested.
- * @param $root_path
- *   The (parent) path that has been requested to build contextual links for.
- *   This is a normalized path, which means that an originally passed path of
- *   'node/123' became 'node/%'.
+ * @param string $group
+ *   The group of contextual links being rendered.
+ * @param array $route_parameters.
+ *   The route parameters passed to each route_name of the contextual links.
+ *   For example:
+ *   @code
+ *   array('node' => $node->id())
+ *   @endcode
  *
- * @see hook_contextual_links_view_alter()
- * @see menu_contextual_links()
- * @see hook_menu()
- * @see contextual_preprocess()
+ * @see \Drupal\Core\Menu\ContextualLinkManager
  */
-function hook_menu_contextual_links_alter(&$links, $router_item, $root_path) {
-  // Add a link to all contextual links for nodes.
-  if ($root_path == 'node/%') {
-    $links['foo'] = array(
-      'title' => t('Do fu'),
-      'href' => 'foo/do',
-      'localized_options' => array(
-        'query' => array(
-          'foo' => 'bar',
-        ),
-      ),
-    );
+function hook_contextual_links_alter(array &$links, $group, array $route_parameters) {
+  if ($group == 'menu') {
+    // Dynamically use the menu name for the title of the menu_edit contextual
+    // link.
+    $menu = \Drupal::entityManager()->getStorageController('menu')->load($route_parameters['menu']);
+    $links['menu_edit']['title'] = t('Edit menu: !label', array('!label' => $menu->label()));
   }
+}
+
+/**
+ * Alter the plugin definition of contextual links.
+ *
+ * @param array $contextual_links
+ *   An array of contextual_links plugin definitions, keyed by contextual link
+ *   ID. Each entry contains the following keys:
+ *     - title: The displayed title of the link
+ *     - route_name: The route_name of the contextual link to be displayed
+ *     - group: The group under which the contextual links should be added to.
+ *       Possible values are e.g. 'node' or 'menu'.
+ *
+ * @see \Drupal\Core\Menu\ContextualLinkManager
+ */
+function hook_contextual_links_plugins_alter(array &$contextual_links) {
+  $contextual_links['menu_edit']['title'] = 'Edit the menu';
 }
 
 /**
@@ -816,12 +830,15 @@ function hook_page_alter(&$page) {
  */
 function hook_form_alter(&$form, &$form_state, $form_id) {
   if (isset($form['type']) && $form['type']['#value'] . '_node_settings' == $form_id) {
+    $upload_enabled_types = \Drupal::config('mymodule.settings')->get('upload_enabled_types');
     $form['workflow']['upload_' . $form['type']['#value']] = array(
       '#type' => 'radios',
       '#title' => t('Attachments'),
-      '#default_value' => variable_get('upload_' . $form['type']['#value'], 1),
+      '#default_value' => in_array($form['type']['#value'], $upload_enabled_types) ? 1 : 0,
       '#options' => array(t('Disabled'), t('Enabled')),
     );
+    // Add a custom submit handler to save the array of types back to the config file.
+    $form['actions']['submit']['#submit'][] = 'mymodule_upload_enabled_types_submit';
   }
 }
 
@@ -1133,7 +1150,7 @@ function hook_system_theme_info() {
  * This hook is invoked in _system_rebuild_module_data() and in
  * _system_rebuild_theme_data(). A module may implement this hook in order to
  * add to or alter the data generated by reading the .info.yml file with
- * drupal_parse_info_file().
+ * \Drupal\Core\Extension\InfoParser.
  *
  * @param $info
  *   The .info.yml file contents, passed by reference so that it can be altered.
@@ -1200,15 +1217,14 @@ function hook_permission() {
 }
 
 /**
- * Register a module (or theme's) theme implementations.
+ * Register a module or theme's theme implementations.
  *
- * The implementations declared by this hook have two purposes: either they
- * specify how a particular render array is to be rendered as HTML (this is
- * usually the case if the theme function is assigned to the render array's
- * #theme property), or they return the HTML that should be returned by an
- * invocation of theme().
- *
- * The following parameters are all optional.
+ * The implementations declared by this hook have several purposes:
+ * - They can specify how a particular render array is to be rendered as HTML.
+ *   This is usually the case if the theme function is assigned to the render
+ *   array's #theme property.
+ * - They can return HTML for default calls to theme().
+ * - They can return HTML for calls to theme() for a theme suggestion.
  *
  * @param array $existing
  *   An array of existing implementations that may be used for override
@@ -1233,28 +1249,28 @@ function hook_permission() {
  *   looked up.
  *
  * @return array
- *   An associative array of theme hook information. The keys on the outer
- *   array are the internal names of the hooks, and the values are arrays
- *   containing information about the hook. Each information array must contain
- *   either a 'variables' element or a 'render element' element, but not both.
- *   Use 'render element' if you are theming a single element or element tree
- *   composed of elements, such as a form array, a page array, or a single
- *   checkbox element. Use 'variables' if your theme implementation is
- *   intended to be called directly through theme() and has multiple arguments
- *   for the data and style; in this case, the variables not supplied by the
- *   calling function will be given default values and passed to the template
- *   or theme function. The returned theme information array can contain the
- *   following key/value pairs:
- *   - variables: (see above) Each array key is the name of the variable, and
- *     the value given is used as the default value if the function calling
- *     theme() does not supply it. Template implementations receive each array
- *     key as a variable in the template file (so they must be legal PHP
- *     variable names). Function implementations are passed the variables in a
- *     single $variables function argument.
- *   - render element: (see above) The name of the renderable element or element
- *     tree to pass to the theme function. This name is used as the name of the
- *     variable that holds the renderable element or tree in preprocess and
- *     process functions.
+ *   An associative array of information about theme implementations. The keys
+ *   on the outer array are known as "theme hooks". For simple theme
+ *   implementations for regular calls to theme(), the theme hook is the first
+ *   argument. For theme suggestions, instead of the array key being the base
+ *   theme hook, the key is a theme suggestion name with the format
+ *   'base_hook_name__sub_hook_name'. For render elements, the key is the
+ *   machine name of the render element. The array values are themselves arrays
+ *   containing information about the theme hook and its implementation. Each
+ *   information array must contain either a 'variables' element (for theme()
+ *   calls) or a 'render element' element (for render elements), but not both.
+ *   The following elements may be part of each information array:
+ *   - variables: Used for theme() call items only: an array of variables,
+ *     where the array keys are the names of the variables, and the array
+ *     values are the default values if they are not passed into theme().
+ *     Template implementations receive each array key as a variable in the
+ *     template file (so they must be legal PHP/Twig variable names). Function
+ *     implementations are passed the variables in a single $variables function
+ *     argument.
+ *   - render element: Used for render element items only: the name of the
+ *     renderable element or element tree to pass to the theme function. This
+ *     name is used as the name of the variable that holds the renderable
+ *     element or tree in preprocess and process functions.
  *   - file: The file the implementation resides in. This file will be included
  *     prior to the theme being rendered, to make sure that the function or
  *     preprocess function (as needed) is actually loaded; this makes it
@@ -1274,9 +1290,17 @@ function hook_permission() {
  *     registers the 'node' theme hook, 'theme_node' will be assigned to its
  *     function. If the chameleon theme registers the node hook, it will be
  *     assigned 'chameleon_node' as its function.
- *   - base hook: A string declaring the base theme hook if this theme
- *     implementation is actually implementing a suggestion for another theme
- *     hook.
+ *   - base hook: Used for theme() suggestions only: the base theme hook name.
+ *     Instead of this suggestion's implementation being used directly, the base
+ *     hook will be invoked with this implementation as its first suggestion.
+ *     The base hook's files will be included and the base hook's preprocess
+ *     functions will be called in place of any suggestion's preprocess
+ *     functions. If an implementation of hook_theme_suggestions_HOOK() (where
+ *     HOOK is the base hook) changes the suggestion order, a different
+ *     suggestion may be used in place of this suggestion. If after
+ *     hook_theme_suggestions_HOOK() this suggestion remains the first
+ *     suggestion, then this suggestion's function or template will be used to
+ *     generate the output for theme().
  *   - pattern: A regular expression pattern to be used to allow this theme
  *     implementation to have a dynamic name. The convention is to use __ to
  *     differentiate the dynamic portion of the theme. For example, to allow
@@ -1338,7 +1362,7 @@ function hook_theme($existing, $type, $theme, $path) {
  *
  * The $theme_registry array is keyed by theme hook name, and contains the
  * information returned from hook_theme(), as well as additional properties
- * added by _theme_process_registry().
+ * added by \Drupal\Core\Theme\Registry::processExtension().
  *
  * For example:
  * @code
@@ -1361,7 +1385,7 @@ function hook_theme($existing, $type, $theme, $path) {
  *   The entire cache of theme registry information, post-processing.
  *
  * @see hook_theme()
- * @see _theme_process_registry()
+ * @see \Drupal\Core\Theme\Registry::processExtension()
  */
 function hook_theme_registry_alter(&$theme_registry) {
   // Kill the next/previous forum topic navigation links.
@@ -1666,7 +1690,7 @@ function hook_module_preinstall($module) {
  */
 function hook_modules_installed($modules) {
   if (in_array('lousy_module', $modules)) {
-    variable_set('lousy_module_conflicting_variable', FALSE);
+    \Drupal::state()->set('mymodule.lousy_module_compatibility', TRUE);
   }
 }
 
@@ -1697,10 +1721,8 @@ function hook_module_preuninstall($module) {
  * @see hook_modules_disabled()
  */
 function hook_modules_uninstalled($modules) {
-  foreach ($modules as $module) {
-    db_delete('mymodule_table')
-      ->condition('module', $module)
-      ->execute();
+  if (in_array('lousy_module', $modules)) {
+    \Drupal::state()->delete('mymodule.lousy_module_compatibility');
   }
   mymodule_cache_rebuild();
 }
@@ -1804,19 +1826,13 @@ function hook_stream_wrappers_alter(&$wrappers) {
  * @see file_download()
  */
 function hook_file_download($uri) {
-  // Check if the file is controlled by the current module.
-  if (!file_prepare_directory($uri)) {
-    $uri = FALSE;
-  }
-  if (strpos(file_uri_target($uri), variable_get('user_picture_path', 'pictures') . '/picture-') === 0) {
-    if (!user_access('access user profiles')) {
-      // Access to the file is denied.
-      return -1;
-    }
-    else {
-      $image = \Drupal::service('image.factory')->get($uri);
-      return array('Content-Type' => $image->getMimeType());
-    }
+  // Check to see if this is a config download.
+  $scheme = file_uri_scheme($uri);
+  $target = file_uri_target($uri);
+  if ($scheme == 'temporary' && $target == 'config.tar.gz') {
+    return array(
+      'Content-disposition' => 'attachment; filename="config.tar.gz"',
+    );
   }
 }
 
@@ -2187,17 +2203,10 @@ function hook_query_TAG_alter(Drupal\Core\Database\Query\AlterableInterface $que
  * @see hook_modules_installed()
  */
 function hook_install() {
-  // Populate the default {node_access} record.
-  db_insert('node_access')
-    ->fields(array(
-      'nid' => 0,
-      'gid' => 0,
-      'realm' => 'all',
-      'grant_view' => 1,
-      'grant_update' => 0,
-      'grant_delete' => 0,
-    ))
-    ->execute();
+  // Create the styles directory and ensure it's writable.
+  $directory = file_default_scheme() . '://styles';
+  $mode = isset($GLOBALS['install_state']['mode']) ? $GLOBALS['install_state']['mode'] : NULL;
+  file_prepare_directory($directory, FILE_CREATE_DIRECTORY | FILE_MODIFY_PERMISSIONS, $mode);
 }
 
 /**
@@ -2399,7 +2408,7 @@ function hook_update_last_removed() {
  * Remove any information that the module sets.
  *
  * The information that the module should remove includes:
- * - variables that the module has set using variable_set()
+ * - state that the module has set using \Drupal::state()
  * - modifications to existing tables
  *
  * The module should not remove its entry from the module configuration.
@@ -2424,7 +2433,8 @@ function hook_update_last_removed() {
  * @see hook_modules_uninstalled()
  */
 function hook_uninstall() {
-  variable_del('upload_file_types');
+  // Remove the styles directory and generated images.
+  file_unmanaged_delete_recursive(file_default_scheme() . '://styles');
 }
 
 /**
@@ -2468,11 +2478,10 @@ function hook_uninstall() {
  * access to this information.
  *
  * Remember that a user installing Drupal interactively will be able to reload
- * an installation page multiple times, so you should use variable_set() and
- * variable_get() if you are collecting any data that you need to store and
- * inspect later. It is important to remove any temporary variables using
- * variable_del() before your last task has completed and control is handed
- * back to the installer.
+ * an installation page multiple times, so you should use \Drupal::state() to
+ * store any data that you may need later in the installation process. Any
+ * temporary state must be removed using \Drupal::state()->delete() before
+ * your last task has completed and control is handed back to the installer.
  *
  * @param array $install_state
  *   An array of information about the current installation state.
@@ -2531,7 +2540,7 @@ function hook_install_tasks(&$install_state) {
   // Here, we define a variable to allow tasks to indicate that a particular,
   // processor-intensive batch process needs to be triggered later on in the
   // installation.
-  $myprofile_needs_batch_processing = variable_get('myprofile_needs_batch_processing', FALSE);
+  $myprofile_needs_batch_processing = \Drupal::state()->get('myprofile.needs_batch_processing', FALSE);
   $tasks = array(
     // This is an example of a task that defines a form which the user who is
     // installing the site will be asked to fill out. To implement this task,
@@ -2539,9 +2548,9 @@ function hook_install_tasks(&$install_state) {
     // as a normal form API callback function, with associated validation and
     // submit handlers. In the submit handler, in addition to saving whatever
     // other data you have collected from the user, you might also call
-    // variable_set('myprofile_needs_batch_processing', TRUE) if the user has
-    // entered data which requires that batch processing will need to occur
-    // later on.
+    // \Drupal::state()->set('myprofile.needs_batch_processing', TRUE) if the
+    // user has entered data which requires that batch processing will need to
+    // occur later on.
     'myprofile_data_import_form' => array(
       'display_name' => t('Data import options'),
       'type' => 'form',
@@ -2561,7 +2570,7 @@ function hook_install_tasks(&$install_state) {
     // implement this task, your profile would define a function named
     // myprofile_batch_processing() which returns a batch API array definition
     // that the installer will use to execute your batch operations. Due to the
-    // 'myprofile_needs_batch_processing' variable used here, this task will be
+    // 'myprofile.needs_batch_processing' variable used here, this task will be
     // hidden and skipped unless your profile set it to TRUE in one of the
     // previous tasks.
     'myprofile_batch_processing' => array(
@@ -2575,13 +2584,14 @@ function hook_install_tasks(&$install_state) {
     // function named myprofile_final_site_setup(), in which additional,
     // automated site setup operations would be performed. Since this is the
     // last task defined by your profile, you should also use this function to
-    // call variable_del('myprofile_needs_batch_processing') and clean up the
-    // variable that was used above. If you want the user to pass to the final
-    // Drupal installation tasks uninterrupted, return no output from this
-    // function. Otherwise, return themed output that the user will see (for
-    // example, a confirmation page explaining that your profile's tasks are
-    // complete, with a link to reload the current page and therefore pass on
-    // to the final Drupal installation tasks when the user is ready to do so).
+    // call \Drupal::state()->delete('myprofile.needs_batch_processing') and
+    // clean up the state that was used above. If you want the user to pass
+    // to the final Drupal installation tasks uninterrupted, return no output
+    // from this function. Otherwise, return themed output that the user will
+    // see (for example, a confirmation page explaining that your profile's
+    // tasks are complete, with a link to reload the current page and therefore
+    // pass on to the final Drupal installation tasks when the user is ready to
+    // do so).
     'myprofile_final_site_setup' => array(
     ),
   );
@@ -3114,12 +3124,10 @@ function hook_filetransfer_info() {
  * @see hook_filetransfer_info()
  */
 function hook_filetransfer_info_alter(&$filetransfer_info) {
-  if (variable_get('paranoia', FALSE)) {
-    // Remove the FTP option entirely.
-    unset($filetransfer_info['ftp']);
-    // Make sure the SSH option is listed first.
-    $filetransfer_info['ssh']['weight'] = -10;
-  }
+  // Remove the FTP option entirely.
+  unset($filetransfer_info['ftp']);
+  // Make sure the SSH option is listed first.
+  $filetransfer_info['ssh']['weight'] = -10;
 }
 
 /**

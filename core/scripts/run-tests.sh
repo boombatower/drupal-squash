@@ -33,12 +33,12 @@ else {
 
 // Bootstrap to perform initial validation or other operations.
 drupal_bootstrap(DRUPAL_BOOTSTRAP_CODE);
-simpletest_classloader_register();
 
 if (!\Drupal::moduleHandler()->moduleExists('simpletest')) {
-  simpletest_script_print_error("The simpletest module must be enabled before this script can run.");
+  simpletest_script_print_error("The Testing (simpletest) module must be installed before this script can run.");
   exit;
 }
+simpletest_classloader_register();
 
 if ($args['clean']) {
   // Clean up left-over times and directories.
@@ -668,7 +668,10 @@ function simpletest_script_get_test_list() {
         }
         else {
           foreach ($matches[1] as $class_name) {
-            $test_list[] = $namespace . '\\' . $class_name;
+            $namespace_class = $namespace . '\\' . $class_name;
+            if (is_subclass_of($namespace_class, '\Drupal\simpletest\TestBase') || is_subclass_of($namespace_class, '\Drupal\Tests\UnitTestCase')) {
+              $test_list[] = $namespace_class;
+            }
           }
         }
       }

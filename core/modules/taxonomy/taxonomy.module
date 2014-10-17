@@ -7,7 +7,7 @@
 
 use Drupal\Core\Entity\FieldableDatabaseStorageController;
 use Drupal\Core\Entity\EntityInterface;
-use Drupal\Core\Entity\Field\FieldDefinitionInterface;
+use Drupal\Core\Field\FieldDefinitionInterface;
 use Drupal\field\FieldInterface;
 use Drupal\field\FieldInstanceInterface;
 use Drupal\file\FileInterface;
@@ -255,24 +255,6 @@ function taxonomy_menu() {
     'title arguments' => array(2),
     'route_name' => 'taxonomy.term_page',
   );
-  $items['taxonomy/term/%taxonomy_term/view'] = array(
-    'title' => 'View',
-    'type' => MENU_DEFAULT_LOCAL_TASK,
-  );
-  $items['taxonomy/term/%taxonomy_term/edit'] = array(
-    'title' => 'Edit',
-    'route_name' => 'taxonomy.term_edit',
-    'type' => MENU_LOCAL_TASK,
-    'context' => MENU_CONTEXT_PAGE | MENU_CONTEXT_INLINE,
-    'weight' => 10,
-  );
-  $items['taxonomy/term/%taxonomy_term/delete'] = array(
-    'title' => 'Delete',
-    'type' => MENU_LOCAL_TASK,
-    'context' => MENU_CONTEXT_INLINE,
-    'weight' => 20,
-    'route_name' => 'taxonomy.term_delete',
-  );
   $items['taxonomy/term/%taxonomy_term/feed'] = array(
     'title' => 'Taxonomy term',
     'title callback' => 'taxonomy_term_title',
@@ -294,19 +276,6 @@ function taxonomy_menu() {
     'title' => 'Edit',
     'route_name' => 'taxonomy.vocabulary_edit',
     'type' => MENU_LOCAL_TASK,
-  );
-  $items['admin/structure/taxonomy/%taxonomy_vocabulary/delete'] = array(
-    'title' => 'Delete',
-    'type' => MENU_LOCAL_TASK,
-    'context' => MENU_CONTEXT_INLINE,
-    'weight' => 20,
-    'route_name' => 'taxonomy.vocabulary_delete',
-  );
-
-  $items['admin/structure/taxonomy/manage/%taxonomy_vocabulary/add'] = array(
-    'title' => 'Add term',
-    'route_name' => 'taxonomy.term_add',
-    'type' => MENU_LOCAL_ACTION,
   );
 
   return $items;
@@ -530,14 +499,7 @@ function taxonomy_term_load_parents($tid) {
   $parents = &drupal_static(__FUNCTION__, array());
 
   if ($tid && !isset($parents[$tid])) {
-    $query = db_select('taxonomy_term_data', 't');
-    $query->join('taxonomy_term_hierarchy', 'h', 'h.parent = t.tid');
-    $query->addField('t', 'tid');
-    $query->condition('h.tid', $tid);
-    $query->addTag('term_access');
-    $query->orderBy('t.weight');
-    $query->orderBy('t.name');
-    $tids = $query->execute()->fetchCol();
+    $tids = \Drupal::entityManager()->getStorageController('taxonomy_term')->loadParents($tid);
     $parents[$tid] = entity_load_multiple('taxonomy_term', $tids);
   }
 
@@ -585,17 +547,7 @@ function taxonomy_term_load_children($tid, $vid = NULL) {
   $children = &drupal_static(__FUNCTION__, array());
 
   if ($tid && !isset($children[$tid])) {
-    $query = db_select('taxonomy_term_data', 't');
-    $query->join('taxonomy_term_hierarchy', 'h', 'h.tid = t.tid');
-    $query->addField('t', 'tid');
-    $query->condition('h.parent', $tid);
-    if ($vid) {
-      $query->condition('t.vid', $vid);
-    }
-    $query->addTag('term_access');
-    $query->orderBy('t.weight');
-    $query->orderBy('t.name');
-    $tids = $query->execute()->fetchCol();
+    $tids = \Drupal::entityManager()->getStorageController('taxonomy_term')->loadChildren($tid);
     $children[$tid] = entity_load_multiple('taxonomy_term', $tids);
   }
 
@@ -636,16 +588,7 @@ function taxonomy_get_tree($vid, $parent = 0, $max_depth = NULL, $load_entities 
     $parents[$vid] = array();
     $terms[$vid] = array();
 
-    $query = db_select('taxonomy_term_data', 't');
-    $query->join('taxonomy_term_hierarchy', 'h', 'h.tid = t.tid');
-    $result = $query
-      ->addTag('term_access')
-      ->fields('t')
-      ->fields('h', array('parent'))
-      ->condition('t.vid', $vid)
-      ->orderBy('t.weight')
-      ->orderBy('t.name')
-      ->execute();
+    $result = \Drupal::entityManager()->getStorageController('taxonomy_term')->loadTree($vid);
 
     foreach ($result as $term) {
       $children[$vid][$term->parent][] = $term->tid;
@@ -902,6 +845,7 @@ function taxonomy_field_info() {
           ),
         ),
       ),
+      'list_class' => '\Drupal\taxonomy\Plugin\Field\FieldType\TaxonomyTermReferenceFieldItemList',
     ),
   );
 }
@@ -991,7 +935,7 @@ function taxonomy_field_is_empty($item, $field_type) {
 /**
  * Returns the set of valid terms for a taxonomy field.
  *
- * @param \Drupal\Core\Entity\Field\FieldDefinitionInterface $field_definition
+ * @param \Drupal\Core\Field\FieldDefinitionInterface $field_definition
  *   The field definition.
  * @param \Drupal\Core\Entity\EntityInterface $entity
  *   The entity object the field is attached to.
@@ -1031,7 +975,7 @@ function taxonomy_term_title(Term $term) {
  */
 function taxonomy_autocomplete_validate($element, &$form_state) {
   // Split the values into an array.
-  // @see \Drupal\taxonomy\Plugin\field\widget\TaxonomyAutocompleteWidget:massageFormValues()
+  // @see \Drupal\taxonomy\Plugin\Field\FieldWidget\TaxonomyAutocompleteWidget:massageFormValues()
   $typed_terms = array();
   if ($tags = $element['#value']) {
     $typed_terms = drupal_explode_tags($tags);

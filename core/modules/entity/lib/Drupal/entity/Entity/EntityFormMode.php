@@ -32,7 +32,6 @@ use Drupal\entity\EntityFormModeInterface;
  * @EntityType(
  *   id = "form_mode",
  *   label = @Translation("Form mode"),
- *   module = "entity",
  *   controllers = {
  *     "list" = "Drupal\entity\EntityFormModeListController",
  *     "form" = {
@@ -50,7 +49,7 @@ use Drupal\entity\EntityFormModeInterface;
  *     "uuid" = "uuid"
  *   },
  *   links = {
- *     "edit-form" = "admin/structure/display-modes/form/manage/{form_mode}"
+ *     "edit-form" = "entity.form_mode_edit"
  *   }
  * )
  */

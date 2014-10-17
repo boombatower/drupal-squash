@@ -303,9 +303,8 @@ function filter_get_formats_by_role($rid) {
  * @see filter_fallback_format()
  */
 function filter_default_format(AccountInterface $account = NULL) {
-  global $user;
   if (!isset($account)) {
-    $account = $user;
+    $account = \Drupal::currentUser();
   }
   // Get a list of formats for this user, ordered by weight. The first one
   // available is the user's default format.
@@ -769,7 +768,7 @@ function filter_process_format($element) {
   $element['format']['help'] = array(
     '#type' => 'container',
     '#attributes' => array('class' => array('filter-help')),
-    '#markup' => l(t('More information about text formats'), 'filter/tips', array('attributes' => array('target' => '_blank'))),
+    '#markup' => l(t('About text formats'), 'filter/tips', array('attributes' => array('target' => '_blank'))),
     '#weight' => 0,
   );
 

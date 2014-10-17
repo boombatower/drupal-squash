@@ -7,8 +7,9 @@
 
 namespace Drupal\content_translation\Access;
 
-use Drupal\Core\Entity\EntityManager;
 use Drupal\Core\Access\StaticAccessCheckInterface;
+use Drupal\Core\Entity\EntityManagerInterface;
+use Drupal\Core\Session\AccountInterface;
 use Symfony\Component\Routing\Route;
 use Symfony\Component\HttpFoundation\Request;
 
@@ -20,17 +21,17 @@ class ContentTranslationOverviewAccess implements StaticAccessCheckInterface {
   /**
    * The entity type manager.
    *
-   * @var \Drupal\Core\Entity\EntityManager
+   * @var \Drupal\Core\Entity\EntityManagerInterface
    */
   protected $entityManager;
 
   /**
    * Constructs a ContentTranslationOverviewAccess object.
    *
-   * @param \Drupal\Core\Entity\EntityManager $manager
+   * @param \Drupal\Core\Entity\EntityManagerInterface $manager
    *   The entity type manager.
    */
-  public function __construct(EntityManager $manager) {
+  public function __construct(EntityManagerInterface $manager) {
     $this->entityManager = $manager;
   }
 
@@ -44,14 +45,11 @@ class ContentTranslationOverviewAccess implements StaticAccessCheckInterface {
   /**
    * {@inheritdoc}
    */
-  public function access(Route $route, Request $request) {
+  public function access(Route $route, Request $request, AccountInterface $account) {
     $entity_type = $request->attributes->get('_entity_type');
     if ($entity = $request->attributes->get($entity_type)) {
       // Get entity base info.
       $bundle = $entity->bundle();
-
-      // Get account details from request.
-      $account = \Drupal::currentUser();
 
       // Get entity access callback.
       $definitions = $this->entityManager->getDefinitions();

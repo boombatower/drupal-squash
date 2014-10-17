@@ -34,7 +34,7 @@ class EditEntityAccessCheckTest extends UnitTestCase {
   /**
    * The mocked entity manager.
    *
-   * @var \Drupal\Core\Entity\EntityManager|\PHPUnit_Framework_MockObject_MockObject
+   * @var \Drupal\Core\Entity\EntityManagerInterface|\PHPUnit_Framework_MockObject_MockObject
    */
   protected $entityManager;
 
@@ -54,9 +54,7 @@ class EditEntityAccessCheckTest extends UnitTestCase {
   }
 
   protected function setUp() {
-    $this->entityManager = $this->getMockBuilder('Drupal\Core\Entity\EntityManager')
-      ->disableOriginalConstructor()
-      ->getMock();
+    $this->entityManager = $this->getMock('Drupal\Core\Entity\EntityManagerInterface');
 
     $this->entityStorageController = $this->getMock('Drupal\Core\Entity\EntityStorageControllerInterface');
 
@@ -119,7 +117,8 @@ class EditEntityAccessCheckTest extends UnitTestCase {
     $request->attributes->set('entity', $entity);
     $request->attributes->set('entity_type', 'test_entity');
 
-    $access = $this->editAccessCheck->access($route, $request);
+    $account = $this->getMock('Drupal\Core\Session\AccountInterface');
+    $access = $this->editAccessCheck->access($route, $request, $account);
     $this->assertSame($expected_result, $access);
   }
 
@@ -138,7 +137,8 @@ class EditEntityAccessCheckTest extends UnitTestCase {
       ->with('non_valid')
       ->will($this->returnValue(NULL));
 
-    $this->editAccessCheck->access($route, $request);
+    $account = $this->getMock('Drupal\Core\Session\AccountInterface');
+    $this->editAccessCheck->access($route, $request, $account);
   }
 
   /**
@@ -162,7 +162,8 @@ class EditEntityAccessCheckTest extends UnitTestCase {
       ->with(1)
       ->will($this->returnValue(NULL));
 
-    $this->editAccessCheck->access($route, $request);
+    $account = $this->getMock('Drupal\Core\Session\AccountInterface');
+    $this->editAccessCheck->access($route, $request, $account);
   }
 
 }

@@ -20,12 +20,11 @@ use Drupal\custom_block\CustomBlockInterface;
  *   id = "custom_block",
  *   label = @Translation("Custom Block"),
  *   bundle_label = @Translation("Custom Block type"),
- *   module = "custom_block",
  *   controllers = {
  *     "storage" = "Drupal\custom_block\CustomBlockStorageController",
  *     "access" = "Drupal\custom_block\CustomBlockAccessController",
  *     "list" = "Drupal\custom_block\CustomBlockListController",
- *     "render" = "Drupal\custom_block\CustomBlockRenderController",
+ *     "view_builder" = "Drupal\custom_block\CustomBlockViewBuilder",
  *     "form" = {
  *       "add" = "Drupal\custom_block\CustomBlockFormController",
  *       "edit" = "Drupal\custom_block\CustomBlockFormController",
@@ -38,8 +37,10 @@ use Drupal\custom_block\CustomBlockInterface;
  *   base_table = "custom_block",
  *   revision_table = "custom_block_revision",
  *   route_base_path = "admin/structure/block/custom-blocks/manage/{bundle}",
- *   menu_base_path = "block/%custom_block",
- *   menu_edit_path = "block/%custom_block",
+ *   links = {
+ *     "canonical" = "custom_block.edit",
+ *     "edit-form" = "custom_block.edit"
+ *   },
  *   fieldable = TRUE,
  *   translatable = TRUE,
  *   entity_keys = {
@@ -59,14 +60,14 @@ class CustomBlock extends ContentEntityBase implements CustomBlockInterface {
   /**
    * The block ID.
    *
-   * @var \Drupal\Core\Entity\Field\FieldItemListInterface
+   * @var \Drupal\Core\Field\FieldItemListInterface
    */
   public $id;
 
   /**
    * The block revision ID.
    *
-   * @var \Drupal\Core\Entity\Field\FieldItemListInterface
+   * @var \Drupal\Core\Field\FieldItemListInterface
    */
   public $revision_id;
 
@@ -77,42 +78,42 @@ class CustomBlock extends ContentEntityBase implements CustomBlockInterface {
    * has been specified. Only default revisions are saved to the block_custom
    * table.
    *
-   * @var \Drupal\Core\Entity\Field\FieldItemListInterface
+   * @var \Drupal\Core\Field\FieldItemListInterface
    */
   public $isDefaultRevision = TRUE;
 
   /**
    * The block UUID.
    *
-   * @var \Drupal\Core\Entity\Field\FieldItemListInterface
+   * @var \Drupal\Core\Field\FieldItemListInterface
    */
   public $uuid;
 
   /**
    * The custom block type (bundle).
    *
-   * @var \Drupal\Core\Entity\Field\FieldItemListInterface
+   * @var \Drupal\Core\Field\FieldItemListInterface
    */
   public $type;
 
   /**
    * The block language code.
    *
-   * @var \Drupal\Core\Entity\Field\FieldItemListInterface
+   * @var \Drupal\Core\Field\FieldItemListInterface
    */
   public $langcode;
 
   /**
    * The block description.
    *
-   * @var \Drupal\Core\Entity\Field\FieldItemListInterface
+   * @var \Drupal\Core\Field\FieldItemListInterface
    */
   public $info;
 
   /**
    * The block revision log message.
    *
-   * @var \Drupal\Core\Entity\Field\FieldItemListInterface
+   * @var \Drupal\Core\Field\FieldItemListInterface
    */
   public $log;
 
@@ -173,19 +174,6 @@ class CustomBlock extends ContentEntityBase implements CustomBlockInterface {
     unset($this->uuid);
     unset($this->type);
     unset($this->new);
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  public function uri() {
-    return array(
-      'path' => 'block/' . $this->id(),
-      'options' => array(
-        'entity_type' => $this->entityType,
-        'entity' => $this,
-      )
-    );
   }
 
   /**

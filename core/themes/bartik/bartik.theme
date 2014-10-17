@@ -13,6 +13,22 @@ use Drupal\Core\Template\RenderWrapper;
  * Adds body classes if certain regions have content.
  */
 function bartik_preprocess_html(&$variables) {
+  // Add information about the number of sidebars.
+  if (!empty($variables['page']['sidebar_first']) && !empty($variables['page']['sidebar_second'])) {
+    $variables['attributes']['class'][] = 'two-sidebars';
+  }
+  elseif (!empty($variables['page']['sidebar_first'])) {
+    $variables['attributes']['class'][] = 'one-sidebar';
+    $variables['attributes']['class'][] = 'sidebar-first';
+  }
+  elseif (!empty($variables['page']['sidebar_second'])) {
+    $variables['attributes']['class'][] = 'one-sidebar';
+    $variables['attributes']['class'][] = 'sidebar-second';
+  }
+  else {
+    $variables['attributes']['class'][] = 'no-sidebars';
+  }
+
   if (!empty($variables['page']['featured'])) {
     $variables['attributes']['class'][] = 'featured';
   }
@@ -162,10 +178,9 @@ function bartik_menu_tree__shortcut_default($variables) {
 function bartik_field__taxonomy_term_reference($variables) {
   $output = '';
 
-  // Render the label, if it's not hidden.
-  if (!$variables['label_hidden']) {
-    $output .= '<h3 class="field-label">' . $variables['label'] . ': </h3>';
-  }
+  // Render the label either as a visible list or make it visually hidden for accessibility.
+  $hidden_class = empty($variables['label_hidden']) ? '' : ' visually-hidden';
+  $output .= '<h3 class="field-label' . $hidden_class . '">' . $variables['label'] . ': </h3>';
 
   // Render the items.
   $output .= ($variables['element']['#label_display'] == 'inline') ? '<ul class="links inline">' : '<ul class="links">';

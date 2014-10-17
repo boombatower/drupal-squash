@@ -18,7 +18,6 @@ use Drupal\config_test\ConfigTestInterface;
  * @EntityType(
  *   id = "config_test",
  *   label = @Translation("Test configuration"),
- *   module = "config_test",
  *   controllers = {
  *     "storage" = "Drupal\config_test\ConfigTestStorageController",
  *     "list" = "Drupal\config_test\ConfigTestListController",
@@ -36,7 +35,7 @@ use Drupal\config_test\ConfigTestInterface;
  *     "status" = "status"
  *   },
  *   links = {
- *     "edit-form" = "admin/structure/config_test/manage/{config_test}"
+ *     "edit-form" = "config_test.entity"
  *   }
  * )
  */

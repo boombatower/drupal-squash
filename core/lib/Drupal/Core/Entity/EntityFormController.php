@@ -176,6 +176,10 @@ class EntityFormController extends FormBase implements EntityFormControllerInter
    * @see \Drupal\Core\Entity\EntityFormController::form()
    */
   public function processForm($element, $form_state, $form) {
+    // If the form is cached, process callbacks may not have a valid reference
+    // to the entity object, hence we must restore it.
+    $this->entity = $form_state['controller']->getEntity();
+
     // Assign the weights configured in the form display.
     foreach ($this->getFormDisplay($form_state)->getComponents() as $name => $options) {
       if (isset($element[$name])) {
@@ -269,6 +273,7 @@ class EntityFormController extends FormBase implements EntityFormControllerInter
    * {@inheritdoc}
    */
   public function validate(array $form, array &$form_state) {
+    $this->updateFormLangcode($form_state);
     // @todo Remove this.
     // Execute legacy global validation handlers.
     unset($form_state['validate_handlers']);
@@ -292,8 +297,6 @@ class EntityFormController extends FormBase implements EntityFormControllerInter
   public function submit(array $form, array &$form_state) {
     // Remove button and internal Form API values from submitted values.
     form_state_values_clean($form_state);
-
-    $this->updateFormLangcode($form_state);
     $this->entity = $this->buildEntity($form, $form_state);
     return $this->entity;
   }
@@ -325,7 +328,7 @@ class EntityFormController extends FormBase implements EntityFormControllerInter
   /**
    * {@inheritdoc}
    */
-  public function getFormLangcode(array $form_state) {
+  public function getFormLangcode(array &$form_state) {
     return $this->entity->language()->id;
   }
 

@@ -20,7 +20,6 @@ use Drupal\filter\FilterBag;
  * @EntityType(
  *   id = "filter_format",
  *   label = @Translation("Text format"),
- *   module = "filter",
  *   controllers = {
  *     "form" = {
  *       "add" = "Drupal\filter\FilterFormatAddFormController",
@@ -40,7 +39,7 @@ use Drupal\filter\FilterBag;
  *     "status" = "status"
  *   },
  *   links = {
- *     "edit-form" = "admin/config/content/formats/manage/{filter_format}"
+ *     "edit-form" = "filter.format_edit"
  *   }
  * )
  */

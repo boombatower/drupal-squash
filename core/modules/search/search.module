@@ -207,21 +207,6 @@ function search_get_default_plugin_info() {
 }
 
 /**
- * Access callback: Determines access for a search page.
- *
- * @param string $plugin_id
- *   The name of a search plugin (e.g., 'node_search').
- *
- * @return bool
- *   TRUE if a user has access to the search page; FALSE otherwise.
- *
- * @see search_menu()
- */
-function _search_menu_access($plugin_id) {
-  return \Drupal::service('access_manager')->checkNamedRoute('search.view_' . $plugin_id);
-}
-
-/**
  * Clears either a part of, or the entire search index.
  *
  * @param $sid
@@ -653,117 +638,6 @@ function search_mark_for_reindex($type, $sid) {
  * local task (tab) under the /search page (e.g. /search/mymodule) so that users
  * can easily find it.
  */
-
-/**
- * Form constructor for the search form.
- *
- * @param \Drupal\search\Plugin\SearchInterface $plugin
- *   A search plugin instance to render the form for.
- * @param $action
- *   Form action. Defaults to "search/$path", where $path is the search path
- *   associated with the plugin in its definition. This will be run through
- *   url().
- * @param $prompt
- *   Label for the keywords field. Defaults to t('Enter your keywords') if
- *   NULL. Supply '' to omit.
- *
- * @see search_form_validate()
- * @see search_form_submit()
- *
- * @ingroup forms
- */
-function search_form($form, &$form_state, SearchInterface $plugin, $action = '', $prompt = NULL) {
-
-  $plugin_info = $plugin->getPluginDefinition();
-
-  if (!$action) {
-    $action = 'search/' . $plugin_info['path'];
-  }
-  if (!isset($prompt)) {
-    $prompt = t('Enter your keywords');
-  }
-
-  $form['#action'] = url($action);
-  // Record the $action for later use in redirecting.
-  $form_state['action'] = $action;
-  $form['plugin_id'] = array('#type' => 'value', '#value' => $plugin->getPluginId());
-  $form['basic'] = array('#type' => 'container', '#attributes' => array('class' => array('container-inline')));
-  $form['basic']['keys'] = array(
-    '#type' => 'search',
-    '#title' => $prompt,
-    '#default_value' => $plugin->getKeywords(),
-    '#size' => $prompt ? 40 : 20,
-    '#maxlength' => 255,
-  );
-  // processed_keys is used to coordinate keyword passing between other forms
-  // that hook into the basic search form.
-  $form['basic']['processed_keys'] = array('#type' => 'value', '#value' => '');
-  $form['basic']['submit'] = array('#type' => 'submit', '#value' => t('Search'));
-  // Make sure the default validate and submit handlers are added.
-  $form['#validate'][] = 'search_form_validate';
-  $form['#submit'][] = 'search_form_submit';
-  // Allow the plugin to add to or alter the search form.
-  $plugin->searchFormAlter($form, $form_state);
-
-  return $form;
-}
-
-/**
- * Form constructor for the search block's search box.
- *
- * @param $form_id
- *   The unique string identifying the desired form.
- *
- * @see search_box_form_submit()
- *
- * @ingroup forms
- */
-function search_box($form, &$form_state, $form_id) {
-  $form[$form_id] = array(
-    '#type' => 'search',
-    '#title' => t('Search'),
-    '#title_display' => 'invisible',
-    '#size' => 15,
-    '#default_value' => '',
-    '#attributes' => array('title' => t('Enter the terms you wish to search for.')),
-  );
-  $form['actions'] = array('#type' => 'actions');
-  $form['actions']['submit'] = array('#type' => 'submit', '#value' => t('Search'));
-  $form['#submit'][] = 'search_box_form_submit';
-
-  return $form;
-}
-
-/**
- * Form submission handler for search_box().
- */
-function search_box_form_submit($form, &$form_state) {
-  // The search form relies on control of the redirect destination for its
-  // functionality, so we override any static destination set in the request.
-  // See http://drupal.org/node/292565.
-  if (isset($_GET['destination'])) {
-    unset($_GET['destination']);
-  }
-
-  // Check to see if the form was submitted empty.
-  // If it is empty, display an error message.
-  // (This method is used instead of setting #required to TRUE for this field
-  // because that results in a confusing error message.  It would say a plain
-  // "field is required" because the search keywords field has no title.
-  // The error message would also complain about a missing #title field.)
-  if ($form_state['values']['search_block_form'] == '') {
-    form_set_error('keys', t('Please enter some keywords.'));
-  }
-
-  $form_id = $form['form_id']['#value'];
-  $info = search_get_default_plugin_info();
-  if ($info) {
-    $form_state['redirect'] = 'search/' . $info['path'] . '/' . trim($form_state['values'][$form_id]);
-  }
-  else {
-    form_set_error(NULL, t('Search is currently disabled.'), 'error');
-  }
-}
 
 /**
  * Returns snippets from a piece of text, with certain keywords highlighted.

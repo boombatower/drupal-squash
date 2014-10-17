@@ -17,7 +17,6 @@ use Drupal\user\RoleInterface;
  * @EntityType(
  *   id = "user_role",
  *   label = @Translation("Role"),
- *   module = "user",
  *   controllers = {
  *     "storage" = "Drupal\user\RoleStorageController",
  *     "access" = "Drupal\user\RoleAccessController",
@@ -36,7 +35,7 @@ use Drupal\user\RoleInterface;
  *     "label" = "label"
  *   },
  *   links = {
- *     "edit-form" = "admin/people/roles/manage/{user_role}"
+ *     "edit-form" = "user.role_edit"
  *   }
  * )
  */

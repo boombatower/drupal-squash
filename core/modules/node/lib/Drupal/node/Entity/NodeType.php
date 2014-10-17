@@ -19,7 +19,6 @@ use Drupal\Core\Annotation\Translation;
  * @EntityType(
  *   id = "node_type",
  *   label = @Translation("Content type"),
- *   module = "node",
  *   controllers = {
  *     "storage" = "Drupal\Core\Config\Entity\ConfigStorageController",
  *     "access" = "Drupal\node\NodeTypeAccessController",
@@ -39,7 +38,7 @@ use Drupal\Core\Annotation\Translation;
  *     "uuid" = "uuid"
  *   },
  *   links = {
- *     "edit-form" = "admin/structure/types/manage/{node_type}"
+ *     "edit-form" = "node.type_edit"
  *   }
  * )
  */
@@ -170,8 +169,9 @@ class NodeType extends ConfigEntityBase implements NodeTypeInterface {
 
       entity_invoke_bundle_hook('create', 'node', $this->id());
 
-      // Unless disabled, automatically create a Body field for new node types.
-      if ($this->get('create_body')) {
+      // Create a body if the create_body property is true and we're not in
+      // the syncing process.
+      if ($this->get('create_body') && !$this->isSyncing()) {
         $label = $this->get('create_body_label');
         node_add_body_field($this, $label);
       }

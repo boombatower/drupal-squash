@@ -13,6 +13,7 @@ use Drupal\Core\Language\LanguageManager;
 use Drupal\Core\StringTranslation\Translator\FileTranslation;
 
 use Drupal\Core\DependencyInjection\ContainerBuilder;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -409,6 +410,13 @@ function install_begin_request(&$install_state) {
     // implementation here.
     $container->register('lock', 'Drupal\Core\Lock\NullLockBackend');
 
+    $container
+      ->register('theme.registry', 'Drupal\Core\Theme\Registry')
+      ->addArgument(new Reference('cache.cache'))
+      ->addArgument(new Reference('lock'))
+      ->addArgument(new Reference('module_handler'))
+      ->addTag('needs_destruction');
+
     // Register a module handler for managing enabled modules.
     $container
       ->register('module_handler', 'Drupal\Core\Extension\ModuleHandler');
@@ -455,6 +463,16 @@ function install_begin_request(&$install_state) {
 
     $container->register('url_generator', 'Drupal\Core\Routing\NullGenerator');
 
+    $container->register('form_builder', 'Drupal\Core\Form\FormBuilder')
+      ->addArgument(new Reference('module_handler'))
+      ->addArgument(new Reference('keyvalue.expirable'))
+      ->addArgument(new Reference('event_dispatcher'))
+      ->addArgument(new Reference('url_generator'))
+      ->addArgument(new Reference('string_translation'))
+      ->addArgument(new Reference('csrf_token', ContainerInterface::IGNORE_ON_INVALID_REFERENCE))
+      ->addArgument(new Reference('http_kernel', ContainerInterface::IGNORE_ON_INVALID_REFERENCE))
+      ->addMethodCall('setRequest', array(new Reference('request')));
+
     // Register UUID.
     CoreServiceProvider::registerUuid($container);
 
@@ -464,6 +482,8 @@ function install_begin_request(&$install_state) {
     $container->register('asset.js.collection_renderer', 'Drupal\Core\Asset\JsCollectionRenderer')
       ->addArgument(new Reference('state'));
 
+    // Register the info parser.
+    $container->register('info_parser', 'Drupal\Core\Extension\InfoParser');
   }
   // Set the request in the kernel to the new created Request above
   // so it is available to the rest of the installation process.
@@ -1625,8 +1645,16 @@ function install_select_language_form($form, &$form_state, $files = array()) {
 
   if (empty($files)) {
     $form['help'] = array(
+      '#type' => 'container',
+      '#states' => array(
+        'invisible' => array(
+          'select[name="langcode"]' => array('value' => 'en'),
+        ),
+      ),
+    );
+    $form['help']['text'] = array(
       '#markup' => '<p>Translations will be downloaded from the <a href="http://localize.drupal.org">Drupal Translation website</a>. ' .
-      'If you do not want this, select <em>English</em> and continue the installation. For more information, see the <a href="http://drupal.org/documentation/install">online handbook</a>.</p>',
+      'If you do not want this, select <em>English</em>.</p>',
     );
   }
   $form['actions'] = array('#type' => 'actions');

@@ -7,8 +7,8 @@
 namespace Drupal\book;
 
 use Drupal\Core\Database\Connection;
-use Drupal\Core\Entity\EntityManager;
 use Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Entity\EntityManagerInterface;
 use Drupal\Core\Session\AccountInterface;
 use Drupal\Core\StringTranslation\TranslationInterface;
 use Drupal\Core\Config\ConfigFactory;
@@ -29,7 +29,7 @@ class BookManager {
   /**
    * Entity manager Service Object.
    *
-   * @var \Drupal\Core\Entity\EntityManager
+   * @var \Drupal\Core\Entity\EntityManagerInterface
    */
   protected $entityManager;
 
@@ -57,7 +57,7 @@ class BookManager {
   /**
    * Constructs a BookManager object.
    */
-  public function __construct(Connection $connection, EntityManager $entity_manager, TranslationInterface $translation, ConfigFactory $config_factory) {
+  public function __construct(Connection $connection, EntityManagerInterface $entity_manager, TranslationInterface $translation, ConfigFactory $config_factory) {
     $this->connection = $connection;
     $this->entityManager = $entity_manager;
     $this->translation =  $translation;
@@ -323,7 +323,7 @@ class BookManager {
           ':nid' => $node->id(),
         ))->fetchField()) {
           // Update the bid for this page and all children.
-          $this->updateID($node->book);
+          $this->updateId($node->book);
         }
       }
 
@@ -362,7 +362,7 @@ class BookManager {
    * @param array $book_link
    *   A fully loaded menu link that is part of the book hierarchy.
    */
-  public function updateID($book_link) {
+  public function updateId($book_link) {
     $query = $this->connection->select('menu_links');
     $query->addField('menu_links', 'mlid');
     for ($i = 1; $i <= MENU_MAX_DEPTH && $book_link["p$i"]; $i++) {

@@ -10,6 +10,7 @@ namespace Drupal\user\Plugin\Block;
 use Drupal\block\BlockBase;
 use Drupal\block\Annotation\Block;
 use Drupal\Core\Annotation\Translation;
+use Drupal\Core\Session\AccountInterface;
 
 /**
  * Provides a "Who's online" block.
@@ -19,7 +20,8 @@ use Drupal\Core\Annotation\Translation;
  *
  * @Block(
  *   id = "user_online_block",
- *   admin_label = @Translation("Who's online")
+ *   admin_label = @Translation("Who's online"),
+ *   category = @Translation("Lists (Views)")
  * )
  */
 class UserOnlineBlock extends BlockBase {
@@ -38,10 +40,10 @@ class UserOnlineBlock extends BlockBase {
   }
 
   /**
-   * Overrides \Drupal\block\BlockBase::access().
+   * {@inheritdoc}
    */
-  public function access() {
-    return user_access('access content');
+  public function access(AccountInterface $account) {
+    return $account->hasPermission('access content');
   }
 
   /**

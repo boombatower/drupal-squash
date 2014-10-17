@@ -10,13 +10,15 @@ namespace Drupal\comment\Plugin\Block;
 use Drupal\block\BlockBase;
 use Drupal\block\Annotation\Block;
 use Drupal\Core\Annotation\Translation;
+use Drupal\Core\Session\AccountInterface;
 
 /**
  * Provides a 'Recent comments' block.
  *
  * @Block(
- *  id = "recent_comments",
- *  admin_label = @Translation("Recent comments")
+ *   id = "recent_comments",
+ *   admin_label = @Translation("Recent comments"),
+ *   category = @Translation("Lists (Views)")
  * )
  */
 class RecentCommentsBlock extends BlockBase {
@@ -31,10 +33,10 @@ class RecentCommentsBlock extends BlockBase {
   }
 
   /**
-   * Overrides \Drupal\block\BlockBase::access().
+   * {@inheritdoc}
    */
-  public function access() {
-    return user_access('access comments');
+  public function access(AccountInterface $account) {
+    return $account->hasPermission('access comments');
   }
 
   /**

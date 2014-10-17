@@ -167,7 +167,7 @@ class ImageAdminStylesTest extends ImageFieldTestBase {
     // Test the style overview form.
     // Change the name of the style and adjust the weights of effects.
     $style_name = strtolower($this->randomName(10));
-    $style_label = $this->randomString();
+    $style_label = $this->randomName();
     $weight = count($effect_edits);
     $edit = array(
       'name' => $style_name,
@@ -189,7 +189,8 @@ class ImageAdminStylesTest extends ImageFieldTestBase {
 
     // Check that the URL was updated.
     $this->drupalGet($style_path);
-    $this->assertResponse(200, format_string('Image style %original renamed to %new', array('%original' => $style->label(), '%new' => $style_name)));
+    $this->assertTitle(t('Edit style @name | Drupal', array('@name' => $style_label)));
+    $this->assertResponse(200, format_string('Image style %original renamed to %new', array('%original' => $style->id(), '%new' => $style_name)));
 
     // Check that the image was flushed after updating the style.
     // This is especially important when renaming the style. Make sure that
@@ -350,6 +351,37 @@ class ImageAdminStylesTest extends ImageFieldTestBase {
     $uuid = $this->container->get('uuid');
     $this->drupalGet('admin/config/media/image-styles/manage/' . $style_name . '/effects/' . $uuid->generate());
     $this->assertResponse(404);
+  }
+
+  /**
+   * Test flush user interface.
+   */
+  public function testFlushUserInterface() {
+    $admin_path = 'admin/config/media/image-styles';
+
+    // Create a new style.
+    $style_name = strtolower($this->randomName(10));
+    $style = entity_create('image_style', array('name' => $style_name, 'label' => $this->randomString()));
+    $style->save();
+
+    // Create an image to make sure it gets flushed.
+    $files = $this->drupalGetTestFiles('image');
+    $image_uri = $files[0]->uri;
+    $derivative_uri = $style->buildUri($image_uri);
+    $this->assertTrue($style->createDerivative($image_uri, $derivative_uri));
+    $this->assertEqual($this->getImageCount($style), 1);
+
+    // Go to image styles list page and check if the flush operation link
+    // exists.
+    $this->drupalGet($admin_path);
+    $flush_path = $admin_path . '/manage/' . $style_name . '/flush';
+    $this->assertLinkByHref($flush_path);
+
+    // Flush the image style derivatives using the user interface.
+    $this->drupalPostForm($flush_path, array(), t('Flush'));
+
+    // The derivative image file should have been deleted.
+    $this->assertEqual($this->getImageCount($style), 0);
   }
 
   /**

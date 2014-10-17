@@ -5,14 +5,10 @@
  * Controls the visual building blocks a page is constructed with.
  */
 
+use Drupal\block\BlockInterface;
 use Drupal\Component\Plugin\Exception\PluginException;
 use Drupal\Component\Utility\NestedArray;
 use Symfony\Cmf\Component\Routing\RouteObjectInterface;
-
-/**
- * Denotes that a block is not enabled in any region and should not be shown.
- */
-const BLOCK_REGION_NONE = -1;
 
 /**
  * Shows this block on every page except the listed pages.
@@ -99,24 +95,14 @@ function block_permission() {
  * @todo Clarify the documentation for the per-plugin block admin links.
  */
 function block_menu() {
-  $default_theme = \Drupal::config('system.theme')->get('default');
   $items['admin/structure/block'] = array(
     'title' => 'Block layout',
     'description' => 'Configure what block content appears in your site\'s sidebars and other regions.',
     'route_name' => 'block.admin_display',
   );
-  $items['admin/structure/block/list'] = array(
-    'title' => 'Block layout',
-    'type' => MENU_DEFAULT_LOCAL_TASK,
-  );
   $items['admin/structure/block/manage/%block'] = array(
     'title' => 'Configure block',
     'route_name' => 'block.admin_edit',
-  );
-  $items['admin/structure/block/manage/%block/configure'] = array(
-    'title' => 'Configure block',
-    'type' => MENU_DEFAULT_LOCAL_TASK,
-    'context' => MENU_CONTEXT_PAGE | MENU_CONTEXT_INLINE,
   );
   $items['admin/structure/block/add/%/%'] = array(
     'title' => 'Place block',
@@ -126,15 +112,9 @@ function block_menu() {
   // Block administration is tied to the theme and plugin definition so
   // that the plugin can appropriately attach to this URL structure.
   // @todo D8: Use dynamic % arguments instead of static, hard-coded theme names
-  //   and plugin IDs to decouple the routes from these dependencies and allow
-  //   hook_menu_local_tasks() to check for the untranslated tab_parent path.
+  //   and plugin IDs to decouple the routes from these dependencies.
   // @see http://drupal.org/node/1067408
   foreach (list_themes() as $key => $theme) {
-    $items["admin/structure/block/list/$key"] = array(
-      'title' => check_plain($theme->info['name']),
-      'type' => $key == $default_theme ? MENU_DEFAULT_LOCAL_TASK : MENU_LOCAL_TASK,
-      'route_name' => "block.admin_display_$key",
-    );
     $items["admin/structure/block/demo/$key"] = array(
       'route_name' => 'block.admin_demo',
       'type' => MENU_CALLBACK,
@@ -143,21 +123,6 @@ function block_menu() {
     );
   }
   return $items;
-}
-
-/**
- * Access callback: Only enabled themes can be accessed.
- *
- * Path:
- * - admin/structure/block/list/% (for each theme)
- *
- * @param $theme
- *   Either the name of a theme or a full theme object.
- *
- * @see block_menu()
- */
-function _block_themes_access($theme) {
-  return user_access('administer blocks') && drupal_theme_access($theme);
 }
 
 /**
@@ -298,7 +263,9 @@ function _block_get_renderable_region($list = array()) {
     // to perform contextual actions on the help block, and the links needlessly
     // draw attention on it.
     if (isset($build[$key]) && !in_array($block->get('plugin'), array('system_help_block', 'system_main_block'))) {
-      $build[$key]['#contextual_links']['block'] = array('admin/structure/block/manage', array($key));
+      $build[$key]['#contextual_links']['block'] = array(
+        'route_parameters' => array('block' => $key),
+      );
 
       // If there are any nested contextual links, move them to the top level.
       if (isset($build[$key]['content']['#contextual_links'])) {
@@ -334,15 +301,15 @@ function _block_rehash($theme = NULL) {
     $region = $block->get('region');
     $status = $block->status();
     // Disable blocks in invalid regions.
-    if (!empty($region) && $region != BLOCK_REGION_NONE && !isset($regions[$region]) && $status) {
+    if (!empty($region) && $region != BlockInterface::BLOCK_REGION_NONE && !isset($regions[$region]) && $status) {
       drupal_set_message(t('The block %info was assigned to the invalid region %region and has been disabled.', array('%info' => $block_id, '%region' => $region)), 'warning');
-      // Disabled modules are moved into the BLOCK_REGION_NONE later so no
-      // need to move the block to another region.
+      // Disabled modules are moved into the BlockInterface::BLOCK_REGION_NONE
+      // later so no need to move the block to another region.
       $block->disable()->save();
     }
     // Set region to none if not enabled.
     if (!$status) {
-      $block->set('region', BLOCK_REGION_NONE);
+      $block->set('region', BlockInterface::BLOCK_REGION_NONE);
       $block->save();
     }
   }

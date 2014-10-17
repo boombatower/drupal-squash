@@ -7,7 +7,7 @@
 
 namespace Drupal\field_ui\Form;
 
-use Drupal\Core\Entity\EntityManager;
+use Drupal\Core\Entity\EntityManagerInterface;
 use Drupal\Core\Form\FormBase;
 use Drupal\Core\TypedData\TypedDataManager;
 use Drupal\field\FieldInfo;
@@ -30,7 +30,7 @@ class FieldEditForm extends FormBase {
   /**
    * The entity manager.
    *
-   * @var \Drupal\Core\Entity\EntityManager
+   * @var \Drupal\Core\Entity\EntityManagerInterface
    */
   protected $entityManager;
 
@@ -58,14 +58,14 @@ class FieldEditForm extends FormBase {
   /**
    * Constructs a new FieldEditForm object.
    *
-   * @param \Drupal\Core\Entity\EntityManager $entity_manager
+   * @param \Drupal\Core\Entity\EntityManagerInterface $entity_manager
    *   The entity manager.
    * @param \Drupal\field\FieldInfo $field_info
    *   The field info service.
    * @param \Drupal\Core\TypedData\TypedDataManager $typed_data
    *   The typed data manager.
    */
-  public function __construct(EntityManager $entity_manager, FieldInfo $field_info, TypedDataManager $typed_data) {
+  public function __construct(EntityManagerInterface $entity_manager, FieldInfo $field_info, TypedDataManager $typed_data) {
     $this->entityManager = $entity_manager;
     $this->fieldInfo = $field_info;
     $this->typedData = $typed_data;
@@ -123,13 +123,13 @@ class FieldEditForm extends FormBase {
       '#title_display' => 'invisible',
       '#options' => array(
         'number' => $this->t('Limited'),
-        FIELD_CARDINALITY_UNLIMITED => $this->t('Unlimited'),
+        FieldInstanceInterface::CARDINALITY_UNLIMITED => $this->t('Unlimited'),
       ),
-      '#default_value' => ($cardinality == FIELD_CARDINALITY_UNLIMITED) ? FIELD_CARDINALITY_UNLIMITED : 'number',
+      '#default_value' => ($cardinality == FieldInstanceInterface::CARDINALITY_UNLIMITED) ? FieldInstanceInterface::CARDINALITY_UNLIMITED : 'number',
     );
     $form['field']['cardinality_container']['cardinality_number'] = array(
       '#type' => 'number',
-      '#default_value' => $cardinality != FIELD_CARDINALITY_UNLIMITED ? $cardinality : 1,
+      '#default_value' => $cardinality != FieldInstanceInterface::CARDINALITY_UNLIMITED ? $cardinality : 1,
       '#min' => 1,
       '#title' => $this->t('Limit'),
       '#title_display' => 'invisible',
@@ -202,11 +202,17 @@ class FieldEditForm extends FormBase {
     try {
       $field->save();
       drupal_set_message($this->t('Updated field %label field settings.', array('%label' => $this->instance->label())));
-      $next_destination = FieldUI::getNextDestination($this->getRequest());
-      if (empty($next_destination)) {
-        $next_destination = $this->entityManager->getAdminPath($this->instance->entity_type, $this->instance->bundle) . '/fields';
+      if ($next_destination = FieldUI::getNextDestination($this->getRequest())) {
+        $form_state['redirect'] = $next_destination;
       }
-      $form_state['redirect'] = $next_destination;
+      else {
+        $form_state['redirect_route'] = array(
+          'route_name' => 'field_ui.overview_' . $this->instance->entity_type,
+          'route_parameters' => array(
+            'bundle' => $this->instance->bundle,
+          )
+        );
+      }
     }
     catch (\Exception $e) {
       drupal_set_message($this->t('Attempt to update field %label failed: %message.', array('%label' => $this->instance->label(), '%message' => $e->getMessage())), 'error');

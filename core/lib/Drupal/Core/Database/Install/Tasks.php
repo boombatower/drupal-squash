@@ -217,14 +217,24 @@ abstract class Tasks {
       '#size' => 45,
       '#required' => TRUE,
       '#description' => t('The name of the database your @drupal data will be stored in.', array('@drupal' => drupal_install_profile_distribution_name())),
+      '#states' => array(
+        'required' => array(
+          ':input[name=driver]' => array('value' => $this->pdoDriver),
+        ),
+      ),
     );
 
     $form['username'] = array(
       '#type' => 'textfield',
       '#title' => t('Database username'),
       '#default_value' => empty($database['username']) ? '' : $database['username'],
-      '#required' => TRUE,
       '#size' => 45,
+      '#required' => TRUE,
+      '#states' => array(
+        'required' => array(
+          ':input[name=driver]' => array('value' => $this->pdoDriver),
+        ),
+      ),
     );
 
     $form['password'] = array(

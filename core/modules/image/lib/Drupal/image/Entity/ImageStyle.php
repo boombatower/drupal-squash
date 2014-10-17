@@ -24,12 +24,12 @@ use Symfony\Component\DependencyInjection\Exception\ServiceNotFoundException;
  * @EntityType(
  *   id = "image_style",
  *   label = @Translation("Image style"),
- *   module = "image",
  *   controllers = {
  *     "form" = {
  *       "add" = "Drupal\image\Form\ImageStyleAddForm",
  *       "edit" = "Drupal\image\Form\ImageStyleEditForm",
- *       "delete" = "Drupal\image\Form\ImageStyleDeleteForm"
+ *       "delete" = "Drupal\image\Form\ImageStyleDeleteForm",
+ *       "flush" = "Drupal\image\Form\ImageStyleFlushForm"
  *     },
  *     "storage" = "Drupal\Core\Config\Entity\ConfigStorageController",
  *     "list" = "Drupal\image\ImageStyleListController",
@@ -42,7 +42,7 @@ use Symfony\Component\DependencyInjection\Exception\ServiceNotFoundException;
  *     "uuid" = "uuid"
  *   },
  *   links = {
- *     "edit-form" = "admin/config/media/image-styles/manage/{image_style}"
+ *     "edit-form" = "image.style_edit"
  *   }
  * )
  */
@@ -340,7 +340,7 @@ class ImageStyle extends ConfigEntityBase implements ImageStyleInterface {
    * {@inheritdoc}
    */
   public function deleteImageEffect(ImageEffectInterface $effect) {
-    $this->getEffects()->removeInstanceID($effect->getUuid());
+    $this->getEffects()->removeInstanceId($effect->getUuid());
     $this->save();
     return $this;
   }

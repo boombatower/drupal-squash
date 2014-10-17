@@ -10,6 +10,7 @@ namespace Drupal\node\Controller;
 use Drupal\Component\Utility\String;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Entity\EntityInterface;
+use Drupal\node\NodeTypeInterface;
 use Drupal\node\NodeInterface;
 
 /**
@@ -126,7 +127,7 @@ class NodeController extends ControllerBase {
    *   The page title.
    */
   public function pageTitle(NodeInterface $node) {
-    return String::checkPlain($node->label());
+    return String::checkPlain($this->entityManager()->getTranslationFromContext($node)->label());
   }
 
   /**
@@ -139,7 +140,20 @@ class NodeController extends ControllerBase {
    *   An array suitable for drupal_render().
    */
   protected function buildPage(NodeInterface $node) {
-    return array('nodes' => $this->entityManager()->getRenderController('node')->view($node));
+    return array('nodes' => $this->entityManager()->getViewBuilder('node')->view($node));
+  }
+
+  /**
+   * The _title_callback for the node.add route.
+   *
+   * @param \Drupal\node\NodeTypeInterface $node_type
+   *   The current node.
+   *
+   * @return string
+   *   The page title.
+   */
+  public function addPageTitle(NodeTypeInterface $node_type) {
+    return $this->t('Create @name', array('@name' => $node_type->type));
   }
 
 }

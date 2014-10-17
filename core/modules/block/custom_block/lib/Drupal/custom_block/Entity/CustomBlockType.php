@@ -19,7 +19,6 @@ use Drupal\custom_block\CustomBlockTypeInterface;
  * @EntityType(
  *   id = "custom_block_type",
  *   label = @Translation("Custom block type"),
- *   module = "custom_block",
  *   controllers = {
  *     "storage" = "Drupal\Core\Config\Entity\ConfigStorageController",
  *     "form" = {
@@ -39,7 +38,7 @@ use Drupal\custom_block\CustomBlockTypeInterface;
  *     "uuid" = "uuid"
  *   },
  *   links = {
- *     "edit-form" = "admin/structure/block/custom-blocks/manage/{custom_block_type}"
+ *     "edit-form" = "custom_block.type_edit"
  *   }
  * )
  */

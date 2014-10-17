@@ -8,7 +8,7 @@
 use Drupal\Component\Utility\NestedArray;
 use Drupal\Core\Database\Query\AlterableInterface;
 use Drupal\Core\Entity\EntityInterface;
-use Drupal\Core\Entity\Field\FieldDefinitionInterface;
+use Drupal\Core\Field\FieldDefinitionInterface;
 use Drupal\field\FieldInterface;
 
 /**
@@ -18,20 +18,22 @@ function entity_reference_field_info_alter(&$info) {
   // Make the entity reference field configurable.
   $info['entity_reference']['configurable'] = TRUE;
   $info['entity_reference']['class'] = '\Drupal\entity_reference\ConfigurableEntityReferenceItem';
-  $info['entity_reference']['list_class'] = '\Drupal\field\Plugin\Type\FieldType\ConfigFieldItemList';
+  $info['entity_reference']['list_class'] = '\Drupal\Core\Field\ConfigFieldItemList';
   $info['entity_reference']['settings']['target_type'] = \Drupal::moduleHandler()->moduleExists('node') ? 'node' : 'user';
   $info['entity_reference']['instance_settings']['handler'] = 'default';
   $info['entity_reference']['instance_settings']['handler_settings'] = array();
   $info['entity_reference']['default_widget'] = 'entity_reference_autocomplete';
   $info['entity_reference']['default_formatter'] = 'entity_reference_label';
+  $info['entity_reference']['list_class'] = '\Drupal\entity_reference\Plugin\Field\FieldType\ConfigurableEntityReferenceFieldItemList';
 }
 
 /**
  * Implements hook_entity_field_info_alter().
  *
- * Set the "target_type" property definition for entity reference fields.
+ * Set the "target_type" and "list_class" property definition for entity
+ * reference fields.
  *
- * @see \Drupal\Core\Entity\Plugin\field\field_type\EntityReferenceItem::getPropertyDefinitions()
+ * @see \Drupal\Core\Field\Plugin\Field\FieldType\EntityReferenceItem::getPropertyDefinitions()
  *
  * @param array $info
  *   The property info array as returned by hook_entity_field_info().
@@ -223,7 +225,7 @@ function entity_reference_query_entity_reference_alter(AlterableInterface $query
  */
 function entity_reference_create_instance($entity_type, $bundle, $field_name, $field_label, $target_entity_type, $selection_handler = 'default', $selection_handler_settings = array()) {
   // If a field type we know should exist isn't found, clear the field cache.
-  if (!\Drupal::service('plugin.manager.entity.field.field_type')->getDefinition('entity_reference')) {
+  if (!\Drupal::service('plugin.manager.field.field_type')->getDefinition('entity_reference')) {
     field_cache_clear();
   }
 

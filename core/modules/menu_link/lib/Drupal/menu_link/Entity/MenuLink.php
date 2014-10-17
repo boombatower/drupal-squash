@@ -24,11 +24,10 @@ use Drupal\Core\Entity\Entity;
  * @EntityType(
  *   id = "menu_link",
  *   label = @Translation("Menu link"),
- *   module = "menu_link",
  *   controllers = {
  *     "storage" = "Drupal\menu_link\MenuLinkStorageController",
  *     "access" = "Drupal\menu_link\MenuLinkAccessController",
- *     "render" = "Drupal\Core\Entity\EntityRenderController",
+ *     "view_builder" = "Drupal\Core\Entity\EntityViewBuilder",
  *     "form" = {
  *       "default" = "Drupal\menu_link\MenuLinkFormController"
  *     }

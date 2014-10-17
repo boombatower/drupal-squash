@@ -16,7 +16,6 @@ use Drupal\Core\Annotation\Translation;
  * @EntityType(
  *   id = "config_query_test",
  *   label = @Translation("Test configuration for query"),
- *   module = "config_test",
  *   controllers = {
  *     "storage" = "Drupal\config_test\ConfigTestStorageController",
  *     "list" = "Drupal\Core\Config\Entity\ConfigEntityListController",
@@ -29,9 +28,6 @@ use Drupal\Core\Annotation\Translation;
  *     "id" = "id",
  *     "label" = "label",
  *     "uuid" = "uuid"
- *   },
- *   links = {
- *     "edit-form" = "admin/structure/config_test/manage/{config_query_test}"
  *   }
  * )
  *

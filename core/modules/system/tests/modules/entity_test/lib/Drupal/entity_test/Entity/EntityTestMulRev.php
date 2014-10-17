@@ -17,7 +17,6 @@ use Drupal\Core\Annotation\Translation;
  * @EntityType(
  *   id = "entity_test_mulrev",
  *   label = @Translation("Test entity - revisions and data table"),
- *   module = "entity_test",
  *   controllers = {
  *     "storage" = "Drupal\entity_test\EntityTestStorageController",
  *     "access" = "Drupal\entity_test\EntityTestAccessController",
@@ -38,7 +37,10 @@ use Drupal\Core\Annotation\Translation;
  *     "revision" = "revision_id",
  *     "bundle" = "type"
  *   },
- *   menu_base_path = "entity_test_mulrev/manage/%entity_test_mulrev"
+ *   links = {
+ *     "canonical" = "entity_test.edit_entity_test_mulrev",
+ *     "edit-form" = "entity_test.edit_entity_test_mulrev"
+ *   }
  * )
  */
 class EntityTestMulRev extends EntityTestRev {

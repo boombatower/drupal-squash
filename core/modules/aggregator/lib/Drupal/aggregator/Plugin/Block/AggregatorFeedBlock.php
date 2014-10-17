@@ -13,6 +13,7 @@ use Drupal\Core\Annotation\Translation;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Entity\EntityStorageControllerInterface;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
+use Drupal\Core\Session\AccountInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
@@ -20,7 +21,8 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  *
  * @Block(
  *   id = "aggregator_feed_block",
- *   admin_label = @Translation("Aggregator feed")
+ *   admin_label = @Translation("Aggregator feed"),
+ *   category = @Translation("Lists (Views)")
  * )
  */
 class AggregatorFeedBlock extends BlockBase implements ContainerFactoryPluginInterface {
@@ -86,11 +88,11 @@ class AggregatorFeedBlock extends BlockBase implements ContainerFactoryPluginInt
   }
 
   /**
-   * Overrides \Drupal\block\BlockBase::access().
+   * {@inheritdoc}
    */
-  public function access() {
+  public function access(AccountInterface $account) {
     // Only grant access to users with the 'access news feeds' permission.
-    return user_access('access news feeds');
+    return $account->hasPermission('access news feeds');
   }
 
   /**

@@ -12,7 +12,7 @@ use Drupal\Component\Utility\Unicode;
 use Drupal\Core\Cache\Cache;
 use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\Core\Entity\ContentEntityFormController;
-use Drupal\Core\Entity\EntityManager;
+use Drupal\Core\Entity\EntityManagerInterface;
 use Drupal\Core\Language\Language;
 use Drupal\Core\Session\AccountInterface;
 use Drupal\field\FieldInfo;
@@ -22,13 +22,6 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  * Base for controller for comment forms.
  */
 class CommentFormController extends ContentEntityFormController {
-
-  /**
-   * The entity manager service.
-   *
-   * @var \Drupal\Core\Entity\EntityManager
-   */
-  protected $entityManager;
 
   /**
    * The field info service.
@@ -49,20 +42,35 @@ class CommentFormController extends ContentEntityFormController {
   }
 
   /**
-   * Constructs a new CommentRenderController.
+   * Constructs a new CommentFormController.
    *
-   * @param \Drupal\Core\Entity\EntityManager $entity_manager
+   * @param \Drupal\Core\Entity\EntityManagerInterface $entity_manager
    *   The entity manager service.
    * @param \Drupal\field\FieldInfo $field_info
    *   The field info service.
    * @param \Drupal\Core\Session\AccountInterface $current_user
    *   The current user.
    */
-
-  public function __construct(EntityManager $entity_manager, FieldInfo $field_info, AccountInterface $current_user) {
-    $this->entityManager = $entity_manager;
+  public function __construct(EntityManagerInterface $entity_manager, FieldInfo $field_info, AccountInterface $current_user) {
+    parent::__construct($entity_manager);
     $this->fieldInfo = $field_info;
     $this->currentUser = $current_user;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  protected function init(array &$form_state) {
+    $comment = $this->entity;
+
+    // Make the comment inherit the current content language unless specifically
+    // set.
+    if ($comment->isNew()) {
+      $language_content = \Drupal::languageManager()->getLanguage(Language::TYPE_CONTENT);
+      $comment->langcode->value = $language_content->id;
+    }
+
+    parent::init($form_state);
   }
 
   /**
@@ -148,11 +156,8 @@ class CommentFormController extends ContentEntityFormController {
     elseif ($this->currentUser->isAuthenticated()) {
       $form['author']['name']['#type'] = 'item';
       $form['author']['name']['#value'] = $form['author']['name']['#default_value'];
-      $username = array(
-        '#theme' => 'username',
-        '#account' => $this->currentUser,
-      );
-      $form['author']['name']['#markup'] = drupal_render($username);
+      $form['author']['name']['#theme'] = 'username';
+      $form['author']['name']['#account'] = $this->currentUser;
     }
 
     // Add author e-mail and homepage fields depending on the current user.
@@ -209,13 +214,6 @@ class CommentFormController extends ContentEntityFormController {
       '#type' => 'value',
       '#value' => ($comment->id() ? !$comment->uid->target_id : $this->currentUser->isAnonymous()),
     );
-
-    // Make the comment inherit the current content language unless specifically
-    // set.
-    if ($comment->isNew()) {
-      $language_content = language(Language::TYPE_CONTENT);
-      $comment->langcode->value = $language_content->id;
-    }
 
     // Add internal comment properties.
     $original = $comment->getUntranslated();
@@ -358,8 +356,8 @@ class CommentFormController extends ContentEntityFormController {
    */
   public function preview(array $form, array &$form_state) {
     $comment = $this->entity;
-    drupal_set_title(t('Preview comment'), PASS_THROUGH);
     $form_state['comment_preview'] = comment_preview($comment);
+    $form_state['comment_preview']['#title'] = $this->t('Preview comment');
     $form_state['rebuild'] = TRUE;
   }
 
@@ -413,6 +411,6 @@ class CommentFormController extends ContentEntityFormController {
     // Clear the block and page caches so that anonymous users see the comment
     // they have posted.
     Cache::invalidateTags(array('content' => TRUE));
-    $this->entityManager->getRenderController($entity->entityType())->resetCache(array($entity->id()));
+    $this->entityManager->getViewBuilder($entity->entityType())->resetCache(array($entity->id()));
   }
 }

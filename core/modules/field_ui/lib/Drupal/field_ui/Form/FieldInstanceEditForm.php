@@ -7,7 +7,7 @@
 
 namespace Drupal\field_ui\Form;
 
-use Drupal\Core\Entity\EntityManager;
+use Drupal\Core\Entity\EntityManagerInterface;
 use Drupal\Core\Form\FormBase;
 use Drupal\field\FieldInstanceInterface;
 use Drupal\field_ui\FieldUI;
@@ -28,17 +28,17 @@ class FieldInstanceEditForm extends FormBase {
   /**
    * The entity manager.
    *
-   * @var \Drupal\Core\Entity\EntityManager
+   * @var \Drupal\Core\Entity\EntityManagerInterface
    */
   protected $entityManager;
 
   /**
    * Constructs a new field instance form.
    *
-   * @param \Drupal\Core\Entity\EntityManager $entity_manager
+   * @param \Drupal\Core\Entity\EntityManagerInterface $entity_manager
    *   The entity manager.
    */
-  public function __construct(EntityManager $entity_manager) {
+  public function __construct(EntityManagerInterface $entity_manager) {
     $this->entityManager = $entity_manager;
   }
 
@@ -189,7 +189,17 @@ class FieldInstanceEditForm extends FormBase {
 
     drupal_set_message($this->t('Saved %label configuration.', array('%label' => $this->instance->getFieldLabel())));
 
-    $form_state['redirect'] = $this->getNextDestination();
+    if ($next_destination = FieldUI::getNextDestination($this->getRequest())) {
+      $form_state['redirect'] = $next_destination;
+    }
+    else {
+      $form_state['redirect_route'] = array(
+        'route_name' => 'field_ui.overview_' . $this->instance->entity_type,
+        'route_parameters' => array(
+          'bundle' => $this->instance->bundle,
+        )
+      );
+    }
   }
 
   /**
@@ -202,21 +212,16 @@ class FieldInstanceEditForm extends FormBase {
       $destination = drupal_get_destination();
       $request->query->remove('destination');
     }
-    $form_state['redirect'] = array('admin/structure/types/manage/' . $this->instance->bundle . '/fields/' . $this->instance->id() . '/delete', array('query' => $destination));
-  }
-
-  /**
-   * Returns the next redirect path in a multipage sequence.
-   *
-   * @return string|array
-   *   Either the next path, or an array of redirect paths.
-   */
-  protected function getNextDestination() {
-    $next_destination = FieldUI::getNextDestination($this->getRequest());
-    if (empty($next_destination)) {
-      $next_destination = $this->entityManager->getAdminPath($this->instance->entity_type, $this->instance->bundle) . '/fields';
-    }
-    return $next_destination;
+    $form_state['redirect_route'] = array(
+      'route_name' => 'field_ui.delete_' . $this->instance->entity_type,
+      'route_parameters' => array(
+        'bundle' => $this->instance->bundle,
+        'field_instance' => $this->instance->id(),
+      ),
+      'options' => array(
+        'query' => $destination,
+      ),
+    );
   }
 
 }

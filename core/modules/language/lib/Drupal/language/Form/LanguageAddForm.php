@@ -53,15 +53,22 @@ class LanguageAddForm extends LanguageFormBase {
       '#submit' => array(array($this, 'submitForm')),
     );
 
+    $custom_language_states_conditions = array(
+      'select#edit-predefined-langcode' => array('value' => 'custom'),
+    );
     $form['custom_language'] = array(
       '#type' => 'container',
       '#states' => array(
-        'visible' => array(
-          'select#edit-predefined-langcode' => array('value' => 'custom'),
-        ),
+        'visible' => $custom_language_states_conditions,
       ),
     );
     $this->commonForm($form['custom_language']);
+    $form['custom_language']['langcode']['#states'] = array(
+      'required' => $custom_language_states_conditions,
+    );
+    $form['custom_language']['name']['#states'] = array(
+      'required' => $custom_language_states_conditions,
+    );
     $form['custom_language']['submit'] = array(
       '#type' => 'submit',
       '#value' => $this->t('Add custom language'),
@@ -96,7 +103,7 @@ class LanguageAddForm extends LanguageFormBase {
     // Tell the user they have the option to add a language switcher block
     // to their theme so they can switch between the languages.
     drupal_set_message($this->t('Use one of the language switcher blocks to allow site visitors to switch between languages. You can enable these blocks on the <a href="@block-admin">block administration page</a>.', array('@block-admin' => url('admin/structure/block'))));
-    $form_state['redirect'] = 'admin/config/regional/language';
+    $form_state['redirect_route']['route_name'] = 'language.admin_overview';
   }
 
   /**

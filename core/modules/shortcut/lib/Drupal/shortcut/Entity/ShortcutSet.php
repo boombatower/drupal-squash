@@ -19,7 +19,6 @@ use Drupal\shortcut\ShortcutSetInterface;
  * @EntityType(
  *   id = "shortcut_set",
  *   label = @Translation("Shortcut set"),
- *   module = "shortcut",
  *   controllers = {
  *     "storage" = "Drupal\shortcut\ShortcutSetStorageController",
  *     "access" = "Drupal\shortcut\ShortcutSetAccessController",
@@ -39,7 +38,7 @@ use Drupal\shortcut\ShortcutSetInterface;
  *     "uuid" = "uuid"
  *   },
  *   links = {
- *     "edit-form" = "admin/config/user-interface/shortcut/manage/{shortcut_set}"
+ *     "edit-form" = "shortcut.set_customize"
  *   }
  * )
  */

@@ -19,7 +19,6 @@ use Drupal\contact\CategoryInterface;
  * @EntityType(
  *   id = "contact_category",
  *   label = @Translation("Contact category"),
- *   module = "contact",
  *   controllers = {
  *     "storage" = "Drupal\contact\CategoryStorageController",
  *     "access" = "Drupal\contact\CategoryAccessController",
@@ -38,7 +37,7 @@ use Drupal\contact\CategoryInterface;
  *     "uuid" = "uuid"
  *   },
  *   links = {
- *     "edit-form" = "admin/structure/contact/manage/{contact_category}"
+ *     "edit-form" = "contact.category_edit"
  *   }
  * )
  */

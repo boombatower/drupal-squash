@@ -139,6 +139,14 @@ class ViewUI implements ViewStorageInterface {
   );
 
   /**
+   * Whether the config is being created, updated or deleted through the
+   * import process.
+   *
+   * @var bool
+   */
+  private $isSyncing = FALSE;
+
+  /**
    * Constructs a View UI object.
    *
    * @param \Drupal\views\ViewStorageInterface $storage
@@ -185,6 +193,20 @@ class ViewUI implements ViewStorageInterface {
 
   public static function getDefaultAJAXMessage() {
     return '<div class="message">' . t("Click on an item to edit that item's details.") . '</div>';
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function setSyncing($syncing) {
+    $this->isSyncing = $syncing;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function isSyncing() {
+    return $this->isSyncing;
   }
 
   /**
@@ -255,7 +277,10 @@ class ViewUI implements ViewStorageInterface {
       $this->cacheSet();
     }
 
-    $form_state['redirect'] = 'admin/structure/views/view/' . $this->id() . '/edit';
+    $form_state['redirect_route'] = array(
+      'route_name' => 'views_ui.edit',
+      'route_parameters' => array('view' => $this->id()),
+    );
   }
 
   /**

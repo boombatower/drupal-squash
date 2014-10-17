@@ -196,6 +196,30 @@ abstract class TestBase {
   }
 
   /**
+   * Provides meta information about this test case, such as test name.
+   *
+   * @return array
+   *   An array of untranslated strings with the following keys:
+   *   - name: An overview of what is tested by the class; for example, "User
+   *     access rules".
+   *   - description: One sentence describing the test, starting with a verb.
+   *   - group: The human-readable name of the module ("Node", "Statistics"), or
+   *     the human-readable name of the Drupal facility tested (e.g. "Form API"
+   *     or "XML-RPC").
+   */
+  public static function getInfo() {
+    // PHP does not allow us to declare this method as abstract public static,
+    // so we simply throw an exception here if this has not been implemented by
+    // a child class.
+    throw new \RuntimeException("Sub-class must implement the getInfo method!");
+  }
+
+  /**
+   * Performs setup tasks before each individual test method is run.
+   */
+  abstract protected function setUp();
+
+  /**
    * Checks the matching requirements for Test.
    *
    * @return
@@ -888,7 +912,7 @@ abstract class TestBase {
     $this->originalConf = $conf;
 
     // Backup statics and globals.
-    $this->originalContainer = clone drupal_container();
+    $this->originalContainer = clone \Drupal::getContainer();
     $this->originalLanguage = $language_interface;
     $this->originalConfigDirectories = $GLOBALS['config_directories'];
     if (isset($GLOBALS['theme_key'])) {
@@ -945,6 +969,9 @@ abstract class TestBase {
     $this->container = new ContainerBuilder();
      // @todo Remove this once this class has no calls to t() and format_plural()
     $this->container->register('string_translation', 'Drupal\Core\StringTranslation\TranslationManager');
+
+    // Register info parser.
+    $this->container->register('info_parser', 'Drupal\Core\Extension\InfoParser');
 
     \Drupal::setContainer($this->container);
 
@@ -1014,10 +1041,12 @@ abstract class TestBase {
     // different object, so we need to replace the instance on this test class.
     $this->container = \Drupal::getContainer();
     // The global $user is set in TestBase::prepareEnvironment().
-    $this->container->get('request')->attributes->set('_account', $GLOBALS['user']);
+    $this->container->set('current_user', $GLOBALS['user']);
   }
 
   /**
+   * Performs cleanup tasks after each individual test method has been run.
+   *
    * Deletes created files, database tables, and reverts environment changes.
    *
    * This method needs to be invoked for both unit and integration tests.
@@ -1035,6 +1064,15 @@ abstract class TestBase {
     // In that case, all functions are still operating on the test environment,
     // which means they may need to access its filesystem and database.
     drupal_static_reset();
+
+    if ($this->container->has('state') && $state = $this->container->get('state')) {
+      $captured_emails = $state->get('system.test_email_collector') ?: array();
+      $emailCount = count($captured_emails);
+      if ($emailCount) {
+        $message = format_plural($emailCount, '1 e-mail was sent during this test.', '@count e-mails were sent during this test.');
+        $this->pass($message, t('E-mail'));
+      }
+    }
 
     // Ensure that TestBase::changeDatabasePrefix() has run and TestBase::$setup
     // was not tricked into TRUE, since the following code would delete the
@@ -1057,14 +1095,6 @@ abstract class TestBase {
     // In case a fatal error occurred that was not in the test process read the
     // log to pick up any fatal errors.
     simpletest_log_read($this->testId, $this->databasePrefix, get_class($this), TRUE);
-    if (($container = drupal_container()) && $container->has('keyvalue')) {
-      $captured_emails = \Drupal::state()->get('system.test_email_collector') ?: array();
-      $emailCount = count($captured_emails);
-      if ($emailCount) {
-        $message = format_plural($emailCount, '1 e-mail was sent during this test.', '@count e-mails were sent during this test.');
-        $this->pass($message, t('E-mail'));
-      }
-    }
 
     // Delete temporary files directory.
     file_unmanaged_delete_recursive($this->originalFileDirectory . '/simpletest/' . substr($this->databasePrefix, 10), array($this, 'filePreDeleteCallback'));

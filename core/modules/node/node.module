@@ -462,14 +462,14 @@ function node_field_extra_fields() {
     if ($module_language_enabled) {
       $configuration = language_get_default_configuration('node', $bundle->type);
       if ($configuration['language_show']) {
-        $extra['node'][$bundle->type]['form']['language'] = array(
+        $extra['node'][$bundle->type]['form']['langcode'] = array(
           'label' => t('Language'),
           'description' => $description,
           'weight' => 0,
         );
       }
     }
-    $extra['node'][$bundle->type]['display']['language'] = array(
+    $extra['node'][$bundle->type]['display']['langcode'] = array(
       'label' => t('Language'),
       'description' => $description,
       'weight' => 0,
@@ -578,6 +578,16 @@ function node_is_page(EntityInterface $node) {
 }
 
 /**
+ * Implements hook_preprocess_HOOK() for HTML document templates.
+ */
+function node_preprocess_html(&$variables) {
+  // If on an individual node page, add the node type to body classes.
+  if ($node = menu_get_object()) {
+    $variables['attributes']['class'][] = drupal_html_class('node-type-' . $node->getType());
+  }
+}
+
+/**
  * Implements hook_preprocess_HOOK() for block templates.
  */
 function node_preprocess_block(&$variables) {
@@ -629,8 +639,6 @@ function template_preprocess_node(&$variables) {
   $node = $variables['node'];
 
   $variables['date'] = format_date($node->getCreatedTime());
-  // @todo Change 'name' to 'author' and also convert to a render array pending
-  //   http://drupal.org/node/1941286.
   $username = array(
     '#theme' => 'username',
     '#account' => $node->getAuthor(),
@@ -896,7 +904,10 @@ function theme_node_search_admin($variables) {
  * @see node_menu()
  */
 function _node_revision_access(EntityInterface $node, $op = 'view', $account = NULL, $langcode = NULL) {
-  return \Drupal::service('access_check.node.revision')->checkAccess($node, $op, $account, $langcode);
+  if ($account === NULL) {
+    $account = \Drupal::currentUser();
+  }
+  return \Drupal::service('access_check.node.revision')->checkAccess($node, $account, $op, $langcode);
 }
 
 /**
@@ -911,7 +922,7 @@ function _node_revision_access(EntityInterface $node, $op = 'view', $account = N
  *   Use \Drupal::service('access_manager')->checkNamedRoute('node.add_page');
  */
 function _node_add_access() {
-  return \Drupal::service('access_manager')->checkNamedRoute('node.add_page');
+  return \Drupal::service('access_manager')->checkNamedRoute('node.add_page', array(), \Drupal::currentUser());
 }
 
 /**
@@ -938,11 +949,6 @@ function node_menu() {
     'title' => 'List',
     'type' => MENU_DEFAULT_LOCAL_TASK,
   );
-  $items['admin/structure/types/add'] = array(
-    'title' => 'Add content type',
-    'route_name' => 'node.type_add',
-    'type' => MENU_LOCAL_ACTION,
-  );
   $items['admin/structure/types/manage/%node_type'] = array(
     'title' => 'Edit content type',
     'title callback' => 'entity_page_label',
@@ -958,8 +964,6 @@ function node_menu() {
     'route_name' => 'node.add_page',
   );
   $items['node/add/%node_type'] = array(
-    'title callback' => 'entity_page_label',
-    'title arguments' => array(2),
     'description callback' => 'node_type_get_description',
     'description arguments' => array(2),
     'route_name' => 'node.add',
@@ -970,29 +974,6 @@ function node_menu() {
     // The controller also sets the #title in case the routes' title is
     // overridden by a menu link.
     'route_name' => 'node.view',
-  );
-  $items['node/%node/view'] = array(
-    'title' => 'View',
-    'type' => MENU_DEFAULT_LOCAL_TASK,
-  );
-  $items['node/%node/edit'] = array(
-    'title' => 'Edit',
-    'route_name' => 'node.page_edit',
-    'type' => MENU_LOCAL_TASK,
-    'context' => MENU_CONTEXT_PAGE | MENU_CONTEXT_INLINE,
-  );
-  $items['node/%node/delete'] = array(
-    'title' => 'Delete',
-    'route_name' => 'node.delete_confirm',
-    'weight' => 10,
-    'type' => MENU_LOCAL_TASK,
-    'context' => MENU_CONTEXT_INLINE,
-  );
-  $items['node/%node/revisions'] = array(
-    'title' => 'Revisions',
-    'route_name' => 'node.revision_overview',
-    'weight' => 20,
-    'type' => MENU_LOCAL_TASK,
   );
   $items['node/%node/revisions/%node_revision/view'] = array(
     'title' => 'Revisions',
@@ -1754,11 +1735,9 @@ function node_access_view_all_nodes($account = NULL) {
  * @endcode
  */
 function node_query_node_access_alter(AlterableInterface $query) {
-  global $user;
-
   // Read meta-data from query, if provided.
   if (!$account = $query->getMetaData('account')) {
-    $account = $user;
+    $account = \Drupal::currentUser();
   }
   if (!$op = $query->getMetaData('op')) {
     $op = 'view';
@@ -1966,33 +1945,6 @@ function _node_access_rebuild_batch_finished($success, $results, $operations) {
 /**
  * @} End of "defgroup node_access".
  */
-
-/**
- * Implements hook_requirements().
- */
-function node_requirements($phase) {
-  $requirements = array();
-  if ($phase === 'runtime') {
-    // Only show rebuild button if there are either 0, or 2 or more, rows
-    // in the {node_access} table, or if there are modules that
-    // implement hook_node_grants().
-    $grant_count = \Drupal::entityManager()->getAccessController('node')->countGrants();
-    if ($grant_count != 1 || count(\Drupal::moduleHandler()->getImplementations('node_grants')) > 0) {
-      $value = format_plural($grant_count, 'One permission in use', '@count permissions in use', array('@count' => $grant_count));
-    }
-    else {
-      $value = t('Disabled');
-    }
-    $description = t('If the site is experiencing problems with permissions to content, you may have to rebuild the permissions cache. Rebuilding will remove all privileges to content and replace them with permissions based on the current modules and settings. Rebuilding may take some time if there is a lot of content or complex permission settings. After rebuilding has completed, content will automatically use the new permissions.');
-
-    $requirements['node_access'] = array(
-      'title' => t('Node Access Permissions'),
-      'value' => $value,
-      'description' => $description . ' ' . l(t('Rebuild permissions'), 'admin/reports/status/rebuild'),
-    );
-  }
-  return $requirements;
-}
 
 /**
  * Implements hook_modules_installed().

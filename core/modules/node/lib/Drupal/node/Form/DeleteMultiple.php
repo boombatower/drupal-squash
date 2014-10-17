@@ -8,9 +8,9 @@
 namespace Drupal\node\Form;
 
 use Drupal\Core\Cache\Cache;
+use Drupal\Core\Entity\EntityManagerInterface;
 use Drupal\Core\Form\ConfirmFormBase;
 use Drupal\Core\DependencyInjection\ContainerInjectionInterface;
-use Drupal\Core\Entity\EntityManager;
 use Drupal\Component\Utility\String;
 use Drupal\user\TempStoreFactory;
 use Symfony\Component\HttpFoundation\RedirectResponse;
@@ -47,10 +47,10 @@ class DeleteMultiple extends ConfirmFormBase implements ContainerInjectionInterf
    *
    * @param \Drupal\user\TempStoreFactory $temp_store_factory
    *   The tempstore factory.
-   * @param \Drupal\Core\Entity\EntityManager $manager
+   * @param \Drupal\Core\Entity\EntityManagerInterface $manager
    *   The entity manager.
    */
-  public function __construct(TempStoreFactory $temp_store_factory, EntityManager $manager) {
+  public function __construct(TempStoreFactory $temp_store_factory, EntityManagerInterface $manager) {
     $this->tempStoreFactory = $temp_store_factory;
     $this->storageController = $manager->getStorageController('node');
   }
@@ -126,7 +126,7 @@ class DeleteMultiple extends ConfirmFormBase implements ContainerInjectionInterf
       drupal_set_message(format_plural($count, 'Deleted 1 post.', 'Deleted @count posts.'));
       Cache::invalidateTags(array('content' => TRUE));
     }
-    $form_state['redirect'] = 'admin/content';
+    $form_state['redirect_route']['route_name'] = 'node.content_overview';
   }
 
 }

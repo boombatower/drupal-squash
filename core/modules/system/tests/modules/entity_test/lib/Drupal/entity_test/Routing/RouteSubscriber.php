@@ -21,7 +21,6 @@ class RouteSubscriber extends RouteSubscriberBase {
    */
   protected function routes(RouteCollection $collection) {
     $types = entity_test_entity_types();
-    $types[] = 'entity_test_render';
 
     foreach ($types as $entity_type) {
       $route = new Route(
@@ -32,8 +31,8 @@ class RouteSubscriber extends RouteSubscriberBase {
       $collection->add("entity_test.add_$entity_type", $route);
 
       $route = new Route(
-        "$entity_type/manage/{entity}",
-        array('_content' => '\Drupal\entity_test\Controller\EntityTestController::testEdit'),
+        "$entity_type/manage/{" . $entity_type . '}',
+        array('_content' => '\Drupal\entity_test\Controller\EntityTestController::testEdit', '_entity_type' => $entity_type),
         array('_permission' => 'administer entity_test content'),
         array('parameters' => array(
           'entity' => array('type' => 'entity:' . $entity_type),

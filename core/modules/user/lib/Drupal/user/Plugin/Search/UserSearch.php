@@ -9,7 +9,7 @@ namespace Drupal\user\Plugin\Search;
 
 use Drupal\Core\Annotation\Translation;
 use Drupal\Core\Database\Connection;
-use Drupal\Core\Entity\EntityManager;
+use Drupal\Core\Entity\EntityManagerInterface;
 use Drupal\Core\Extension\ModuleHandlerInterface;
 use Drupal\Core\Session\AccountInterface;
 use Drupal\Core\Access\AccessibleInterface;
@@ -39,7 +39,7 @@ class UserSearch extends SearchPluginBase implements AccessibleInterface {
   /**
    * The entity manager.
    *
-   * @var \Drupal\Core\Entity\EntityManager
+   * @var \Drupal\Core\Entity\EntityManagerInterface
    */
   protected $entityManager;
 
@@ -51,11 +51,11 @@ class UserSearch extends SearchPluginBase implements AccessibleInterface {
   protected $moduleHandler;
 
   /**
-   * The current request.
+   * The current user.
    *
-   * @var \Symfony\Component\HttpFoundation\Request
+   * @var \Drupal\Core\Session\AccountInterface
    */
-  protected $request;
+  protected $currentUser;
 
   /**
    * {@inheritdoc}
@@ -65,7 +65,7 @@ class UserSearch extends SearchPluginBase implements AccessibleInterface {
       $container->get('database'),
       $container->get('plugin.manager.entity'),
       $container->get('module_handler'),
-      $container->get('request'),
+      $container->get('current_user'),
       $configuration,
       $plugin_id,
       $plugin_definition
@@ -77,12 +77,12 @@ class UserSearch extends SearchPluginBase implements AccessibleInterface {
    *
    * @param Connection $database
    *   The database connection.
-   * @param EntityManager $entity_manager
+   * @param \Drupal\Core\Entity\EntityManagerInterface $entity_manager
    *   The entity manager.
    * @param ModuleHandlerInterface $module_handler
    *   The module handler.
-   * @param \Symfony\Component\HttpFoundation\Request $request
-   *   The current request.
+   * @param \Drupal\Core\Session\AccountInterface $current_user
+   *   The current user.
    * @param array $configuration
    *   A configuration array containing information about the plugin instance.
    * @param string $plugin_id
@@ -90,11 +90,11 @@ class UserSearch extends SearchPluginBase implements AccessibleInterface {
    * @param array $plugin_definition
    *   The plugin implementation definition.
    */
-  public function __construct(Connection $database, EntityManager $entity_manager, ModuleHandlerInterface $module_handler, Request $request, array $configuration, $plugin_id, array $plugin_definition) {
+  public function __construct(Connection $database, EntityManagerInterface $entity_manager, ModuleHandlerInterface $module_handler, AccountInterface $current_user, array $configuration, $plugin_id, array $plugin_definition) {
     $this->database = $database;
     $this->entityManager = $entity_manager;
     $this->moduleHandler = $module_handler;
-    $this->request = $request;
+    $this->currentUser = $current_user;
     parent::__construct($configuration, $plugin_id, $plugin_definition);
   }
 
@@ -120,8 +120,7 @@ class UserSearch extends SearchPluginBase implements AccessibleInterface {
       ->select('users')
       ->extend('Drupal\Core\Database\Query\PagerSelectExtender');
     $query->fields('users', array('uid'));
-    $user_account = $this->request->attributes->get('_account');
-    if ($user_account->hasPermission('administer users')) {
+    if ($this->currentUser->hasPermission('administer users')) {
       // Administrators can also search in the otherwise private email field, and
       // they don't need to be restricted to only active users.
       $query->fields('users', array('mail'));
@@ -147,7 +146,7 @@ class UserSearch extends SearchPluginBase implements AccessibleInterface {
         'title' => $account->getUsername(),
         'link' => url('user/' . $account->id(), array('absolute' => TRUE)),
       );
-      if ($user_account->hasPermission('administer users')) {
+      if ($this->currentUser->hasPermission('administer users')) {
         $result['title'] .= ' (' . $account->getEmail() . ')';
       }
       $results[] = $result;
