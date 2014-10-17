@@ -12,10 +12,6 @@
 function simpletest_test_form() {
   $form = array();
 
-  // Categorize the tests for display.
-  $uncategorized_tests = simpletest_get_all_tests();
-  $tests = simpletest_categorize_tests($uncategorized_tests);
-
   $form['tests'] = array(
     '#type' => 'fieldset',
     '#title' => t('Tests'),
@@ -27,13 +23,14 @@ function simpletest_test_form() {
   );
 
   // Generate the list of tests arranged by group.
-  foreach ($tests as $group_name => $test_group) {
-    $form['tests']['table'][$group_name] = array(
+  $groups = simpletest_test_get_all();
+  foreach ($groups as $group => $tests) {
+    $form['tests']['table'][$group] = array(
       '#collapsed' => TRUE,
     );
 
-    foreach ($test_group as $class => $info) {
-      $form['tests']['table'][$group_name][$class] = array(
+    foreach ($tests as $class => $info) {
+      $form['tests']['table'][$group][$class] = array(
         '#type' => 'checkbox',
         '#title' => $info['name'],
         '#description' => $info['description'],
@@ -124,6 +121,9 @@ function theme_simpletest_test_table($table) {
       'clickActive' => FALSE,
     );
 
+    // Sorting $element by children's #title attribute instead of by class name.
+    uasort($element, '_simpletest_sort_by_title');
+
     // Cycle through each test within the current group.
     foreach (element_children($element) as $test_name) {
       $test = $element[$test_name];
@@ -163,12 +163,21 @@ function theme_simpletest_test_table($table) {
 }
 
 /**
+ * Sort element by title instead of by class name.
+ */
+function _simpletest_sort_by_title($a, $b) {
+  // This is for parts of $element that are not an array.
+  if (!isset($a['#title']) || !isset($b['#title'])) {
+    return 1;
+  }
+
+  return strcasecmp($a['#title'], $b['#title']);
+}
+
+/**
  * Run selected tests.
  */
 function simpletest_test_form_submit($form, &$form_state) {
-  // Ensure that all classes are loaded before we create instances to get test information and run.
-  simpletest_get_all_tests();
-
   // Get list of tests.
   $tests_list = array();
   foreach ($form_state['values'] as $class_name => $value) {
@@ -187,12 +196,12 @@ function simpletest_test_form_submit($form, &$form_state) {
 /**
  * Test results form for $test_id.
  */
-function simpletest_result_form(&$form_sate, $test_id) {
+function simpletest_result_form(&$form_state, $test_id) {
   $form = array();
 
-  // Make sure there are test results to display and are-run is not being performed.
-  $results = simpletest_result_get($test_id);
-  if ($test_id != 're-run' && !$results) {
+  // Make sure there are test results to display and a re-run is not being performed.
+  $results = array();
+  if (is_numeric($test_id) && !$results = simpletest_result_get($test_id)) {
     drupal_set_message(t('No test results to display.'), 'error');
     drupal_goto('admin/development/testing');
     return $form;
@@ -200,7 +209,6 @@ function simpletest_result_form(&$form_sate, $test_id) {
 
   // Load all classes and include CSS.
   drupal_add_css(drupal_get_path('module', 'simpletest') . '/simpletest.css');
-  simpletest_get_all_tests();
 
   // Keep track of which test cases passed or failed.
   $filter = array(
@@ -305,7 +313,9 @@ function simpletest_result_form(&$form_sate, $test_id) {
     '#markup' => l(t('Return to list'), 'admin/development/testing'),
   );
 
-  simpletest_clean_results_table($test_id);
+  if (is_numeric($test_id)) {
+    simpletest_clean_results_table($test_id);
+  }
 
   return $form;
 }
@@ -380,6 +390,7 @@ function simpletest_result_get($test_id) {
  * @return HTML image or false.
  */
 function simpletest_result_status_image($status) {
+  // $map does not use drupal_static() as its value never changes.
   static $map;
 
   if (!isset($map)) {
@@ -393,4 +404,46 @@ function simpletest_result_status_image($status) {
     return $map[$status];
   }
   return FALSE;
+}
+
+/**
+ * Provides settings form for SimpleTest variables.
+ */
+function simpletest_settings_form(&$form_state) {
+  $form = array();
+
+  $form['general'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('General'),
+  );
+  $form['general']['simpletest_clear_results'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Clear results after each complete test suite run'),
+    '#description' => t('By default SimpleTest will clear the results after they have been viewed on the results page, but in some cases it may be useful to leave the results in the database. The results can then be viewed at <em>admin/development/testing/[test_id]</em>. The test ID can be found in the database, simpletest table, or kept track of when viewing the results the first time. Additionally, some modules may provide more analaysis or features that require this setting to be disabled.'),
+    '#default_value' => variable_get('simpletest_clear_results', TRUE),
+  );
+  $form['general']['simpletest_verbose'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Provide verbose information when running tests'),
+    '#description' => t('The verbose data will be printed along with the standard assertions. Useful for debugging.'),
+    '#default_value' => variable_get('simpletest_verbose', FALSE),
+  );
+
+  $form['httpauth'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('HTTP authentication credentials'),
+    '#description' => t('HTTP auth settings to be used by the SimpleTest browser during testing. Useful when the site requires basic HTTP authentication.'),
+  );
+  $form['httpauth']['simpletest_username'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Username'),
+    '#default_value' => variable_get('simpletest_username', ''),
+  );
+  $form['httpauth']['simpletest_password'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Password'),
+    '#default_value' => variable_get('simpletest_password', ''),
+  );
+
+  return system_settings_form($form);
 }

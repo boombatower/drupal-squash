@@ -204,7 +204,7 @@ function hook_node_grants_alter(&$grants, $account, $op) {
 
   // Get our list of banned roles.
   $restricted = variable_get('example_restricted_roles', array());
-  
+
   if ($op != 'view' && !empty($restricted)) {
     // Now check the roles for this account against the restrictions.
     foreach ($restricted as $role_id) {
@@ -266,8 +266,6 @@ function hook_node_operations() {
  *
  * @param $node
  *   The node that is being deleted.
- * @return
- *   None.
  */
 function hook_node_delete($node) {
   db_delete('mytable')
@@ -282,8 +280,6 @@ function hook_node_delete($node) {
  *
  * @param $node
  *   The node the action is being performed on.
- * @return
- *   None.
  */
 function hook_node_delete_revision($node) {
   db_delete('upload')->condition('vid', $node->vid)->execute();
@@ -302,8 +298,6 @@ function hook_node_delete_revision($node) {
  *
  * @param $node
  *   The node the action is being performed on.
- * @return
- *   None.
  */
 function hook_node_insert($node) {
   db_insert('mytable')
@@ -352,8 +346,6 @@ function hook_node_load($nodes, $types) {
  *
  * @param $node
  *   The node the action is being performed on.
- * @return
- *   None.
  */
 function hook_node_prepare($node) {
   if (!isset($node->comment)) {
@@ -369,8 +361,6 @@ function hook_node_prepare($node) {
  *
  * @param $node
  *   The node the action is being performed on.
- * @return
- *   None.
  */
 function hook_node_prepare_translation($node) {
 }
@@ -397,8 +387,6 @@ function hook_node_search_result($node) {
  *
  * @param $node
  *   The node the action is being performed on.
- * @return
- *   None.
  */
 function hook_node_presave($node) {
   if ($node->nid && $node->moderate) {
@@ -414,8 +402,6 @@ function hook_node_presave($node) {
  *
  * @param $node
  *   The node the action is being performed on.
- * @return
- *   None.
  */
 function hook_node_update($node) {
   db_update('mytable')
@@ -454,8 +440,6 @@ function hook_node_update_index($node) {
  *   The node the action is being performed on.
  * @param $form
  *   The $form parameter from node_validate().
- * @return
- *   None.
  */
 function hook_node_validate($node, $form) {
   if (isset($node->end) && isset($node->start)) {
@@ -474,10 +458,10 @@ function hook_node_validate($node, $form) {
  * will be called after hook_view(). The structure of $node->content is a
  * renderable array as expected by drupal_render().
  *
- * When $node->build_mode is NODE_BUILD_RSS modules can also add extra RSS
- * elements and namespaces to $node->rss_elements and $node->rss_namespaces
- * respectively for the RSS item generated for this node. For details on how
- * this is used @see node_feed()
+ * When $build_mode is 'rss', modules can also add extra RSS elements and
+ * namespaces to $node->rss_elements and $node->rss_namespaces respectively for
+ * the RSS item generated for this node.
+ * For details on how this is used @see node_feed()
  *
  * @see taxonomy_node_view()
  * @see upload_node_view()
@@ -485,10 +469,10 @@ function hook_node_validate($node, $form) {
  *
  * @param $node
  *   The node the action is being performed on.
- * @param $teaser
- *   The $teaser parameter from node_build().
+ * @param $build_mode
+ *   The $build_mode parameter from node_build().
  */
-function hook_node_view($node, $teaser) {
+function hook_node_view($node, $build_mode) {
   $node->content['my_additional_field'] = array(
     '#value' => $additional_field,
     '#weight' => 10,
@@ -510,10 +494,10 @@ function hook_node_view($node, $teaser) {
  *
  * @param $node
  *   The node the action is being performed on.
- * @param $teaser
- *   The $teaser parameter from node_build().
+ * @param $build_mode
+ *   The $build_mode parameter from node_build().
  */
-function hook_node_build_alter($node, $teaser) {
+function hook_node_build_alter($node, $build_mode) {
   // Check for the existence of a field added by another module.
   if (isset($node->content['an_additional_field'])) {
     // Change its weight.
@@ -594,8 +578,6 @@ function hook_node_info() {
  *   - "update"
  * @param $info
  *   The node type object on which $op is being performed.
- * @return
- *   None.
  */
 function hook_node_type($op, $info) {
 
@@ -670,8 +652,6 @@ function hook_access($op, $node, $account) {
  *
  * @param $node
  *   The node being deleted.
- * @return
- *   None.
  *
  * To take action when nodes of any type are deleted (not just nodes of
  * the type defined by this module), use hook_node() instead.
@@ -690,8 +670,6 @@ function hook_delete($node) {
  *
  * @param $node
  *   The node being saved.
- * @return
- *   None.
  *
  * For a usage example, see image.module.
  */
@@ -736,7 +714,7 @@ function hook_prepare($node) {
  * For a detailed usage example, see node_example.module.
  */
 function hook_form($node, $form_state) {
-  $type = node_get_types('type', $node);
+  $type = node_type_get_type($node);
 
   $form['title'] = array(
     '#type' => 'textfield',
@@ -779,8 +757,6 @@ function hook_form($node, $form_state) {
  *
  * @param $node
  *   The node being inserted.
- * @return
- *   None.
  *
  * To take action when nodes of any type are inserted (not just nodes of
  * the type(s) defined by this module), use hook_node() instead.
@@ -823,8 +799,6 @@ function hook_load($nodes) {
  *
  * @param $node
  *   The node being updated.
- * @return
- *   None.
  *
  * To take action when nodes of any type are updated (not just nodes of
  * the type(s) defined by this module), use hook_node() instead.
@@ -847,17 +821,14 @@ function hook_update($node) {
  *   The node to be validated.
  * @param $form
  *   The node edit form array.
- * @return
- *   None.
  *
  * To validate nodes of all types (not just nodes of the type(s) defined by
  * this module), use hook_node() instead.
  *
  * Changes made to the $node object within a hook_validate() function will
  * have no effect. The preferred method to change a node's content is to use
- * hook_submit() or hook_node($op='submit') instead. If it is really
- * necessary to change the node at the validate stage, you can use function
- * form_set_value().
+ * hook_node_presave() instead. If it is really necessary to change
+ * the node at the validate stage, you can use function form_set_value().
  *
  * For a detailed usage example, see node_example.module.
  */
@@ -878,9 +849,8 @@ function hook_validate($node, &$form) {
  *
  * @param $node
  *   The node to be displayed.
- * @param $teaser
- *   Whether we are to generate a "teaser" or summary of the node, rather than
- *   display the whole thing.
+ * @param $build_mode
+ *   Build mode, e.g. 'full', 'teaser'...
  * @return
  *   $node. The passed $node parameter should be modified as necessary and
  *   returned so it can be properly presented. Nodes are prepared for display
@@ -895,7 +865,7 @@ function hook_validate($node, &$form) {
  *
  * For a detailed usage example, see node_example.module.
  */
-function hook_view($node, $teaser = FALSE) {
+function hook_view($node, $build_mode = 'full') {
   if ((bool)menu_get_object()) {
     $breadcrumb = array();
     $breadcrumb[] = array('path' => 'example', 'title' => t('example'));
@@ -905,7 +875,6 @@ function hook_view($node, $teaser = FALSE) {
     menu_set_location($breadcrumb);
   }
 
-  $node = node_prepare($node, $teaser);
   $node->content['myfield'] = array(
     '#value' => theme('mymodule_myfield', $node->myfield),
     '#weight' => 1,

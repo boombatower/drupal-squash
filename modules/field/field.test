@@ -15,9 +15,9 @@
 class FieldAttachTestCase extends DrupalWebTestCase {
   public static function getInfo() {
     return array(
-      'name'  => t('Field attach tests'),
-      'description'  => t("Test Field Attach API functions."),
-      'group' => t('Field')
+      'name' => 'Field attach tests',
+      'description' => 'Test Field Attach API functions.',
+      'group' => 'Field',
     );
   }
 
@@ -26,7 +26,8 @@ class FieldAttachTestCase extends DrupalWebTestCase {
 
     $this->field_name = drupal_strtolower($this->randomName() . '_field_name');
     $this->field = array('field_name' => $this->field_name, 'type' => 'test_field', 'cardinality' => 4);
-    field_create_field($this->field);
+    $this->field = field_create_field($this->field);
+    $this->field_id = $this->field['id'];
     $this->instance = array(
       'field_name' => $this->field_name,
       'bundle' => 'test_bundle',
@@ -172,6 +173,14 @@ class FieldAttachTestCase extends DrupalWebTestCase {
         $this->assertEqual($entity->{$field_name}[0]['additional_key'], 'additional_value', t('Entity %index: extra information was found', array('%index' => $index)));
       }
     }
+
+    // Check that the single-field load option works.
+    $entity = field_test_create_stub_entity(1, 1, $bundles[1]);
+    field_attach_load($entity_type, array(1 => $entity), FIELD_LOAD_CURRENT, array('field_name' => $field_names[1]));
+    $this->assertEqual($entity->{$field_names[1]}[0]['value'], $values[1][$field_names[1]], t('Entity %index: expected value was found.', array('%index' => 1)));
+    $this->assertEqual($entity->{$field_names[1]}[0]['additional_key'], 'additional_value', t('Entity %index: extra information was found', array('%index' => 1)));
+    $this->assert(!isset($entity->{$field_names[2]}), t('Entity %index: field %field_name is not loaded.', array('%index' => 2, '%field_name' => $field_names[2])));
+    $this->assert(!isset($entity->{$field_names[3]}), t('Entity %index: field %field_name is not loaded.', array('%index' => 3, '%field_name' => $field_names[3])));
   }
 
   /**
@@ -261,6 +270,184 @@ class FieldAttachTestCase extends DrupalWebTestCase {
     $this->assertEqual($entity->{$this->field_name}, $values, t('Insert: missing field results in default value saved'));
   }
 
+  /**
+   * Test field_attach_query().
+   */
+  function testFieldAttachQuery() {
+    $cardinality = $this->field['cardinality'];
+
+    // Create an additional bundle with an instance of the field.
+    field_test_create_bundle('test_bundle_1', 'Test Bundle 1');
+    $this->instance2 = $this->instance;
+    $this->instance2['bundle'] = 'test_bundle_1';
+    field_create_instance($this->instance2);
+
+    // Create two test objects, using two different types and bundles.
+    $entity_types = array(1 => 'test_entity', 2 => 'test_cacheable_entity');
+    $entities = array(1 => field_test_create_stub_entity(1, 1, 'test_bundle'), 2 => field_test_create_stub_entity(2, 2, 'test_bundle_1'));
+
+    // Create first test object with random (distinct) values.
+    $values = array();
+    for ($delta = 0; $delta < $cardinality; $delta++) {
+      do {
+        $value = mt_rand(1, 127);
+      } while (in_array($value, $values));
+      $values[$delta] = $value;
+      $entities[1]->{$this->field_name}[$delta] = array('value' => $values[$delta]);
+    }
+    field_attach_insert($entity_types[1], $entities[1]);
+
+    // Create second test object, sharing a value with the first one.
+    $common_value = $values[$cardinality - 1];
+    $entities[2]->{$this->field_name} = array(array('value' => $common_value));
+    field_attach_insert($entity_types[2], $entities[2]);
+
+    // Query on the object's values.
+    for ($delta = 0; $delta < $cardinality; $delta++) {
+      $conditions = array(array('value', $values[$delta]));
+      $result = field_attach_query($this->field_name, $conditions, FIELD_QUERY_NO_LIMIT);
+      $this->assertTrue(isset($result[$entity_types[1]][1]), t('Query on value %delta returns the object', array('%delta' => $delta)));
+    }
+
+    // Query on a value that is not in the object.
+    do {
+      $different_value = mt_rand(1, 127);
+    } while (in_array($different_value, $values));
+    $conditions = array(array('value', $different_value));
+    $result = field_attach_query($this->field_name, $conditions, FIELD_QUERY_NO_LIMIT);
+    $this->assertFalse(isset($result[$entity_types[1]][1]), t("Query on a value that is not in the object doesn't return the object"));
+
+    // Query on the value shared by both objects, and discriminate using
+    // additional conditions.
+
+    $conditions = array(array('value', $common_value));
+    $result = field_attach_query($this->field_name, $conditions, FIELD_QUERY_NO_LIMIT);
+    $this->assertTrue(isset($result[$entity_types[1]][1]) && isset($result[$entity_types[2]][2]), t('Query on a value common to both objects returns both objects'));
+
+    $conditions = array(array('type', $entity_types[1]), array('value', $common_value));
+    $result = field_attach_query($this->field_name, $conditions, FIELD_QUERY_NO_LIMIT);
+    $this->assertTrue(isset($result[$entity_types[1]][1]) && !isset($result[$entity_types[2]][2]), t("Query on a value common to both objects and a 'type' condition only returns the relevant object"));
+
+    $conditions = array(array('bundle', $entities[1]->fttype), array('value', $common_value));
+    $result = field_attach_query($this->field_name, $conditions, FIELD_QUERY_NO_LIMIT);
+    $this->assertTrue(isset($result[$entity_types[1]][1]) && !isset($result[$entity_types[2]][2]), t("Query on a value common to both objects and a 'bundle' condition only returns the relevant object"));
+
+    $conditions = array(array('entity_id', $entities[1]->ftid), array('value', $common_value));
+    $result = field_attach_query($this->field_name, $conditions, FIELD_QUERY_NO_LIMIT);
+    $this->assertTrue(isset($result[$entity_types[1]][1]) && !isset($result[$entity_types[2]][2]), t("Query on a value common to both objects and an 'entity_id' condition only returns the relevant object"));
+
+    // Test result format.
+    $conditions = array(array('value', $values[0]));
+    $result = field_attach_query($this->field_name, $conditions, FIELD_QUERY_NO_LIMIT);
+    $expected = array(
+      $entity_types[1] => array(
+        $entities[1]->ftid => field_test_create_stub_entity($entities[1]->ftid, $entities[1]->ftvid),
+      )
+    );
+    $this->assertEqual($result, $expected, t('Result format is correct.'));
+
+    // Now test the count/offset paging capability.
+
+    // Create a new bundle with an instance of the field.
+    field_test_create_bundle('offset_bundle', 'Offset Test Bundle');
+    $this->instance2 = $this->instance;
+    $this->instance2['bundle'] = 'offset_bundle';
+    field_create_instance($this->instance2);
+
+    // Create 20 test objects, using the new bundle, but with
+    // non-sequential ids so we can tell we are getting the right ones
+    // back. We do not need unique values since field_attach_query()
+    // won't return them anyway.
+    $offset_entities = array();
+    $offset_id = mt_rand(1, 3);
+    for ($i = 0; $i < 20; ++$i) {
+      $offset_id += mt_rand(2, 5);
+      $offset_entities[$offset_id] = field_test_create_stub_entity($offset_id, $offset_id, 'offset_bundle');
+      $offset_entities[$offset_id]->{$this->field_name}[0] = array('value' => $offset_id);
+      field_attach_insert('test_entity', $offset_entities[$offset_id]);
+    }
+
+    // Query for the offset entities in batches, making sure we get
+    // back the right ones.
+    $cursor = 0;
+    foreach (array(1 => 1, 3 => 3, 5 => 5, 8 => 8, 13 => 3) as $count => $expect) {
+      $found = field_attach_query($this->field_name, array(array('bundle', 'offset_bundle')), $count, $cursor);
+      if (isset($found['test_entity'])) {
+        $this->assertEqual(count($found['test_entity']), $expect, t('Requested @count, expected @expect, got @found, cursor @cursor', array('@count' => $count, '@expect' => $expect, '@found' => count($found['test_entity']), '@cursor' => $cursor)));
+        foreach ($found['test_entity'] as $id => $entity) {
+          $this->assert(isset($offset_entities[$id]), "Entity $id found");
+          unset($offset_entities[$id]);
+        }
+      }
+      else {
+        $this->assertEqual(0, $expect, t('Requested @count, expected @expect, got @found, cursor @cursor', array('@count' => $count, '@expect' => $expect, '@found' => 0, '@cursor' => $cursor)));
+      }
+    }
+    $this->assertEqual(count($offset_entities), 0, "All entities found");
+    $this->assertEqual($cursor, FIELD_QUERY_COMPLETE, "Cursor is FIELD_QUERY_COMPLETE");
+  }
+
+  /**
+   * Test field_attach_query_revisions().
+   */
+  function testFieldAttachQueryRevisions() {
+    $cardinality = $this->field['cardinality'];
+
+    // Create first object revision with random (distinct) values.
+    $entity_type = 'test_entity';
+    $entities = array(1 => field_test_create_stub_entity(1, 1), 2 => field_test_create_stub_entity(1, 2));
+    $values = array();
+    for ($delta = 0; $delta < $cardinality; $delta++) {
+      do {
+        $value = mt_rand(1, 127);
+      } while (in_array($value, $values));
+      $values[$delta] = $value;
+      $entities[1]->{$this->field_name}[$delta] = array('value' => $values[$delta]);
+    }
+    field_attach_insert($entity_type, $entities[1]);
+
+    // Create second object revision, sharing a value with the first one.
+    $common_value = $values[$cardinality - 1];
+    $entities[2]->{$this->field_name}[0] = array('value' => $common_value);
+    field_attach_update($entity_type, $entities[2]);
+
+    // Query on the object's values.
+    for ($delta = 0; $delta < $cardinality; $delta++) {
+      $conditions = array(array('value', $values[$delta]));
+      $result = field_attach_query_revisions($this->field_name, $conditions, FIELD_QUERY_NO_LIMIT);
+      $this->assertTrue(isset($result[$entity_type][1]), t('Query on value %delta returns the object', array('%delta' => $delta)));
+    }
+
+    // Query on a value that is not in the object.
+    do {
+      $different_value = mt_rand(1, 127);
+    } while (in_array($different_value, $values));
+    $conditions = array(array('value', $different_value));
+    $result = field_attach_query_revisions($this->field_name, $conditions, FIELD_QUERY_NO_LIMIT);
+    $this->assertFalse(isset($result[$entity_type][1]), t("Query on a value that is not in the object doesn't return the object"));
+
+    // Query on the value shared by both objects, and discriminate using
+    // additional conditions.
+
+    $conditions = array(array('value', $common_value));
+    $result = field_attach_query_revisions($this->field_name, $conditions, FIELD_QUERY_NO_LIMIT);
+    $this->assertTrue(isset($result[$entity_type][1]) && isset($result[$entity_type][2]), t('Query on a value common to both objects returns both objects'));
+
+    $conditions = array(array('revision_id', $entities[1]->ftvid), array('value', $common_value));
+    $result = field_attach_query_revisions($this->field_name, $conditions, FIELD_QUERY_NO_LIMIT);
+    $this->assertTrue(isset($result[$entity_type][1]) && !isset($result[$entity_type][2]), t("Query on a value common to both objects and a 'revision_id' condition only returns the relevant object"));
+
+    // Test FIELD_QUERY_RETURN_IDS result format.
+    $conditions = array(array('value', $values[0]));
+    $result = field_attach_query_revisions($this->field_name, $conditions, FIELD_QUERY_NO_LIMIT);
+    $expected = array(
+      $entity_type => array(
+        $entities[1]->ftid => field_test_create_stub_entity($entities[1]->ftid, $entities[1]->ftvid),
+      )
+    );
+    $this->assertEqual($result, $expected, t('FIELD_QUERY_RETURN_IDS result format returns the expect result'));
+  }
+
   function testFieldAttachViewAndPreprocess() {
     $entity_type = 'test_entity';
     $entity = field_test_create_stub_entity(0, 0, $this->instance['bundle']);
@@ -283,18 +470,11 @@ class FieldAttachTestCase extends DrupalWebTestCase {
     field_update_instance($this->instance);
     $entity->content = field_attach_view($entity_type, $entity);
     $output = drupal_render($entity->content);
-    $variables = field_attach_preprocess($entity_type, $entity);
-    $variable = $this->instance['field_name'] . '_rendered';
-    $this->assertTrue(isset($variables[$variable]), "Variable $variable is available in templates.");
     $this->content = $output;
     $this->assertRaw($this->instance['label'], "Label is displayed.");
-    $this->content = $variables[$variable];
-    $this->assertRaw($this->instance['label'], "Label is displayed (template variable).");
     foreach ($values as $delta => $value) {
       $this->content = $output;
       $this->assertRaw("$formatter_setting|{$value['value']}", "Value $delta is displayed, formatter settings are applied.");
-      $this->content = $variables[$variable];
-      $this->assertRaw("$formatter_setting|{$value['value']}", "Value $delta is displayed, formatter settings are applied (template variable).");
     }
 
     // Label hidden.
@@ -302,11 +482,8 @@ class FieldAttachTestCase extends DrupalWebTestCase {
     field_update_instance($this->instance);
     $entity->content = field_attach_view($entity_type, $entity);
     $output = drupal_render($entity->content);
-    $variables = field_attach_preprocess($entity_type, $entity);
     $this->content = $output;
     $this->assertNoRaw($this->instance['label'], "Hidden label: label is not displayed.");
-    $this->content = $variables[$variable];
-    $this->assertNoRaw($this->instance['label'], "Hidden label: label is not displayed (template variable).");
 
     // Field hidden.
     $this->instance['display'] = array(
@@ -318,8 +495,6 @@ class FieldAttachTestCase extends DrupalWebTestCase {
     field_update_instance($this->instance);
     $entity->content = field_attach_view($entity_type, $entity);
     $output = drupal_render($entity->content);
-    $variables = field_attach_preprocess($entity_type, $entity);
-    $this->assertTrue(isset($variables[$variable]), "Hidden field: variable $variable is available in templates.");
     $this->content = $output;
     $this->assertNoRaw($this->instance['label'], "Hidden field: label is not displayed.");
     foreach ($values as $delta => $value) {
@@ -340,18 +515,14 @@ class FieldAttachTestCase extends DrupalWebTestCase {
     field_update_instance($this->instance);
     $entity->content = field_attach_view($entity_type, $entity);
     $output = drupal_render($entity->content);
-    $variables = field_attach_preprocess($entity_type, $entity);
     $display = $formatter_setting;
     foreach ($values as $delta => $value) {
       $display .= "|$delta:{$value['value']}";
     }
     $this->content = $output;
     $this->assertRaw($display, "Multiple formatter: all values are displayed, formatter settings are applied.");
-    $this->content = $variables[$variable];
-    $this->assertRaw($display, "Multiple formatter: all values are displayed, formatter settings are applied (template variable).");
 
     // TODO:
-    // - check that the 'exclude' option works (if we keep it in core)
     // - check display order with several fields
   }
 
@@ -504,7 +675,7 @@ class FieldAttachTestCase extends DrupalWebTestCase {
    */
   function testFieldAttachCache() {
     // Initialize random values and a test entity.
-    $entity = field_test_create_stub_entity(1, 1, $this->instance['bundle']);
+    $entity_init = field_test_create_stub_entity(1, 1, $this->instance['bundle']);
     $values = $this->_generateTestFieldValues($this->field['cardinality']);
 
     $noncached_type = 'test_entity';
@@ -512,57 +683,65 @@ class FieldAttachTestCase extends DrupalWebTestCase {
 
 
     // Non-cacheable entity type.
-    $cid = "field:$noncached_type:{$entity->ftid}";
+    $cid = "field:$noncached_type:{$entity_init->ftid}";
 
     // Check that no initial cache entry is present.
     $this->assertFalse(cache_get($cid, 'cache_field'), t('Non-cached: no initial cache entry'));
 
     // Save, and check that no cache entry is present.
+    $entity = clone($entity_init);
     $entity->{$this->field_name} = $values;
     field_attach_insert($noncached_type, $entity);
     $this->assertFalse(cache_get($cid, 'cache_field'), t('Non-cached: no cache entry on insert'));
 
     // Load, and check that no cache entry is present.
+    $entity = clone($entity_init);
     field_attach_load($noncached_type, array($entity->ftid => $entity));
     $this->assertFalse(cache_get($cid, 'cache_field'), t('Non-cached: no cache entry on load'));
 
 
     // Cacheable entity type.
-    $cid = "field:$cached_type:{$entity->ftid}";
+    $cid = "field:$cached_type:{$entity_init->ftid}";
 
     // Check that no initial cache entry is present.
     $this->assertFalse(cache_get($cid, 'cache_field'), t('Cached: no initial cache entry'));
 
     // Save, and check that no cache entry is present.
+    $entity = clone($entity_init);
     $entity->{$this->field_name} = $values;
     field_attach_insert($cached_type, $entity);
     $this->assertFalse(cache_get($cid, 'cache_field'), t('Cached: no cache entry on insert'));
 
     // Load, and check that a cache entry is present with the expected values.
+    $entity = clone($entity_init);
     field_attach_load($cached_type, array($entity->ftid => $entity));
     $cache = cache_get($cid, 'cache_field');
     $this->assertEqual($cache->data[$this->field_name], $values, t('Cached: correct cache entry on load'));
 
     // Update with different values, and check that the cache entry is wiped.
     $values = $this->_generateTestFieldValues($this->field['cardinality']);
+    $entity = clone($entity_init);
     $entity->{$this->field_name} = $values;
     field_attach_update($cached_type, $entity);
     $this->assertFalse(cache_get($cid, 'cache_field'), t('Cached: no cache entry on update'));
 
     // Load, and check that a cache entry is present with the expected values.
+    $entity = clone($entity_init);
     field_attach_load($cached_type, array($entity->ftid => $entity));
     $cache = cache_get($cid, 'cache_field');
     $this->assertEqual($cache->data[$this->field_name], $values, t('Cached: correct cache entry on load'));
 
     // Create a new revision, and check that the cache entry is wiped.
+    $entity_init = field_test_create_stub_entity(1, 2, $this->instance['bundle']);
     $values = $this->_generateTestFieldValues($this->field['cardinality']);
+    $entity = clone($entity_init);
     $entity->{$this->field_name} = $values;
-    $entity->ftvid = 2;
     field_attach_update($cached_type, $entity);
     $cache = cache_get($cid, 'cache_field');
     $this->assertFalse(cache_get($cid, 'cache_field'), t('Cached: no cache entry on new revision creation'));
 
     // Load, and check that a cache entry is present with the expected values.
+    $entity = clone($entity_init);
     field_attach_load($cached_type, array($entity->ftid => $entity));
     $cache = cache_get($cid, 'cache_field');
     $this->assertEqual($cache->data[$this->field_name], $values, t('Cached: correct cache entry on load'));
@@ -682,9 +861,9 @@ class FieldInfoTestCase extends DrupalWebTestCase {
 
   public static function getInfo() {
     return array(
-      'name'  => t('Field info tests'),
-      'description'  => t("Get information about existing fields, instances and bundles."),
-      'group' => t('Field')
+      'name' => 'Field info tests',
+      'description' => 'Get information about existing fields, instances and bundles.',
+      'group' => 'Field',
     );
   }
 
@@ -722,10 +901,9 @@ class FieldInfoTestCase extends DrupalWebTestCase {
       $this->assertEqual($info[$w_key]['module'], 'field_test',  t("Widget type field_test module appears"));
     }
 
-    // Verify that no fields or instances exist
-    $fields = field_info_fields();
+    // Verify that no unexpected instances exist.
+    $core_fields = field_info_fields();
     $instances = field_info_instances(FIELD_TEST_BUNDLE);
-    $this->assertTrue(empty($fields), t('With no fields, info fields is empty.'));
     $this->assertTrue(empty($instances), t('With no instances, info bundles is empty.'));
 
     // Create a field, verify it shows up.
@@ -735,7 +913,7 @@ class FieldInfoTestCase extends DrupalWebTestCase {
     );
     field_create_field($field);
     $fields = field_info_fields();
-    $this->assertEqual(count($fields), 1, t('One field exists'));
+    $this->assertEqual(count($fields), count($core_fields) + 1, t('One new field exists'));
     $this->assertEqual($fields[$field['field_name']]['field_name'], $field['field_name'], t('info fields contains field name'));
     $this->assertEqual($fields[$field['field_name']]['type'], $field['type'], t('info fields contains field type'));
     $this->assertEqual($fields[$field['field_name']]['module'], 'field_test', t('info fields contains field module'));
@@ -788,9 +966,9 @@ class FieldInfoTestCase extends DrupalWebTestCase {
 class FieldFormTestCase extends DrupalWebTestCase {
   public static function getInfo() {
     return array(
-      'name'  => t('Field form tests'),
-      'description'  => t("Test Field form handling."),
-      'group' => t('Field')
+      'name' => 'Field form tests',
+      'description' => 'Test Field form handling.',
+      'group' => 'Field',
     );
   }
 
@@ -1074,12 +1252,12 @@ class FieldFormTestCase extends DrupalWebTestCase {
   }
 }
 
-class FieldTestCase extends DrupalWebTestCase {
+class FieldCrudTestCase extends DrupalWebTestCase {
   public static function getInfo() {
     return array(
-      'name'  => t('Field tests'),
-      'description'  => t("Create / read /update a field."),
-      'group' => t('Field')
+      'name' => 'Field CRUD tests',
+      'description' => 'Create / read /update fields.',
+      'group' => 'Field',
     );
   }
 
@@ -1091,6 +1269,7 @@ class FieldTestCase extends DrupalWebTestCase {
   // - a full fledged $field structure, check that all the values are there
   // - a minimal $field structure, check all default values are set
   // defer actual $field comparison to a helper function, used for the two cases above
+
   /**
    * Test the creation of a field.
    */
@@ -1121,21 +1300,26 @@ class FieldTestCase extends DrupalWebTestCase {
       'field_name' => 'field_2',
       'type' => 'test_field',
     );
-    field_create_field($field_definition);
+    field_test_memorize();
+    $field_definition = field_create_field($field_definition);
+    $mem = field_test_memorize();
+    $this->assertIdentical($mem['field_test_field_create_field'][0][0], $field_definition, 'hook_field_create_field() called with correct arguments.');
 
-    $field = field_read_field($field_definition['field_name']);
+    // Read the raw record from the {field_config_instance} table.
+    $result = db_query('SELECT * FROM {field_config} WHERE field_name = :field_name', array(':field_name' => $field_definition['field_name']));
+    $record = $result->fetchAssoc();
+    $record['data'] = unserialize($record['data']);
 
     // Ensure that basic properties are preserved.
-    $this->assertEqual($field['field_name'], $field_definition['field_name'], t('The field name is properly saved.'));
-    $this->assertEqual($field['type'], $field_definition['type'], t('The field type is properly saved.'));
+    $this->assertEqual($record['field_name'], $field_definition['field_name'], t('The field name is properly saved.'));
+    $this->assertEqual($record['type'], $field_definition['type'], t('The field type is properly saved.'));
 
     // Ensure that cardinality defaults to 1.
-    $this->assertEqual($field['cardinality'], 1, t('Cardinality defaults to 1.'));
+    $this->assertEqual($record['cardinality'], 1, t('Cardinality defaults to 1.'));
 
     // Ensure that default settings are present.
-    $info = field_info_field_types($field['type']);
-    $settings = $info['settings'];
-    $this->assertIdentical($settings, $field['settings'] , t('Default field settings have been written.'));
+    $field_type = field_info_field_types($field_definition['type']);
+    $this->assertIdentical($record['data']['settings'], $field_type['settings'], t('Default field settings have been written.'));
 
     // Guarantee that the name is unique.
     try {
@@ -1159,6 +1343,35 @@ class FieldTestCase extends DrupalWebTestCase {
       $this->pass(t('Cannot create a field with an invalid name.'));
     }
     // TODO : other failures
+  }
+
+  /**
+   * Test reading back a field definition.
+   */
+  function testReadField() {
+    $field_definition = array(
+      'field_name' => 'field_1',
+      'type' => 'test_field',
+    );
+    field_create_field($field_definition);
+
+    // Simulate a stored field definition missing a field setting (e.g. a
+    // third-party module adding a new field setting has been enabled, and
+    // existing fields do not know the setting yet).
+    $data = db_result(db_query('SELECT data FROM {field_config} WHERE field_name = :field_name', array(':field_name' => $field_definition['field_name'])));
+    $data = unserialize($data);
+    $data['settings'] = array();
+    db_update('field_config')
+      ->fields(array('data' => serialize($data)))
+      ->condition('field_name', $field_definition['field_name'])
+      ->execute();
+
+    // Read the field back.
+    $field = field_read_field($field_definition['field_name']);
+
+    // Check that all expected settings are in place.
+    $field_type = field_info_field_types($field_definition['type']);
+    $this->assertIdentical($field['settings'], $field_type['settings'], t('All expected default field settings are present.'));
   }
 
   /**
@@ -1204,10 +1417,6 @@ class FieldTestCase extends DrupalWebTestCase {
     $this->assertEqual($field['indexes'], $expected_indexes, t('Field definition indexes are merged with field type indexes'));
   }
 
-  function testReadField() {
-
-  }
-
   /**
    * Test the deletion of a field.
    */
@@ -1240,7 +1449,8 @@ class FieldTestCase extends DrupalWebTestCase {
 
     // Make sure that the field is marked as deleted when it is specifically
     // loaded.
-    $field = field_read_field($this->field['field_name'], array('include_deleted' => TRUE));
+    $fields = field_read_fields(array(), array('include_deleted' => TRUE));
+    $field = current($field);
     $this->assertTrue(!empty($field['deleted']), t('A deleted field is marked for deletion.'));
 
     // Make sure that this field's instance is marked as deleted when it is
@@ -1261,17 +1471,41 @@ class FieldTestCase extends DrupalWebTestCase {
     $this->assertTrue(!empty($another_field) && empty($another_field['deleted']), t('A non-deleted field is not marked for deletion.'));
     $another_instance = field_read_instance($this->another_instance_definition['field_name'], $this->another_instance_definition['bundle']);
     $this->assertTrue(!empty($another_instance) && empty($another_instance['deleted']), t('An instance of a non-deleted field is not marked for deletion.'));
+
+    // Try to create a new field the same name as a deleted field and
+    // write data into it.
+    field_create_field($this->field);
+    field_create_instance($this->instance_definition);
+    $field = field_read_field($this->field['field_name']);
+    $this->assertTrue(!empty($field) && empty($field['deleted']), t('A new field with a previously used name is created.'));
+    $instance = field_read_instance($this->instance_definition['field_name'], $this->instance_definition['bundle']);
+    $this->assertTrue(!empty($instance) && empty($instance['deleted']), t('A new instance for a previously used field name is created.'));
+
+    // Save an object with data for the field
+    $entity = field_test_create_stub_entity(0, 0, $instance['bundle']);
+    $values[0]['value'] = mt_rand(1, 127);
+    $entity->{$field['field_name']} = $values;
+    $entity_type = 'test_entity';
+    field_attach_insert($entity_type, $entity);
+
+    // Verify the field is present on load
+    $entity = field_test_create_stub_entity(0, 0, $this->instance_definition['bundle']);
+    field_attach_load($entity_type, array(0 => $entity));
+    $this->assertIdentical(count($entity->{$field['field_name']}), count($values), "Data in previously deleted field saves and loads correctly");
+    foreach ($values as $delta => $value) {
+      $this->assertEqual($entity->{$field['field_name']}[$delta]['value'], $values[$delta]['value'], "Data in previously deleted field saves and loads correctly");
+    }
   }
 }
 
-class FieldInstanceTestCase extends DrupalWebTestCase {
+class FieldInstanceCrudTestCase extends DrupalWebTestCase {
   protected $field;
 
   public static function getInfo() {
     return array(
-      'name'  => t('Field instance tests'),
-      'description'  => t("Create field entities by attaching fields to entities."),
-      'group' => t('Field')
+      'name' => 'Field instance CRUD tests',
+      'description' => 'Create field entities by attaching fields to entities.',
+      'group' => 'Field',
     );
   }
 
@@ -1293,30 +1527,35 @@ class FieldInstanceTestCase extends DrupalWebTestCase {
   // - a minimal $instance structure, check all default values are set
   // defer actual $instance comparison to a helper function, used for the two cases above,
   // and for testUpdateFieldInstance
+
+  /**
+   * Test the creation of a field instance.
+   */
   function testCreateFieldInstance() {
     field_create_instance($this->instance_definition);
-    $instance = field_read_instance($this->instance_definition['field_name'], $this->instance_definition['bundle']);
+
+    // Read the raw record from the {field_config_instance} table.
+    $result = db_query('SELECT * FROM {field_config_instance} WHERE field_name = :field_name AND bundle = :bundle', array(':field_name' => $this->instance_definition['field_name'], ':bundle' => $this->instance_definition['bundle']));
+    $record = $result->fetchAssoc();
+    $record['data'] = unserialize($record['data']);
+
+    //$instance = field_read_instance($this->instance_definition['field_name'], $this->instance_definition['bundle']);
     $field_type = field_info_field_types($this->field['type']);
-    $widget_type = field_info_widget_types($instance['widget']['type']);
-    $formatter_type = field_info_formatter_types($instance['display']['full']['type']);
+    $widget_type = field_info_widget_types($field_type['default_widget']);
+    $formatter_type = field_info_formatter_types($field_type['default_formatter']);
 
     // Check that default values are set.
-    $this->assertIdentical($instance['required'], FALSE, t('Required defaults to false.'));
-    $this->assertIdentical($instance['label'], $this->instance_definition['field_name'], t('Label defaults to field name.'));
-    $this->assertIdentical($instance['description'], '', t('Description defaults to empty string.'));
+    $this->assertIdentical($record['data']['required'], FALSE, t('Required defaults to false.'));
+    $this->assertIdentical($record['data']['label'], $this->instance_definition['field_name'], t('Label defaults to field name.'));
+    $this->assertIdentical($record['data']['description'], '', t('Description defaults to empty string.'));
+    $this->assertIdentical($record['widget_type'], $field_type['default_widget'], t('Default widget has been written.'));
+    $this->assertTrue(isset($record['data']['display']['full']), t('Display for "full" build_mode has been written.'));
+    $this->assertIdentical($record['data']['display']['full']['type'], $field_type['default_formatter'], t('Default formatter for "full" build_mode has been written.'));
 
-    // Check that default instance settings are set.
-    $this->assertIdentical($instance['settings'], $field_type['instance_settings'] , t('Default instance settings have been written.'));
-    // Check that the widget is the default one.
-    $this->assertIdentical($instance['widget']['type'], $field_type['default_widget'], t('Default widget has been written.'));
-    // Check that default widget settings are set.
-    $this->assertIdentical($instance['widget']['settings'], $widget_type['settings'] , t('Default widget settings have been written.'));
-    // Check that we have display info for 'full' build_mode.
-    $this->assertTrue(isset($instance['display']['full']), t('Display for "full" build_mode has been written.'));
-    // Check that the formatter is the default one.
-    $this->assertIdentical($instance['display']['full']['type'], $field_type['default_formatter'], t('Default formatter for "full" build_mode has been written.'));
-    // Check that the default formatter settings are set.
-    $this->assertIdentical($instance['display']['full']['settings'], $formatter_type['settings'], t('Default formatter settings for "full" build_mode have been written.'));
+    // Check that default settings are set.
+    $this->assertIdentical($record['data']['settings'], $field_type['instance_settings'] , t('Default instance settings have been written.'));
+    $this->assertIdentical($record['data']['widget']['settings'], $widget_type['settings'] , t('Default widget settings have been written.'));
+    $this->assertIdentical($record['data']['display']['full']['settings'], $formatter_type['settings'], t('Default formatter settings for "full" build_mode have been written.'));
 
     // Guarantee that the field/bundle combination is unique.
     try {
@@ -1340,10 +1579,41 @@ class FieldInstanceTestCase extends DrupalWebTestCase {
     // TODO: test other failures.
   }
 
+  /**
+   * Test reading back an instance definition.
+   */
   function testReadFieldInstance() {
+    field_create_instance($this->instance_definition);
 
+    // Simulate a stored instance definition missing various settings (e.g. a
+    // third-party module adding instance, widget or display settings has been
+    // enabled, but existing instances do not know the new settings).
+    $data = db_result(db_query('SELECT data FROM {field_config_instance} WHERE field_name = :field_name AND bundle = :bundle', array(':field_name' => $this->instance_definition['field_name'], ':bundle' => $this->instance_definition['bundle'])));
+    $data = unserialize($data);
+    $data['settings'] = array();
+    $data['widget']['settings'] = array();
+    $data['display']['full']['settings'] = array();
+    db_update('field_config_instance')
+      ->fields(array('data' => serialize($data)))
+      ->condition('field_name', $this->instance_definition['field_name'])
+      ->condition('bundle', $this->instance_definition['bundle'])
+      ->execute();
+
+    // Read the instance back.
+    $instance = field_read_instance($this->instance_definition['field_name'], $this->instance_definition['bundle']);
+
+    // Check that all expected settings are in place.
+    $field_type = field_info_field_types($this->field['type']);
+    $widget_type = field_info_widget_types($instance['widget']['type']);
+    $formatter_type = field_info_formatter_types($instance['display']['full']['type']);
+    $this->assertIdentical($instance['settings'], $field_type['instance_settings'] , t('All expected instance settings are present.'));
+    $this->assertIdentical($instance['widget']['settings'], $widget_type['settings'] , t('All expected widget settings are present.'));
+    $this->assertIdentical($instance['display']['full']['settings'], $formatter_type['settings'] , t('All expected formatter settings are present.'));
   }
 
+  /**
+   * Test the update of a field instance.
+   */
   function testUpdateFieldInstance() {
     field_create_instance($this->instance_definition);
     $field_type = field_info_field_types($this->field['type']);
@@ -1397,6 +1667,9 @@ class FieldInstanceTestCase extends DrupalWebTestCase {
     // TODO: test failures.
   }
 
+  /**
+   * Test the deletion of a field instance.
+   */
   function testDeleteFieldInstance() {
     // TODO: Test deletion of the data stored in the field also.
     // Need to check that data for a 'deleted' field / instance doesn't get loaded

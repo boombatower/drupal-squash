@@ -11,26 +11,20 @@
  * Menu callback. Prints a listing of active nodes on the site.
  */
 function tracker_page($account = NULL, $set_title = FALSE) {
-  // Add CSS
-  drupal_add_css(drupal_get_path('module', 'tracker') . '/tracker.css', array('preprocess' => FALSE));
-
-  $header = array(
-    t('Type'),
-    t('Post'),
-    t('Author'),
-    t('Replies'),
-    t('Last updated')
-  );
-
   // TODO: These queries are very expensive, see http://drupal.org/node/105639
-  $query = db_select('node', 'n', array('target' => 'slave'))
-    ->fields('n', array('nid', 'title', 'type', 'changed', 'uid'));
+  $query = db_select('node', 'n', array('target' => 'slave'))->extend('PagerDefault');
   $query->join('users', 'u', 'n.uid = u.uid');
-  $query->addField('u', 'name');
   $query->join('node_comment_statistics', 'l', 'n.nid = l.nid');
   $query->addExpression('GREATEST(n.changed, l.last_comment_timestamp)', 'last_updated');
-  $query->addField('l', 'comment_count');
-  $query->orderBy('last_updated', 'DESC');
+  $query
+    ->distinct()
+    ->fields('n', array('nid', 'title', 'type', 'changed', 'uid'))
+    ->fields('u', array('name'))
+    ->fields('l', array('comment_count'))
+    ->condition('n.status', 1)
+    ->orderBy('last_updated', 'DESC')
+    ->addTag('node_access')
+    ->limit(25);
 
   if ($account) {
     if ($set_title) {
@@ -45,12 +39,6 @@ function tracker_page($account = NULL, $set_title = FALSE) {
       ->condition('c.uid', $account->uid)
     );
   }
-
-  $query->condition('n.status', 1);
-  $query->distinct();
-  $query->extend('PagerDefault')->extend('TableSort')
-    ->limit(25, 0)
-    ->orderByHeader($header);
 
   $result = $query->execute();
 
@@ -68,7 +56,7 @@ function tracker_page($account = NULL, $set_title = FALSE) {
     }
 
     $rows[] = array(
-      check_plain(node_get_types('name', $node->type)),
+      check_plain(node_type_get_name($node->type)),
       l($node->title, "node/$node->nid") . ' ' . theme('mark', node_mark($node->nid, $node->changed)),
       theme('username', $node),
       array('class' => 'replies', 'data' => $comments),
@@ -80,10 +68,18 @@ function tracker_page($account = NULL, $set_title = FALSE) {
     $rows[] = array(array('data' => t('No posts available.'), 'colspan' => '5'));
   }
 
-  $output = '<div id="tracker">';
-  $output .= theme('table', $header, $rows);
-  $output .= theme('pager', NULL);
-  $output .= '</div>';
+  $page['tracker'] = array(
+    '#rows' => $rows,
+    '#header' => array(t('Type'), t('Post'), t('Author'), t('Replies'), t('Last updated')),
+    '#theme' => 'table',
+    '#attached_css' => array(drupal_get_path('module', 'tracker') . '/tracker.css' => array('preprocess' => FALSE)),
+  );
+  $page['pager'] = array(
+    '#theme' => 'pager',
+    '#quantity' => 25,
+    '#weight' => 10,
+  );
+  $page['#sorted'] = TRUE;
 
-  return $output;
+  return $page;
 }

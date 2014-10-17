@@ -210,7 +210,7 @@ define('MENU_SITE_OFFLINE', 4);
  /**
  * The maximum number of path elements for a menu callback
  */
-define('MENU_MAX_PARTS', 7);
+define('MENU_MAX_PARTS', 8);
 
 
 /**
@@ -648,7 +648,7 @@ function _menu_translate(&$router_item, $map, $to_arg = FALSE) {
  * helper function. These functions take an argument and return an object.
  * See http://drupal.org/node/109153 for more information.
  *
- * @param map
+ * @param $map
  *   An array of path arguments (ex: array('node', '5'))
  * @param $to_arg_functions
  *   An array of helper function (ex: array(2 => 'menu_tail_to_arg'))
@@ -809,13 +809,14 @@ function menu_tree_output($tree) {
 
   $num_items = count($items);
   foreach ($items as $i => $data) {
-    $extra_class = NULL;
+    $extra_class = array();
     if ($i == 0) {
-      $extra_class = 'first';
+      $extra_class[] = 'first';
     }
     if ($i == $num_items - 1) {
-      $extra_class = 'last';
+      $extra_class[] = 'last';
     }
+    $extra_class = implode(' ', $extra_class);
     $link = theme('menu_item_link', $data['link']);
     if ($data['below']) {
       $output .= theme('menu_item', $link, $data['link']['has_children'], menu_tree_output($data['below']), $data['link']['in_active_trail'], $extra_class);
@@ -1265,7 +1266,26 @@ function theme_menu_tree($tree) {
 /**
  * Generate the HTML output for a menu item and submenu.
  *
+ * The menu item's LI element is given one of the following classes:
+ * - expanded: The menu item is showing its submenu.
+ * - collapsed: The menu item has a submenu which is not shown.
+ * - leaf: The menu item has no submenu. 
+ *
  * @ingroup themeable
+ *
+ * @param $link
+ *   The fully-formatted link for this menu item.
+ * @param $has_children
+ *   Boolean value indicating if this menu item has children.
+ * @param $menu
+ *   Contains a fully-formatted submenu, if one exists for this menu item.
+ *   Defaults to NULL.
+ * @param $in_active_trail
+ *   Boolean determining if the current page is below the menu item in the
+ *   menu system. Defaults to FALSE.
+ * @param $extra_class
+ *   Extra classes that should be added to the class of the list item.
+ *   Defaults to NULL.
  */
 function theme_menu_item($link, $has_children, $menu = '', $in_active_trail = FALSE, $extra_class = NULL) {
   $class = ($menu ? 'expanded' : ($has_children ? 'collapsed' : 'leaf'));
@@ -1317,7 +1337,7 @@ function menu_get_active_help() {
     }
     // Add "more help" link on admin pages if the module provides a
     // standalone help page.
-    if ($arg[0] == "admin" && module_exists('help') && $function('admin/help#' . $arg[2], $empty_arg) && $help) {
+    if ($arg[0] == "admin" && user_access('access administration pages') && module_exists('help') && $function('admin/help#' . $arg[2], $empty_arg) && $help) {
       $output .= theme("more_help_link", url('admin/help/' . $arg[2]));
     }
   }

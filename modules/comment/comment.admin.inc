@@ -66,19 +66,18 @@ function comment_admin_overview($type = 'new', $arg) {
     'operations' => array('data' => t('Operations')),
   );
 
-  $query = db_select('comment', 'c');
+  $query = db_select('comment', 'c')->extend('PagerDefault')->extend('TableSort');
   $query->join('users', 'u', 'u.uid = c.uid');
   $query->join('node', 'n', 'n.nid = c.nid');
   $query->addField('u', 'name', 'registered_name');
   $query->addField('n', 'title', 'node_title');
-  $query
+  $result = $query
     ->fields('c', array('subject', 'nid', 'cid', 'comment', 'timestamp', 'status', 'name', 'homepage'))
     ->fields('u', array('uid'))
     ->condition('c.status', $status)
-    ->extend('PagerDefault')->extend('TableSort')
     ->limit(50)
-    ->orderByHeader($header);
-  $result = $query->execute();
+    ->orderByHeader($header)
+    ->execute();
 
 
   // Build a table listing the appropriate comments.
@@ -87,7 +86,7 @@ function comment_admin_overview($type = 'new', $arg) {
 
   foreach ($result as $comment) {
     $options[$comment->cid] = array(
-      'subject' => l($comment->subject, 'node/' . $comment->nid, array('attributes' => array('title' => truncate_utf8($comment->comment, 128)), 'fragment' => 'comment-' . $comment->cid)),
+      'subject' => l($comment->subject, 'comment/' . $comment->cid, array('attributes' => array('title' => truncate_utf8($comment->comment, 128)), 'fragment' => 'comment-' . $comment->cid)),
       'author' => theme('username', $comment),
       'posted_in' => l($comment->node_title, 'node/' . $comment->nid),
       'time' => format_date($comment->timestamp, 'small'),
@@ -117,7 +116,7 @@ function comment_admin_overview_validate($form, &$form_state) {
   // We can't execute any 'Update options' if no comments were selected.
   if (count($form_state['values']['comments']) == 0) {
     form_set_error('', t('Please select one or more comments to perform the update on.'));
-    drupal_goto('admin/content/comment');
+    drupal_goto('admin/content/content/comment');
   }
 }
 
@@ -141,14 +140,14 @@ function comment_admin_overview_submit($form, &$form_state) {
         $comment = comment_load($cid);
         _comment_update_node_statistics($comment->nid);
         // Allow modules to respond to the updating of a comment.
-        comment_invoke_comment($comment, $form_state['values']['operation']);
+        module_invoke_all('comment_' . $form_state['values']['operation'], $comment);
         // Add an entry to the watchdog log.
         watchdog('content', 'Comment: updated %subject.', array('%subject' => $comment->subject), WATCHDOG_NOTICE, l(t('view'), 'node/' . $comment->nid, array('fragment' => 'comment-' . $comment->cid)));
       }
     }
     cache_clear_all();
     drupal_set_message(t('The update has been performed.'));
-    $form_state['redirect'] = 'admin/content/comment';
+    $form_state['redirect'] = 'admin/content/content/comment';
   }
 }
 
@@ -184,12 +183,12 @@ function comment_multiple_delete_confirm(&$form_state) {
 
   if (!$comment_counter) {
     drupal_set_message(t('There do not appear to be any comments to delete, or your selected comment was deleted by another administrator.'));
-    drupal_goto('admin/content/comment');
+    drupal_goto('admin/content/content/comment');
   }
   else {
     return confirm_form($form,
                         t('Are you sure you want to delete these comments and all their children?'),
-                        'admin/content/comment', t('This action cannot be undone.'),
+                        'admin/content/content/comment', t('This action cannot be undone.'),
                         t('Delete comments'), t('Cancel'));
   }
 }
@@ -208,7 +207,7 @@ function comment_multiple_delete_confirm_submit($form, &$form_state) {
     cache_clear_all();
     drupal_set_message(t('The comments have been deleted.'));
   }
-  $form_state['redirect'] = 'admin/content/comment';
+  $form_state['redirect'] = 'admin/content/content/comment';
 }
 
 /**
@@ -284,7 +283,7 @@ function _comment_delete_thread($comment) {
     ->condition('cid', $comment->cid)
     ->execute();
   watchdog('content', 'Comment: deleted %subject.', array('%subject' => $comment->subject));
-  comment_invoke_comment($comment, 'delete');
+  module_invoke_all('comment_delete', $comment);
 
   // Delete the comment's replies.
   $result = db_query('SELECT c.*, u.name AS registered_name, u.uid FROM {comment} c INNER JOIN {users} u ON u.uid = c.uid WHERE pid = :cid', array(':cid' => $comment->cid));

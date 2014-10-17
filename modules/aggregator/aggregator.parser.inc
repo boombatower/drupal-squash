@@ -7,7 +7,7 @@
  */
 
 /**
- * Implementation of hook_aggregator_parse_info().
+ * Implement hook_aggregator_parse_info().
  */
 function aggregator_aggregator_parse_info() {
   return array(
@@ -17,7 +17,7 @@ function aggregator_aggregator_parse_info() {
 }
 
 /**
- * Implementation of hook_aggregator_parse().
+ * Implement hook_aggregator_parse().
  */
 function aggregator_aggregator_parse($feed) {
   global $channel, $image;
@@ -164,6 +164,11 @@ function aggregator_parse_feed(&$data, $feed) {
       $item['timestamp'] = aggregator_parse_w3cdtf($date); // Aggregator_parse_w3cdtf() returns FALSE on failure.
     }
 
+    // Resolve dc:creator tag as the item author if author tag is not set.
+    if (empty($item['author']) && !empty($item['dc:creator'])) {
+      $item['author'] = $item['dc:creator'];
+    }
+     
     $item += array('author' => '', 'description' => '');
 
     // Store on $feed object. This is where processors will look for parsed items.

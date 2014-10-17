@@ -30,14 +30,16 @@
  * @see update_project_cache()
  */
 function update_get_projects() {
-  static $projects = array();
+  $projects = &drupal_static(__FUNCTION__, array());
   if (empty($projects)) {
     // Retrieve the projects from cache, if present.
     $projects = update_project_cache('update_project_projects');
     if (empty($projects)) {
       // Still empty, so we have to rebuild the cache.
-      _update_process_info_list($projects, module_rebuild_cache(), 'module');
-      _update_process_info_list($projects, system_theme_data(), 'theme');
+      _update_process_info_list($projects, system_get_module_data(), 'module');
+      _update_process_info_list($projects, system_get_theme_data(), 'theme');
+      // Allow other modules to alter projects before fetching and comparing.
+      drupal_alter('update_projects', $projects);
       // Cache the site's project data for at most 1 hour.
       _update_cache_set('update_project_projects', $projects, REQUEST_TIME + 3600);
     }
@@ -115,7 +117,7 @@ function update_get_project_name($file) {
   elseif (isset($file->info['package']) && (strpos($file->info['package'], 'Core') !== FALSE)) {
     $project_name = 'drupal';
   }
-  elseif (in_array($file->name, array('bluemarine', 'chameleon', 'garland', 'marvin', 'minnelli', 'pushbutton'))) {
+  elseif (in_array($file->name, array('garland', 'minnelli', 'stark'))) {
     // Unfortunately, there's no way to tell if a theme is part of core,
     // so we must hard-code a list here.
     $project_name = 'drupal';
@@ -301,6 +303,11 @@ function update_calculate_project_data($available) {
               'data' => t('This project is no longer supported, and is no longer available for download. Disabling everything included by this project is strongly recommended!'),
             );
             break;
+          case 'not-fetched':
+            $projects[$project]['status'] = UPDATE_NOT_FETCHED;
+            $projects[$project]['reason'] = t('Failed to fetch available update data');
+            break;
+
           default:
             // Assume anything else (e.g. 'published') is valid and we should
             // perform the rest of the logic in this function.
@@ -609,7 +616,7 @@ function update_project_cache($cid) {
   // On certain paths, we should clear the cache and recompute the projects or
   // update status of the site to avoid presenting stale information.
   $q = $_GET['q'];
-  $paths = array('admin/build/modules', 'admin/build/themes', 'admin/reports', 'admin/reports/updates', 'admin/reports/status', 'admin/reports/updates/check');
+  $paths = array('admin/structure/modules', 'admin/structure/themes', 'admin/reports', 'admin/reports/updates', 'admin/reports/status', 'admin/reports/updates/check');
   if (in_array($q, $paths)) {
     _update_cache_clear($cid);
   }

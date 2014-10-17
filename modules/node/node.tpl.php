@@ -7,20 +7,32 @@
  *
  * Available variables:
  * - $title: the (sanitized) title of the node.
- * - $content: Node body or teaser depending on $teaser flag.
- * - $comments: the themed list of comments (if any).
+ * - $content: An array of node items. Use render($content) to print them all, or
+ *   print a subset such as render($content['field_example']). Use
+ *   hide($content['field_example']) to temporarily suppress the printing of a
+ *   given element.
  * - $picture: The authors picture of the node output from
  *   theme_user_picture().
  * - $date: Formatted creation date (use $created to reformat with
  *   format_date()).
- * - $links: Themed links like "Read more", "Add new comment", etc. output
- *   from theme_links().
- * - $name: Themed username of node author output from theme_user().
+ * - $name: Themed username of node author output from theme_username().
  * - $node_url: Direct url of the current node.
  * - $terms: the themed list of taxonomy term links output from theme_links().
  * - $submitted: themed submission information output from
  *   theme_node_submitted().
- * TODO D7 : document $FIELD_NAME_rendered variables.
+ * - $classes: String of classes that can be used to style contextually through
+ *   CSS. It can be manipulated through the variable $classes_array from
+ *   preprocess functions. The default values can be one or more of the following:
+ *   - node: The current template type, i.e., "theming hook".
+ *   - node-[type]: The current node type. For example, if the node is a
+ *     "Blog entry" it would result in "node-blog". Note that the machine
+ *     name will often be in a short form of the human readable label.
+ *   - node-teaser: Nodes in teaser form.
+ *   - node-preview: Nodes in preview mode.
+ *   The following are controlled through the node publishing options.
+ *   - node-promoted: Nodes promoted to the front page.
+ *   - node-sticky: Nodes ordered above other non-sticky nodes in teaser listings.
+ *   - node-unpublished: Unpublished nodes visible only to administrators.
  *
  * Other variables:
  * - $node: Full node object. Contains data that may not be safe.
@@ -28,12 +40,15 @@
  * - $comment_count: Number of comments attached to the node.
  * - $uid: User ID of the node author.
  * - $created: Time the node was published formatted in Unix timestamp.
+ * - $classes_array: Array of html class attribute values. It is flattened
+ *   into a string within the variable $classes.
  * - $zebra: Outputs either "even" or "odd". Useful for zebra striping in
  *   teaser listings.
  * - $id: Position of the node. Increments each time it's output.
  *
  * Node status variables:
- * - $teaser: Flag for the teaser state.
+ * - $build_mode: Build mode, e.g. 'full', 'teaser'...
+ * - $teaser: Flag for the teaser state (shortcut for $build_mode == 'teaser').
  * - $page: Flag for the full page state.
  * - $promote: Flag for front page promotion state.
  * - $sticky: Flags for sticky post setting.
@@ -47,9 +62,10 @@
  *
  * @see template_preprocess()
  * @see template_preprocess_node()
+ * @see template_process()
  */
 ?>
-<div id="node-<?php print $node->nid; ?>" class="node<?php if ($sticky) { print ' sticky'; } ?><?php if (!$status) { print ' node-unpublished'; } ?> clearfix">
+<div id="node-<?php print $node->nid; ?>" class="<?php print $classes ?> clearfix">
 
 <?php print $picture ?>
 
@@ -62,17 +78,22 @@
     <span class="submitted"><?php print $submitted ?></span>
   <?php endif; ?>
 
-  <?php if ($terms): ?>
-    <div class="terms terms-inline"><?php print $terms ?></div>
+  <?php if (!empty($content['links']['terms'])): ?>
+    <div class="terms terms-inline"><?php render($content['links']['terms']) ?></div>
   <?php endif;?>
   </div>
 
   <div class="content">
-    <?php print $content ?>
+    <?php
+      // We hide the comments and links now so that we can render them later.
+      hide($content['comments']);
+      hide($content['links']);
+      print render($content);
+    ?>
   </div>
 
-  <?php print $links; ?>
+  <?php print render($content['links']); ?>
 
-  <?php print $comments; ?>
+  <?php print render($content['comments']); ?>
 
 </div>

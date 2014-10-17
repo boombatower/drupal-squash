@@ -56,6 +56,12 @@ define('JS_DEFAULT', 0);
 define('JS_THEME', 100);
 
 /**
+ * Error code indicating that the request made by drupal_http_request() exceeded
+ * the specified timeout.
+ */
+define('HTTP_REQUEST_TIMEOUT', 1);
+
+/**
  * Add content to a specified region.
  *
  * @param $region
@@ -106,7 +112,7 @@ function drupal_get_region_content($region = NULL, $delimiter = ' ') {
  *   the current page.
  */
 function drupal_set_breadcrumb($breadcrumb = NULL) {
-  static $stored_breadcrumb;
+  $stored_breadcrumb = &drupal_static(__FUNCTION__);
 
   if (!is_null($breadcrumb)) {
     $stored_breadcrumb = $breadcrumb;
@@ -146,7 +152,7 @@ function drupal_get_rdf_namespaces() {
  * This function can be called as long the headers aren't sent.
  */
 function drupal_add_html_head($data = NULL) {
-  static $stored_head = '';
+  $stored_head = &drupal_static(__FUNCTION__, '');
 
   if (!is_null($data)) {
     $stored_head .= $data . "\n";
@@ -180,7 +186,7 @@ function drupal_clear_path_cache() {
  *   The title of the feed.
  */
 function drupal_add_feed($url = NULL, $title = '') {
-  static $stored_feed_links = array();
+  $stored_feed_links = &drupal_static(__FUNCTION__, array());
 
   if (!is_null($url) && !isset($stored_feed_links[$url])) {
     $stored_feed_links[$url] = theme('feed_icon', $url, $title);
@@ -227,7 +233,7 @@ function drupal_query_string_encode($query, $exclude = array(), $parent = '') {
   $params = array();
 
   foreach ($query as $key => $value) {
-    $key = drupal_urlencode($key);
+    $key = rawurlencode($key);
     if ($parent) {
       $key = $parent . '[' . $key . ']';
     }
@@ -240,7 +246,7 @@ function drupal_query_string_encode($query, $exclude = array(), $parent = '') {
       $params[] = drupal_query_string_encode($value, $exclude, $key);
     }
     else {
-      $params[] = $key . '=' . drupal_urlencode($value);
+      $params[] = $key . '=' . rawurlencode($value);
     }
   }
 
@@ -325,11 +331,9 @@ function drupal_goto($path = '', $query = NULL, $fragment = NULL, $http_response
     module_invoke_all('exit', $url);
   }
 
-  if (drupal_session_is_started()) {
-    // Even though session_write_close() is registered as a shutdown function,
-    // we need all session data written to the database before redirecting.
-    session_write_close();
-  }
+  // Commit the session, if necessary. We need all session data written to the
+  // database before redirecting.
+  drupal_session_commit();
 
   header('Location: ' . $url, TRUE, $http_response_code);
 
@@ -358,6 +362,11 @@ function drupal_not_found() {
 
   watchdog('page not found', check_plain($_GET['q']), NULL, WATCHDOG_WARNING);
 
+  // Keep old path for reference, and to allow forms to redirect to it.
+  if (!isset($_REQUEST['destination'])) {
+    $_REQUEST['destination'] = $_GET['q'];
+  }
+
   $path = drupal_get_normal_path(variable_get('site_404', ''));
   if ($path && $path != $_GET['q']) {
     // Custom 404 handler. Set the active item in case there are tabs to
@@ -374,8 +383,8 @@ function drupal_not_found() {
 
   drupal_set_page_content($return);
   $page = element_info('page');
-  // To conserve CPU and bandwidth, omit the blocks.
-  $page['#show_blocks'] = FALSE;
+  // Optionally omit the blocks to conserve CPU and bandwidth.
+  $page['#show_blocks'] = variable_get('site_404_blocks', FALSE);
 
   print drupal_render_page($page);
 }
@@ -385,8 +394,12 @@ function drupal_not_found() {
  */
 function drupal_access_denied() {
   drupal_set_header('403 Forbidden');
-
   watchdog('access denied', check_plain($_GET['q']), NULL, WATCHDOG_WARNING);
+
+  // Keep old path for reference, and to allow forms to redirect to it.
+  if (!isset($_REQUEST['destination'])) {
+    $_REQUEST['destination'] = $_GET['q'];
+  }
 
   $path = drupal_get_normal_path(variable_get('site_403', ''));
   if ($path && $path != $_GET['q']) {
@@ -424,6 +437,10 @@ function drupal_access_denied() {
  *   - max_redirects
  *       An integer representing how many times a redirect may be followed.
  *       Defaults to 3.
+ *   - timeout
+ *       A float representing the maximum number of seconds the function call
+ *       may take. The default is 30 seconds. If a timeout occurs, the error
+ *       code is set to the HTTP_REQUEST_TIMEOUT constant.
  * @return
  *   An object which can have one or more of the following parameters:
  *   - request
@@ -432,9 +449,9 @@ function drupal_access_denied() {
  *       An integer containing the response status code, or the error code if
  *       an error occurred.
  *   - protocol
- *      The response protocol (e.g. HTTP/1.1 or HTTP/1.0).
+ *       The response protocol (e.g. HTTP/1.1 or HTTP/1.0).
  *   - status_message
- *      The status message from the response, if a response was received.
+ *       The status message from the response, if a response was received.
  *   - redirect_code
  *       If redirected, an integer containing the initial response status code.
  *   - redirect_url
@@ -464,17 +481,28 @@ function drupal_http_request($url, array $options = array()) {
     return $result;
   }
 
+  timer_start(__FUNCTION__);
+
+  // Merge the default options.
+  $options += array(
+    'headers' => array(),
+    'method' => 'GET',
+    'data' => NULL,
+    'max_redirects' => 3,
+    'timeout' => 30,
+  );
+
   switch ($uri['scheme']) {
     case 'http':
       $port = isset($uri['port']) ? $uri['port'] : 80;
       $host = $uri['host'] . ($port != 80 ? ':' . $port : '');
-      $fp = @fsockopen($uri['host'], $port, $errno, $errstr, 15);
+      $fp = @fsockopen($uri['host'], $port, $errno, $errstr, $options['timeout']);
       break;
     case 'https':
       // Note: Only works when PHP is compiled with OpenSSL support.
       $port = isset($uri['port']) ? $uri['port'] : 443;
       $host = $uri['host'] . ($port != 443 ? ':' . $port : '');
-      $fp = @fsockopen('ssl://' . $uri['host'], $port, $errno, $errstr, 20);
+      $fp = @fsockopen('ssl://' . $uri['host'], $port, $errno, $errstr, $options['timeout']);
       break;
     default:
       $result->error = 'invalid schema ' . $uri['scheme'];
@@ -503,14 +531,6 @@ function drupal_http_request($url, array $options = array()) {
     $path .= '?' . $uri['query'];
   }
 
-  // Merge the default options.
-  $options += array(
-    'headers' => array(),
-    'method' => 'GET',
-    'data' => NULL,
-    'max_redirects' => 3,
-  );
-
   // Merge the default headers.
   $options['headers'] += array(
     'User-Agent' => 'Drupal (+http://drupal.org/)',
@@ -525,8 +545,9 @@ function drupal_http_request($url, array $options = array()) {
   // or PUT request. Some non-standard servers get confused by Content-Length in
   // at least HEAD/GET requests, and Squid always requires Content-Length in
   // POST/PUT requests.
-  if (!empty($options['data']) || $options['method'] == 'POST' || $options['method'] == 'PUT') {
-    $options['headers']['Content-Length'] = strlen($options['data']);
+  $content_length = strlen($options['data']);
+  if ($content_length > 0 || $options['method'] == 'POST' || $options['method'] == 'PUT') {
+    $options['headers']['Content-Length'] = $content_length;
   }
 
   // If the server URL has a user then attempt to use basic authentication.
@@ -540,8 +561,8 @@ function drupal_http_request($url, array $options = array()) {
   // user-agent is used to ensure that multiple testing sessions running at the
   // same time won't interfere with each other as they would if the database
   // prefix were stored statically in a file or database variable.
-  if (preg_match("/simpletest\d+/", $db_prefix, $matches)) {
-    $options['headers']['User-Agent'] = $matches[0];
+  if (is_string($db_prefix) && preg_match("/simpletest\d+/", $db_prefix, $matches)) {
+    $options['headers']['User-Agent'] = drupal_generate_test_ua($matches[0]);
   }
 
   $request = $options['method'] . ' ' . $path . " HTTP/1.0\r\n";
@@ -555,8 +576,16 @@ function drupal_http_request($url, array $options = array()) {
 
   // Fetch response.
   $response = '';
-  while (!feof($fp) && $chunk = fread($fp, 1024)) {
-    $response .= $chunk;
+  while (!feof($fp)) {
+    // Calculate how much time is left of the original timeout value.
+    $timeout = $options['timeout'] - timer_read(__FUNCTION__) / 1000;
+    if ($timeout <= 0) {
+      $result->code = HTTP_REQUEST_TIMEOUT;
+      $result->error = 'request timed out';
+      return $result;
+    }
+    stream_set_timeout($fp, floor($timeout), floor(1000000 * fmod($timeout, 1)));
+    $response .= fread($fp, 1024);
   }
   fclose($fp);
 
@@ -641,7 +670,12 @@ function drupal_http_request($url, array $options = array()) {
     case 302: // Moved temporarily
     case 307: // Moved temporarily
       $location = $result->headers['Location'];
-      if ($options['max_redirects']) {
+      $options['timeout'] -= timer_read(__FUNCTION__) / 1000;
+      if ($options['timeout'] <= 0) {
+        $result->code = HTTP_REQUEST_TIMEOUT;
+        $result->error = 'request timed out';
+      }
+      elseif ($options['max_redirects']) {
         // Redirect to the new location.
         $options['max_redirects']--;
         $result = drupal_http_request($location, $options);
@@ -729,6 +763,8 @@ function _drupal_exception_handler($exception) {
  * @return An error in the format expected by _drupal_log_error().
  */
 function _drupal_decode_exception($exception) {
+  $message = $exception->getMessage();
+
   $backtrace = $exception->getTrace();
   // Add the line throwing the exception to the backtrace.
   array_unshift($backtrace, array('line' => $exception->getLine(), 'file' => $exception->getFile()));
@@ -741,17 +777,20 @@ function _drupal_decode_exception($exception) {
     // or in one of its global functions.
     $db_functions = array('db_query', 'pager_query', 'db_query_range', 'db_query_temporary', 'update_sql');
     while (!empty($backtrace[1]) && ($caller = $backtrace[1]) &&
-        ((isset($caller['class']) && (strpos($caller['class'], 'Query') !== FALSE || strpos($caller['class'], 'Database') !== FALSE)) ||
+        ((isset($caller['class']) && (strpos($caller['class'], 'Query') !== FALSE || strpos($caller['class'], 'Database') !== FALSE || $caller['class'] == 'PDOStatement')) ||
         in_array($caller['function'], $db_functions))) {
       // We remove that call.
       array_shift($backtrace);
+    }
+    if (isset($exception->query_string, $exception->args)) {
+      $message .= ": " . $exception->query_string . "; " . print_r($exception->args, TRUE);
     }
   }
   $caller = _drupal_get_last_caller($backtrace);
 
   return array(
     '%type' => get_class($exception),
-    '%message' => $exception->getMessage(),
+    '%message' => $message,
     '%function' => $caller['function'],
     '%file' => $caller['file'],
     '%line' => $caller['line'],
@@ -768,7 +807,7 @@ function _drupal_decode_exception($exception) {
  */
 function _drupal_log_error($error, $fatal = FALSE) {
   // Initialize a maintenance theme if the boostrap was not complete.
-  // Do it early because drupal_set_message() triggers an init_theme().
+  // Do it early because drupal_set_message() triggers a drupal_theme_initialize().
   if ($fatal && (drupal_get_bootstrap_phase() != DRUPAL_BOOTSTRAP_FULL)) {
     unset($GLOBALS['theme']);
     if (!defined('MAINTENANCE_MODE')) {
@@ -779,7 +818,9 @@ function _drupal_log_error($error, $fatal = FALSE) {
 
   // When running inside the testing framework, we relay the errors
   // to the tested site by the way of HTTP headers.
-  if (preg_match("/^simpletest\d+/", $_SERVER['HTTP_USER_AGENT']) && !headers_sent() && (!defined('SIMPLETEST_COLLECT_ERRORS') || SIMPLETEST_COLLECT_ERRORS)) {
+  if (isset($_SERVER['HTTP_USER_AGENT']) && preg_match("/^simpletest\d+;/", $_SERVER['HTTP_USER_AGENT']) && !headers_sent() && (!defined('SIMPLETEST_COLLECT_ERRORS') || SIMPLETEST_COLLECT_ERRORS)) {
+    // $number does not use drupal_static as it should not be reset
+    // as it uniquely identifies each PHP error.
     static $number = 0;
     $assertion = array(
       $error['%message'],
@@ -803,7 +844,7 @@ function _drupal_log_error($error, $fatal = FALSE) {
   }
 
   if ($fatal) {
-    drupal_set_header($_SERVER['SERVER_PROTOCOL'] . ' 500 Service unavailable (with message)');
+    drupal_set_header('500 Service unavailable (with message)');
   }
 
   if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] == 'XMLHttpRequest') {
@@ -897,7 +938,7 @@ function _fix_gpc_magic_files(&$item, $key) {
  * Fix double-escaping problems caused by "magic quotes" in some PHP installations.
  */
 function fix_gpc_magic() {
-  static $fixed = FALSE;
+  $fixed = &drupal_static(__FUNCTION__, FALSE);
   if (!$fixed && ini_get('magic_quotes_gpc')) {
     array_walk($_GET, '_fix_gpc_magic');
     array_walk($_POST, '_fix_gpc_magic');
@@ -1095,37 +1136,44 @@ function fix_gpc_magic() {
  *    - @variable: escape plain text to HTML (check_plain)
  *    - %variable: escape text and theme as a placeholder for user-submitted
  *      content (check_plain + theme_placeholder)
- * @param $langcode
- *   Optional language code to translate to a language other than what is used
- *   to display the page.
+ * @param $options
+ *   An associative array of additional options, with the following keys:
+ *     - 'langcode' (default to the current language) The language code to
+ *       translate to a language other than what is used to display the page.
+ *     - 'context' (default to the empty context) The context the source string
+ *       belongs to.
  * @return
  *   The translated string.
  */
-function t($string, $args = array(), $langcode = NULL) {
+function t($string, array $args = array(), array $options = array()) {
   global $language;
   static $custom_strings;
 
-  if (!isset($langcode)) {
-    $langcode = isset($language->language) ? $language->language : 'en';
+  // Merge in default.
+  if (empty($options['langcode'])) {
+    $options['langcode'] = isset($language->language) ? $language->language : 'en';
+  }
+  if (empty($options['context'])) {
+    $options['context'] = '';
   }
 
   // First, check for an array of customized strings. If present, use the array
   // *instead of* database lookups. This is a high performance way to provide a
   // handful of string replacements. See settings.php for examples.
   // Cache the $custom_strings variable to improve performance.
-  if (!isset($custom_strings[$langcode])) {
-    $custom_strings[$langcode] = variable_get('locale_custom_strings_' . $langcode, array());
+  if (!isset($custom_strings[$options['langcode']])) {
+    $custom_strings[$options['langcode']] = variable_get('locale_custom_strings_' . $options['langcode'], array());
   }
   // Custom strings work for English too, even if locale module is disabled.
-  if (isset($custom_strings[$langcode][$string])) {
-    $string = $custom_strings[$langcode][$string];
+  if (isset($custom_strings[$options['langcode']][$options['context']][$string])) {
+    $string = $custom_strings[$options['langcode']][$options['context']][$string];
   }
   // Translate with locale module if enabled.
   // We don't use drupal_function_exists() here, because it breaks the testing
   // framework if the locale module is enabled in the parent site (we cannot
   // unload functions in PHP).
-  elseif (module_exists('locale') && $langcode != 'en') {
-    $string = locale($string, $langcode);
+  elseif (function_exists('locale') && $options['langcode'] != 'en') {
+    $string = locale($string, $options['context'], $options['langcode']);
   }
   if (empty($args)) {
     return $string;
@@ -1238,7 +1286,7 @@ function flood_register_event($name) {
  *
  * @param $name
  *   The name of the event.
- * @param $number
+ * @param $threshold
  *   The maximum number of the specified event per hour (per visitor).
  * @return
  *   True if the user did not exceed the hourly threshold. False otherwise.
@@ -1320,12 +1368,12 @@ function filter_xss($string, $allowed_tags = array('a', 'em', 'strong', 'cite', 
   // Defuse all HTML entities
   $string = str_replace('&', '&amp;', $string);
   // Change back only well-formed entities in our whitelist
-  // Named entities
-  $string = preg_replace('/&amp;([A-Za-z][A-Za-z0-9]*;)/', '&\1', $string);
   // Decimal numeric entities
   $string = preg_replace('/&amp;#([0-9]+;)/', '&#\1', $string);
   // Hexadecimal numeric entities
   $string = preg_replace('/&amp;#[Xx]0*((?:[0-9A-Fa-f]{2})+;)/', '&#x\1', $string);
+  // Named entities
+  $string = preg_replace('/&amp;([A-Za-z][A-Za-z0-9]*;)/', '&\1', $string);
 
   return preg_replace_callback('%
     (
@@ -1680,34 +1728,37 @@ function format_xml_elements($array) {
  *      content (check_plain + theme_placeholder)
  *   Note that you do not need to include @count in this array.
  *   This replacement is done automatically for the plural case.
- * @param $langcode
- *   Optional language code to translate to a language other than
- *   what is used to display the page.
+ * @param $options
+ *   An associative array of additional options, with the following keys:
+ *     - 'langcode' (default to the current language) The language code to
+ *       translate to a language other than what is used to display the page.
+ *     - 'context' (default to the empty context) The context the source string
+ *       belongs to.
  * @return
  *   A translated string.
  */
-function format_plural($count, $singular, $plural, $args = array(), $langcode = NULL) {
+function format_plural($count, $singular, $plural, array $args = array(), array $options = array()) {
   $args['@count'] = $count;
   if ($count == 1) {
-    return t($singular, $args, $langcode);
+    return t($singular, $args, $options);
   }
 
   // Get the plural index through the gettext formula.
-  $index = (function_exists('locale_get_plural')) ? locale_get_plural($count, $langcode) : -1;
+  $index = (function_exists('locale_get_plural')) ? locale_get_plural($count, isset($options['langcode']) ? $options['langcode'] : NULL) : -1;
   // Backwards compatibility.
   if ($index < 0) {
-    return t($plural, $args, $langcode);
+    return t($plural, $args, $options);
   }
   else {
     switch ($index) {
       case "0":
-        return t($singular, $args, $langcode);
+        return t($singular, $args, $options);
       case "1":
-        return t($plural, $args, $langcode);
+        return t($plural, $args, $options);
       default:
         unset($args['@count']);
         $args['@count[' . $index . ']'] = $count;
-        return t(strtr($plural, array('@count' => '@count[' . $index . ']')), $args, $langcode);
+        return t(strtr($plural, array('@count' => '@count[' . $index . ']')), $args, $options);
     }
   }
 }
@@ -1746,19 +1797,19 @@ function parse_size($size) {
  */
 function format_size($size, $langcode = NULL) {
   if ($size < DRUPAL_KILOBYTE) {
-    return format_plural($size, '1 byte', '@count bytes', array(), $langcode);
+    return format_plural($size, '1 byte', '@count bytes', array(), array('langcode' => $langcode));
   }
   else {
     $size = $size / DRUPAL_KILOBYTE; // Convert bytes to kilobytes.
     $units = array(
-      t('@size KB', array(), $langcode),
-      t('@size MB', array(), $langcode),
-      t('@size GB', array(), $langcode),
-      t('@size TB', array(), $langcode),
-      t('@size PB', array(), $langcode),
-      t('@size EB', array(), $langcode),
-      t('@size ZB', array(), $langcode),
-      t('@size YB', array(), $langcode),
+      t('@size KB', array(), array('langcode' => $langcode)),
+      t('@size MB', array(), array('langcode' => $langcode)),
+      t('@size GB', array(), array('langcode' => $langcode)),
+      t('@size TB', array(), array('langcode' => $langcode)),
+      t('@size PB', array(), array('langcode' => $langcode)),
+      t('@size EB', array(), array('langcode' => $langcode)),
+      t('@size ZB', array(), array('langcode' => $langcode)),
+      t('@size YB', array(), array('langcode' => $langcode)),
     );
     foreach ($units as $unit) {
       if (round($size, 2) >= DRUPAL_KILOBYTE) {
@@ -1799,7 +1850,7 @@ function format_interval($timestamp, $granularity = 2, $langcode = NULL) {
   foreach ($units as $key => $value) {
     $key = explode('|', $key);
     if ($timestamp >= $value) {
-      $output .= ($output ? ' ' : '') . format_plural(floor($timestamp / $value), $key[0], $key[1], array(), $langcode);
+      $output .= ($output ? ' ' : '') . format_plural(floor($timestamp / $value), $key[0], $key[1], array(), array('langcode' => $langcode));
       $timestamp %= $value;
       $granularity--;
     }
@@ -1808,7 +1859,7 @@ function format_interval($timestamp, $granularity = 2, $langcode = NULL) {
       break;
     }
   }
-  return $output ? $output : t('0 sec', array(), $langcode);
+  return $output ? $output : t('0 sec', array(), array('langcode' => $langcode));
 }
 
 /**
@@ -1836,7 +1887,7 @@ function format_interval($timestamp, $granularity = 2, $langcode = NULL) {
  *   A translated date string in the requested format.
  */
 function format_date($timestamp, $type = 'medium', $format = '', $timezone = NULL, $langcode = NULL) {
-  static $timezones = array();
+  $timezones = &drupal_static(__FUNCTION__, array());
   if (!isset($timezone)) {
     global $user;
     if (variable_get('configurable_timezones', 1) && $user->uid && $user->timezone) {
@@ -1850,6 +1901,12 @@ function format_date($timestamp, $type = 'medium', $format = '', $timezone = NUL
   // contructing identical objects over the life of a request.
   if (!isset($timezones[$timezone])) {
     $timezones[$timezone] = timezone_open($timezone);
+  }
+
+  // Use the default langcode if none is set.
+  global $language;
+  if (empty($langcode)) {
+    $langcode = isset($language->language) ? $language->language : 'en';
   }
 
   switch ($type) {
@@ -1867,39 +1924,60 @@ function format_date($timestamp, $type = 'medium', $format = '', $timezone = NUL
       $format = variable_get('date_format_medium', 'D, m/d/Y - H:i');
   }
 
-  $max = strlen($format);
-  $date = '';
   // Create a DateTime object from the timestamp.
   $date_time = date_create('@' . $timestamp);
   // Set the time zone for the DateTime object.
   date_timezone_set($date_time, $timezones[$timezone]);
 
-  for ($i = 0; $i < $max; $i++) {
-    $c = $format[$i];
-    if (strpos('AaeDlMT', $c) !== FALSE) {
-      $date .= t(date_format($date_time, $c), array(), $langcode);
-    }
-    elseif ($c == 'F') {
-      // Special treatment for long month names: May is both an abbreviation
-      // and a full month name in English, but other languages have
-      // different abbreviations.
-      $date .= trim(t('!long-month-name ' . date_format($date_time, $c), array('!long-month-name' => ''), $langcode));
-    }
-    elseif (strpos('BcdGgHhIijLmNnOoPSstUuWwYyZz', $c) !== FALSE) {
-      $date .= date_format($date_time, $c);
-    }
-    elseif ($c == 'r') {
-      $date .= format_date($timestamp, 'custom', 'D, d M Y H:i:s O', $timezone, $langcode);
-    }
-    elseif ($c == '\\') {
-      $date .= $format[++$i];
-    }
-    else {
-      $date .= $c;
-    }
+  // Encode markers that should be translated. 'A' becomes '\xEF\AA\xFF'.
+  // xEF and xFF are invalid UTF-8 sequences, and we assume they are not in the
+  // input string.
+  // Paired backslashes are isolated to prevent errors in read-ahead evaluation.
+  // The read-ahead expression ensures that A matches, but not \A.
+  $format = preg_replace(array('/\\\\\\\\/', '/(?<!\\\\)([AaeDlMTF])/'), array("\xEF\\\\\\\\\xFF", "\xEF\\\\\$1\$1\xFF"), $format);
+
+  // Call date_format().
+  $format = date_format($date_time, $format);
+
+  // Pass the langcode to _format_date_callback().
+  _format_date_callback(NULL, $langcode);
+
+  // Translate the marked sequences.
+  return preg_replace_callback('/\xEF([AaeDlMTF]?)(.*?)\xFF/', '_format_date_callback', $format);
+}
+
+/**
+ * Callback function for preg_replace_callback().
+ */
+function _format_date_callback(array $matches = NULL, $new_langcode = NULL) {
+  // We cache translations to avoid redundant and rather costly calls to t().
+  static $cache, $langcode;
+
+  if (!isset($matches)) {
+    $langcode = $new_langcode;
+    return;
   }
 
-  return $date;
+  $code = $matches[1];
+  $string = $matches[2];
+
+  if (!isset($cache[$langcode][$code][$string])) {
+    $options = array(
+      'langcode' => $langcode,
+    );
+
+    if ($code == 'F') {
+      $options['context'] = 'Long month name';
+    }
+
+    if ($code == '') {
+      $cache[$langcode][$code][$string] = $string;
+    }
+    else {
+      $cache[$langcode][$code][$string] = t($string, array(), $options);
+    }
+  }
+  return $cache[$langcode][$code][$string];
 }
 
 /**
@@ -1916,8 +1994,8 @@ function format_date($timestamp, $type = 'medium', $format = '', $timezone = NUL
  * @param $options
  *   An associative array of additional options, with the following keys:
  *   - 'query'
- *       A query string to append to the link, or an array of query key/value
- *       properties.
+ *       A URL-encoded query string to append to the link, or an array of query
+ *       key/value-pairs without any URL-encoding.
  *   - 'fragment'
  *       A fragment identifier (or named anchor) to append to the link.
  *       Do not include the '#' character.
@@ -1989,7 +2067,7 @@ function url($path = NULL, array $options = array()) {
   }
 
   global $base_url;
-  static $script;
+  $script = &drupal_static(__FUNCTION__);
 
   if (!isset($script)) {
     // On some web servers, such as IIS, we can't omit "index.php". So, we
@@ -2021,7 +2099,7 @@ function url($path = NULL, array $options = array()) {
 
   $base = $options['absolute'] ? $options['base_url'] . '/' : base_path();
   $prefix = empty($path) ? rtrim($options['prefix'], '/') : $options['prefix'];
-  $path = drupal_urlencode($prefix . $path);
+  $path = drupal_encode_path($prefix . $path);
 
   if (variable_get('clean_url', '0')) {
     // With Clean URLs.
@@ -2053,19 +2131,23 @@ function url($path = NULL, array $options = array()) {
 /**
  * Format an attribute string to insert in a tag.
  *
+ * Each array key and its value will be formatted into an HTML attribute string.
+ * If a value is itself an array, then each array element is concatenated with a
+ * space between each value (e.g. a multi-value class attribute).
+ *
  * @param $attributes
  *   An associative array of HTML attributes.
  * @return
  *   An HTML string ready for insertion in a tag.
  */
 function drupal_attributes($attributes = array()) {
-  if (is_array($attributes)) {
-    $t = '';
-    foreach ($attributes as $key => $value) {
-      $t .= " $key=" . '"' . check_plain($value) . '"';
+  foreach ($attributes as $attribute => $data) {
+    if (is_array($data)) {
+      $data = implode(' ', $data);
     }
-    return $t;
+    $items[] = $attribute . '="' . check_plain($data) . '"';
   }
+  return isset($items) ? ' ' . implode(' ', $items) : '';
 }
 
 /**
@@ -2149,19 +2231,17 @@ function l($text, $path, array $options = array()) {
 function drupal_page_footer() {
   global $user;
 
-  // Destroy empty anonymous sessions if possible.
-  if (!headers_sent() && drupal_session_is_started() && empty($_SESSION) && !$user->uid) {
-    session_destroy();
-  }
-  elseif (!empty($_SESSION) && !drupal_session_is_started()) {
-    watchdog('session', '$_SESSION is non-empty yet no code has called drupal_session_start().', array(), WATCHDOG_NOTICE);
-  }
-
-  if (variable_get('cache', CACHE_DISABLED) != CACHE_DISABLED) {
-    page_set_cache();
-  }
-
   module_invoke_all('exit');
+
+  // Commit the user session, if needed.
+  drupal_session_commit();
+
+  if (variable_get('cache', CACHE_DISABLED) != CACHE_DISABLED && ($cache = drupal_page_set_cache())) {
+    drupal_serve_page_from_cache($cache);
+  }
+  else {
+    ob_flush();
+  }
 
   module_implements(MODULE_IMPLEMENTS_WRITE_CACHE);
   _registry_check_code(REGISTRY_WRITE_LOOKUP_CACHE);
@@ -2500,7 +2580,7 @@ function drupal_build_css_cache($types, $filename) {
  * This function will prefix all paths within a CSS file.
  */
 function _drupal_build_css_path($matches, $base = NULL) {
-  static $_base;
+  $_base = &drupal_static(__FUNCTION__);
   // Store base path for preg_replace_callback.
   if (isset($base)) {
     $_base = $base;
@@ -2535,6 +2615,7 @@ function _drupal_build_css_path($matches, $base = NULL) {
  *   Contents of the stylesheet, including any resolved @import commands.
  */
 function drupal_load_stylesheet($file, $optimize = NULL) {
+  // $_optimize does not use drupal_static as it is set by $optimize.
   static $_optimize;
   // Store optimization parameter for preg_replace_callback with nested @import loops.
   if (isset($optimize)) {
@@ -2725,6 +2806,10 @@ function drupal_add_js($data = NULL, $options = NULL) {
   // Preprocess can only be set if caching is enabled.
   $options['preprocess'] = $options['cache'] ? $options['preprocess'] : FALSE;
 
+  // Tweak the weight so that files of the same weight are included in the
+  // order of the calls to drupal_add_js().
+  $options['weight'] += count($javascript) / 1000;
+
   if (isset($data)) {
     // Add jquery.js and drupal.js, as well as the basePath setting, the
     // first time a Javascript file is added.
@@ -2738,15 +2823,6 @@ function drupal_add_js($data = NULL, $options = NULL) {
           'scope' => 'header',
           'weight' => JS_LIBRARY,
         ),
-        'misc/jquery.js' => array(
-          'data' => 'misc/jquery.js',
-          'type' => 'file',
-          'scope' => 'header',
-          'weight' => JS_LIBRARY - 2,
-          'cache' => TRUE,
-          'defer' => FALSE,
-          'preprocess' => TRUE,
-        ),
         'misc/drupal.js' => array(
           'data' => 'misc/drupal.js',
           'type' => 'file',
@@ -2757,6 +2833,8 @@ function drupal_add_js($data = NULL, $options = NULL) {
           'preprocess' => TRUE,
         ),
       );
+      // jQuery itself is registered as a library.
+      drupal_add_library('system', 'jquery');
     }
 
     switch ($options['type']) {
@@ -2913,6 +2991,124 @@ function drupal_get_js($scope = 'header', $javascript = NULL) {
 }
 
 /**
+ * Adds multiple JavaScript or CSS files at the same time.
+ *
+ * A library defines a set of JavaScript and/or CSS files, optionally using
+ * settings, and optionally requiring another library. For example, a library
+ * can be a jQuery plugin, a JavaScript framework, or a CSS framework. This
+ * function allows modules to load a library defined/shipped by itself or a
+ * depending module; without having to add all files of the library separately.
+ * Each library is only loaded once.
+ *
+ * @param $module
+ *   The name of the module that registered the library.
+ * @param $name
+ *   The name of the library to add.
+ * @return
+ *   TRUE when the library was successfully added or FALSE if the library or one
+ *   of its dependencies could not be added.
+ *
+ * @see drupal_get_library()
+ * @see hook_library()
+ * @see hook_library_alter()
+ */
+function drupal_add_library($module, $name) {
+  $added = &drupal_static(__FUNCTION__, array());
+
+  // Only process the library if it exists and it was not added already.
+  if (!isset($added[$module][$name]) && $library = drupal_get_library($module, $name)) {
+    // Prevent repeated/recursive processing.
+    $added[$module][$name] = TRUE;
+
+    // Ensure dependencies first.
+    foreach ($library['dependencies'] as $dependency) {
+      if (drupal_add_library($dependency[0], $dependency[1]) === FALSE) {
+        // If any dependent library could not be added, this library will break;
+        // stop here.
+        $added[$module][$name] = FALSE;
+        return FALSE;
+      }
+    }
+
+    // Add defined JavaScript.
+    foreach ($library['js'] as $data => $options) {
+      // For JS settings we need to transform $options['data'] into $data.
+      if (isset($options['type'], $options['data']) && $options['type'] == 'setting') {
+        $data = $options['data'];
+        unset($options['data']);
+      }
+      // If not specified, assign a default weight of JS_LIBRARY.
+      elseif (!isset($options['weight'])) {
+        $options['weight'] = JS_LIBRARY;
+      }
+      drupal_add_js($data, $options);
+    }
+
+    // Add defined stylesheets.
+    foreach ($library['css'] as $data => $options) {
+      drupal_add_css($data, $options);
+    }
+  }
+  // Requested library does not exist.
+  else {
+    $added[$module][$name] = FALSE;
+  }
+
+  return $added[$module][$name];
+}
+
+/**
+ * Retrieves information for a JavaScript/CSS library.
+ *
+ * Library information is statically cached. Libraries are keyed by module for
+ * several reasons:
+ * - Libraries are not unique. Multiple modules might ship with the same library
+ *   in a different version or variant. This registry cannot (and does not
+ *   attempt to) prevent library conflicts.
+ * - Modules implementing and thereby depending on a library that is registered
+ *   by another module can only rely on that module's library.
+ * - Two (or more) modules can still register the same library and use it
+ *   without conflicts in case the libraries are loaded on certain pages only.
+ *
+ * @param $module
+ *   The name of a module that registered a library.
+ * @param $library
+ *   The name of a registered library.
+ * @return
+ *   The definition of the requested library, if existent, or FALSE.
+ *
+ * @see drupal_add_library()
+ * @see hook_library()
+ * @see hook_library_alter()
+ *
+ * @todo The purpose of drupal_get_*() is completely different to other page
+ *   requisite API functions; find and use a different name.
+ */
+function drupal_get_library($module, $name) {
+  $libraries = &drupal_static(__FUNCTION__, array());
+
+  if (!array_key_exists($module, $libraries)) {
+    // Retrieve all libraries associated with the module.
+    $module_libraries = module_invoke($module, 'library');
+
+    // Allow modules to alter the module's registered libraries.
+    if (!empty($module_libraries)) {
+      drupal_alter('library', $module_libraries, $module);
+    }
+    $libraries[$module] = $module_libraries;
+  }
+  if (!empty($libraries[$module][$name]) && is_array($libraries[$module][$name])) {
+    // Add default elements to allow for easier processing.
+    $libraries[$module][$name] += array('dependencies' => array(), 'js' => array(), 'css' => array());
+  }
+  else {
+    $libraries[$module][$name] = FALSE;
+  }
+
+  return $libraries[$module][$name];
+}
+
+/**
  * Assist in adding the tableDrag JavaScript behavior to a themed table.
  *
  * Draggable tables should be used wherever an outline or list of sortable items
@@ -2958,7 +3154,7 @@ function drupal_get_js($scope = 'header', $javascript = NULL) {
  * @endcode
  *
  * In a more complex case where there are several groups in one column (such as
- * the block regions on the admin/build/block page), a separate subgroup class
+ * the block regions on the admin/structure/block page), a separate subgroup class
  * must also be added to differentiate the groups.
  * @code
  * $form['my_elements'][$region][$delta]['weight']['#attributes']['class'] = "my-elements-weight my-elements-weight-" . $region;
@@ -3020,7 +3216,7 @@ function drupal_get_js($scope = 'header', $javascript = NULL) {
  * @see theme_menu_overview_form()
  */
 function drupal_add_tabledrag($table_id, $action, $relationship, $group, $subgroup = NULL, $source = NULL, $hidden = TRUE, $limit = 0) {
-  static $js_added = FALSE;
+  $js_added = &drupal_static(__FUNCTION__, FALSE);
   if (!$js_added) {
     // Add the table drag JavaScript to the page before the module JavaScript
     // to ensure that table drag behaviors are registered before any module
@@ -3127,11 +3323,13 @@ function drupal_json($var = NULL) {
  *   characters are double escaped so PHP will still see the encoded version.
  * - With clean URLs, Apache changes '//' to '/', so every second slash is
  *   double escaped.
+ * - This function should only be used on paths, not on query string arguments,
+ *   otherwise unwanted double encoding will occur.
  *
  * @param $text
  *   String to encode
  */
-function drupal_urlencode($text) {
+function drupal_encode_path($text) {
   if (variable_get('clean_url', '0')) {
     return str_replace(array('%2F', '%26', '%23', '//'),
                         array('/', '%2526', '%2523', '/%252F'),
@@ -3153,6 +3351,7 @@ function drupal_urlencode($text) {
  *   The number of characters (bytes) to return in the string.
  */
 function drupal_random_bytes($count)  {
+  // $random_state does not use drupal_static as it stores random bytes.
   static $random_state;
   // We initialize with the somewhat random PHP process ID on the first call.
   if (empty($random_state)) {
@@ -3224,7 +3423,7 @@ function drupal_valid_token($token, $value = '', $skip_anonymous = FALSE) {
 }
 
 function _drupal_bootstrap_full() {
-  static $called;
+  $called = &drupal_static(__FUNCTION__);
 
   if ($called) {
     return;
@@ -3273,11 +3472,12 @@ function _drupal_bootstrap_full() {
  *
  * @see drupal_page_header
  */
-function page_set_cache() {
-  global $user, $base_root;
+function drupal_page_set_cache() {
+  global $base_root;
 
-  if (page_get_cache(FALSE)) {
+  if (drupal_page_is_cacheable()) {
     $cache_page = TRUE;
+
     $cache = (object) array(
       'cid' => $base_root . request_uri(),
       'data' => ob_get_clean(),
@@ -3285,12 +3485,14 @@ function page_set_cache() {
       'created' => REQUEST_TIME,
       'headers' => array(),
     );
+
     // Restore preferred header names based on the lower-case names returned
     // by drupal_get_header().
     $header_names = _drupal_set_preferred_header_name();
     foreach (drupal_get_header() as $name_lower => $value) {
       $cache->headers[$header_names[$name_lower]] = $value;
     }
+
     if (variable_get('page_compression', TRUE) && function_exists('gzencode')) {
       // We do not store the data in case the zlib mode is deflate. This should
       // be rarely happening.
@@ -3306,12 +3508,7 @@ function page_set_cache() {
     if ($cache_page && $cache->data) {
       cache_set($cache->cid, $cache->data, 'cache_page', $cache->expire, $cache->headers);
     }
-    drupal_page_cache_header($cache);
-  }
-  else {
-    // If output buffering was enabled during bootstrap, and the headers were
-    // not sent in the DRUPAL_BOOTSTRAP_LATE_PAGE_CACHE phase, send them now.
-    drupal_page_header();
+    return $cache;
   }
 }
 
@@ -3423,9 +3620,6 @@ function drupal_system_listing($mask, $directory, $key = 'name', $min_depth = 1)
   $searchdir = array($directory);
   $files = array();
 
-  // Always search sites/all/* as well as the global directories
-  $searchdir[] = 'sites/all/' . $directory;
-
   // The 'profiles' directory contains pristine collections of modules and
   // themes as organized by a distribution. It is pristine in the same way
   // that /modules is pristine for core; users should avoid changing anything
@@ -3433,6 +3627,9 @@ function drupal_system_listing($mask, $directory, $key = 'name', $min_depth = 1)
   if (file_exists("profiles/$profile/$directory")) {
     $searchdir[] = "profiles/$profile/$directory";
   }
+
+  // Always search sites/all/* as well as the global directories
+  $searchdir[] = 'sites/all/' . $directory;
 
   if (file_exists("$config/$directory")) {
     $searchdir[] = "$config/$directory";
@@ -3623,28 +3820,6 @@ function drupal_render(&$elements) {
     }
   }
 
-  // Add additional CSS and JavaScript files associated with this element.
-  foreach (array('css', 'js') as $kind) {
-    if (!empty($elements['#attached_' . $kind]) && is_array($elements['#attached_' . $kind])) {
-      foreach ($elements['#attached_' . $kind] as $data => $options) {
-        // If the value is not an array, it's a filename and passed as first
-        // (and only) argument.
-        if (!is_array($options)) {
-          $data = $options;
-          $options = NULL;
-        }
-        // When drupal_add_js with 'type' => 'setting' is called, the first
-        // parameter ($data) is an array. Arrays can't be keys in PHP, so we
-        // have to get $data from the value array.
-        if (is_numeric($data)) {
-          $data = $options['data'];
-          unset($options['data']);
-        }
-        call_user_func('drupal_add_' . $kind, $data, $options);
-      }
-    }
-  }
-
   // Get the children of the element, sorted by weight.
   $children = element_children($elements, TRUE);
 
@@ -3673,6 +3848,28 @@ function drupal_render(&$elements) {
     foreach ($elements['#post_render'] as $function) {
       if (drupal_function_exists($function)) {
         $elements['#children'] = $function($elements['#children'], $elements);
+      }
+    }
+  }
+
+  // Add additional CSS and JavaScript files associated with this element.
+  foreach (array('css', 'js') as $kind) {
+    if (!empty($elements['#attached_' . $kind]) && is_array($elements['#attached_' . $kind])) {
+      foreach ($elements['#attached_' . $kind] as $data => $options) {
+        // If the value is not an array, it's a filename and passed as first
+        // (and only) argument.
+        if (!is_array($options)) {
+          $data = $options;
+          $options = NULL;
+        }
+        // When drupal_add_js with 'type' => 'setting' is called, the first
+        // parameter ($data) is an array. Arrays can't be keys in PHP, so we
+        // have to get $data from the value array.
+        if (is_numeric($data)) {
+          $data = $options['data'];
+          unset($options['data']);
+        }
+        call_user_func('drupal_add_' . $kind, $data, $options);
       }
     }
   }
@@ -3708,6 +3905,56 @@ function drupal_render_children(&$element, $children_keys = NULL) {
 }
 
 /**
+ * Render and print an element.
+ *
+ * This function renders an element using drupal_render(). The top level
+ * element is always rendered even if hide() had been previously used on it.
+ *
+ * Any nested elements are only rendered if they haven't been rendered before
+ * or if they have been re-enabled with show().
+ *
+ * @see drupal_render()
+ * @see show()
+ * @see hide()
+ */
+function render(&$element) {
+  if (is_array($element)) {
+    show($element);
+    return drupal_render($element);
+  }
+  else {
+    // Safe-guard for inappropriate use of render() on flat variables: return
+    // the variable as-is.
+    return $element;
+  }
+}
+
+/**
+ * Hide an element from later rendering.
+ *
+ * @see render()
+ * @see show()
+ */
+function hide(&$element) {
+  $element['#printed'] = TRUE;
+  return $element;
+}
+
+/**
+ * Show a hidden or already printed element from later rendering.
+ *
+ * Alternatively, render($element) could be used which automatically shows the
+ * element while rendering it.
+ *
+ * @see render()
+ * @see hide()
+ */
+function show(&$element) {
+  $element['#printed'] = FALSE;
+  return $element;
+}
+
+/**
  * Function used by uasort to sort structured arrays by weight.
  */
 function element_sort($a, $b) {
@@ -3722,10 +3969,10 @@ function element_sort($a, $b) {
 /**
  * Retrieve the default properties for the defined element type.
  */
-function element_info($type, $refresh = NULL) {
-  static $cache;
+function element_info($type) {
+  $cache = &drupal_static(__FUNCTION__);
 
-  if (!isset($cache) || $refresh) {
+  if (!isset($cache)) {
     $basic_defaults = element_basic_defaults();
     $cache = array();
     foreach (module_implements('elements') as $module) {
@@ -3740,6 +3987,8 @@ function element_info($type, $refresh = NULL) {
         $cache[$element_type]['#type'] = $element_type;
       }
     }
+    // Allow modules to alter the element type defaults.
+    drupal_alter('element_info', $cache);
   }
 
   return $cache[$type];
@@ -3866,7 +4115,7 @@ function drupal_common_theme() {
       'arguments' => array('links' => NULL, 'attributes' => array('class' => 'links')),
     ),
     'image' => array(
-      'arguments' => array('path' => NULL, 'alt' => '', 'title' => '', 'attributes' => NULL, 'getsize' => TRUE),
+      'arguments' => array('path' => NULL, 'alt' => '', 'title' => '', 'attributes' => array(), 'getsize' => TRUE),
     ),
     'breadcrumb' => array(
       'arguments' => array('breadcrumb' => NULL),
@@ -3890,10 +4139,7 @@ function drupal_common_theme() {
       'arguments' => array('type' => MARK_NEW),
     ),
     'item_list' => array(
-      'arguments' => array('items' => array(), 'title' => NULL, 'type' => 'ul', 'attributes' => NULL),
-    ),
-    'list' => array(
-      'arguments' => array('elements' => NULL),
+      'arguments' => array('items' => array(), 'title' => NULL, 'type' => 'ul', 'attributes' => array()),
     ),
     'more_help_link' => array(
       'arguments' => array('url' => NULL),
@@ -3921,7 +4167,7 @@ function drupal_common_theme() {
     ),
     // from pager.inc
     'pager' => array(
-      'arguments' => array('tags' => array(), 'element' => 0, 'parameters' => array()),
+      'arguments' => array('tags' => array(), 'element' => 0, 'parameters' => array(), 'quantity' => 9),
     ),
     'pager_first' => array(
       'arguments' => array('text' => NULL, 'element' => 0, 'parameters' => array()),
@@ -4043,7 +4289,7 @@ function drupal_common_theme() {
  */
 function drupal_install_schema($module) {
   $schema = drupal_get_schema_unprocessed($module);
-  _drupal_initialize_schema($module, $schema);
+  _drupal_schema_initialize($module, $schema);
 
   $ret = array();
   foreach ($schema as $name => $table) {
@@ -4068,7 +4314,7 @@ function drupal_install_schema($module) {
  */
 function drupal_uninstall_schema($module) {
   $schema = drupal_get_schema_unprocessed($module);
-  _drupal_initialize_schema($module, $schema);
+  _drupal_schema_initialize($module, $schema);
 
   $ret = array();
   foreach ($schema as $table) {
@@ -4125,7 +4371,7 @@ function drupal_get_schema_unprocessed($module, $table = NULL) {
  *   The schema definition array as it was returned by the module's
  *   hook_schema().
  */
-function _drupal_initialize_schema($module, &$schema) {
+function _drupal_schema_initialize($module, &$schema) {
   // Set the name and module key for all tables.
   foreach ($schema as $name => $table) {
     if (empty($table['module'])) {
@@ -4526,10 +4772,10 @@ function drupal_flush_all_caches() {
   // If invoked from update.php, we must not update the theme information in the
   // database, or this will result in all themes being disabled.
   if (defined('MAINTENANCE_MODE') && MAINTENANCE_MODE == 'update') {
-    _system_theme_data();
+    _system_get_theme_data();
   }
   else {
-    system_theme_data();
+    system_get_theme_data();
   }
 
   drupal_theme_rebuild();

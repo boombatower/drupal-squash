@@ -94,9 +94,9 @@ class ModuleTestCase extends DrupalWebTestCase {
 class EnableDisableTestCase extends ModuleTestCase {
   public static function getInfo() {
     return array(
-      'name' => t('Enable/disable modules'),
-      'description' => t('Enable/disable core module and confirm table creation/deletion.'),
-      'group' => t('Module'),
+      'name' => 'Enable/disable modules',
+      'description' => 'Enable/disable core module and confirm table creation/deletion.',
+      'group' => 'Module',
     );
   }
 
@@ -113,7 +113,8 @@ class EnableDisableTestCase extends ModuleTestCase {
     // Install (and enable) aggregator module.
     $edit = array();
     $edit['modules[Core][aggregator][enable]'] = 'aggregator';
-    $this->drupalPost('admin/build/modules', $edit, t('Save configuration'));
+    $edit['modules[Core][forum][enable]'] = 'forum';
+    $this->drupalPost('admin/structure/modules', $edit, t('Save configuration'));
     $this->assertText(t('The configuration options have been saved.'), t('Modules status has been updated.'));
 
     // Check that hook_modules_installed and hook_modules_enabled hooks were invoked and check tables.
@@ -126,7 +127,7 @@ class EnableDisableTestCase extends ModuleTestCase {
     // Disable aggregator, check tables, uninstall aggregator, check tables.
     $edit = array();
     $edit['modules[Core][aggregator][enable]'] = FALSE;
-    $this->drupalPost('admin/build/modules', $edit, t('Save configuration'));
+    $this->drupalPost('admin/structure/modules', $edit, t('Save configuration'));
     $this->assertText(t('The configuration options have been saved.'), t('Modules status has been updated.'));
 
     // Check that hook_modules_disabled hook was invoked and check tables.
@@ -138,7 +139,7 @@ class EnableDisableTestCase extends ModuleTestCase {
     // Uninstall the module.
     $edit = array();
     $edit['uninstall[aggregator]'] = 'aggregator';
-    $this->drupalPost('admin/build/modules/uninstall', $edit, t('Uninstall'));
+    $this->drupalPost('admin/structure/modules/uninstall', $edit, t('Uninstall'));
 
     $this->drupalPost(NULL, NULL, t('Uninstall'));
     $this->assertText(t('The selected modules have been uninstalled.'), t('Modules status has been updated.'));
@@ -148,6 +149,12 @@ class EnableDisableTestCase extends ModuleTestCase {
     $this->assertModules(array('aggregator'), FALSE);
     $this->assertTableCount('aggregator', FALSE);
     $this->assertLogMessage('system', "%module module uninstalled.", array('%module' => 'aggregator'), WATCHDOG_INFO);
+
+    // Reinstall (and enable) aggregator module.
+    $edit = array();
+    $edit['modules[Core][aggregator][enable]'] = 'aggregator';
+    $this->drupalPost('admin/structure/modules', $edit, t('Save configuration'));
+    $this->assertText(t('The configuration options have been saved.'), t('Modules status has been updated.'));
   }
 }
 
@@ -157,9 +164,9 @@ class EnableDisableTestCase extends ModuleTestCase {
 class ModuleDependencyTestCase extends ModuleTestCase {
   public static function getInfo() {
     return array(
-      'name' => t('Module dependencies'),
-      'description' => t('Enable module without dependency enabled.'),
-      'group' => t('Module'),
+      'name' => 'Module dependencies',
+      'description' => 'Enable module without dependency enabled.',
+      'group' => 'Module',
     );
   }
 
@@ -170,7 +177,7 @@ class ModuleDependencyTestCase extends ModuleTestCase {
     // Attempt to enable content translation without locale enabled.
     $edit = array();
     $edit['modules[Core][translation][enable]'] = 'translation';
-    $this->drupalPost('admin/build/modules', $edit, t('Save configuration'));
+    $this->drupalPost('admin/structure/modules', $edit, t('Save configuration'));
     $this->assertText(t('Some required modules must be enabled'), t('Dependecy required.'));
 
     $this->assertModules(array('translation', 'locale'), FALSE);
@@ -196,9 +203,9 @@ class ModuleDependencyTestCase extends ModuleTestCase {
 class ModuleRequiredTestCase extends ModuleTestCase {
   public static function getInfo() {
     return array(
-      'name' => t('Required modules'),
-      'description' => t('Attempt disabling of required modules.'),
-      'group' => t('Module'),
+      'name' => 'Required modules',
+      'description' => 'Attempt disabling of required modules.',
+      'group' => 'Module',
     );
   }
 
@@ -207,7 +214,7 @@ class ModuleRequiredTestCase extends ModuleTestCase {
    */
   function testDisableRequired() {
     $required_modules = drupal_required_modules();
-    $this->drupalGet('admin/build/modules');
+    $this->drupalGet('admin/structure/modules');
     foreach ($required_modules as $module) {
       // Check to make sure the checkbox for required module is not found.
       $this->assertNoFieldByName('modules[Core][' . $module . '][enable]');
@@ -219,18 +226,18 @@ class IPAddressBlockingTestCase extends DrupalWebTestCase {
   protected $blocking_user;
 
   /**
-   * Implementation of getInfo().
+   * Implement getInfo().
    */
   public static function getInfo() {
     return array(
-      'name' => t('IP address blocking'),
-      'description' => t('Test IP address blocking.'),
-      'group' => t('System')
+      'name' => 'IP address blocking',
+      'description' => 'Test IP address blocking.',
+      'group' => 'System'
     );
   }
 
   /**
-   * Implementation of setUp().
+   * Implement setUp().
    */
   function setUp() {
     parent::setUp();
@@ -289,13 +296,13 @@ class IPAddressBlockingTestCase extends DrupalWebTestCase {
 
 class CronRunTestCase extends DrupalWebTestCase {
   /**
-   * Implementation of getInfo().
+   * Implement getInfo().
    */
   public static function getInfo() {
     return array(
-      'name' => t('Cron run'),
-      'description' => t('Test cron run.'),
-      'group' => t('System')
+      'name' => 'Cron run',
+      'description' => 'Test cron run.',
+      'group' => 'System'
     );
   }
 
@@ -376,13 +383,13 @@ class CronRunTestCase extends DrupalWebTestCase {
  */
 class AdminOverviewTestCase extends DrupalWebTestCase {
   /**
-   * Implementation of getInfo().
+   * Implement getInfo().
    */
   public static function getInfo() {
     return array(
-      'name' => t('Admin overview'),
-      'description' => t('Confirm that the admin overview page appears as expected.'),
-      'group' => t('System')
+      'name' => 'Admin overview',
+      'description' => 'Confirm that the admin overview page appears as expected.',
+      'group' => 'System'
     );
   }
 
@@ -402,8 +409,8 @@ class AdminOverviewTestCase extends DrupalWebTestCase {
     // Comments on permissions follow the format: [task], [module] that the permission relates to.
     $permissions = array();
     $permissions[] = 'access administration pages';
-    $permissions[] = 'administer comments'; // Content management, Comment.
-    $permissions[] = 'administer blocks'; // Site building, Block.
+    $permissions[] = 'administer nodes'; // Content management, Comment.
+    $permissions[] = 'administer blocks'; // Structure, Block.
     $permissions[] = 'administer filters'; // Site configuration, Filter.
     $permissions[] = 'administer users'; // User management, User.
     $permissions[] = 'access site reports'; // Reports, Database logging.
@@ -411,10 +418,10 @@ class AdminOverviewTestCase extends DrupalWebTestCase {
     $this->drupalLogin($admin_user2);
 
     $this->drupalGet('admin');
-    $this->checkOverview(array(t('Content management'), t('User management'), t('Reports'), t('Site building'), t('Site configuration')));
+    $this->checkOverview(array(t('Content management'), t('User management'), t('Reports'), t('Structure'), t('Site configuration')));
 
     $this->drupalGet('admin/by-module');
-    $this->checkOverview(array(t('Comment'), t('Block'), t('Filter'), t('User'), t('Database logging')));
+    $this->checkOverview(array(t('Node'), t('Block'), t('Filter'), t('User'), t('Database logging')));
   }
 
   /**
@@ -425,18 +432,13 @@ class AdminOverviewTestCase extends DrupalWebTestCase {
   function checkOverview(array $panels = array()) {
     if ($this->parse()) {
       $found = 0;
-      $extra = 0;
       $divs = $this->xpath("//div[@class='admin-panel']");
       foreach ($divs as $panel) {
         if (in_array(trim($panel->h3), $panels)) {
           $found++;
         }
-        else {
-          $extra++;
-        }
       }
       $this->assertTrue(count($panels) == $found, t('Required panels found.'));
-      $this->assertFalse($extra, t('No extra panels found.'));
     }
   }
 
@@ -454,8 +456,8 @@ class AdminOverviewTestCase extends DrupalWebTestCase {
     $this->assertLink(t('Content management'));
 
     // Make sure menu items without children are hidden.
-    $this->assertNoLink(t('Site building'));
     $this->assertNoLink(t('Site configuration'));
+    $this->assertNoLink(t('Structure'));
     $this->assertNoLink(t('User management'));
     $this->assertNoLink(t('Reports'));
   }
@@ -463,13 +465,13 @@ class AdminOverviewTestCase extends DrupalWebTestCase {
 
 class AdminMetaTagTestCase extends DrupalWebTestCase {
   /**
-   * Implementation of getInfo().
+   * Implement getInfo().
    */
   public static function getInfo() {
     return array(
-      'name' => t('Fingerprinting meta tag'),
-      'description' => t('Confirm that the fingerprinting meta tag appears as expected.'),
-      'group' => t('System')
+      'name' => 'Fingerprinting meta tag',
+      'description' => 'Confirm that the fingerprinting meta tag appears as expected.',
+      'group' => 'System'
     );
   }
 
@@ -491,24 +493,24 @@ class AccessDeniedTestCase extends DrupalWebTestCase {
   protected $admin_user;
 
   /**
-   * Implementation of getInfo().
+   * Implement getInfo().
    */
   public static function getInfo() {
     return array(
-      'name' => t('403 functionality'),
-      'description' => t("Tests page access denied functionality, including custom 403 pages."),
-      'group' => t('System')
+      'name' => '403 functionality',
+      'description' => "Tests page access denied functionality, including custom 403 pages.",
+      'group' => 'System'
     );
   }
 
   /**
-   * Implementation of setUp().
+   * Implement setUp().
    */
   function setUp() {
     parent::setUp();
 
     // Create an administrative user.
-    $this->admin_user = $this->drupalCreateUser(array('administer site configuration'));
+    $this->admin_user = $this->drupalCreateUser(array('administer site configuration', 'administer blocks'));
     $this->drupalLogin($this->admin_user);
   }
 
@@ -518,7 +520,7 @@ class AccessDeniedTestCase extends DrupalWebTestCase {
 
     $edit = array(
       'title' => $this->randomName(10),
-      'body' => $this->randomName(100)
+      'body' => array(array('value' => $this->randomName(100))),
     );
     $node = $this->drupalCreateNode($edit);
 
@@ -537,7 +539,7 @@ class AccessDeniedTestCase extends DrupalWebTestCase {
 
     // Log back in and remove the custom 403 page.
     $this->drupalLogin($this->admin_user);
-    $this->drupalPost('admin/settings/site-information', array(), t('Reset to defaults'));
+    $this->drupalPost('admin/settings/site-information', array('site_403' => ''), t('Save configuration'));
 
     // Logout and check that the user login block is shown on default 403 pages.
     $this->drupalLogout();
@@ -545,6 +547,22 @@ class AccessDeniedTestCase extends DrupalWebTestCase {
     $this->drupalGet('admin');
     $this->assertText(t('Access denied'), t('Found the default 403 page'));
     $this->assertText(t('User login'), t('Blocks are shown on the default 403 page'));
+
+    // Log back in, set the custom 403 page to /user and remove the block
+    $this->drupalLogin($this->admin_user);
+    variable_set('site_403', 'user');
+    $this->drupalPost('admin/structure/block', array('user_login[region]' => '-1'), t('Save blocks'));
+
+    // Check that we can log in from the 403 page.
+    $this->drupalLogout();
+    $edit = array(
+      'name' => $this->admin_user->name,
+      'pass' => $this->admin_user->pass_raw,
+    );
+    $this->drupalPost('admin/settings/site-information', $edit, t('Log in'));
+
+    // Check that we're still on the same page.
+    $this->assertText(t('Site information'));
   }
 }
 
@@ -552,18 +570,18 @@ class PageNotFoundTestCase extends DrupalWebTestCase {
   protected $admin_user;
 
   /**
-   * Implementation of getInfo().
+   * Implement getInfo().
    */
   public static function getInfo() {
     return array(
-      'name' => t('404 functionality'),
-      'description' => t("Tests page not found functionality, including custom 404 pages."),
-      'group' => t('System')
+      'name' => '404 functionality',
+      'description' => "Tests page not found functionality, including custom 404 pages.",
+      'group' => 'System'
     );
   }
 
   /**
-   * Implementation of setUp().
+   * Implement setUp().
    */
   function setUp() {
     parent::setUp();
@@ -579,7 +597,7 @@ class PageNotFoundTestCase extends DrupalWebTestCase {
 
     $edit = array(
       'title' => $this->randomName(10),
-      'body' => $this->randomName(100)
+      'body' => array(array('value' => $this->randomName(100))),
     );
     $node = $this->drupalCreateNode($edit);
 
@@ -598,7 +616,7 @@ class PageNotFoundTestCase extends DrupalWebTestCase {
 
     // Log back in and remove the custom 404 page.
     $this->drupalLogin($this->admin_user);
-    $this->drupalPost('admin/settings/site-information', array(), t('Reset to defaults'));
+    $this->drupalPost('admin/settings/site-information', array('site_404' => ''), t('Save configuration'));
 
     // Logout and check that the user login block is not shown on default 404 pages.
     $this->drupalLogout();
@@ -615,9 +633,9 @@ class PageNotFoundTestCase extends DrupalWebTestCase {
 class DateTimeFunctionalTest extends DrupalWebTestCase {
   public static function getInfo() {
     return array(
-      'name' => t('Date and time'),
-      'description' => t('Configure date and time settings. Test date formatting and time zone handling, including daylight saving time.'),
-      'group' => t('System'),
+      'name' => 'Date and time',
+      'description' => 'Configure date and time settings. Test date formatting and time zone handling, including daylight saving time.',
+      'group' => 'System',
     );
   }
 
@@ -658,18 +676,18 @@ class PageTitleFiltering extends DrupalWebTestCase {
   protected $saved_title;
 
   /**
-   * Implementation of getInfo().
+   * Implement getInfo().
    */
   public static function getInfo() {
     return array(
-      'name' => t('HTML in page titles'),
-      'description' => t('Tests correct handling or conversion by drupal_set_title() and drupal_get_title().'),
-      'group' => t('System')
+      'name' => 'HTML in page titles',
+      'description' => 'Tests correct handling or conversion by drupal_set_title() and drupal_get_title().',
+      'group' => 'System'
     );
   }
 
   /**
-   * Implementation of setUp().
+   * Implement setUp().
    */
   function setUp() {
     parent::setUp();
@@ -705,7 +723,7 @@ class PageTitleFiltering extends DrupalWebTestCase {
     // Generate node content.
     $edit = array(
      'title' => '!SimpleTest! ' . $title . $this->randomName(20),
-     'body' => '!SimpleTest! test body' . $this->randomName(200),
+     'body[0][value]' => '!SimpleTest! test body' . $this->randomName(200),
     );
     // Create the node with HTML in the title.
     $this->drupalPost('node/add/page', $edit, t('Save'));
@@ -724,9 +742,9 @@ class FrontPageTestCase extends DrupalWebTestCase {
 
   public static function getInfo() {
     return array(
-      'name' => t('Front page'),
-      'description' => t('Tests front page functionality and administration.'),
-      'group' => t('System'),
+      'name' => 'Front page',
+      'description' => 'Tests front page functionality and administration.',
+      'group' => 'System',
     );
   }
 
@@ -775,9 +793,9 @@ class FrontPageTestCase extends DrupalWebTestCase {
 class SystemBlockTestCase extends DrupalWebTestCase {
   public static function getInfo() {
     return array(
-      'name' => t('Block functionality'),
-      'description' => t('Configure and move powered-by block.'),
-      'group' => t('System'),
+      'name' => 'Block functionality',
+      'description' => 'Configure and move powered-by block.',
+      'group' => 'System',
     );
   }
 
@@ -794,13 +812,13 @@ class SystemBlockTestCase extends DrupalWebTestCase {
    */
   function testPoweredByBlock() {
     // Set block title and some settings to confirm that the interface is availble.
-    $this->drupalPost('admin/build/block/configure/system/powered-by', array('title' => $this->randomName(8), 'color' => 'powered-black', 'size' => '135x42'), t('Save block'));
+    $this->drupalPost('admin/structure/block/configure/system/powered-by', array('title' => $this->randomName(8), 'color' => 'powered-black', 'size' => '135x42'), t('Save block'));
     $this->assertText(t('The block configuration has been saved.'), t('Block configuration set.'));
 
     // Set the powered-by block to the footer region.
     $edit = array();
     $edit['system_powered-by[region]'] = 'footer';
-    $this->drupalPost('admin/build/block', $edit, t('Save blocks'));
+    $this->drupalPost('admin/structure/block', $edit, t('Save blocks'));
     $this->assertText(t('The block settings have been updated.'), t('Block successfully move to footer region.'));
 
     // Confirm that the block is being displayed.
@@ -809,7 +827,7 @@ class SystemBlockTestCase extends DrupalWebTestCase {
     // Set the block to the disabled region.
     $edit = array();
     $edit['system_powered-by[region]'] = '-1';
-    $this->drupalPost('admin/build/block', $edit, t('Save blocks'));
+    $this->drupalPost('admin/structure/block', $edit, t('Save blocks'));
 
     // Confirm that the block is hidden.
     $this->assertNoRaw('id="block-system-powered-by"', t('Block no longer appears on page.'));
@@ -817,26 +835,26 @@ class SystemBlockTestCase extends DrupalWebTestCase {
     // For convenience of developers, set the block to it's default settings.
     $edit = array();
     $edit['system_powered-by[region]'] = 'footer';
-    $this->drupalPost('admin/build/block', $edit, t('Save blocks'));
-    $this->drupalPost('admin/build/block/configure/system/powered-by', array('title' => '', 'color' => 'powered-blue', 'size' => '80x15'), t('Save block'));
+    $this->drupalPost('admin/structure/block', $edit, t('Save blocks'));
+    $this->drupalPost('admin/structure/block/configure/system/powered-by', array('title' => '', 'color' => 'powered-blue', 'size' => '80x15'), t('Save block'));
   }
 
 }
 
 class SystemSettingsForm extends DrupalWebTestCase {
   /**
-   * Implementation of getInfo().
+   * Implement getInfo().
    */
   public static function getInfo() {
     return array(
-      'name' => t('System setting forms'),
-      'description' => t('Tests correctness of system_settings_form() processing.'),
-      'group' => t('System')
+      'name' => 'System setting forms',
+      'description' => 'Tests correctness of system_settings_form() processing.',
+      'group' => 'System'
     );
   }
 
   /**
-   * Implementation of setUp().
+   * Implement setUp().
    */
   function setUp() {
     parent::setUp();
@@ -908,9 +926,9 @@ class SystemSettingsForm extends DrupalWebTestCase {
 class SystemThemeFunctionalTest extends DrupalWebTestCase {
   public static function getInfo() {
     return array(
-      'name' => t('Theme interface functionality'),
-      'description' => t('Tests the theme interface functionality by enabling and switching themes, and using an administration theme.'),
-      'group' => t('System'),
+      'name' => 'Theme interface functionality',
+      'description' => 'Tests the theme interface functionality by enabling and switching themes, and using an administration theme.',
+      'group' => 'System',
     );
   }
 
@@ -932,7 +950,7 @@ class SystemThemeFunctionalTest extends DrupalWebTestCase {
       'admin_theme' => 'garland',
       'node_admin_theme' => TRUE,
     );
-    $this->drupalPost('admin/build/themes', $edit, t('Save configuration'));
+    $this->drupalPost('admin/structure/themes', $edit, t('Save configuration'));
 
     $this->drupalGet('admin');
     $this->assertRaw('themes/garland', t('Administration theme used on an administration page.'));
@@ -950,7 +968,7 @@ class SystemThemeFunctionalTest extends DrupalWebTestCase {
     $edit = array(
       'node_admin_theme' => FALSE,
     );
-    $this->drupalPost('admin/build/themes', $edit, t('Save configuration'));
+    $this->drupalPost('admin/structure/themes', $edit, t('Save configuration'));
 
     $this->drupalGet('admin');
     $this->assertRaw('themes/garland', t('Administration theme used on an administration page.'));
@@ -959,7 +977,12 @@ class SystemThemeFunctionalTest extends DrupalWebTestCase {
     $this->assertRaw('themes/stark', t('Site default theme used on the add content page.'));
 
     // Reset to the default theme settings.
-    $this->drupalPost('admin/build/themes', array(), t('Reset to defaults'));
+    $edit = array(
+      'theme_default' => 'garland',
+      'admin_theme' => '0',
+      'node_admin_theme' => FALSE,
+    );
+    $this->drupalPost('admin/structure/themes', $edit, t('Save configuration'));
 
     $this->drupalGet('admin');
     $this->assertRaw('themes/garland', t('Site default theme used on administration page.'));
@@ -976,9 +999,9 @@ class SystemThemeFunctionalTest extends DrupalWebTestCase {
 class QueueTestCase extends DrupalWebTestCase {
   public static function getInfo() {
     return array(
-      'name' => t('Queue functionality'),
-      'description' => t('Queues and dequeues a set of items to check the basic queue functionality.'),
-      'group' => t('System'),
+      'name' => 'Queue functionality',
+      'description' => 'Queues and dequeues a set of items to check the basic queue functionality.',
+      'group' => 'System',
     );
   }
 

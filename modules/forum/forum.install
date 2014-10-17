@@ -7,13 +7,16 @@
  */
 
 /**
- * Implementation of hook_install().
+ * Implement hook_install().
  */
 function forum_install() {
   // Create tables.
   drupal_install_schema('forum');
   // Set the weight of the forum.module to 1 so it is loaded after the taxonomy.module.
-  db_query("UPDATE {system} SET weight = 1 WHERE name = 'forum'");
+  db_update('system')
+    ->fields(array('weight' => 1))
+    ->condition('name', 'forum')
+    ->execute();
 }
 
 function forum_enable() {
@@ -45,7 +48,7 @@ function forum_enable() {
 }
 
 /**
- * Implementation of hook_uninstall().
+ * Implement hook_uninstall().
  */
 function forum_uninstall() {
   // Load the dependent Taxonomy module, in case it has been disabled.
@@ -55,7 +58,7 @@ function forum_uninstall() {
   $vid = variable_get('forum_nav_vocabulary', 0);
   taxonomy_vocabulary_delete($vid);
 
-  db_query('DROP TABLE {forum}');
+  drupal_uninstall_schema('forum');
   variable_del('forum_containers');
   variable_del('forum_nav_vocabulary');
   variable_del('forum_hot_topic');
@@ -66,7 +69,7 @@ function forum_uninstall() {
 }
 
 /**
- * Implementation of hook_schema().
+ * Implement hook_schema().
  */
 function forum_schema() {
   $schema['forum'] = array(
@@ -99,37 +102,11 @@ function forum_schema() {
       'tid' => array('tid'),
     ),
     'primary key' => array('vid'),
+    'foreign keys' => array(
+      'nid' => array('node' => 'nid'),
+      'vid' => array('node' => 'vid'),
+    ),
   );
 
   return $schema;
-}
-
-/**
- * Create the forum vocabulary if does not exist. Assign the
- * vocabulary a low weight so it will appear first in forum topic
- * create and edit forms. Do not just call forum_enable() because in
- * future versions it might do something different.
- */
-function forum_update_6000() {
-  $ret = array();
-
-  $vid = variable_get('forum_nav_vocabulary', 0);
-  $vocabularies = taxonomy_get_vocabularies();
-  if (!isset($vocabularies[$vid])) {
-    $vocabulary = array(
-      'name' => t('Forums'),
-      'multiple' => 0,
-      'required' => 0,
-      'hierarchy' => 1,
-      'relations' => 0,
-      'module' => 'forum',
-      'weight' => -10,
-      'nodes' => array('forum' => 1),
-    );
-    taxonomy_save_vocabulary($vocabulary);
-
-    variable_set('forum_nav_vocabulary', $vocabulary['vid']);
-  }
-
-  return $ret;
 }

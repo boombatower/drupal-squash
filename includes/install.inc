@@ -287,7 +287,7 @@ abstract class DatabaseInstaller {
       return FALSE;
     }
     foreach ($this->tests as $test) {
-      $return = $this->runTestQuery($test['query'], $test['success'], $test['message'], !empty($tests['fatal']));
+      $return = $this->runTestQuery($test['query'], $test['success'], $test['message'], !empty($test['fatal']));
       if ($return === FALSE) {
         return FALSE;
       }
@@ -303,11 +303,14 @@ abstract class DatabaseInstaller {
    */
   protected function testConnect() {
     try {
+      // This doesn't actually test the connection.
       db_set_active();
+      // Now actually do a check.
+      Database::getConnection();
       $this->success[] = 'CONNECT';
     }
     catch (Exception $e) {
-      drupal_set_message(st('Failed to connect to your %name database server. %name reports the following message: %error.<ul><li>Are you sure you have the correct username and password?</li><li>Are you sure that you have typed the correct database hostname?</li><li>Are you sure that the database server is running?</li></ul>For more help, see the <a href="http://drupal.org/node/258">Installation and upgrading handbook</a>. If you are unsure what these terms mean you should probably contact your hosting provider.', array('%error' => $e->getMessage(), 'name' => $this->name())), 'error');
+      drupal_set_message(st('Failed to connect to your %name database server. %name reports the following message: <strong>%error</strong>.<ul><li>Are you sure that you have typed the correct database hostname?</li><li>Are you sure that the database server is running?</li><li>Are you sure you have the correct database name?</li><li>Are you sure you have the correct username and password?</li></ul>For more help, see the <a href="http://drupal.org/node/258">Installation and upgrading handbook</a>. If you are unsure what these terms mean you should probably contact your hosting provider.', array('%error' => $e->getMessage(), '%name' => $this->name())), 'error');
       return FALSE;
     }
   }
@@ -419,24 +422,6 @@ function drupal_get_install_files($module_list = array()) {
   return $installs;
 }
 
-/**
- * Get a list of modules required by an installation profile.
- *
- * @param profile
- *   Name of profile.
- * @param locale
- *   Name of locale used (if any).
- * @return
- *   The list of modules to install.
- */
-function drupal_get_profile_modules($profile, $locale = 'en') {
-  $profile_file = "./profiles/$profile/$profile.profile";
-  require_once($profile_file);
-
-  // Get a list of modules required by this profile.
-  $function = $profile . '_profile_modules';
-  return array_merge(drupal_required_modules(), $function(), ($locale != 'en' && !empty($locale) ? array('locale') : array()));
-}
 
 /**
  * Verify an install profile for installation.
@@ -457,8 +442,8 @@ function drupal_verify_profile($profile, $locale) {
   if (!isset($profile) || !file_exists($profile_file)) {
     install_no_profile_error();
   }
+  $info = install_profile_info($profile);
 
-  $module_list = drupal_get_profile_modules($profile, $locale);
 
   // Get a list of modules that exist in Drupal's assorted subdirectories.
   $present_modules = array();
@@ -467,7 +452,7 @@ function drupal_verify_profile($profile, $locale) {
   }
 
   // Verify that all of the profile's required modules are present.
-  $missing_modules = array_diff($module_list, $present_modules);
+  $missing_modules = array_diff($info['dependencies'], $present_modules);
 
   $requirements = array();
 
@@ -495,7 +480,7 @@ function drupal_verify_profile($profile, $locale) {
  *   Normally just testing wants to set this to TRUE.
  */
 function drupal_install_modules($module_list = array(), $disable_modules_installed_hook = FALSE) {
-  $files = module_rebuild_cache();
+  $files = system_get_module_data();
   $module_list = array_flip(array_values($module_list));
   do {
     $moved = FALSE;
@@ -513,11 +498,7 @@ function drupal_install_modules($module_list = array(), $disable_modules_install
   } while ($moved);
   asort($module_list);
   $module_list = array_keys($module_list);
-  $modules_installed = array_filter($module_list, '_drupal_install_module');
-  if (!$disable_modules_installed_hook && !empty($modules_installed)) {
-    module_invoke_all('modules_installed', $modules_installed);
-  }
-  module_enable($module_list);
+  module_enable($module_list, $disable_modules_installed_hook);
 }
 
 /**
@@ -525,7 +506,7 @@ function drupal_install_modules($module_list = array(), $disable_modules_install
  *
  * Used during installation to install modules one at a time and then
  * enable them, or to install a number of modules at one time
- * from admin/build/modules.
+ * from admin/structure/modules.
  *
  * @param $module
  *   The machine name of the module to install.
@@ -549,7 +530,7 @@ function _drupal_install_module($module) {
  * Because we have no registry yet, we need to manually include the
  * necessary database include files.
  */
-function drupal_install_init_database() {
+function drupal_install_initialize_database() {
   static $included = FALSE;
 
   if (!$included) {
@@ -574,7 +555,7 @@ function drupal_install_init_database() {
 function drupal_install_system() {
   $system_path = dirname(drupal_get_filename('module', 'system', NULL));
   require_once DRUPAL_ROOT . '/' . $system_path . '/system.install';
-  drupal_install_init_database();
+  drupal_install_initialize_database();
   module_invoke('system', 'install');
 
   $system_versions = drupal_get_schema_versions('system');
@@ -592,7 +573,7 @@ function drupal_install_system() {
     ->execute();
   // Now that we've installed things properly, bootstrap the full Drupal environment
   drupal_bootstrap(DRUPAL_BOOTSTRAP_FULL);
-  module_rebuild_cache();
+  system_get_module_data();
 }
 
 /**
@@ -925,14 +906,10 @@ function drupal_check_profile($profile) {
     install_no_profile_error();
   }
 
-  require_once $profile_file;
-
-  // Get a list of modules required by this profile.
-  $function = $profile . '_profile_modules';
-  $module_list = array_unique(array_merge(drupal_required_modules(), $function()));
+  $info = install_profile_info($profile);
 
   // Get a list of all .install files.
-  $installs = drupal_get_install_files($module_list);
+  $installs = drupal_get_install_files($info['dependencies']);
 
   // Collect requirement testing results
   $requirements = array();
@@ -997,3 +974,52 @@ function drupal_check_module($module) {
   }
   return TRUE;
 }
+
+/**
+ * Retrieve info about an install profile from its .info file.
+ *
+ * Information stored in the profile.info file:
+ * - name: The real name of the install profile for display purposes.
+ * - description: A brief description of the profile.
+ * - dependencies: An array of shortnames of other modules this install profile requires.
+ * - tasks: An associative array of tasks and the page title of each task that need to be 
+ *   completed for installation.
+ *
+ * Example of .info file:
+ * @verbatim
+ *    name = Drupal (minimal)
+ *    description = Create a Drupal site with only required modules enabled.
+ *    dependencies[] = block
+ *    dependencies[] = dblog
+ * @endverbatim
+ *
+ * @param profile
+ *   Name of profile.
+ * @param locale
+ *   Name of locale used (if any).
+ * @return
+ *   The info array.
+ */
+function install_profile_info($profile, $locale = 'en') {
+  $cache = &drupal_static(__FUNCTION__, array());
+
+  if (!isset($cache[$profile])) {
+    // Set defaults for module info.
+    $defaults = array(
+      'dependencies' => array(),
+      'tasks' => array(),
+      'description' => '',
+      'version' => NULL,
+      'php' => DRUPAL_MINIMUM_PHP,
+    );
+    $info = drupal_parse_info_file("profiles/$profile/$profile.info") + $defaults;
+    $info['dependencies'] = array_unique(array_merge(
+      drupal_required_modules(), 
+      $info['dependencies'], 
+      ($locale != 'en' && !empty($locale) ? array('locale') : array()))
+    );
+    $cache[$profile] = $info;
+  }
+  return $cache[$profile];
+}
+

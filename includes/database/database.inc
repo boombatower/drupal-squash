@@ -184,16 +184,6 @@
 abstract class DatabaseConnection extends PDO {
 
   /**
-   * Reference to the last statement that was executed.
-   *
-   * We only need this for the legacy db_affected_rows() call, which will be removed.
-   *
-   * @var DatabaseStatementInterface
-   * @todo Remove this variable.
-   */
-  public $lastStatement;
-
-  /**
    * The database target this connection is for.
    *
    * We need this information for later auditing and logging.
@@ -235,7 +225,7 @@ abstract class DatabaseConnection extends PDO {
    *
    * @var boolean
    */
-  protected $willRollBack;
+  protected $willRollback;
 
   /**
    * The name of the Select class for this connection.
@@ -451,7 +441,7 @@ abstract class DatabaseConnection extends PDO {
    * @return
    *   A PDO prepared statement ready for its execute() method.
    */
-  protected function prepareQuery($query, $cache = TRUE) {
+  public function prepareQuery($query, $cache = TRUE) {
     $query = $this->prefixTables($query);
     if (empty($this->preparedStatements[$query])) {
       // Call PDO::prepare.
@@ -595,13 +585,15 @@ abstract class DatabaseConnection extends PDO {
     catch (PDOException $e) {
       _db_check_install_needed();
       if ($options['throw_exception']) {
+        // Add additional debug information.
         if ($query instanceof DatabaseStatementInterface) {
-          $query_string = $stmt->getQueryString();
+          $e->query_string = $stmt->getQueryString();
         }
         else {
-          $query_string = $query;
+          $e->query_string = $query;
         }
-        throw new PDOException($query_string . " - \n" . print_r($args, 1) . $e->getMessage());
+        $e->args = $args;
+        throw $e;
       }
       return NULL;
     }
@@ -857,12 +849,12 @@ abstract class DatabaseConnection extends PDO {
    *
    * This method throws an exception if no transaction is active.
    */
-  public function rollBack() {
+  public function rollback() {
     if ($this->transactionLayers == 0) {
       throw new NoActiveTransactionException();
     }
 
-    $this->willRollBack = TRUE;
+    $this->willRollback = TRUE;
   }
 
   /**
@@ -875,12 +867,12 @@ abstract class DatabaseConnection extends PDO {
    * @return
    *   TRUE if the transaction will roll back, FALSE otherwise.
    */
-  public function willRollBack() {
+  public function willRollback() {
     if ($this->transactionLayers == 0) {
       throw new NoActiveTransactionException();
     }
 
-    return $this->willRollBack;
+    return $this->willRollback;
   }
 
   /**
@@ -1355,9 +1347,10 @@ abstract class Database {
       }
 
       // We need to pass around the simpletest database prefix in the request
-      // and we put that in the user_agent header.
-      if (preg_match("/^simpletest\d+$/", $_SERVER['HTTP_USER_AGENT'])) {
-        $db_prefix .= $_SERVER['HTTP_USER_AGENT'];
+      // and we put that in the user_agent header. The header HMAC was already
+      // validated in bootstrap.inc.
+      if (isset($_SERVER['HTTP_USER_AGENT']) && preg_match("/^(simpletest\d+);/", $_SERVER['HTTP_USER_AGENT'], $matches)) {
+        $db_prefix .= $matches[1];
       }
       return $new_connection;
     }
@@ -1421,6 +1414,19 @@ class ExplicitTransactionsNotSupportedException extends Exception { }
 class InvalidMergeQueryException extends Exception {}
 
 /**
+ * Exception thrown if an insert query specifies a field twice.
+ *
+ * It is not allowed to specify a field as default and insert field, this
+ * exception is thrown if that is the case.
+ */
+class FieldsOverlapException extends Exception {}
+
+/**
+ * Exception thrown if an insert query doesn't specify insert or default fields.
+ */
+class NoFieldsException extends Exception {}
+
+/**
  * A wrapper class for creating and managing database transactions.
  *
  * Not all databases or database configurations support transactions. For
@@ -1454,6 +1460,23 @@ class DatabaseTransaction {
 
   public function __destruct() {
     $this->connection->popTransaction();
+  }
+
+  /**
+   * Roll back the current transaction.
+   *
+   * This is just a wrapper method to rollback whatever transaction stack we
+   * are currently in, which is managed by the connection object itself.
+   */
+  public function rollback() {
+    $this->connection->rollback();
+  }
+
+  /**
+   * Determine if this transaction will roll back.
+   */
+  public function willRollback() {
+    return $this->connection->willRollback();
   }
 
 }
@@ -1679,7 +1702,6 @@ class DatabaseStatementBase extends PDOStatement implements DatabaseStatementInt
         $this->setFetchMode($options['fetch']);
       }
     }
-    $this->dbh->lastStatement = $this;
 
     $logger = $this->dbh->getLogger();
     if (!empty($logger)) {
@@ -2017,23 +2039,6 @@ function db_escape_table($table) {
 function update_sql($sql) {
   $result = Database::getConnection()->query($sql);
   return array('success' => $result !== FALSE, 'query' => check_plain($sql));
-}
-
-/**
- * Generate placeholders for an array of query arguments of a single type.
- *
- * Given a Schema API field type, return correct %-placeholders to
- * embed in a query
- *
- * @todo This may be possible to remove in favor of db_select().
- * @param $arguments
- *   An array with at least one element.
- * @param $type
- *   The Schema API type of a field (e.g. 'int', 'text', or 'varchar').
- */
-function db_placeholders($arguments, $type = 'int') {
-  $placeholder = db_type_placeholder($type);
-  return implode(',', array_fill(0, count($arguments), $placeholder));
 }
 
 /**
@@ -2451,10 +2456,28 @@ function db_change_field(&$ret, $table, $field, $field_new, $spec, $keys_new = a
  */
 function _db_error_page($error = '') {
   global $db_type;
-  drupal_init_language();
+  drupal_language_initialize();
   drupal_maintenance_theme();
   drupal_set_header($_SERVER['SERVER_PROTOCOL'] . ' 503 Service Unavailable');
   drupal_set_title('Site offline');
+}
+
+ /**
+ * Helper function to get duration lag from variable
+ * and set the session variable that contains the lag.
+ */
+function db_ignore_slave() {
+  $connection_info = Database::getConnectionInfo();
+  // Only set ignore_slave_server if there are slave servers
+  // being used, which is assumed if there are more than one.
+  if (count($connection_info) > 1) {
+    // Five minutes is long enough to allow the slave to break and resume
+    // interrupted replication without causing problems on the Drupal site
+    // from the old data.
+    $duration = variable_get('maximum_replication_lag', 300);
+    // Set session variable with amount of time to delay before using slave.
+    $_SESSION['ignore_slave_server'] = REQUEST_TIME + $duration;
+  }
 }
 
 /**
@@ -2551,21 +2574,6 @@ function _db_query_process_args($query, $args, $options) {
 function db_last_insert_id($table, $field) {
   $sequence_name = Database::getConnection()->makeSequenceName($table, $field);
   return Database::getConnection()->lastInsertId($sequence_name);
-}
-
-/**
- * Determine the number of rows changed by the preceding query.
- *
- * This may not work, actually, without some tricky temp code.
- *
- * @todo Remove this function when all queries have been ported to db_update().
- */
-function db_affected_rows() {
-  $statement = Database::getConnection()->lastStatement;
-  if (!$statement) {
-    return 0;
-  }
-  return $statement->rowCount();
 }
 
 /**
@@ -2684,7 +2692,6 @@ function db_rewrite_sql($query, $primary_table = 'n', $primary_field = 'nid',  $
 
   return $query;
 }
-
 
 /**
  * @} End of "ingroup database-legacy".

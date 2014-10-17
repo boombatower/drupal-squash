@@ -28,7 +28,7 @@ function install_main() {
   // The user agent header is used to pass a database prefix in the request when
   // running tests. However, for security reasons, it is imperative that no
   // installation be permitted using such a prefix.
-  if (preg_match("/^simpletest\d+$/", $_SERVER['HTTP_USER_AGENT'])) {
+  if (isset($_SERVER['HTTP_USER_AGENT']) && strpos($_SERVER['HTTP_USER_AGENT'], "simpletest") !== FALSE) {
     header($_SERVER['SERVER_PROTOCOL'] . ' 403 Forbidden');
     exit;
   }
@@ -46,7 +46,7 @@ function install_main() {
   drupal_page_header();
 
   // Set up $language, so t() caller functions will still work.
-  drupal_init_language();
+  drupal_language_initialize();
 
   // Load module basics (needed for hook invokes).
   include_once DRUPAL_ROOT . '/includes/module.inc';
@@ -102,8 +102,6 @@ function install_main() {
     install_no_profile_error();
   }
 
-  // Load the profile.
-  require_once DRUPAL_ROOT . "/profiles/$profile/$profile.profile";
 
   // Locale selection
   if (!empty($_GET['locale'])) {
@@ -112,6 +110,10 @@ function install_main() {
   elseif (($install_locale = install_select_locale($profile)) !== FALSE) {
     install_goto("install.php?profile=$profile&locale=$install_locale");
   }
+
+  // Load the profile.
+  require_once DRUPAL_ROOT . "/profiles/$profile/$profile.profile";
+  $info = install_profile_info($profile, $install_locale);
 
   // Tasks come after the database is set up
   if (!$task) {
@@ -151,7 +153,7 @@ function install_main() {
     // Save the list of other modules to install for the 'profile-install'
     // task. variable_set() can be used now that system.module is installed
     // and drupal is bootstrapped.
-    $modules = drupal_get_profile_modules($profile, $install_locale);
+    $modules = $info['dependencies'];
     variable_set('install_profile_modules', array_diff($modules, array('system')));
   }
 
@@ -267,7 +269,7 @@ function install_settings_form(&$form_state, $profile, $install_locale, $setting
       '#size' => 45,
     );
 
-    // Database username
+    // Database password
     $form['basic_options']['password'] = array(
       '#type' => 'password',
       '#title' => st('Database password'),
@@ -344,8 +346,8 @@ function install_settings_form_validate($form, &$form_state) {
 function _install_settings_form_validate($database, $settings_file, &$form_state, $form = NULL) {
   global $databases;
   // Verify the table prefix
-  if (!empty($database['prefix']) && is_string($database['prefix']) && !preg_match('/^[A-Za-z0-9_.]+$/', $database['dprefix'])) {
-    form_set_error('db_prefix', st('The database table prefix you have entered, %db_prefix, is invalid. The table prefix can only contain alphanumeric characters, periods, or underscores.', array('%db_prefix' => $db_prefix)), 'error');
+  if (!empty($database['db_prefix']) && is_string($database['db_prefix']) && !preg_match('/^[A-Za-z0-9_.]+$/', $database['db_prefix'])) {
+    form_set_error('db_prefix', st('The database table prefix you have entered, %db_prefix, is invalid. The table prefix can only contain alphanumeric characters, periods, or underscores.', array('%db_prefix' => $database['db_prefix'])), 'error');
   }
 
   if (!empty($database['port']) && !is_numeric($database['port'])) {
@@ -437,6 +439,7 @@ function install_select_profile() {
   }
 }
 
+
 /**
  * Form API array definition for the profile selection form.
  *
@@ -451,12 +454,8 @@ function install_select_profile_form(&$form_state, $profile_files) {
 
   foreach ($profile_files as $profile) {
     include_once DRUPAL_ROOT . '/' . $profile->filepath;
-
-    // Load profile details and store them for later retrieval.
-    $function = $profile->name . '_profile_details';
-    if (function_exists($function)) {
-      $details = $function();
-    }
+    
+    $details = install_profile_info($profile->name);
     $profiles[$profile->name] = $details;
 
     // Determine the name of the profile; default to file name if defined name
@@ -622,10 +621,10 @@ function install_tasks($profile, $task) {
 
   // Bootstrap newly installed Drupal, while preserving existing messages.
   $messages = isset($_SESSION['messages']) ? $_SESSION['messages'] : '';
-  drupal_install_init_database();
+  drupal_install_initialize_database();
 
   drupal_bootstrap(DRUPAL_BOOTSTRAP_FULL);
-  drupal_set_session('messages', $messages);
+  $_SESSION['messages'] = $messages;
 
   // URL used to direct page requests.
   $url = $base_url . '/install.php?locale=' . $install_locale . '&profile=' . $profile;
@@ -642,7 +641,7 @@ function install_tasks($profile, $task) {
   // Install profile modules.
   if ($task == 'profile-install') {
     $modules = variable_get('install_profile_modules', array());
-    $files = module_rebuild_cache();
+    $files = system_get_module_data();
     variable_del('install_profile_modules');
     $operations = array();
     foreach ($modules as $module) {
@@ -800,6 +799,7 @@ function install_tasks($profile, $task) {
     $messages = drupal_set_message();
     $output = '<p>' . st('Congratulations, @drupal has been successfully installed.', array('@drupal' => drupal_install_profile_name())) . '</p>';
     $output .= '<p>' . (isset($messages['error']) ? st('Please review the messages above before continuing on to <a href="@url">your new site</a>.', array('@url' => url(''))) : st('You may now visit <a href="@url">your new site</a>.', array('@url' => url('')))) . '</p>';
+    $output .= '<p>' . st('For more information on configuring Drupal, please refer to the <a href="@help">help section</a>.', array('@help' => url('admin/help'))) . '</p>';
     $task = 'done';
   }
 
@@ -969,14 +969,12 @@ function install_task_list($active = NULL) {
     unset($tasks['profile-select']);
     $tasks['profile-install-batch'] = st('Install site');
   }
-
   // Add tasks defined by the profile.
   if ($profile) {
-    $function = $profile . '_profile_task_list';
-    if (function_exists($function)) {
-      $result = $function();
-      if (is_array($result)) {
-        $tasks += $result;
+    $info = install_profile_info($profile);
+    if (isset($info['tasks'])) {
+      foreach ($info['tasks'] as $task => $title) {
+        $tasks[$task] = st($title);
       }
     }
   }
@@ -1095,7 +1093,7 @@ function install_configure_form(&$form_state, $url) {
     '#title' => st('Update notifications'),
     '#options' => array(1 => st('Check for updates automatically')),
     '#default_value' => array(1),
-    '#description' => st('With this option enabled, Drupal will notify you when new releases are available. This will significantly enhance your site\'s security and is <strong>highly recommended</strong>. This requires your site to periodically send anonymous information on its installed components to <a href="@drupal">drupal.org</a>. For more information please see the <a href="@update">update notification information</a>.', array('@drupal' => 'http://drupal.org', '@update' => 'http://drupal.org/handbook/modules/update')),
+    '#description' => st('The system will notify you when updates and important security releases are available for installed components. Anonymous information about your site is sent to <a href="@drupal">Drupal.org</a>.', array('@drupal' => 'http://drupal.org')),
     '#weight' => 15,
   );
 
@@ -1157,8 +1155,9 @@ function install_configure_form_submit($form, &$form_state) {
   $account = user_load(1);
   $merge_data = array('init' => $form_state['values']['mail'], 'roles' => array(), 'status' => 1);
   user_save($account, array_merge($form_state['values'], $merge_data));
-  // Log in the first user.
-  user_authenticate($form_state['values']);
+  // Load global $user and perform final login tasks.
+  $form_state['uid'] = 1;
+  user_login_submit(array(), $form_state);
   $form_state['values'] = $form_state['old_values'];
   unset($form_state['old_values']);
   variable_set('user_email_verification', TRUE);
@@ -1166,9 +1165,6 @@ function install_configure_form_submit($form, &$form_state) {
   if (isset($form_state['values']['clean_url'])) {
     variable_set('clean_url', $form_state['values']['clean_url']);
   }
-  // The user is now logged in, but has no session ID yet, which
-  // would be required later in the request, so remember it.
-  $user->sid = session_id();
 
   // Record when this install ran.
   variable_set('install_time', $_SERVER['REQUEST_TIME']);

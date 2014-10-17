@@ -12,9 +12,9 @@
 class GraphUnitTest extends DrupalUnitTestCase {
   public static function getInfo() {
     return array(
-      'name' => t('Graph'),
-      'description' => t('Graph handling unit tests.'),
-      'group' => t('System'),
+      'name' => 'Graph',
+      'description' => 'Graph handling unit tests.',
+      'group' => 'System',
     );
   }
 
@@ -23,7 +23,7 @@ class GraphUnitTest extends DrupalUnitTestCase {
    */
   function testDepthFirstSearch() {
     // Provoke the inclusion of graph.inc.
-    drupal_function_exists('drupal_depth_first_search');
+    require_once 'includes/graph.inc';
 
     // The sample graph used is:
     // 1 --> 2 --> 3     5 ---> 6

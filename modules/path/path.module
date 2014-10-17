@@ -7,7 +7,7 @@
  */
 
 /**
- * Implementation of hook_help().
+ * Implement hook_help().
  */
 function path_help($path, $arg) {
   switch ($path) {
@@ -22,42 +22,42 @@ function path_help($path, $arg) {
       $output .= '<p>' . t('This module also provides user-defined mass URL aliasing capabilities, which is useful if you wish to uniformly use URLs different from the default. For example, you may want to have your URLs presented in a different language. Access to the Drupal source code on the web server is required to set up mass URL aliasing.') . ' </p>';
       $output .= '<p>' . t('For more information, see the online handbook entry for <a href="@path">Path module</a>.', array('@path' => 'http://drupal.org/handbook/modules/path/')) . '</p>';
       return $output;
-    case 'admin/build/path':
-      return '<p>' . t("Drupal provides complete control over URLs through aliasing, which is often used to make URLs more readable or easy to remember. For example, the alias 'about' may be mapped onto the post at the system path 'node/1', creating a more meaningful URL. Each system path can have multiple aliases.") . '</p>';
-    case 'admin/build/path/add':
+    case 'admin/settings/path':
+      return '<p>' . t("An alias defines a different name for an existing URL path - for example, the alias 'about' for the URL path 'node/1'. A URL path can have multiple aliases.") . '</p>';
+    case 'admin/settings/path/add':
       return '<p>' . t('Enter the path you wish to create the alias for, followed by the name of the new alias.') . '</p>';
   }
 }
 
 /**
- * Implementation of hook_menu().
+ * Implement hook_menu().
  */
 function path_menu() {
-  $items['admin/build/path'] = array(
+  $items['admin/settings/path'] = array(
     'title' => 'URL aliases',
     'description' => "Change your site's URL paths by aliasing them.",
     'page callback' => 'path_admin_overview',
     'access arguments' => array('administer url aliases'),
   );
-  $items['admin/build/path/edit'] = array(
+  $items['admin/settings/path/edit'] = array(
     'title' => 'Edit alias',
     'page callback' => 'path_admin_edit',
     'access arguments' => array('administer url aliases'),
     'type' => MENU_CALLBACK,
   );
-  $items['admin/build/path/delete'] = array(
+  $items['admin/settings/path/delete'] = array(
     'title' => 'Delete alias',
     'page callback' => 'drupal_get_form',
     'page arguments' => array('path_admin_delete_confirm'),
     'access arguments' => array('administer url aliases'),
     'type' => MENU_CALLBACK,
   );
-  $items['admin/build/path/list'] = array(
+  $items['admin/settings/path/list'] = array(
     'title' => 'List',
     'type' => MENU_DEFAULT_LOCAL_TASK,
     'weight' => -10,
   );
-  $items['admin/build/path/add'] = array(
+  $items['admin/settings/path/add'] = array(
     'title' => 'Add alias',
     'page callback' => 'path_admin_edit',
     'access arguments' => array('administer url aliases'),
@@ -145,7 +145,7 @@ function path_set_alias($path = NULL, $alias = NULL, $pid = NULL, $language = ''
 }
 
 /**
- * Implementation of hook_node_validate().
+ * Implement hook_node_validate().
  */
 function path_node_validate($node, $form) {
   if (user_access('create url aliases') || user_access('administer url aliases')) {
@@ -167,7 +167,7 @@ function path_node_validate($node, $form) {
 }
 
 /**
- * Implementation of hook_node_load().
+ * Implement hook_node_load().
  */
 function path_node_load($nodes, $types) {
   foreach ($nodes as $node) {
@@ -181,7 +181,7 @@ function path_node_load($nodes, $types) {
 }
 
 /**
- * Implementation of hook_node_insert().
+ * Implement hook_node_insert().
  */
 function path_node_insert($node) {
   if (user_access('create url aliases') || user_access('administer url aliases')) {
@@ -195,7 +195,7 @@ function path_node_insert($node) {
 }
 
 /**
- * Implementation of hook_node_update().
+ * Implement hook_node_update().
  */
 function path_node_update($node) {
   if (user_access('create url aliases') || user_access('administer url aliases')) {
@@ -205,20 +205,14 @@ function path_node_update($node) {
 }
 
 /**
- * Implementation of hook_node_delete().
+ * Implement hook_node_delete().
  */
 function path_node_delete($node) {
-  if (user_access('create url aliases') || user_access('administer url aliases')) {
-    $language = isset($node->language) ? $node->language : '';
-    $path = 'node/' . $node->nid;
-    if (drupal_get_path_alias($path) != $path) {
-      path_set_alias($path);
-    }
-  }
+  path_set_alias('node/' . $node->nid);
 }
 
 /**
- * Implementation of hook_form_alter().
+ * Implement hook_form_alter().
  */
 function path_form_alter(&$form, $form_state, $form_id) {
   if (!empty($form['#node_edit_form'])) {
@@ -237,7 +231,7 @@ function path_form_alter(&$form, $form_state, $form_id) {
       '#type' => 'textfield',
       '#title' => t('URL alias'),
       '#default_value' => $path,
-      '#maxlength' => 128,
+      '#maxlength' => 255,
       '#collapsible' => TRUE,
       '#collapsed' => TRUE,
       '#description' => t('Optionally specify an alternative URL by which this node can be accessed. For example, type "about" when writing an about page. Use a relative path and don\'t add a trailing slash or the URL alias won\'t work.'),
@@ -256,9 +250,9 @@ function path_form_alter(&$form, $form_state, $form_id) {
 }
 
 /**
- * Implementation of hook_perm().
+ * Implement hook_permission().
  */
-function path_perm() {
+function path_permission() {
   return array(
     'administer url aliases' => array(
       'title' => t('Administer URL aliases'),

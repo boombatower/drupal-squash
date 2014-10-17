@@ -9,4 +9,6 @@ files[] = system.admin.inc
 files[] = system.queue.inc
 files[] = image.gd.inc
 files[] = system.install
+files[] = system.test
+files[] = system.tar.inc
 required = TRUE

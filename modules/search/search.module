@@ -91,7 +91,7 @@ define('PREG_CLASS_CJK', '\x{3041}-\x{30ff}\x{31f0}-\x{31ff}\x{3400}-\x{4db5}' .
 '\x{4e00}-\x{9fbb}\x{f900}-\x{fad9}');
 
 /**
- * Implementation of hook_help().
+ * Implement hook_help().
  */
 function search_help($path, $arg) {
   switch ($path) {
@@ -112,7 +112,7 @@ function search_help($path, $arg) {
 }
 
 /**
- * Implementation of hook_theme().
+ * Implement hook_theme().
  */
 function search_theme() {
   return array(
@@ -141,9 +141,9 @@ function search_theme() {
 }
 
 /**
- * Implementation of hook_perm().
+ * Implement hook_permission().
  */
-function search_perm() {
+function search_permission() {
   return array(
     'administer search' => array(
       'title' => t('Administer search'),
@@ -161,7 +161,7 @@ function search_perm() {
 }
 
 /**
- * Implementation of hook_block_list().
+ * Implement hook_block_list().
  */
 function search_block_list() {
   $blocks['form']['info'] = t('Search form');
@@ -171,7 +171,7 @@ function search_block_list() {
 }
 
 /**
- * Implementation of hook_block_view().
+ * Implement hook_block_view().
  */
 function search_block_view($delta = '') {
   if (user_access('search content')) {
@@ -182,7 +182,7 @@ function search_block_view($delta = '') {
 }
 
 /**
- * Implementation of hook_menu().
+ * Implement hook_menu().
  */
 function search_menu() {
   $items['search'] = array(
@@ -199,10 +199,10 @@ function search_menu() {
     'access arguments' => array('administer search'),
     'type' => MENU_NORMAL_ITEM,
   );
-  $items['admin/settings/search/wipe'] = array(
+  $items['admin/settings/search/reindex'] = array(
     'title' => 'Clear index',
     'page callback' => 'drupal_get_form',
-    'page arguments' => array('search_wipe_confirm'),
+    'page arguments' => array('search_reindex_confirm'),
     'access arguments' => array('administer search'),
     'type' => MENU_CALLBACK,
   );
@@ -243,7 +243,7 @@ function _search_menu($name) {
  * @param $type
  *  (optional) The type of item to wipe.
  */
-function search_wipe($sid = NULL, $type = NULL, $reindex = FALSE) {
+function search_reindex($sid = NULL, $type = NULL, $reindex = FALSE) {
   if ($type == NULL && $sid == NULL) {
     module_invoke_all('search', 'reset');
   }
@@ -273,7 +273,7 @@ function search_dirty($word = NULL) {
 }
 
 /**
- * Implementation of hook_cron().
+ * Implement hook_cron().
  *
  * Fires hook_update_index() in all modules and cleans up dirty words (see
  * search_dirty).
@@ -512,11 +512,9 @@ function search_index($sid, $type, $text) {
               $linknid = $match[1];
               if ($linknid > 0) {
                 // Note: ignore links to uncacheable nodes to avoid redirect bugs.
-                $node = db_fetch_object(db_query('SELECT n.title, n.nid, n.vid, r.format FROM {node} n INNER JOIN {node_revision} r ON n.vid = r.vid WHERE n.nid = %d', $linknid));
-                if (filter_format_allowcache($node->format)) {
-                  $link = TRUE;
-                  $linktitle = $node->title;
-                }
+                $node = db_query('SELECT title, nid, vid FROM {node} WHERE nid = :nid', array(':nid' => $linknid))->fetchObject();
+                $link = TRUE;
+                $linktitle = $node->title;
               }
             }
           }
@@ -577,7 +575,7 @@ function search_index($sid, $type, $text) {
     $tag = !$tag;
   }
 
-  search_wipe($sid, $type, TRUE);
+  search_reindex($sid, $type, TRUE);
 
   // Insert cleaned up data into dataset
   db_query("INSERT INTO {search_dataset} (sid, type, data, reindex) VALUES (%d, '%s', '%s', %d)", $sid, $type, $accum, 0);
@@ -640,7 +638,7 @@ function search_touch_node($nid) {
 }
 
 /**
- * Implementation of hook_node_update_index().
+ * Implement hook_node_update_index().
  */
 function search_node_update_index($node) {
   // Transplant links to a node into the target node.
@@ -655,7 +653,7 @@ function search_node_update_index($node) {
 }
 
 /**
- * Implementation of hook_node_update().
+ * Implement hook_node_update().
  */
 function search_node_update($node) {
   // Reindex the node when it is updated. The node is automatically indexed
@@ -664,23 +662,23 @@ function search_node_update($node) {
 }
 
 /**
- * Implementation of hook_comment_insert().
+ * Implement hook_comment_insert().
  */
-function search_comment_insert($form_values) {
+function search_comment_insert($comment) {
   // Reindex the node when comments are added.
-  search_touch_node($form_values['nid']);
+  search_touch_node($comment->nid);
 }
 
 /**
- * Implementation of hook_comment_update().
+ * Implement hook_comment_update().
  */
-function search_comment_update($form_values) {
+function search_comment_update($comment) {
   // Reindex the node when comments are changed.
-  search_touch_node($form_values['nid']);
+  search_touch_node($comment->nid);
 }
 
 /**
- * Implementation of hook_comment_delete().
+ * Implement hook_comment_delete().
  */
 function search_comment_delete($comment) {
   // Reindex the node when comments are deleted.
@@ -688,15 +686,15 @@ function search_comment_delete($comment) {
 }
 
 /**
- * Implementation of hook_comment_publish().
+ * Implement hook_comment_publish().
  */
-function search_comment_publish($form_values) {
+function search_comment_publish($comment) {
   // Reindex the node when comments are published.
-  search_touch_node($form_values['nid']);
+  search_touch_node($comment->nid);
 }
 
 /**
- * Implementation of hook_comment_unpublish().
+ * Implement hook_comment_unpublish().
  */
 function search_comment_unpublish($comment) {
   // Reindex the node when comments are unpublished.
@@ -1118,6 +1116,14 @@ function search_box(&$form_state, $form_id) {
  * Process a block search form submission.
  */
 function search_box_form_submit($form, &$form_state) {
+  // The search form relies on control of the redirect destination for its
+  // functionality, so we override any static destination set in the request,
+  // for example by drupal_access_denied() or drupal_not_found()
+  // (see http://drupal.org/node/292565).
+  if (isset($_REQUEST['destination'])) {
+    unset($_REQUEST['destination']);
+  }
+
   $form_id = $form['form_id']['#value'];
   $form_state['redirect'] = 'search/node/' . trim($form_state['values'][$form_id]);
 }

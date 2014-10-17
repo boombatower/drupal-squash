@@ -15,7 +15,7 @@
 define('FILTER_FORMAT_DEFAULT', 0);
 
 /**
- * Implementation of hook_help().
+ * Implement hook_help().
  */
 function filter_help($path, $arg) {
   switch ($path) {
@@ -25,15 +25,15 @@ function filter_help($path, $arg) {
       $output .= '<p>' . t('Users with access to more than one text format can use the <em>Text format</em> fieldset to choose between available text formats when creating or editing multi-line content. Administrators determine the text formats available to each user role, select a default text format, and control the order of formats listed in the <em>Text format</em> fieldset.') . '</p>';
       $output .= '<p>' . t('For more information, see the online handbook entry for <a href="@filter">Filter module</a>.', array('@filter' => 'http://drupal.org/handbook/modules/filter/')) . '</p>';
       return $output;
-    case 'admin/settings/filter':
+    case 'admin/settings/formats':
       $output = '<p>' . t('Use the list below to review the text formats available to each user role, to select a default text format, and to control the order of formats listed in the <em>Text format</em> fieldset. (The <em>Text format</em> fieldset is displayed below textareas when users with access to more than one text format create multi-line content.) The text format selected as <em>Default</em> is available to all users and, unless another format is selected, is applied to all content. All text formats are available to users in roles with the "administer filters" permission.') . '</p>';
       $output .= '<p>' . t('Since text formats, if available, are presented in the same order as the list below, it may be helpful to arrange the formats in descending order of your preference for their use. To change the order of an text format, grab a drag-and-drop handle under the <em>Name</em> column and drag to a new location in the list. (Grab a handle by clicking and holding the mouse while hovering over a handle icon.) Remember that your changes will not be saved until you click the <em>Save changes</em> button at the bottom of the page.') . '</p>';
       return $output;
-    case 'admin/settings/filter/%':
-      return '<p>' . t('Every <em>filter</em> performs one particular change on the user input, for example stripping out malicious HTML or making URLs clickable. Choose which filters you want to apply to text in this format. If you notice some filters are causing conflicts in the output, you can <a href="@rearrange">rearrange them</a>.', array('@rearrange' => url('admin/settings/filter/' . $arg[3] . '/order'))) . '</p>';
-    case 'admin/settings/filter/%/configure':
-      return '<p>' . t('If you cannot find the settings for a certain filter, make sure you have enabled it on the <a href="@url">edit tab</a> first.', array('@url' => url('admin/settings/filter/' . $arg[3]))) . '</p>';
-    case 'admin/settings/filter/%/order':
+    case 'admin/settings/formats/%':
+      return '<p>' . t('Every <em>filter</em> performs one particular change on the user input, for example stripping out malicious HTML or making URLs clickable. Choose which filters you want to apply to text in this format. If you notice some filters are causing conflicts in the output, you can <a href="@rearrange">rearrange them</a>.', array('@rearrange' => url('admin/settings/formats/' . $arg[3] . '/order'))) . '</p>';
+    case 'admin/settings/formats/%/configure':
+      return '<p>' . t('If you cannot find the settings for a certain filter, make sure you have enabled it on the <a href="@url">edit tab</a> first.', array('@url' => url('admin/settings/formats/' . $arg[3]))) . '</p>';
+    case 'admin/settings/formats/%/order':
       $output = '<p>' . t('Because of the flexible filtering system, you might encounter a situation where one filter prevents another from doing its job. For example: a word in an URL gets converted into a glossary term, before the URL can be converted to a clickable link. When this happens, rearrange the order of the filters.') . '</p>';
       $output .= '<p>' . t("Filters are executed from top-to-bottom. To change the order of the filters, modify the values in the <em>Weight</em> column or grab a drag-and-drop handle under the <em>Name</em> column and drag filters to new locations in the list. (Grab a handle by clicking and holding the mouse while hovering over a handle icon.) Remember that your changes will not be saved until you click the <em>Save configuration</em> button at the bottom of the page.") . '</p>';
       return $output;
@@ -41,7 +41,7 @@ function filter_help($path, $arg) {
 }
 
 /**
- * Implementation of hook_theme().
+ * Implement hook_theme().
  */
 function filter_theme() {
   return array(
@@ -67,28 +67,28 @@ function filter_theme() {
 }
 
 /**
- * Implementation of hook_menu().
+ * Implement hook_menu().
  */
 function filter_menu() {
-  $items['admin/settings/filter'] = array(
+  $items['admin/settings/formats'] = array(
     'title' => 'Text formats',
     'description' => 'Configure how content input by users is filtered, including allowed HTML tags. Also allows enabling of module-provided filters.',
     'page callback' => 'drupal_get_form',
     'page arguments' => array('filter_admin_overview'),
     'access arguments' => array('administer filters'),
   );
-  $items['admin/settings/filter/list'] = array(
+  $items['admin/settings/formats/list'] = array(
     'title' => 'List',
     'type' => MENU_DEFAULT_LOCAL_TASK,
   );
-  $items['admin/settings/filter/add'] = array(
+  $items['admin/settings/formats/add'] = array(
     'title' => 'Add text format',
     'page callback' => 'filter_admin_format_page',
     'access arguments' => array('administer filters'),
     'type' => MENU_LOCAL_TASK,
     'weight' => 1,
   );
-  $items['admin/settings/filter/delete'] = array(
+  $items['admin/settings/formats/delete'] = array(
     'title' => 'Delete text format',
     'page callback' => 'drupal_get_form',
     'page arguments' => array('filter_admin_delete'),
@@ -101,7 +101,7 @@ function filter_menu() {
     'access callback' => TRUE,
     'type' => MENU_SUGGESTED_ITEM,
   );
-  $items['admin/settings/filter/%filter_format'] = array(
+  $items['admin/settings/formats/%filter_format'] = array(
     'type' => MENU_CALLBACK,
     'title callback' => 'filter_admin_format_title',
     'title arguments' => array(3),
@@ -109,12 +109,12 @@ function filter_menu() {
     'page arguments' => array(3),
     'access arguments' => array('administer filters'),
   );
-  $items['admin/settings/filter/%filter_format/edit'] = array(
+  $items['admin/settings/formats/%filter_format/edit'] = array(
     'title' => 'Edit',
     'type' => MENU_DEFAULT_LOCAL_TASK,
     'weight' => 0,
   );
-  $items['admin/settings/filter/%filter_format/configure'] = array(
+  $items['admin/settings/formats/%filter_format/configure'] = array(
     'title' => 'Configure',
     'page callback' => 'filter_admin_configure_page',
     'page arguments' => array(3),
@@ -122,7 +122,7 @@ function filter_menu() {
     'type' => MENU_LOCAL_TASK,
     'weight' => 1,
   );
-  $items['admin/settings/filter/%filter_format/order'] = array(
+  $items['admin/settings/formats/%filter_format/order'] = array(
     'title' => 'Rearrange',
     'page callback' => 'filter_admin_order_page',
     'page arguments' => array(3),
@@ -145,9 +145,9 @@ function filter_admin_format_title($format) {
 }
 
 /**
- * Implementation of hook_perm().
+ * Implement hook_permission().
  */
-function filter_perm() {
+function filter_permission() {
   return array(
     'administer filters' => array(
       'title' => t('Administer filters'),
@@ -157,7 +157,7 @@ function filter_perm() {
 }
 
 /**
- * Implementation of hook_cron().
+ * Implement hook_cron().
  *
  * Expire outdated filter cache entries
  */
@@ -166,7 +166,7 @@ function filter_cron() {
 }
 
 /**
- * Implementation of hook_filter_tips().
+ * Implement hook_filter_tips().
  */
 function filter_filter_tips($delta, $format, $long = FALSE) {
   global $base_url;
@@ -409,29 +409,33 @@ function filter_list_format($format) {
  * Run all the enabled filters on a piece of text.
  *
  * @param $text
- *    The text to be filtered.
+ *   The text to be filtered.
  * @param $format
- *    The format of the text to be filtered. Specify FILTER_FORMAT_DEFAULT for
- *    the default format.
+ *   The format of the text to be filtered. Specify FILTER_FORMAT_DEFAULT for
+ *   the default format.
  * @param $langcode
- *    Optional: the language code of the text to be filtered, e.g. 'en' for
- *    English. This allows filters to be language aware so language specific
- *    text replacement can be implemented.
+ *   Optional: the language code of the text to be filtered, e.g. 'en' for
+ *   English. This allows filters to be language aware so language specific
+ *   text replacement can be implemented.
  * @param $check
- *    Whether to check the $format with filter_access() first. Defaults to TRUE.
- *    Note that this will check the permissions of the current user, so you
- *    should specify $check = FALSE when viewing other people's content. When
- *    showing content that is not (yet) stored in the database (eg. upon preview),
- *    set to TRUE so the user's permissions are checked.
+ *   Whether to check the $format with filter_access() first. Defaults to TRUE.
+ *   Note that this will check the permissions of the current user, so you
+ *   should specify $check = FALSE when viewing other people's content. When
+ *   showing content that is not (yet) stored in the database (eg. upon preview),
+ *   set to TRUE so the user's permissions are checked.
+ * @param $cache
+ *   Boolean whether to cache the filtered output in the {cache_filter} table.
+ *   The caller may set this to FALSE when the output is already cached
+ *   elsewhere to avoid duplicate cache lookups and storage.
  */
-function check_markup($text, $format = FILTER_FORMAT_DEFAULT, $langcode = '', $check = TRUE) {
+function check_markup($text, $format = FILTER_FORMAT_DEFAULT, $langcode = '', $check = TRUE, $cache = TRUE) {
   // When $check = TRUE, do an access check on $format.
   if (isset($text) && (!$check || filter_access($format))) {
     $format = filter_resolve_format($format);
 
     // Check for a cached version of this piece of text.
     $cache_id = $format . ':' . $langcode . ':' . md5($text);
-    if ($cached = cache_get($cache_id, 'cache_filter')) {
+    if ($cache && $cached = cache_get($cache_id, 'cache_filter')) {
       return $cached->data;
     }
 
@@ -453,7 +457,7 @@ function check_markup($text, $format = FILTER_FORMAT_DEFAULT, $langcode = '', $c
     }
 
     // Store in cache with a minimum expiration time of 1 day.
-    if (filter_format_allowcache($format)) {
+    if ($cache && filter_format_allowcache($format)) {
       cache_set($cache_id, $text, 'cache_filter', REQUEST_TIME + (60 * 60 * 24));
     }
   }
@@ -594,13 +598,20 @@ function theme_filter_guidelines($format) {
  */
 
 /**
- * Implementation of hook_filter(). Contains a basic set of essential filters.
- * - HTML filter:
- *     Validates user-supplied HTML, transforming it as necessary.
- * - Line break converter:
+ * Implement hook_filter().
+ *  
+ * Set up a basic set of essential filters:
+ * - Limit allowed HTML tags:
+ *     Restricts user-supplied HTML to certain tags, and removes dangerous
+ *     components in allowed tags.
+ * - Convert line breaks:
  *     Converts newlines into paragraph and break tags.
- * - URL and e-mail address filter:
- *     Converts newlines into paragraph and break tags.
+ * - Convert URLs into links:
+ *     Converts URLs and e-mail addresses into links.
+ * - Correct broken HTML:
+ *     Fixes faulty HTML.
+ * - Escape all HTML:
+ *     Converts all HTML tags into visible text.
  */
 function filter_filter($op, $delta = 0, $format = -1, $text = '') {
   switch ($op) {

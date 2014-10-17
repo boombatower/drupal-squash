@@ -98,6 +98,7 @@ function _field_info_collate_types($reset = FALSE) {
           $info['field types'][$name]['module'] = $module;
         }
       }
+      drupal_alter('field_info', $info['field types']);
 
       // Populate widget types.
       foreach (module_implements('field_widget_info') as $module) {
@@ -107,6 +108,7 @@ function _field_info_collate_types($reset = FALSE) {
           $info['widget types'][$name]['module'] = $module;
         }
       }
+      drupal_alter('field_widget_info', $info['widget types']);
 
       // Populate formatters.
       foreach (module_implements('field_formatter_info') as $module) {
@@ -116,6 +118,7 @@ function _field_info_collate_types($reset = FALSE) {
           $info['formatter types'][$name]['module'] = $module;
         }
       }
+      drupal_alter('field_formatter_info', $info['formatter types']);
 
       // Populate information about 'fieldable' entities.
       foreach (module_implements('fieldable_info') as $module) {
@@ -123,21 +126,24 @@ function _field_info_collate_types($reset = FALSE) {
         foreach ($fieldable_types as $name => $fieldable_info) {
           // Provide defaults.
           $fieldable_info += array(
-            'revision key' => '',
-            'bundle key' => '',
             'cacheable' => TRUE,
             'bundles' => array(),
+          );
+          $fieldable_info['object keys'] += array(
+            'revision' => '',
+            'bundle' => '',
           );
           // If no bundle key provided, then we assume a single bundle, named
           // after the type of the object. Make sure the bundle created
           // has the human-readable name we need for bundle messages.
-          if (empty($fieldable_info['bundle key'])) {
-            $fieldable_info['bundles'] = array($name => $fieldable_info['name']);
+          if (empty($fieldable_info['object keys']['bundle']) && empty($fieldable_info['bundles'])) {
+            $fieldable_info['bundles'] = array($name => array('label' => $fieldable_info['label']));
           }
           $info['fieldable types'][$name] = $fieldable_info;
           $info['fieldable types'][$name]['module'] = $module;
         }
       }
+      drupal_alter('fieldable_info', $info['fieldable types']);
 
       cache_set('field_info_types', $info, 'cache_field');
     }
@@ -197,17 +203,6 @@ function _field_info_collate_fields($reset = FALSE) {
 }
 
 /**
- * @} End of "defgroup field_info"
- *
- * The rest of the functions in this file are not in a group, but
- * their automatically-generated autoloaders are (see field.autoload.inc).
- */
-
-/**
- * @autoload field_(?:behaviors|info)_.* field_info FieldException {
- */
-
-/**
  *  Helper function for determining the behavior of a field
  *  with respect to a given operation.
  *
@@ -222,7 +217,7 @@ function _field_info_collate_fields($reset = FALSE) {
  *    FIELD_BEHAVIOR_CUSTOM  - use the field's callback function.
  *    FIELD_BEHAVIOR_DEFAULT - use field.module default behavior.
  */
-function _field_behaviors_field($op, $field) {
+function field_behaviors_field($op, $field) {
   $info = field_info_field_types($field['type']);
   return isset($info['behaviors'][$op]) ? $info['behaviors'][$op] : FIELD_BEHAVIOR_DEFAULT;
 }
@@ -241,7 +236,7 @@ function _field_behaviors_field($op, $field) {
  *    FIELD_BEHAVIOR_CUSTOM  - use the widget's callback function.
  *    FIELD_BEHAVIOR_DEFAULT - use field.module default behavior.
  */
-function _field_behaviors_widget($op, $instance) {
+function field_behaviors_widget($op, $instance) {
   $info = field_info_widget_types($instance['widget']['type']);
   return isset($info['behaviors'][$op]) ? $info['behaviors'][$op] : FIELD_BEHAVIOR_DEFAULT;
 }
@@ -260,7 +255,7 @@ function _field_behaviors_widget($op, $instance) {
  *    FIELD_BEHAVIOR_CUSTOM  - use the formatter's callback function.
  *    FIELD_BEHAVIOR_DEFAULT - use field module default behavior.
  */
-function _field_behaviors_formatter($op, $display) {
+function field_behaviors_formatter($op, $display) {
   $info = field_info_formatter_types($display['type']);
   return isset($info['behaviors'][$op]) ? $info['behaviors'][$op] : FIELD_BEHAVIOR_DEFAULT;
 }
@@ -275,7 +270,7 @@ function _field_behaviors_formatter($op, $display) {
  *   Either a field type description, as provided by hook_field_info(), or an
  *   array of all existing field types, keyed by field type name.
  */
-function _field_info_field_types($field_type = NULL) {
+function field_info_field_types($field_type = NULL) {
   $info = _field_info_collate_types();
   $field_types = $info['field types'];
   if ($field_type) {
@@ -299,7 +294,7 @@ function _field_info_field_types($field_type = NULL) {
  *   hook_field_widget_info(), or an array of all existing widget
  *   types, keyed by widget type name.
  */
-function _field_info_widget_types($widget_type = NULL) {
+function field_info_widget_types($widget_type = NULL) {
   $info = _field_info_collate_types();
   $widget_types = $info['widget types'];
   if ($widget_type) {
@@ -322,7 +317,7 @@ function _field_info_widget_types($widget_type = NULL) {
  *   Either a formatter type description, as provided by hook_field_formatter_info(),
  *   or an array of all existing widget types, keyed by widget type name.
  */
-function _field_info_formatter_types($formatter_type = NULL) {
+function field_info_formatter_types($formatter_type = NULL) {
   $info = _field_info_collate_types();
   $formatter_types = $info['formatter types'];
   if ($formatter_type) {
@@ -345,7 +340,7 @@ function _field_info_formatter_types($formatter_type = NULL) {
  *   Either a fieldable type description, as provided by hook_fieldable_info(),
  *   or an array of all existing fieldable types, keyed by fieldable type name.
  */
-function _field_info_fieldable_types($obj_type = NULL) {
+function field_info_fieldable_types($obj_type = NULL) {
   $info = _field_info_collate_types();
   $fieldable_types = $info['fieldable types'];
   if ($obj_type) {
@@ -362,7 +357,7 @@ function _field_info_fieldable_types($obj_type = NULL) {
  * Return an array of fieldable bundle names and labels, for an individual
  * object type or for all object types.
  */
-function _field_info_bundles($obj_type = NULL) {
+function field_info_bundles($obj_type = NULL) {
   $info = _field_info_collate_types();
   $bundles = array();
   foreach ($info['fieldable types'] as $type => $fieldable_info) {
@@ -374,11 +369,11 @@ function _field_info_bundles($obj_type = NULL) {
 }
 
 /**
- * Identity the type of entity that created a bundle.
+ * Identify the type of entity that created a bundle.
  * // TODO : might not be needed depending on how we solve
  * // the 'namespace bundle names' issue
  */
-function _field_info_bundle_entity($bundle) {
+function field_info_bundle_entity($bundle) {
   $info = _field_info_collate_types();
   foreach ($info['fieldable types'] as $type => $fieldable_info) {
     if (isset($fieldable_info['bundles'][$bundle])) {
@@ -396,7 +391,7 @@ function _field_info_bundle_entity($bundle) {
  *   property, bundles, which is an array of all the bundles to which
  *   this field belongs.
  */
-function _field_info_fields() {
+function field_info_fields() {
   $info = _field_info_collate_fields();
   return $info['fields'];
 }
@@ -411,7 +406,7 @@ function _field_info_fields() {
  *   property, bundles, which is an array of all the bundles to which
  *   this field belongs.
  */
-function _field_info_field($field_name) {
+function field_info_field($field_name) {
   $info = _field_info_collate_fields();
   if (isset($info['fields'][$field_name])) {
     return $info['fields'][$field_name];
@@ -425,7 +420,7 @@ function _field_info_field($field_name) {
  * @param $bundle_name
  *   If set, return information on just this bundle.
  */
-function _field_info_instances($bundle_name = NULL) {
+function field_info_instances($bundle_name = NULL) {
   $info = _field_info_collate_fields();
   if (!isset($bundle_name)) {
     return $info['instances'];
@@ -439,7 +434,7 @@ function _field_info_instances($bundle_name = NULL) {
 /**
  * Return an array of instance data for a specific field and bundle.
  */
-function _field_info_instance($field_name, $bundle_name) {
+function field_info_instance($field_name, $bundle_name) {
   $info = _field_info_collate_fields();
   if (isset($info['instances'][$bundle_name][$field_name])) {
     return $info['instances'][$bundle_name][$field_name];
@@ -455,7 +450,7 @@ function _field_info_instance($field_name, $bundle_name) {
  *   The field type's default settings, as provided by hook_field_info(), or an
  *   empty array.
  */
-function _field_info_field_settings($type) {
+function field_info_field_settings($type) {
   $info = field_info_field_types($type);
   return isset($info['settings']) ? $info['settings'] : array();
 }
@@ -469,7 +464,7 @@ function _field_info_field_settings($type) {
  *   The field type's default instance settings, as provided by
  *   hook_field_info(), or an empty array.
  */
-function _field_info_instance_settings($type) {
+function field_info_instance_settings($type) {
   $info = field_info_field_types($type);
   return isset($info['instance_settings']) ? $info['instance_settings'] : array();
 }
@@ -483,7 +478,7 @@ function _field_info_instance_settings($type) {
  *   The field type's default settings, as provided by hook_field_info(), or an
  *   empty array.
  */
-function _field_info_widget_settings($type) {
+function field_info_widget_settings($type) {
   $info = field_info_widget_types($type);
   return isset($info['settings']) ? $info['settings'] : array();
 }
@@ -497,11 +492,11 @@ function _field_info_widget_settings($type) {
  *   The field formatter's default settings, as provided by
  *   hook_field_info(), or an empty array.
  */
-function _field_info_formatter_settings($type) {
+function field_info_formatter_settings($type) {
   $info = field_info_formatter_types($type);
   return isset($info['settings']) ? $info['settings'] : array();
 }
 
 /**
- * @autoload} End of "@autoload field_info"
+ * @} End of "defgroup field_info"
  */

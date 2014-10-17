@@ -31,10 +31,8 @@ interface QueryConditionInterface {
    *   dependent on the $operator.
    * @param $operator
    *   The comparison operator, such as =, <, or >=. It also accepts more complex
-   *   options such as IN, LIKE, or BETWEEN.
-   * @param $num_args
-   *   For internal use only. This argument is used to track the recursive calls when
-   *   processing complex conditions.
+   *   options such as IN, LIKE, or BETWEEN. Defaults to IN if $value is an array
+   *   = otherwise.
    * @return
    *   The called object.
    */
@@ -287,6 +285,13 @@ class InsertQuery extends Query {
    */
   protected $insertValues = array();
 
+  /**
+   * A SelectQuery object to fetch the rows that should be inserted.
+   *
+   * @var SelectQueryInterface
+   */
+  protected $fromQuery;
+
   public function __construct($connection, $table, array $options = array()) {
     if (!isset($options['return'])) {
       $options['return'] = Database::RETURN_INSERT_ID;
@@ -410,6 +415,11 @@ class InsertQuery extends Query {
     return $this;
   }
 
+  public function from(SelectQueryInterface $query) {
+    $this->fromQuery = $query;
+    return $this;
+  }
+
   /**
    * Executes the insert query.
    *
@@ -423,23 +433,19 @@ class InsertQuery extends Query {
    *   in multi-insert loops.
    */
   public function execute() {
+    if (!$this->preExecute()) {
+      return NULL;
+    }
+
+    // If we're selecting from a SelectQuery, finish building the query and
+    // pass it back, as any remaining options are irrelevant.
+    if (!empty($this->fromQuery)) {
+      $sql = (string)$this;
+      // The SelectQuery may contain arguments, load and pass them through.
+      return $this->connection->query($sql, $this->fromQuery->getArguments(), $this->queryOptions);
+    }
 
     $last_insert_id = 0;
-
-    // Confirm that the user did not try to specify an identical
-    //  field and default field.
-    if (array_intersect($this->insertFields, $this->defaultFields)) {
-      throw new PDOException('You may not specify the same field to have a value and a schema-default value.');
-    }
-
-    if (count($this->insertFields) + count($this->defaultFields) == 0) {
-      return NULL;
-    }
-
-    // Don't execute query without values.
-    if (!isset($this->insertValues[0]) && count($this->insertFields) > 0) {
-      return NULL;
-    }
 
     // Each insert happens in its own query in the degenerate case. However,
     // we wrap it in a transaction so that it is atomic where possible. On many
@@ -463,6 +469,10 @@ class InsertQuery extends Query {
     // Default fields are always placed first for consistency.
     $insert_fields = array_merge($this->defaultFields, $this->insertFields);
 
+    if (!empty($this->fromQuery)) {
+      return "INSERT $delay INTO {" . $this->table . '} (' . implode(', ', $insert_fields) . ') ' . $this->fromQuery;
+    }
+
     // For simplicity, we will use the $placeholders array to inject
     // default keywords even though they are not, strictly speaking,
     // placeholders for prepared statements.
@@ -471,6 +481,42 @@ class InsertQuery extends Query {
     $placeholders = array_pad($placeholders, count($this->insertFields), '?');
 
     return 'INSERT INTO {' . $this->table . '} (' . implode(', ', $insert_fields) . ') VALUES (' . implode(', ', $placeholders) . ')';
+  }
+
+  /**
+   * Generic preparation and validation for an INSERT query.
+   *
+   * @return
+   *   TRUE if the validation was successful, FALSE if not.
+   */
+  protected function preExecute() {
+    // Confirm that the user did not try to specify an identical
+    // field and default field.
+    if (array_intersect($this->insertFields, $this->defaultFields)) {
+      throw new FieldsOverlapException('You may not specify the same field to have a value and a schema-default value.');
+    }
+
+    if (!empty($this->fromQuery)) {
+      // We have to assume that the used aliases match the insert fields.
+      // Regular fields are added to the query before expressions, maintain the
+      // same order for the insert fields.
+      // This behavior can be overriden by calling fields() manually as only the
+      // first call to fields() does have an effect.
+      $this->fields(array_merge(array_keys($this->fromQuery->getFields()), array_keys($this->fromQuery->getExpressions())));
+    }
+
+    // Don't execute query without fields.
+    if (count($this->insertFields) + count($this->defaultFields) == 0) {
+      throw new NoFieldsException('There are no fields available to insert with.');
+    }
+
+    // If no values have been added, silently ignore this query. This can happen
+    // if values are added conditionally, so we don't want to throw an
+    // exception.
+    if (!isset($this->insertValues[0]) && count($this->insertFields) > 0 && empty($this->fromQuery)) {
+      return FALSE;
+    }
+    return TRUE;
   }
 }
 
@@ -774,11 +820,8 @@ class DeleteQuery extends Query implements QueryConditionInterface {
     $this->condition = new DatabaseCondition('AND');
   }
 
-  public function condition($field, $value = NULL, $operator = '=') {
-    if (!isset($num_args)) {
-      $num_args = func_num_args();
-    }
-    $this->condition->condition($field, $value, $operator, $num_args);
+  public function condition($field, $value = NULL, $operator = NULL) {
+    $this->condition->condition($field, $value, $operator);
     return $this;
   }
 
@@ -919,11 +962,8 @@ class UpdateQuery extends Query implements QueryConditionInterface {
     $this->condition = new DatabaseCondition('AND');
   }
 
-  public function condition($field, $value = NULL, $operator = '=') {
-    if (!isset($num_args)) {
-      $num_args = func_num_args();
-    }
-    $this->condition->condition($field, $value, $operator, $num_args);
+  public function condition($field, $value = NULL, $operator = NULL) {
+    $this->condition->condition($field, $value, $operator);
     return $this;
   }
 
@@ -1074,7 +1114,10 @@ class DatabaseCondition implements QueryConditionInterface, Countable {
     return count($this->conditions) - 1;
   }
 
-  public function condition($field, $value = NULL, $operator = '=') {
+  public function condition($field, $value = NULL, $operator = NULL) {
+    if (!isset($operator)) {
+      $operator = is_array($value) ? 'IN' : '=';
+    }
     $this->conditions[] = array(
       'field' => $field,
       'value' => $value,
@@ -1164,6 +1207,7 @@ class DatabaseCondition implements QueryConditionInterface, Countable {
             }
             $operator += $operator_defaults;
 
+            $placeholders = array();
             if ($condition['value'] instanceof SelectQuery) {
               $placeholders[] = (string)$condition['value'];
               $arguments += $condition['value']->arguments();
@@ -1174,7 +1218,6 @@ class DatabaseCondition implements QueryConditionInterface, Countable {
             elseif (!$operator['delimiter']) {
               $condition['value'] = array($condition['value']);
             }
-            $placeholders = array();
             if ($operator['use_value']) {
               foreach ($condition['value'] as $value) {
                 $placeholder = ':db_condition_placeholder_' . $next_placeholder++;

@@ -33,10 +33,7 @@ function user_admin($callback_arg = '') {
  * @see user_filter_form_submit()
  */
 function user_filter_form() {
-  if (!isset($_SESSION['user_overview_filter'])) {
-    drupal_set_session('user_overview_filter', array());
-  }
-  $session = &$_SESSION['user_overview_filter'];
+  $session = isset($_SESSION['user_overview_filter']) ? $_SESSION['user_overview_filter'] : array();
   $filters = user_filters();
 
   $i = 0;
@@ -103,9 +100,6 @@ function user_filter_form_submit($form, &$form_state) {
         // Merge an array of arrays into one if necessary.
         $options = $filter == 'permission' ? call_user_func_array('array_merge', $filters[$filter]['options']) : $filters[$filter]['options'];
         if (isset($options[$form_state['values'][$filter]])) {
-          if (!isset($_SESSION['user_overview_filter'])) {
-            drupal_set_session('user_overview_filter', array());
-          }
           $_SESSION['user_overview_filter'][] = array($filter, $form_state['values'][$filter]);
         }
       }
@@ -114,7 +108,7 @@ function user_filter_form_submit($form, &$form_state) {
       array_pop($_SESSION['user_overview_filter']);
       break;
     case t('Reset'):
-      drupal_set_session('user_overview_filter', array());
+      $_SESSION['user_overview_filter'] = array();
       break;
     case t('Update'):
       return;
@@ -257,6 +251,27 @@ function user_admin_settings() {
     '#required' => TRUE,
   );
 
+  // Administrative role option.
+  $form['admin_role'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Administrator role'),
+  );
+
+  // Do not allow users to set the anonymous or authenticated user roles as the
+  // administrator role.
+  $roles = user_roles();
+  unset($roles[DRUPAL_ANONYMOUS_RID]);
+  unset($roles[DRUPAL_AUTHENTICATED_RID]);
+  $roles[0] = t('disabled');
+
+  $form['admin_role']['user_admin_role'] = array(
+    '#type' => 'select',
+    '#title' => t('Administrator role'),
+    '#default_value' => variable_get('user_admin_role', 0),
+    '#options' => $roles,
+    '#description' => t('This role will be automatically assigned new permissions whenever a module is enabled. Changing this setting will not affect existing permissions.'),
+  );
+
   // User registration settings.
   $form['registration_cancellation'] = array(
     '#type' => 'fieldset',
@@ -345,21 +360,32 @@ function user_admin_settings() {
     '#maxlength' => 255,
     '#description' => t('URL of picture to display for users with no custom picture selected. Leave blank for none.'),
   );
+  if (module_exists('image')) {
+    $form['personalization']['pictures']['settings']['user_picture_style'] = array(
+      '#type' => 'select',
+      '#title' => t('Picture display style'),
+      '#options' => image_style_options(TRUE),
+      '#default_value' => variable_get('user_picture_style', ''),
+      '#description' => t('The style selected will be used on display, while the original image is retained. Styles may be configured in the <a href="!url">Image styles</a> administration area.', array('!url' => url('admin/settings/image-styles'))),
+    );
+  }
   $form['personalization']['pictures']['user_picture_dimensions'] = array(
     '#type' => 'textfield',
-    '#title' => t('Picture maximum dimensions'),
+    '#title' => t('Picture upload dimensions'),
     '#default_value' => variable_get('user_picture_dimensions', '85x85'),
-    '#size' => 15,
+    '#size' => 10,
     '#maxlength' => 10,
-    '#description' => t('Maximum dimensions for pictures, in pixels.'),
+    '#field_suffix' => ' ' . t('pixels'),
+    '#description' => t('Maximum allowed dimensions for uploaded pictures.'),
   );
   $form['personalization']['pictures']['user_picture_file_size'] = array(
     '#type' => 'textfield',
-    '#title' => t('Picture maximum file size'),
+    '#title' => t('Picture upload file size'),
     '#default_value' => variable_get('user_picture_file_size', '30'),
-    '#size' => 15,
+    '#size' => 10,
     '#maxlength' => 10,
-    '#description' => t('Maximum file size for pictures, in kB.'),
+    '#field_suffix' => ' ' . t('KB'),
+    '#description' => t('Maximum allowed file size for uploaded pictures.'),
   );
   $form['personalization']['pictures']['user_picture_guidelines'] = array(
     '#type' => 'textarea',
@@ -400,27 +426,6 @@ function user_admin_settings() {
     '#rows' => 15,
   );
 
-  $form['email_no_approval_required'] = array(
-    '#type' => 'fieldset',
-    '#title' => t('Welcome (no approval required)'),
-    '#collapsible' => TRUE,
-    '#collapsed' => (variable_get('user_register', 1) != 1),
-    '#description' => t('Customize welcome e-mail messages sent to new members upon registering, when no administrator approval is required.') . ' ' . $email_token_help,
-    '#group' => 'email',
-  );
-  $form['email_no_approval_required']['user_mail_register_no_approval_required_subject'] = array(
-    '#type' => 'textfield',
-    '#title' => t('Subject'),
-    '#default_value' => _user_mail_text('register_no_approval_required_subject'),
-    '#maxlength' => 180,
-  );
-  $form['email_no_approval_required']['user_mail_register_no_approval_required_body'] = array(
-    '#type' => 'textarea',
-    '#title' => t('Body'),
-    '#default_value' => _user_mail_text('register_no_approval_required_body'),
-    '#rows' => 15,
-  );
-
   $form['email_pending_approval'] = array(
     '#type' => 'fieldset',
     '#title' => t('Welcome (awaiting approval)'),
@@ -440,6 +445,27 @@ function user_admin_settings() {
     '#title' => t('Body'),
     '#default_value' => _user_mail_text('register_pending_approval_body'),
     '#rows' => 8,
+  );
+
+  $form['email_no_approval_required'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Welcome (no approval required)'),
+    '#collapsible' => TRUE,
+    '#collapsed' => (variable_get('user_register', 1) != 1),
+    '#description' => t('Customize welcome e-mail messages sent to new members upon registering, when no administrator approval is required.') . ' ' . $email_token_help,
+    '#group' => 'email',
+  );
+  $form['email_no_approval_required']['user_mail_register_no_approval_required_subject'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Subject'),
+    '#default_value' => _user_mail_text('register_no_approval_required_subject'),
+    '#maxlength' => 180,
+  );
+  $form['email_no_approval_required']['user_mail_register_no_approval_required_body'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Body'),
+    '#default_value' => _user_mail_text('register_no_approval_required_body'),
+    '#rows' => 15,
   );
 
   $form['email_password_reset'] = array(
@@ -570,10 +596,10 @@ function user_admin_settings() {
  * Menu callback: administer permissions.
  *
  * @ingroup forms
- * @see user_admin_perm_submit()
- * @see theme_user_admin_perm()
+ * @see user_admin_permissions_submit()
+ * @see theme_user_admin_permissions()
  */
-function user_admin_perm($form_state, $rid = NULL) {
+function user_admin_permissions($form_state, $rid = NULL) {
 
   // Retrieve role names for columns.
   $role_names = user_roles();
@@ -591,8 +617,8 @@ function user_admin_perm($form_state, $rid = NULL) {
   // Render role/permission overview:
   $options = array();
   $hide_descriptions = !system_admin_compact_mode();
-  foreach (module_implements('perm') as $module) {
-    if ($permissions = module_invoke($module, 'perm')) {
+  foreach (module_implements('permission') as $module) {
+    if ($permissions = module_invoke($module, 'permission')) {
       $info = drupal_parse_info_file(drupal_get_path('module', $module) . "/$module.info");
       $form['permission'][] = array(
         '#markup' => $info['name'],
@@ -630,9 +656,9 @@ function user_admin_perm($form_state, $rid = NULL) {
 /**
  * Save permissions selected on the administer permissions page.
  *
- * @see user_admin_perm
+ * @see user_admin_permissions()
  */
-function user_admin_perm_submit($form, &$form_state) {
+function user_admin_permissions_submit($form, &$form_state) {
   foreach ($form_state['values']['role_names'] as $rid => $name) {
     $checked = array_filter($form_state['values'][$rid]);
     // Delete existing permissions for the role. This handles "unchecking" checkboxes.
@@ -660,36 +686,29 @@ function user_admin_perm_submit($form, &$form_state) {
  *
  * @ingroup themeable
  */
-function theme_user_admin_perm($form) {
+function theme_user_admin_permissions($form) {
   $roles = user_roles();
   foreach (element_children($form['permission']) as $key) {
-    // Don't take form control structures
-    if (is_array($form['permission'][$key])) {
-      $row = array();
-      // Module name
-      if (is_numeric($key)) {
-        $row[] = array('data' => drupal_render($form['permission'][$key]), 'class' => 'module', 'id' => 'module-' . $form['permission'][$key]['#id'], 'colspan' => count($form['role_names']['#value']) + 1);
-      }
-      else {
-        // Permission row.
-        $row[] = array(
-          'data' => drupal_render($form['permission'][$key]),
-          'class' => 'permission',
-        );
-        foreach (element_children($form['checkboxes']) as $rid) {
-          if (is_array($form['checkboxes'][$rid])) {
-            $row[] = array('data' => drupal_render($form['checkboxes'][$rid][$key]), 'class' => 'checkbox', 'title' => $roles[$rid] . ' : ' . t($key));
-          }
-        }
-      }
-      $rows[] = $row;
+    $row = array();
+    // Module name
+    if (is_numeric($key)) {
+      $row[] = array('data' => drupal_render($form['permission'][$key]), 'class' => 'module', 'id' => 'module-' . $form['permission'][$key]['#id'], 'colspan' => count($form['role_names']['#value']) + 1);
     }
+    else {
+      // Permission row.
+      $row[] = array(
+        'data' => drupal_render($form['permission'][$key]),
+        'class' => 'permission',
+      );
+      foreach (element_children($form['checkboxes']) as $rid) {
+        $row[] = array('data' => drupal_render($form['checkboxes'][$rid][$key]), 'class' => 'checkbox', 'title' => $roles[$rid] . ' : ' . t($key));
+      }
+    }
+    $rows[] = $row;
   }
   $header[] = (t('Permission'));
   foreach (element_children($form['role_names']) as $rid) {
-    if (is_array($form['role_names'][$rid])) {
-      $header[] = array('data' => drupal_render($form['role_names'][$rid]), 'class' => 'checkbox');
-    }
+    $header[] = array('data' => drupal_render($form['role_names'][$rid]), 'class' => 'checkbox');
   }
   $output = theme('system_compact_link');
   $output .= theme('table', $header, $rows, array('id' => 'permissions'));
@@ -820,7 +839,7 @@ function theme_user_admin_account($form) {
   );
 
   $output = drupal_render($form['options']);
-  if (isset($form['name']) && is_array($form['name'])) {
+  if (!empty($form['name'])) {
     foreach (element_children($form['name']) as $key) {
       $rows[] = array(
         drupal_render($form['accounts'][$key]),
@@ -915,4 +934,42 @@ function theme_user_filters($form) {
   $output .= '</li></ul>';
 
   return $output;
+}
+
+/**
+ * Implementation of hook_modules_installed().
+ */
+function user_modules_installed($modules) {
+  // Assign all available permissions to the administrator role.
+  $rid = variable_get('user_admin_role', 0);
+  if ($rid) {
+    foreach ($modules as $module) {
+      if ($permissions = module_invoke($module, 'permission')) {
+        foreach (array_keys($permissions) as $permission) {
+          db_insert('role_permission')
+            ->fields(array(
+              'rid' => $rid,
+              'permission' => $permission,
+            ))->execute();
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Implement hook_modules_uninstalled().
+ */
+function user_modules_uninstalled($modules) {
+  $permissions = array();
+  foreach ($modules as $module) {
+    if (drupal_function_exists($module . '_permission')) {
+      $permissions = array_merge($permissions, array_keys(module_invoke($module, 'permission')));
+    }
+  }
+  if (!empty($permissions)) {
+    db_delete('role_permission')
+      ->condition('permission', $permissions, 'IN')
+      ->execute();
+  }
 }

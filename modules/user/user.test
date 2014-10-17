@@ -4,9 +4,9 @@
 class UserRegistrationTestCase extends DrupalWebTestCase {
   public static function getInfo() {
     return array(
-      'name' => t('User registration'),
-      'description' => t('Registers a user, fails login, resets password, successfully logs in with the one time password, fails password change, changes password, logs out, successfully logs in with the new password, visits profile page.'),
-      'group' => t('User')
+      'name' => 'User registration',
+      'description' => 'Registers a user, fails login, resets password, successfully logs in with the one time password, fails password change, changes password, logs out, successfully logs in with the new password, visits profile page.',
+      'group' => 'User'
     );
   }
 
@@ -57,7 +57,6 @@ class UserRegistrationTestCase extends DrupalWebTestCase {
 
     // Login using password reset page.
     $url = user_pass_reset_url($user);
-    sleep(1); // TODO Find better way.
     $this->drupalGet($url);
     $this->assertText(t('This login can be used only once.'), t('Login can be used only once.'));
 
@@ -112,9 +111,9 @@ class UserRegistrationTestCase extends DrupalWebTestCase {
 class UserValidationTestCase extends DrupalWebTestCase {
   public static function getInfo() {
     return array(
-      'name' => t('Username/e-mail validation'),
-      'description' => t('Verify that username/email validity checks behave as designed.'),
-      'group' => t('User')
+      'name' => 'Username/e-mail validation',
+      'description' => 'Verify that username/email validity checks behave as designed.',
+      'group' => 'User'
     );
   }
 
@@ -163,9 +162,9 @@ class UserValidationTestCase extends DrupalWebTestCase {
 class UserCancelTestCase extends DrupalWebTestCase {
   public static function getInfo() {
     return array(
-      'name' => t('Cancel account'),
-      'description' => t('Ensure that account cancellation methods work as expected.'),
-      'group' => t('User'),
+      'name' => 'Cancel account',
+      'description' => 'Ensure that account cancellation methods work as expected.',
+      'group' => 'User',
     );
   }
 
@@ -388,7 +387,7 @@ class UserCancelTestCase extends DrupalWebTestCase {
 
     // Create comment.
     module_load_include('test', 'comment');
-    $comment = CommentHelperCase::postComment($node, '', $this->randomName(32), TRUE, TRUE);
+    $comment = CommentHelperCase::postComment($node, '', $this->randomName(32), FALSE, TRUE);
     $this->assertTrue(comment_load($comment->id), t('Comment found.'));
 
     // Create a node with two revisions, the initial one belonging to the
@@ -504,9 +503,9 @@ class UserPictureTestCase extends DrupalWebTestCase {
 
   public static function getInfo() {
     return array(
-      'name' => t('Upload user picture'),
-      'description' => t('Assure that dimension check, extension check and image scaling work as designed.'),
-      'group' => t('User')
+      'name' => 'Upload user picture',
+      'description' => 'Assure that dimension check, extension check and image scaling work as designed.',
+      'group' => 'User'
     );
   }
 
@@ -564,7 +563,8 @@ class UserPictureTestCase extends DrupalWebTestCase {
         $text = t('The image was resized to fit within the maximum allowed dimensions of %dimensions pixels.', array('%dimensions' => $test_dim));
         $this->assertRaw($text, t('Image was resized.'));
         $alt = t("@user's picture", array('@user' => $this->user->name));
-        $this->assertRaw(theme('image', $pic_path, $alt, $alt, '', FALSE), t("Image is displayed in user's edit page"));
+        $style = variable_get('user_picture_style', '');
+        $this->assertRaw(image_style_url($style, $pic_path), t("Image is displayed in user's edit page"));
 
         // Check if file is located in proper directory.
         $this->assertTrue(is_file($pic_path), t("File is located in proper directory"));
@@ -724,16 +724,16 @@ class UserPermissionsTestCase extends DrupalWebTestCase {
 
   public static function getInfo() {
     return array(
-      'name' => t('Role permissions'),
-      'description' => t('Verify that role permissions can be added and removed via the permissions page.'),
-      'group' => t('User')
+      'name' => 'Role permissions',
+      'description' => 'Verify that role permissions can be added and removed via the permissions page.',
+      'group' => 'User'
     );
   }
 
   function setUp() {
     parent::setUp();
 
-    $this->admin_user = $this->drupalCreateUser(array('administer permissions', 'access user profiles'));
+    $this->admin_user = $this->drupalCreateUser(array('administer permissions', 'access user profiles', 'administer site configuration', 'administer users'));
 
     // Find the new role ID - it must be the maximum.
     $all_rids = array_keys($this->admin_user->roles);
@@ -766,14 +766,34 @@ class UserPermissionsTestCase extends DrupalWebTestCase {
     $this->assertFalse(user_access('access user profiles', $account, TRUE), t('User no longer has "access user profiles" permission.'));
   }
 
+  /**
+   * Test assigning of permissions for the administrator role.
+   */
+  function testAdministratorRole() {
+    $this->drupalLogin($this->admin_user);
+    $this->drupalGet('admin/settings/user');
+
+    // Set the user's role to be the administrator role.
+    $edit = array();
+    $edit['user_admin_role'] = $this->rid;
+    $this->drupalPost('admin/settings/user', $edit, t('Save configuration'));
+
+    // Enable aggregator module and ensure the 'administer news feeds'
+    // permission is assigned by default.
+    $edit = array();
+    $edit['modules[Core][aggregator][enable]'] = TRUE;
+    $this->drupalPost('admin/structure/modules', $edit, t('Save configuration'));
+
+    $this->assertTrue(user_access('administer news feeds', $this->admin_user, TRUE), t('The permission was automatically assigned to the administrator role'));
+  }
 }
 
 class UserAdminTestCase extends DrupalWebTestCase {
   public static function getInfo() {
     return array(
-      'name' => t('User admininstration'),
-      'description' => t('Test user admininstration page functionality.'),
-      'group' => t('User')
+      'name' => 'User administration',
+      'description' => 'Test user administration page functionality.',
+      'group' => 'User'
     );
   }
 
@@ -824,9 +844,9 @@ class UserAdminTestCase extends DrupalWebTestCase {
 class UserTimeZoneFunctionalTest extends DrupalWebTestCase {
   public static function getInfo() {
     return array(
-      'name' => t('User time zones'),
-      'description' => t('Set a user time zone and verify that dates are displayed in local time.'),
-      'group' => t('User'),
+      'name' => 'User time zones',
+      'description' => 'Set a user time zone and verify that dates are displayed in local time.',
+      'group' => 'User',
     );
   }
 
@@ -884,9 +904,9 @@ class UserTimeZoneFunctionalTest extends DrupalWebTestCase {
 class UserAutocompleteTestCase extends DrupalWebTestCase {
   public static function getInfo() {
     return array(
-      'name' => t('User autocompletion'),
-      'description' => t('Test user autocompletion functionality.'),
-      'group' => t('User')
+      'name' => 'User autocompletion',
+      'description' => 'Test user autocompletion functionality.',
+      'group' => 'User'
     );
   }
 
@@ -924,9 +944,9 @@ class UserAutocompleteTestCase extends DrupalWebTestCase {
 class UserBlocksUnitTests extends DrupalWebTestCase {
   public static function getInfo() {
     return array(
-      'name' => t('User blocks'),
-      'description' => t('Test user blocks.'),
-      'group' => t('User')
+      'name' => 'User blocks',
+      'description' => 'Test user blocks.',
+      'group' => 'User'
     );
   }
 
@@ -1013,9 +1033,9 @@ class UserSaveTestCase extends DrupalWebTestCase {
 
   public static function getInfo() {
     return array(
-      'name' => t('User save test'),
-      'description' => t('Test user_save() for arbitrary new uid.'),
-      'group' => t('User'),
+      'name' => 'User save test',
+      'description' => 'Test user_save() for arbitrary new uid.',
+      'group' => 'User',
     );
   }
 

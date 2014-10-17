@@ -63,7 +63,7 @@ function system_main_admin_page($arg = NULL) {
 /**
  * Provide a single block from the administration menu as a page.
  * This function is often a destination for these blocks.
- * For example, 'admin/build/types' needs to have a destination to be valid
+ * For example, 'admin/structure/types' needs to have a destination to be valid
  * in the Drupal menu system, but too much information there might be
  * hidden, so we supply the contents of the block.
  *
@@ -86,7 +86,7 @@ function system_admin_menu_block_page() {
  */
 function system_admin_by_module() {
 
-  $modules = module_rebuild_cache();
+  $modules = system_get_module_data();
   $menu_items = array();
   $help_arg = module_exists('help') ? drupal_help_arg() : FALSE;
 
@@ -139,9 +139,8 @@ function system_settings_overview() {
  * @see system_themes_form_submit()
  */
 function system_themes_form() {
-  drupal_clear_css_cache();
 
-  $themes = system_theme_data();
+  $themes = system_get_theme_data();
   uasort($themes, 'system_sort_modules_by_info_name');
 
   $status = array();
@@ -168,7 +167,7 @@ function system_themes_form() {
     $options[$theme->name] = $theme->info['name'];
 
     if (!empty($theme->status) || $theme->name == variable_get('admin_theme', 0)) {
-      $form[$theme->name]['operations'] = array('#markup' => l(t('configure'), 'admin/build/themes/settings/' . $theme->name) );
+      $form[$theme->name]['operations'] = array('#markup' => l(t('configure'), 'admin/structure/themes/settings/' . $theme->name) );
     }
     else {
       // Dummy element for drupal_render. Cleaner than adding a check in the theme function.
@@ -228,10 +227,6 @@ function system_themes_form() {
     '#type' => 'submit',
     '#value' => t('Save configuration'),
   );
-  $form['buttons']['reset'] = array(
-    '#type' => 'submit',
-    '#value' => t('Reset to defaults'),
-  );
 
   return $form;
 }
@@ -240,6 +235,7 @@ function system_themes_form() {
  * Process system_themes_form form submissions.
  */
 function system_themes_form_submit($form, &$form_state) {
+  drupal_clear_css_cache();
 
   // Store list of previously enabled themes and disable all themes
   $old_theme_list = $new_theme_list = array();
@@ -297,7 +293,7 @@ function system_themes_form_submit($form, &$form_state) {
   menu_rebuild();
   drupal_theme_rebuild();
   drupal_set_message(t('The configuration options have been saved.'));
-  $form_state['redirect'] = 'admin/build/themes';
+  $form_state['redirect'] = 'admin/structure/themes';
 
   // Notify locale module about new themes being enabled, so translations can
   // be imported. This might start a batch, and only return to the redirect
@@ -325,7 +321,7 @@ function system_theme_settings(&$form_state, $key = '') {
   if ($key) {
     $settings = theme_get_settings($key);
     $var = str_replace('/', '_', 'theme_' . $key . '_settings');
-    $themes = system_theme_data();
+    $themes = system_get_theme_data();
     $features = $themes[$key]->info['features'];
   }
   else {
@@ -513,16 +509,10 @@ function system_theme_settings_submit($form, &$form_state) {
   $values = $form_state['values'];
   $key = $values['var'];
 
-  if ($values['op'] == t('Reset to defaults')) {
-    variable_del($key);
-    drupal_set_message(t('The configuration options have been reset to their default values.'));
-  }
-  else {
-    // Exclude unnecessary elements before saving.
-    unset($values['var'], $values['submit'], $values['reset'], $values['form_id'], $values['op'], $values['form_build_id'], $values['form_token']);
-    variable_set($key, $values);
-    drupal_set_message(t('The configuration options have been saved.'));
-  }
+  // Exclude unnecessary elements before saving.
+  unset($values['var'], $values['submit'], $values['reset'], $values['form_id'], $values['op'], $values['form_build_id'], $values['form_token']);
+  variable_set($key, $values);
+  drupal_set_message(t('The configuration options have been saved.'));
 
   cache_clear_all();
 }
@@ -574,13 +564,8 @@ function _system_is_incompatible(&$incompatible, $files, $file) {
  *   The form array.
  */
 function system_modules($form_state = array()) {
-  // Clear all caches.
-  registry_rebuild();
-  drupal_theme_rebuild();
-  node_types_rebuild();
-  cache_clear_all('schema', 'cache');
   // Get current list of modules.
-  $files = module_rebuild_cache();
+  $files = system_get_module_data();
 
   // Remove hidden modules from display list.
   foreach ($files as $filename => $file) {
@@ -667,7 +652,7 @@ function system_modules($form_state = array()) {
     '#type' => 'submit',
     '#value' => t('Save configuration'),
   );
-  $form['#action'] = url('admin/build/modules/list/confirm');
+  $form['#action'] = url('admin/structure/modules/list/confirm');
 
   return $form;
 }
@@ -761,7 +746,7 @@ function _system_modules_build_row($info, $extra) {
  * Display confirmation form for required modules.
  *
  * @param $modules
- *   Array of module file objects as returned from module_rebuild_cache().
+ *   Array of module file objects as returned from system_get_module_data().
  * @param $storage
  *   The contents of $form_state['storage']; an array with two
  *   elements: the list of required modules and the list of status
@@ -789,7 +774,7 @@ function system_modules_confirm_form($modules, $storage) {
     $form = confirm_form(
       $form,
       t('Some required modules must be enabled'),
-      'admin/build/modules',
+      'admin/structure/modules',
       t('Would you like to continue with enabling the above?'),
       t('Continue'),
       t('Cancel'));
@@ -819,7 +804,7 @@ function system_modules_submit($form, &$form_state) {
 
   // Get a list of all modules, it will be used to find which module requires
   // which.
-  $files = module_rebuild_cache();
+  $files = system_get_module_data();
 
   // The modules to be enabled.
   $modules_to_be_enabled = array();
@@ -931,10 +916,15 @@ function system_modules_submit($form, &$form_state) {
     drupal_set_message(t('The configuration options have been saved.'));
   }
 
+  // Clear all caches.
+  registry_rebuild();
+  drupal_theme_rebuild();
+  node_types_rebuild();
+  cache_clear_all('schema', 'cache');
   drupal_clear_css_cache();
   drupal_clear_js_cache();
 
-  $form_state['redirect'] = 'admin/build/modules';
+  $form_state['redirect'] = 'admin/structure/modules';
 
   // Notify locale module about module changes, so translations can be
   // imported. This might start a batch, and only return to the redirect
@@ -1000,7 +990,7 @@ function system_modules_uninstall($form_state = NULL) {
       '#type' => 'submit',
       '#value' => t('Uninstall'),
     );
-    $form['#action'] = url('admin/build/modules/uninstall/confirm');
+    $form['#action'] = url('admin/structure/modules/uninstall/confirm');
   }
   else {
     $form['modules'] = array();
@@ -1041,7 +1031,7 @@ function system_modules_uninstall_confirm_form($storage) {
     $form = confirm_form(
       $form,
       t('Confirm uninstall'),
-      'admin/build/modules/uninstall',
+      'admin/structure/modules/uninstall',
       t('Would you like to continue with uninstalling the above?'),
       t('Uninstall'),
       t('Cancel'));
@@ -1056,7 +1046,7 @@ function system_modules_uninstall_validate($form, &$form_state) {
   // Form submitted, but no modules selected.
   if (!count(array_filter($form_state['values']['uninstall']))) {
     drupal_set_message(t('No modules selected.'), 'error');
-    drupal_goto('admin/build/modules/uninstall');
+    drupal_goto('admin/structure/modules/uninstall');
   }
 }
 
@@ -1074,7 +1064,7 @@ function system_modules_uninstall_submit($form, &$form_state) {
     drupal_set_message(t('The selected modules have been uninstalled.'));
 
     unset($form_state['storage']);
-    $form_state['redirect'] = 'admin/build/modules/uninstall';
+    $form_state['redirect'] = 'admin/structure/modules/uninstall';
   }
   else {
     $form_state['storage'] = $form_state['values'];
@@ -1186,9 +1176,8 @@ function system_ip_blocking_delete_submit($form, &$form_state) {
 function system_site_information_settings() {
   $form['site_name'] = array(
     '#type' => 'textfield',
-    '#title' => t('Name'),
+    '#title' => t('Site name'),
     '#default_value' => 'Drupal',
-    '#description' => t('The name of this website.'),
     '#required' => TRUE
   );
   $form['site_mail'] = array(
@@ -1202,7 +1191,6 @@ function system_site_information_settings() {
     '#type' => 'textfield',
     '#title' => t('Slogan'),
     '#default_value' => '',
-    '#description' => t("Your site's motto, tag line, or catchphrase (often displayed alongside the title of the site).")
   );
   $form['site_frontpage'] = array(
     '#type' => 'textfield',
@@ -1213,12 +1201,18 @@ function system_site_information_settings() {
     '#field_prefix' => url(NULL, array('absolute' => TRUE)) . (variable_get('clean_url', 0) ? '' : '?q='),
     '#required' => TRUE,
   );
+  $form['default_nodes_main'] = array(
+    '#type' => 'select', '#title' => t('Number of posts on front page'),
+    '#default_value' => 10,
+    '#options' => drupal_map_assoc(array(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 25, 30)),
+    '#description' => t('The maximum number of posts displayed on overview pages like the frontpage.')
+  );
   $form['site_403'] = array(
     '#type' => 'textfield',
     '#title' => t('Default 403 (access denied) page'),
     '#default_value' => '',
     '#size' => 40,
-    '#description' => t('This page is displayed when the requested document is denied to the current user. If unsure, specify nothing.'),
+    '#description' => t('This page is displayed when the requested document is denied to the current user. Leave blank to display a generic "access denied" page.'),
     '#field_prefix' => url(NULL, array('absolute' => TRUE)) . (variable_get('clean_url', 0) ? '' : '?q=')
   );
   $form['site_404'] = array(
@@ -1226,8 +1220,14 @@ function system_site_information_settings() {
     '#title' => t('Default 404 (not found) page'),
     '#default_value' => '',
     '#size' => 40,
-    '#description' => t('This page is displayed when no other content matches the requested document. If unsure, specify nothing.'),
+    '#description' => t('This page is displayed when no other content matches the requested document. Leave blank to display a generic "page not found" page.'),
     '#field_prefix' => url(NULL, array('absolute' => TRUE)) . (variable_get('clean_url', 0) ? '' : '?q=')
+  );
+  $form['site_404_blocks'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Display blocks on default 404 (not found) page'),
+    '#description' => t('Render all blocks on the default 404 (not found) page. Disabling blocks can help with performance but might leave users with a less functional site.'),
+    '#default_value' => variable_get('site_404_blocks', 0)
   );
   $form['#validate'][] = 'system_site_information_settings_validate';
 
@@ -1243,13 +1243,8 @@ function system_site_information_settings_validate($form, &$form_state) {
     form_set_error('site_mail', $error);
   }
   // Validate front page path.
-  $item = array('link_path' => $form_state['values']['site_frontpage']);
-  $normal_path = drupal_get_normal_path($item['link_path']);
-  if ($item['link_path'] != $normal_path) {
-    drupal_set_message(t('The menu system stores system paths only, but will use the URL alias for display. %link_path has been stored as %normal_path', array('%link_path' => $item['link_path'], '%normal_path' => $normal_path)));
-    $item['link_path'] = $normal_path;
-  }
-  if (!empty($item) && !menu_valid_path($item)) {
+  $item = array('link_path' => drupal_get_normal_path($form_state['values']['site_frontpage']));
+  if (!menu_valid_path($item)) {
     form_set_error('site_frontpage', t("The path '@path' is either invalid or you do not have access to it.", array('@path' => $item['link_path'])));
   }
 }
@@ -1374,7 +1369,7 @@ function system_performance_settings() {
  *
  * @ingroup forms
  */
-function system_clear_cache_submit(&$form_state, $form) {
+function system_clear_cache_submit($form, &$form_state) {
   drupal_flush_all_caches();
   drupal_set_message(t('Caches cleared.'));
 }
@@ -1723,36 +1718,53 @@ function system_site_maintenance_mode() {
 }
 
 /**
- * Form builder; Configure Clean URL settings.
+ * Form builder; Configure clean URL settings.
  *
  * @ingroup forms
  * @see system_settings_form()
  */
 function system_clean_url_settings() {
-  $form['clean_url'] = array(
-    '#type' => 'radios',
-    '#title' => t('Clean URLs'),
-    '#default_value' => 0,
-    '#options' => array(t('Disabled'), t('Enabled')),
-    '#description' => t('This option makes Drupal emit "clean" URLs (i.e. without <code>?q=</code> in the URL).'),
-  );
+  global $base_url;
 
-  if (!variable_get('clean_url', 0)) {
-    if (strpos(request_uri(), '?q=') !== FALSE) {
-      drupal_add_js(drupal_get_path('module', 'system') . '/system.js');
-
-      $form['clean_url']['#description'] .= ' <span>' . t('Before enabling clean URLs, you must perform a test to determine if your server is properly configured. If you are able to see this page again after clicking the "Run the clean URL test" link, the test has succeeded and the radio buttons above will be available. If instead you are directed to a "Page not found" error, you will need to change the configuration of your server. The <a href="@handbook">handbook page on Clean URLs</a> has additional troubleshooting information.', array('@handbook' => 'http://drupal.org/node/15365')) . '</span>';
-
-      $form['clean_url']['#disabled'] = TRUE;
-      $form['clean_url']['#prefix'] = '<div id="clean-url">';
-      $form['clean_url']['#suffix'] = '<p>' . t('<a href="@clean_url">Run the clean url test</a>.', array('@clean_url' => base_path() . 'admin/settings/clean-urls')) . '</p></div>';
-    }
-    else {
-      $form['clean_url']['#description'] .= ' <div class="ok">' . t('Your server has been successfully tested to support this feature.') . '</div>';
+  // When accessing this form using a non-clean URL, allow a re-check to make
+  // sure clean URLs can be disabled at all times.
+  $available = FALSE;
+  if (strpos(request_uri(), '?q=') === FALSE || !empty($_SESSION['clean_url'])) {
+    $available = TRUE;
+  }
+  else {
+    $request = drupal_http_request($base_url . '/admin/settings/clean-urls/check');
+    if (isset($request->code) && $request->code == 200) {
+      $available = TRUE;
     }
   }
 
-  return system_settings_form($form, TRUE);
+  if ($available) {
+    $_SESSION['clean_url'] = TRUE;
+
+    $form['clean_url'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Enable clean URLs'),
+      '#default_value' => 0,
+      '#description' => t('Use URLs like <code>example.com/user</code> instead of <code>example.com/?q=user</code>.'),
+    );
+    $form = system_settings_form($form);
+  }
+  else {
+    drupal_add_js(drupal_get_path('module', 'system') . '/system.js');
+
+    $form['#redirect'] = $base_url . '/admin/settings/clean-urls';
+    $form['clean_url_description'] = array(
+      '#type' => 'markup',
+      '#markup' => '<p>' . t('Use URLs like <code>example.com/user</code> instead of <code>example.com/?q=user</code>.') . ' ' . t('If you are directed to a <em>Page not found (404)</em> error after testing for clean URLs, see the <a href="@handbook">online handbook</a>.', array('@handbook' => 'http://drupal.org/node/15365')) . '</p>',
+    );
+    $form['clean_url_test'] = array(
+      '#type' => 'submit',
+      '#value' => t('Run the clean URL test'),
+    );
+  }
+
+  return $form;
 }
 
 /**
@@ -1860,7 +1872,7 @@ EOT;
 /**
  * This function formats the content of an administrative block.
  *
- * @param $block
+ * @param $content
  *   An array containing information about the block. It should
  *   include a 'title', a 'description' and a formatted 'content'.
  * @ingroup themeable

@@ -21,9 +21,6 @@
  * Database maintenance, recalculation of settings or parameters, and
  * automatic mailings are good candidates for cron tasks.
  *
- * @return
- *   None.
- *
  * This hook will only be called if cron.php is run (e.g. by crontab).
  */
 function hook_cron() {
@@ -119,6 +116,24 @@ function hook_elements() {
 }
 
 /**
+ * Alter the element type information returned from modules.
+ *
+ * A module may implement this hook in order to alter the element type defaults
+ * defined by a module.
+ *
+ * @param &$type
+ *   All element type defaults as collected by hook_elements().
+ *
+ * @see hook_elements()
+ */
+function hook_element_info_alter(&$type) {
+  // Decrease the default size of textfields.
+  if (isset($type['textfield']['#size'])) {
+    $type['textfield']['#size'] = 40;
+  }
+}
+
+/**
  * Perform cleanup tasks.
  *
  * This hook is run at the end of each page request. It is often used for
@@ -137,8 +152,6 @@ function hook_elements() {
  *   Modules may use this to react appropriately; for example, nothing should
  *   be output in this case, because PHP will then throw a "headers cannot be
  *   modified" error when attempting the redirection.
- * @return
- *   None.
  */
 function hook_exit($destination = NULL) {
   db_update('counter')
@@ -180,6 +193,111 @@ function hook_footer($main = 0) {
 function hook_js_alter(&$javascript) {
   // Swap out jQuery to use an updated version of the library.
   $javascript['misc/jquery.js']['data'] = drupal_get_path('module', 'jquery_update') . '/jquery.js';
+}
+
+/**
+ * Registers JavaScript/CSS libraries associated with a module.
+ *
+ * Modules implementing this return an array of arrays. The key to each
+ * sub-array is the machine readable name of the library. Each library may
+ * contain the following items:
+ *
+ * - 'title': The human readable name of the library.
+ * - 'website': The URL of the library's web site.
+ * - 'version': A string specifying the version of the library; intentionally
+ *   not a float because a version like "1.2.3" is not a valid float. Use PHP's
+ *   version_compare() to compare different versions.
+ * - 'js': An array of JavaScript elements; each element's key is used as $data
+ *   argument, each element's value is used as $options array for
+ *   drupal_add_js(). To add library-specific (not module-specific) JavaScript
+ *   settings, the key may be skipped, the value must specify
+ *   'type' => 'setting', and the actual settings must be contained in a 'data'
+ *   element of the value.
+ * - 'css': Like 'js', an array of CSS elements passed to drupal_add_css().
+ * - 'dependencies': An array of libraries that are required for a library. Each
+ *   element is an array containing the module and name of the registered
+ *   library. Note that all dependencies for each dependent library will be
+ *   added when this library is added.
+ *
+ * Registered information for a library should contain re-usable data only.
+ * Module- or implementation-specific data and integration logic should be added
+ * separately.
+ *
+ * @return
+ *   An array defining libraries associated with a module.
+ *
+ * @see system_library()
+ * @see drupal_add_library()
+ * @see drupal_get_library()
+ */
+function hook_library() {
+  // Library One.
+  $libraries['library-1'] = array(
+    'title' => 'Library One',
+    'website' => 'http://example.com/library-1',
+    'version' => '1.2',
+    'js' => array(
+      drupal_get_path('module', 'my_module') . '/library-1.js' => array(),
+    ),
+    'css' => array(
+      drupal_get_path('module', 'my_module') . '/library-2.css' => array(
+        'type' => 'file',
+        'media' => 'screen',
+      ),
+    ),
+  );
+  // Library Two.
+  $libraries['library-2'] = array(
+    'title' => 'Library Two',
+    'website' => 'http://example.com/library-2',
+    'version' => '3.1-beta1',
+    'js' => array(
+      // JavaScript settings may use the 'data' key.
+      array(
+        'type' => 'setting',
+        'data' => array('library2' => TRUE),
+      ),
+    ),
+    'dependencies' => array(
+      // Require jQuery UI core by System module.
+      array('system' => 'ui'),
+      // Require our other library.
+      array('my_module', 'library-1'),
+      // Require another library.
+      array('other_module', 'library-3'),
+    ),
+  );
+  return $libraries;
+}
+
+/**
+ * Alters the JavaScript/CSS library registry.
+ *
+ * Allows certain, contributed modules to update libraries to newer versions
+ * while ensuring backwards compatibility. In general, such manipulations should
+ * only be done by designated modules, since most modules that integrate with a
+ * certain library also depend on the API of a certain library version.
+ *
+ * @param $libraries
+ *   The JavaScript/CSS libraries provided by $module. Keyed by internal library
+ *   name and passed by reference.
+ * @param $module
+ *   The name of the module that registered the libraries.
+ *
+ * @see hook_library()
+ */
+function hook_library_alter(&$libraries, $module) {
+  // Update Farbtastic to version 2.0.
+  if ($module == 'system' && isset($libraries['farbtastic'])) {
+    // Verify existing version is older than the one we are updating to.
+    if (version_compare($libraries['farbtastic']['version'], '2.0', '<')) {
+      // Update the existing Farbtastic to version 2.0.
+      $libraries['farbtastic']['version'] = '2.0';
+      $libraries['farbtastic']['js'] = array(
+        drupal_get_path('module', 'farbtastic_update') . '/farbtastic-2.0.js' => array(),
+      );
+    }
+  }
 }
 
 /**
@@ -282,8 +400,6 @@ function hook_form_alter(&$form, $form_state, $form_id) {
  *   Nested array of form elements that comprise the form.
  * @param $form_state
  *   A keyed array containing the current state of the form.
- * @return
- *   None.
  *
  * @see drupal_prepare_form().
  */
@@ -342,9 +458,6 @@ function hook_forms($form_id, $args) {
  * Only use this hook if your code must run even for cached page views.This hook
  * is called before modules or most include files are loaded into memory.
  * It happens while Drupal is still in bootstrap mode.
- *
- * @return
- *   None.
  */
 function hook_boot() {
   // we need user_access() in the shutdown function. make sure it gets loaded
@@ -362,9 +475,6 @@ function hook_boot() {
  * For example, this hook is a typical place for modules to add CSS or JS
  * that should be present on every page. This hook is not run on cached
  * pages - though CSS or JS added this way will be present on a cached page.
- *
- * @return
- *   None.
  */
 function hook_init() {
   drupal_add_css(drupal_get_path('module', 'book') . '/book.css');
@@ -437,14 +547,13 @@ function hook_image_toolkits() {
  *   - comment: Links to be placed below a comment being viewed.
  * @param $object
  *   A comment object.
- * @param $teaser
- *   A 0/1 flag depending on whether the node is
- *   displayed with its teaser or its full form.
+ * @param $build_mode
+ *   Build mode for the node, e.g. 'full', 'teaser'...
  * @return
  *   An array of the requested links.
  *
  */
-function hook_link($type, $object, $teaser = FALSE) {
+function hook_link($type, $object, $build_mode) {
   $links = array();
 
   if ($type == 'comment') {
@@ -464,8 +573,6 @@ function hook_link($type, $object, $teaser = FALSE) {
  *   Nested array of links for the node keyed by providing module.
  * @param $node
  *   A node object that contains the links.
- * @return
- *   None.
  */
 function hook_link_alter(array &$links, $node) {
   foreach ($links as $module => $link) {
@@ -482,8 +589,6 @@ function hook_link_alter(array &$links, $node) {
  * @param $account
  *   A user object whose profile is being rendered. Profile items
  *   are stored in $account->content.
- * @return
- *   None.
  */
 function hook_profile_alter(&$account) {
   foreach ($account->content AS $key => $field) {
@@ -492,34 +597,32 @@ function hook_profile_alter(&$account) {
 }
 
 /**
- * Alter any aspect of the emails sent by Drupal. You can use this hook
- * to add a common site footer to all outgoing emails; add extra header
- * fields and/or modify the mails sent out in any way. HTML-izing the
- * outgoing mails is one possibility. See also drupal_mail().
+ * Alter any aspect of email sent by Drupal. You can use this hook
+ * to add a common site footer to all outgoing email, add extra header
+ * fields, and/or modify the email in any way. HTML-izing the
+ * outgoing email is one possibility. See also drupal_mail().
  *
  * @param $message
  *   A structured array containing the message to be altered. Keys in this
  *   array include:
- *   mail_id
- *     An id to identify the mail sent. Look into the module source codes
- *     for possible mail_id values.
- *   to
- *     The mail address or addresses where the message will be send to. The
+ *  - 'id':
+ *     An id to identify the mail sent. Look at module source code
+ *     or drupal_mail() for possible id values.
+ *   - 'to'
+ *     The address or addresses the message will be sent to. The
  *     formatting of this string must comply with RFC 2822.
- *   subject
- *     Subject of the e-mail to be sent. This must not contain any newline
- *     characters, or the mail may not be sent properly.
- *   body
+ *   - 'subject'
+ *     Subject of the email to be sent. This must not contain any newline
+ *     characters, or the email may not be sent properly.
+ *   - 'body'
  *     An array of lines containing the message to be sent. Drupal will format
  *     the correct line endings for you.
- *   from
- *     The From, Reply-To, Return-Path and Error-To headers in $headers
- *     are already set to this value (if given).
- *   headers
- *     Associative array containing the headers to add. This is typically
- *     used to add extra headers (From, Cc, and Bcc).
- * @return
- *   None.
+ *   - 'from'
+ *     The address the message will be marked as being from, which is
+ *     either a custom address or the site-wide default email address.
+ *   - 'headers'
+ *     Associative array containing mail headers, such as From, Sender,
+ *     MIME-Version, Content-Type, etc.
  */
 function hook_mail_alter(&$message) {
   if ($message['mail_id'] == 'my_message') {
@@ -530,7 +633,7 @@ function hook_mail_alter(&$message) {
 /**
  * Alter the information parsed from module and theme .info files
  *
- * This hook is invoked in  module_rebuild_cache() and in system_theme_data().
+ * This hook is invoked in _system_get_module_data() and in _system_get_theme_data().
  * A module may implement this hook in order to add to or alter the data
  * generated by reading the .info file with drupal_parse_info_file().
  *
@@ -551,11 +654,13 @@ function hook_system_info_alter(&$info, $file) {
  * Define user permissions.
  *
  * This hook can supply permissions that the module defines, so that they
- * can be selected on the user permissions page and used to restrict
+ * can be selected on the user permissions page and used to grant or restrict
  * access to actions the module performs.
  *
  * @return
- *   An array of which permission names are the keys and their corresponding value is a description of the permission
+ *   An array of permissions where the permission name is the array key and the
+ *   corresponding key value is an array of key/value pairs specifying
+ *   the permission's title and description
  *
  * The permissions in the array do not need to be wrapped with the function t(),
  * since the string extractor takes care of extracting permission names defined in the perm hook for translation.
@@ -564,9 +669,12 @@ function hook_system_info_alter(&$info, $file) {
  *
  * For a detailed usage example, see page_example.module.
  */
-function hook_perm() {
+function hook_permission() {
   return array(
-    'administer my module' => t('Perform maintenance tasks for my module'),
+    'administer my module' =>  array(
+      'title' => t('Administer my module'),
+      'description' => t('Perform administration tasks for my module.'),
+    ),
   );
 }
 
@@ -793,9 +901,6 @@ function hook_xmlrpc() {
  *     WATCHDOG_DEBUG     Debug: debug-level messages
  *   - link: an optional link provided by the module that called the watchdog() function.
  *   - message: The text of the message to be logged.
- *
- * @return
- *   None.
  */
 function hook_watchdog(array $log_entry) {
   global $base_url, $language;
@@ -848,33 +953,36 @@ function hook_watchdog(array $log_entry) {
 }
 
 /**
- * Prepare a message based on parameters. @see drupal_mail for more.
+ * Prepare a message based on parameters; called from drupal_mail().
  *
  * @param $key
  *   An identifier of the mail.
  * @param $message
  *  An array to be filled in. Keys in this array include:
- *  - 'mail_id':
- *     An id to identify the mail sent. Look into the module source codes
- *     for possible mail_id values.
+ *  - 'id':
+ *     An id to identify the mail sent. Look at module source code
+ *     or drupal_mail() for possible id values.
  *  - 'to':
- *     The mail address or addresses where the message will be send to. The
+ *     The address or addresses the message will be sent to. The
  *     formatting of this string must comply with RFC 2822.
  *  - 'subject':
  *     Subject of the e-mail to be sent. This must not contain any newline
- *     characters, or the mail may not be sent properly. Empty string when
- *     the hook is invoked.
+ *     characters, or the mail may not be sent properly. drupal_mail() sets
+ *     this to an empty string when the hook is invoked.
  *  - 'body':
  *     An array of lines containing the message to be sent. Drupal will format
- *     the correct line endings for you. Empty array when the hook is invoked.
+ *     the correct line endings for you. drupal_mail() sets this to an empty
+ *     array when the hook is invoked.
  *  - 'from':
- *     The From, Reply-To, Return-Path and Error-To headers in $headers
- *     are already set to this value (if given).
+ *     The address the message will be marked as being from, which is
+ *     set by drupal_mail() to either a custom address or the site-wide
+ *     default email address when the hook is invoked.
  *  - 'headers':
- *     Associative array containing the headers to add. This is typically
- *     used to add extra headers (From, Cc, and Bcc).
+ *     Associative array containing mail headers, such as From, Sender,
+ *     MIME-Version, Content-Type, etc. drupal_mail() pre-fills
+ *     several headers in this array.
  * @param $params
- *   An arbitrary array of parameters set by the caller to drupal_mail.
+ *   An array of parameters supplied by the caller of drupal_mail().
  */
 function hook_mail($key, &$message, $params) {
   $account = $params['account'];
@@ -902,7 +1010,7 @@ function hook_mail($key, &$message, $params) {
     $variables += array(
       '%uid' => $node->uid,
       '%node_url' => url('node/' . $node->nid, array('absolute' => TRUE)),
-      '%node_type' => node_get_types('name', $node),
+      '%node_type' => node_type_get_name($node),
       '%title' => $node->title,
       '%teaser' => $node->teaser,
       '%body' => $node->body,
@@ -922,8 +1030,6 @@ function hook_mail($key, &$message, $params) {
  * whenever drupal_flush_all_caches is invoked.
  *
  * @see drupal_flush_all_caches()
- *
- * @param None.
  *
  * @return
  *   An array of cache table names.
@@ -1024,11 +1130,11 @@ function hook_modules_uninstalled($modules) {
  * This function should change the value of $path and $options by reference.
  *
  * @param $path
- *   The alias of the $priginal_path as defined in the database.
+ *   The alias of the $original_path as defined in the database.
  *   If there is no match in the database it'll be the same as $original_path
  * @param $options
  *   An array of link attributes such as querystring and fragment. See url().
- * @param $orignal_path
+ * @param $original_path
  *   The unaliased Drupal path that is being linked to.
  */
 function custom_url_rewrite_outbound(&$path, &$options, $original_path) {
@@ -1131,8 +1237,6 @@ function hook_file_validate(&$file) {
  *
  * @param $file
  *   The file that has just been created.
- * @return
- *   None.
  *
  * @see file_save()
  */
@@ -1147,8 +1251,6 @@ function hook_file_insert(&$file) {
  *
  * @param $file
  *   The file that has just been updated.
- * @return
- *   None.
  *
  * @see file_save()
  */
@@ -1163,8 +1265,6 @@ function hook_file_update(&$file) {
  *   The newly copied file object.
  * @param $source
  *   The original file before the copy.
- * @return
- *   None.
  *
  * @see file_copy()
  */
@@ -1179,8 +1279,6 @@ function hook_file_copy($file, $source) {
  *   The updated file object after the move.
  * @param $source
  *   The original file object before the move.
- * @return
- *   None.
  *
  * @see file_move()
  */
@@ -1218,8 +1316,6 @@ function hook_file_references($file) {
  *
  * @param $file
  *   The file that has just been deleted.
- * @return
- *   None.
  *
  * @see file_delete()
  * @see upload_file_delete()
@@ -1437,8 +1533,6 @@ function hook_schema() {
  *
  * @param $schema
  *   Nested array describing the schemas for all modules.
- * @return
- *   None.
  */
 function hook_schema_alter(&$schema) {
   // Add field to existing schema.
@@ -1462,8 +1556,6 @@ function hook_schema_alter(&$schema) {
  * @see SelectQueryInterface
  * @param $query
  *   A Query object describing the composite parts of a SQL query.
- * @return
- *   None.
  */
 function hook_query_alter(QueryAlterableInterface $query) {
   if ($query->hasTag('micro_limit')) {
@@ -1481,8 +1573,6 @@ function hook_query_alter(QueryAlterableInterface $query) {
  *
  * @param $query
  *   An Query object describing the composite parts of a SQL query.
- * @return
- *   None.
  */
 function hook_query_TAG_alter(QueryAlterableInterface $query) {
   // Skip the extra expensive alterations if site has no node access control modules.
@@ -1699,6 +1789,179 @@ function hook_enable() {
 function hook_disable() {
   mymodule_cache_rebuild();
 }
+
+/**
+ * Perform necessary alterations to the list of files parsed by the registry.
+ *
+ * Modules can manually modify the list of files before the registry parses
+ * them. The $modules array provides the .info file information, which includes
+ * the list of files registered to each module. Any files in the list can then
+ * be added to the list of files that the registry will parse, or modify
+ * attributes of a file.
+ *
+ * A necessary alteration made by the core SimpleTest module is to force .test
+ * files provided by disabled modules into the list of files parsed by the
+ * registry.
+ *
+ * @param $files
+ *   List of files to be parsed by the registry. The list will contain
+ *   files found in each enabled module's info file and the core includes
+ *   directory. The array is keyed by the file path and contains an array of
+ *   the related module's name and weight as used internally by
+ *   _registry_rebuild() and related functions.
+ *
+ *   For example:
+ *   @code
+ *     $files["modules/system/system.module"] = array(
+ *       'module' => 'system',
+ *       'weight' => 0,
+ *     );
+ *   @endcode
+ * @param $modules
+ *   List of all the modules provided as returned by drupal_system_listing().
+ *   The list also contains the .info file information in the property 'info'.
+ *   An additional 'dir' property has been added to the module information
+ *   which provides the path to the directory in which the module resides. The
+ *   example shows how to take advantage of the property both properties.
+ *
+ * @see _registry_rebuild()
+ * @see drupal_system_listing()
+ * @see simpletest_test_get_all()
+ */
+function hook_registry_files_alter(&$files, $module_cache) {
+  foreach ($modules as $module) {
+    // Only add test files for disabled modules, as enabled modules should
+    // already include any test files they provide.
+    if (!$module->status) {
+      $dir = $module->dir;
+      foreach ($module->info['files'] as $file) {
+        if (substr($file, -5) == '.test') {
+          $files["$dir/$file"] = array('module' => $module->name, 'weight' => $module->weight);
+        }
+      }
+    }
+  }
+}
+
+
+/**
+ * Perform any final installation tasks for an installation profile.
+ *
+ * The installer goes through the profile-select -> locale-select
+ * -> requirements -> database -> profile-install-batch
+ * -> locale-initial-batch -> configure -> locale-remaining-batch
+ * -> finished -> done tasks, in this order, if you don't implement
+ * this function in your profile.
+ *
+ * If this function is implemented, you can have any number of
+ * custom tasks to perform after 'configure', implementing a state
+ * machine here to walk the user through those tasks. First time,
+ * this function gets called with $task set to 'profile', and you
+ * can advance to further tasks by setting $task to your tasks'
+ * identifiers, used as array keys in the tasks property of the
+ * profilename.info file.
+ * 
+ * You must avoid the reserved tasks listed in install_reserved_tasks(). 
+ * If you implement your custom tasks, this function will get called in
+ * every HTTP request (for form processing, printing your information 
+ * screens and so on) until you advance to the 'profile-finished' task,
+ * with which you hand control back to the installer. Each custom page
+ * you return needs to provide a way to continue, such as a form
+ * submission or a link. You should also set custom page titles.
+ *
+ * You should define the list of custom tasks you implement by
+ * specifying an array of tasks in your profilename.info file, as these
+ * show up in the list of tasks on the installer user interface.
+ *
+ * Example :
+ *   task[custom_task] = My first custom task
+ *   task[custom_task_2] = My second custom task
+ *
+ * Remember that the user will be able to reload the pages multiple
+ * times, so you might want to use variable_set() and variable_get()
+ * to remember your data and control further processing, if $task
+ * is insufficient. Should a profile want to display a form here,
+ * it can; the form should set '#redirect' to FALSE, and rely on
+ * an action in the submit handler, such as variable_set(), to
+ * detect submission and proceed to further tasks. See the configuration
+ * form handling code in install_tasks() for an example.
+ *
+ * Important: Any temporary variables should be removed using
+ * variable_del() before advancing to the 'profile-finished' phase.
+ *
+ * @param $task
+ *   The current $task of the install system. When hook_profile_tasks()
+ *   is first called, this is 'profile'.
+ * @param $url
+ *   Complete URL to be used for a link or form action on a custom page,
+ *   if providing any, to allow the user to proceed with the installation.
+ *
+ * @return
+ *   An optional HTML string to display to the user. Only used if you
+ *   modify the $task, otherwise discarded.
+ */
+function hook_profile_tasks(&$task, $url) {
+
+  // Enable some standard blocks.
+  $values = array(
+    array(
+      'module' => 'system',
+      'delta' => 'main',
+      'theme' => 'garland',
+      'status' => 1,
+      'weight' => 0,
+      'region' => 'content',
+      'pages' => '',
+      'cache' => -1,
+    ),
+    array(
+      'module' => 'user',
+      'delta' => 'login',
+      'theme' => 'garland',
+      'status' => 1,
+      'weight' => 0,
+      'region' => 'left',
+      'pages' => '',
+      'cache' => -1,
+    ),
+    array(
+      'module' => 'system',
+      'delta' => 'navigation',
+      'theme' => 'garland',
+      'status' => 1,
+      'weight' => 0,
+      'region' => 'left',
+      'pages' => '',
+      'cache' => -1,
+    ),
+    array(
+      'module' => 'system',
+      'delta' => 'management',
+      'theme' => 'garland',
+      'status' => 1,
+      'weight' => 1,
+      'region' => 'left',
+      'pages' => '',
+      'cache' => -1,
+    ),
+    array(
+      'module' => 'system',
+      'delta' => 'help',
+      'theme' => 'garland',
+      'status' => 1,
+      'weight' => 0,
+      'region' => 'help',
+      'pages' => '',
+      'cache' => -1,
+    ),
+  );
+  $query = db_insert('block')->fields(array('module', 'delta', 'theme', 'status', 'weight', 'region', 'pages', 'cache'));
+  foreach ($values as $record) {
+    $query->values($record);
+  }
+  $query->execute();  
+}
+
 
 /**
  * @} End of "addtogroup hooks".

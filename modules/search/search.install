@@ -7,7 +7,7 @@
  */
 
 /**
- * Implementation of hook_install().
+ * Implement hook_install().
  */
 function search_install() {
   // Create tables.
@@ -15,7 +15,7 @@ function search_install() {
 }
 
 /**
- * Implementation of hook_uninstall().
+ * Implement hook_uninstall().
  */
 function search_uninstall() {
   // Remove tables.
@@ -27,7 +27,7 @@ function search_uninstall() {
 }
 
 /**
- * Implementation of hook_schema().
+ * Implement hook_schema().
  */
 function search_schema() {
   $schema['search_dataset'] = array(
@@ -94,6 +94,10 @@ function search_schema() {
     ),
     'indexes' => array(
       'sid_type' => array('sid', 'type'),
+    ),
+    'foreign keys' => array(
+      'sid' => array('search_dataset' => 'sid'),
+      'type' => array('search_dataset' => 'type'),
     ),
     'primary key' => array('word', 'sid', 'type'),
   );

@@ -7,7 +7,7 @@
  */
 
 /**
- * Implementation of hook_help().
+ * Implement hook_help().
  */
 function statistics_help($path, $arg) {
   switch ($path) {
@@ -19,7 +19,7 @@ function statistics_help($path, $arg) {
       $output .= '<li>' . t('a <a href="@top-referrers">top referrers</a> log that displays the referring parties for your site visits (where your visitors came from).', array('@top-referrers' => url('admin/reports/referrers'))) . '</li>';
       $output .= '<li>' . t('a <a href="@top-pages">top pages</a> log that displays site content in descending order by number of views.', array('@top-pages' => url('admin/reports/pages'))) . '</li>';
       $output .= '<li>' . t('a <a href="@top-visitors">top visitors</a> log that displays the most active users on your site.', array('@top-visitors' => url('admin/reports/visitors'))) . '</li>';
-      $output .= '<li>' . t('a <em>Popular content</em> block that displays the day\'s most viewed content, the all-time most viewed content, and the last content viewed. (Enable the <em>Popular content</em> block on the <a href="@blocks">blocks administration page</a>.)', array('@blocks' => url('admin/build/block'))) . '</li></ul>';
+      $output .= '<li>' . t('a <em>Popular content</em> block that displays the day\'s most viewed content, the all-time most viewed content, and the last content viewed. (Enable the <em>Popular content</em> block on the <a href="@blocks">blocks administration page</a>.)', array('@blocks' => url('admin/structure/block'))) . '</li></ul>';
       $output .= '<p>' . t('Configuring the statistics module') . '</p>';
       $output .= '<ul><li>' . t('When the <em>Enable access log</em> setting on the <a href="@statistics-settings">statistics settings page</a> is enabled, data about every page accessed (including the remote host\'s IP address, referrer, node accessed, and user name) is stored in the access log. The access log must be enabled for the <a href="@recent-hits">recent hits</a>, <a href="@top-referrers">top referrers</a>, <a href="@top-pages">top pages</a>, and <a href="@top-visitors">top visitors</a> log pages to function. Enabling the access log adds one additional database call per page displayed by Drupal.', array('@statistics-settings' => url('admin/settings/statistics'), '@recent-hits' => url('admin/reports/hits'), '@top-referrers' => url('admin/reports/referrers'), '@top-pages' => url('admin/reports/pages'), '@top-visitors' => url('admin/reports/visitors'))) . '</li>';
       $output .= '<li>' . t('The <em>Discard access logs older than</em> setting on the <a href="@statistics-settings">statistics settings page</a> specifies the length of time entries are retained in the access log before they are deleted. Automatic access log entry deletion requires a correctly configured <a href="@cron">cron maintenance task</a>.', array('@statistics-settings' => url('admin/settings/statistics'), '@cron' => url('admin/reports/status'))) . '</li>';
@@ -38,7 +38,7 @@ function statistics_help($path, $arg) {
 }
 
 /**
- * Implementation of hook_exit().
+ * Implement hook_exit().
  *
  * This is where statistics are gathered on page accesses.
  */
@@ -81,9 +81,9 @@ function statistics_exit() {
 }
 
 /**
- * Implementation of hook_perm().
+ * Implement hook_permission().
  */
-function statistics_perm() {
+function statistics_permission() {
   return array(
     'access statistics' => array(
       'title' => t('Access statistics'),
@@ -101,10 +101,10 @@ function statistics_perm() {
 }
 
 /**
- * Implementation of hook_node_view().
+ * Implement hook_node_view().
  */
-function statistics_node_view($node, $teaser) {
-  if ($node->build_mode != NODE_BUILD_RSS) {
+function statistics_node_view($node, $build_mode) {
+  if ($build_mode != 'rss') {
     $links = array();
     if (user_access('view post access counter')) {
       $statistics = statistics_get($node->nid);
@@ -114,14 +114,15 @@ function statistics_node_view($node, $teaser) {
     }
 
     $node->content['links']['statistics'] = array(
-      '#type' => 'node_links',
-      '#value' => $links,
+      '#theme' => 'links',
+      '#links' => $links,
+      '#attributes' => array('class' => 'links inline'),
     );
   }
 }
 
 /**
- * Implementation of hook_menu().
+ * Implement hook_menu().
  */
 function statistics_menu() {
   $items['admin/reports/hits'] = array(
@@ -186,7 +187,7 @@ function statistics_menu() {
 }
 
 /**
- * Implementation of hook_user_cancel().
+ * Implement hook_user_cancel().
  */
 function statistics_user_cancel($edit, $account, $method) {
   switch ($method) {
@@ -206,7 +207,7 @@ function statistics_user_cancel($edit, $account, $method) {
 }
 
 /**
- * Implementation of hook_cron().
+ * Implement hook_cron().
  */
 function statistics_cron() {
   $statistics_timestamp = variable_get('statistics_day_timestamp', '');
@@ -283,7 +284,7 @@ function statistics_get($nid) {
 }
 
 /**
- * Implementation of hook_block_list().
+ * Implement hook_block_list().
  */
 function statistics_block_list() {
   if (variable_get('statistics_count_content_views', 0)) {
@@ -295,7 +296,7 @@ function statistics_block_list() {
 }
 
 /**
- * Implementation of hook_block_configure().
+ * Implement hook_block_configure().
  */
 function statistics_block_configure($delta = '') {
   // Popular content block settings
@@ -307,7 +308,7 @@ function statistics_block_configure($delta = '') {
 }
 
 /**
- * Implementation of hook_block_save().
+ * Implement hook_block_save().
  */
 function statistics_block_save($delta = '', $edit = array()) {
   variable_set('statistics_block_top_day_num', $edit['statistics_block_top_day_num']);
@@ -316,7 +317,7 @@ function statistics_block_save($delta = '', $edit = array()) {
 }
 
 /**
- * Implementation of hook_block_view().
+ * Implement hook_block_view().
  */
 function statistics_block_view($delta = '') {
   if (user_access('access content')) {
@@ -363,7 +364,7 @@ function _statistics_format_item($title, $path) {
 }
 
 /**
- * Implementation of hook_node_delete().
+ * Implement hook_node_delete().
  */
 function statistics_node_delete($node) {
   // clean up statistics table when node is deleted
@@ -373,7 +374,7 @@ function statistics_node_delete($node) {
 }
 
 /**
- * Implementation of hook_ranking().
+ * Implement hook_ranking().
  */
 function statistics_ranking() {
   if (variable_get('statistics_count_content_views', 0)) {
@@ -390,7 +391,7 @@ function statistics_ranking() {
 }
 
 /**
- * Implementation of hook_update_index().
+ * Implement hook_update_index().
  */
 function statistics_update_index() {
   variable_set('node_cron_views_scale', 1.0 / max(1, db_result(db_query('SELECT MAX(totalcount) FROM {node_counter}'))));

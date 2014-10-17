@@ -12,9 +12,9 @@
 class SchemaTestCase extends DrupalWebTestCase {
   public static function getInfo() {
     return array(
-      'name' => t('Schema API'),
-      'description' => t('Tests table creation and modification via the schema API.'),
-      'group' => t('Database'),
+      'name' => 'Schema API',
+      'description' => 'Tests table creation and modification via the schema API.',
+      'group' => 'Database',
     );
   }
 
@@ -103,7 +103,9 @@ class SchemaTestCase extends DrupalWebTestCase {
 
   function tryInsert($table = 'test_table') {
     try {
-      db_query("INSERT INTO {" . $table . "} (id) VALUES (:id)", array(':id' => mt_rand(10, 20)));
+       db_insert($table)
+         ->fields(array('id' => mt_rand(10, 20)))
+         ->execute();
       return TRUE;
     }
     catch (Exception $e) {

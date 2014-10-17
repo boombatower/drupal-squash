@@ -7,12 +7,7 @@
  */
 
 /**
- * Denotes that a feed's items should never expire.
- */
-define('AGGREGATOR_CLEAR_NEVER', 0);
-
-/**
- * Implementation of hook_aggregator_process_info().
+ * Implement hook_aggregator_process_info().
  */
 function aggregator_aggregator_process_info() {
   return array(
@@ -22,7 +17,7 @@ function aggregator_aggregator_process_info() {
 }
 
 /**
- * Implementation of hook_aggregator_process().
+ * Implement hook_aggregator_process().
  */
 function aggregator_aggregator_process($feed) {
   if (is_object($feed)) {
@@ -50,7 +45,7 @@ function aggregator_aggregator_process($feed) {
 }
 
 /**
- * Implementation of hook_aggregator_remove().
+ * Implement hook_aggregator_remove().
  */
 function aggregator_aggregator_remove($feed) {
   $iids = db_query('SELECT iid FROM {aggregator_item} WHERE fid = :fid', array(':fid' => $feed->fid))->fetchCol();
@@ -67,7 +62,7 @@ function aggregator_aggregator_remove($feed) {
 }
 
 /**
- * Implementation of hook_form_aggregator_admin_form_alter().
+ * Implement hook_form_aggregator_admin_form_alter().
  *
  * Form alter aggregator module's own form to keep processor functionality
  * separate from aggregator API functionality.
@@ -117,7 +112,22 @@ function aggregator_form_aggregator_admin_form_alter(&$form, $form_state) {
       'select' => t('multiple selector')),
       '#description' => t('The type of category selection widget displayed on categorization pages. (For a small number of categories, checkboxes are easier to use, while a multiple selector works well with large numbers of categories.)'),
     );
+    $form['modules']['aggregator']['aggregator_teaser_length'] = array(
+      '#type' => 'select',
+      '#title' => t('Length of trimmed description'),
+      '#default_value' => 600,
+      '#options' => drupal_map_assoc(array(0, 200, 400, 600, 800, 1000, 1200, 1400, 1600, 1800, 2000), '_aggregator_characters'),
+      '#description' => t("The maximum number of characters used in the trimmed version of content.")
+    );
+
   }
+}
+
+/**
+ * Helper function for teaser length choices.
+ */
+function _aggregator_characters($length) {
+  return ($length == 0) ? t('Unlimited') : format_plural($length, '1 character', '@count characters');
 }
 
 /**

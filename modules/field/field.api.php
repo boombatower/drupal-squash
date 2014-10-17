@@ -9,48 +9,95 @@
 /**
  * Inform the Field API about one or more fieldable types.
  *
- * Inform the Field API about one or more fieldable types, (object
- * types to which fields can be attached).
+ * Inform the Field API about one or more fieldable types (object types to
+ * which fields can be attached).
  *
  * @return
  *   An array whose keys are fieldable object type names and
- *   whose values identify properties of those types that the Field
- *   system needs to know about:
- *
- *   name: The human-readable name of the type.
- *   id key: The object property that contains the primary id for the
- *     object. Every object passed to the Field API must
- *     have this property and its value must be numeric.
- *   revision key: The object property that contains the revision id
- *     for the object, or NULL if the object type is not
- *     versioned. The Field API assumes that all revision ids are
- *     unique across all instances of a type; this means, for example,
- *     that every object's revision ids cannot be 0, 1, 2, ...
- *   bundle key: The object property that contains the bundle name for
- *     the object (bundle name is what nodes call "content type").
- *     The bundle name defines which fields are connected to the object.
- *   cacheable: A boolean indicating whether Field API should cache
+ *   whose values are arrays with the following key/value pairs:
+ *   - label: The human-readable name of the type.
+ *   - object keys: An array describing how the Field API can extract the
+ *     informations it needs from the objects of the type.
+ *     - id: The name of the property that contains the primary id of the
+ *       object. Every object passed to the Field API must have this property
+ *       and its value must be numeric.
+ *     - revision: The name of the property that contains the revision id of
+ *       the object. The Field API assumes that all revision ids are unique
+ *       across all objects of a type.
+ *       This element can be omitted if the objects of this type are not
+ *       versionable.
+ *     - bundle: The name of the property that contains the bundle name for the
+ *       object. The bundle name defines which set of fields are attached to
+ *       the object (e.g. what nodes call "content type").
+ *       This element can be omitted if this type has no bundles (all objects
+ *       have the same fields).
+ *   - bundle keys: An array describing how the Field API can extract the
+ *     informations it needs from the bundle objects for this type (e.g
+ *     $vocabulary objects for terms; not applicable for nodes).
+ *     This element can be omitted if this type's bundles do not exist as
+ *     standalone objects.
+ *     - bundle: The name of the property that contains the name of the bundle
+ *       object.
+ *   - cacheable: A boolean indicating whether Field API should cache
  *     loaded fields for each object, reducing the cost of
  *     field_attach_load().
- *   bundles: An array of all existing bundle names for this object
- *     type. TODO: Define format. TODO: I'm unclear why we need
- *     this.
+ *   - bundles: An array describing all bundles for this object type.
+ *     Keys are bundles machine names, as found in the objects' 'bundle'
+ *     property (defined in the 'object keys' entry above).
+ *     - label: The human-readable name of the bundle.
+ *     - admin: An array of informations that allow Field UI pages (currently
+ *       implemented in a contributed module) to attach themselves to the
+ *       existing administration pages for the bundle.
+ *       - path: the path of the bundle's main administration page, as defined
+ *         in hook_menu(). If the path includes a placeholder for the bundle,
+ *         the 'bundle argument', 'bundle helper' and 'real path' keys below
+ *         are required.
+ *       - bundle argument: The position of the placeholder in 'path', if any.
+ *       - real path: The actual path (no placeholder) of the bundle's main
+ *         administration page. This will be used to generate links.
+ *       - access callback: As in hook_menu(). 'user_access' will be assumed if
+ *         no value is provided.
+ *       - access arguments: As in hook_menu().
  */
 function hook_fieldable_info() {
   $return = array(
-    'node' => array(
-      'name' => t('Node'),
-      'id key' => 'nid',
-      'revision key' => 'vid',
-      'bundle key' => 'type',
-      // Node.module handles its own caching.
-      'cacheable' => FALSE,
-      // Bundles must provide human readable name so
-      // we can create help and error messages about them.
-      'bundles' => node_get_types('names'),
+    'taxonomy_term' => array(
+      'label' => t('Taxonomy term'),
+      'object keys' => array(
+        'id' => 'tid',
+        'bundle' => 'vocabulary_machine_name',
+      ),
+      'bundle keys' => array(
+        'bundle' => 'machine_name',
+      ),
+      'bundles' => array(),
     ),
   );
+  foreach (taxonomy_get_vocabularies() as $vocabulary) {
+    $return['taxonomy_term']['bundles'][$vocabulary->machine_name] = array(
+      'label' => $vocabulary->name,
+      'admin' => array(
+        'path' => 'admin/structure/taxonomy/%taxonomy_vocabulary',
+        'real path' => 'admin/structure/taxonomy/' . $vocabulary->vid,
+        'bundle argument' => 3,
+        'access arguments' => array('administer taxonomy'),
+      ),
+    );
+  }
   return $return;
+}
+
+/**
+ * Perform alterations on fieldable types.
+ *
+ * @param $info
+ *   Array of informations on fieldable types exposed by hook_fieldable_info()
+ *   implementations.
+ */
+function hook_fieldable_info_alter(&$info) {
+  // A contributed module handling node-level caching would want to disable
+  // field cache for nodes.
+  $info['node']['cacheable'] = FALSE;
 }
 
 /**
@@ -112,6 +159,25 @@ function hook_field_info() {
       'default_formatter' => 'text_default',
     ),
   );
+}
+
+/**
+ * Perform alterations on Field API field types.
+ *
+ * @param $info
+ *   Array of informations on widget types exposed by hook_field_info()
+ *   implementations.
+ */
+function hook_field_info_alter(&$info) {
+  // Add a setting to all field types.
+  foreach ($info as $field_type => $field_type_info) {
+    $info[$field_type]['settings'][] = array('mymodule_additional_setting' => 'default value');
+  }
+
+  // Change the default widget for fields of type 'foo'.
+  if (isset($info['foo'])) {
+    $info['foo']['default widget'] = 'mymodule_widget';
+  }
 }
 
 /**
@@ -186,6 +252,21 @@ function hook_field_schema($field) {
 function hook_field_widget_info() {
 }
 
+/**
+ * Perform alterations on Field API widget types.
+ *
+ * @param $info
+ *   Array of informations on widget types exposed by hook_field_widget_info()
+ *   implementations.
+ */
+function hook_field_widget_info_alter(&$info) {
+  // Add a setting to a widget type.
+  $info['text_textfield']['settings'][] = array('mymodule_additional_setting' => 'default value');
+
+  // Let a new field type re-use an existing widget.
+  $info['options_select']['field types'][] = 'my_field_type';
+}
+
 /*
  * Define Field API formatter types.
  *
@@ -198,6 +279,21 @@ function hook_field_widget_info() {
  *   behaviors: TODO
  */
 function hook_field_formatter_info() {
+}
+
+/**
+ * Perform alterations on Field API formatter types.
+ *
+ * @param $info
+ *   Array of informations on widget types exposed by
+ *   hook_field_field_formatter_info() implementations.
+ */
+function hook_field_formatter_info_alter(&$info) {
+  // Add a setting to a formatter type.
+  $info['text_default']['settings'][] = array('mymodule_additional_setting' => 'default value');
+
+  // Let a new field type re-use an existing formatter.
+  $info['text_default']['field types'][] = 'my_field_type';
 }
 
 /**
@@ -238,6 +334,10 @@ function hook_field_load($obj_type, $objects, $field, $instances, &$items, $age)
  *   The type of $object.
  * @param $object
  *   The object for the operation.
+ *   Note that this might not be a full-fledged 'object'. When invoked through
+ *   field_attach_query(), the $object will only include properties that the
+ *   Field API knows about: bundle, id, revision id, and field values (no node
+ *   title, user name...).
  * @param $field
  *   The field structure for the operation.
  * @param $instance
@@ -267,9 +367,6 @@ function hook_field_validate($obj_type, $object, $field, $instance, $items, &$er
 
 /**
  * Define custom presave behavior for this module's field types.
- *
- * TODO: The behavior of this hook is going to change (see
- * field_attach_presave()).
  *
  * @param $obj_type
  *   The type of $object.
@@ -407,8 +504,7 @@ function hook_field_prepare_translation($obj_type, $object, $field, $instance, $
  * Field API will call this function as many times as needed.
  *
  * @param $form
- *   The entire form array, $form['#node'] holds node information.
- *   TODO: Not #node any more.
+ *   The entire form array.
  * @param $form_state
  *   The form_state, $form_state['values'][$field['field_name']]
  *   holds the field's form values.
@@ -494,7 +590,7 @@ function hook_field_attach_form($obj_type, $object, &$form, &$form_state) {
  *   set as an empty array.
  *   - Loaded field names are set as keys in $skip_fields.
  */
-function hook_field_attach_pre_load($obj_type, &$objects, $age, &$skip_fields) {
+function hook_field_attach_pre_load($obj_type, $objects, $age, &$skip_fields) {
 }
 
 /**
@@ -503,16 +599,21 @@ function hook_field_attach_pre_load($obj_type, &$objects, $age, &$skip_fields) {
  * This hook is invoked after the field module has performed the operation.
  *
  * Unlike other field_attach hooks, this hook accounts for 'multiple loads'.
- * It takes an array of objects indexed by object id as its first parameter.
- * For performance reasons, information for all available objects should be
- * loaded in a single query where possible.
+ * Instead of the usual $object parameter, it accepts an array of objects,
+ * indexed by object id. For performance reasons, information for all available
+ * objects should be loaded in a single query where possible.
  *
- * Note that the changes made to the objects' field values get cached by the
- * field cache for subsequent loads.
+ * Note that $objects might not be full-fledged 'objects'. When invoked through
+ * field_attach_query(), each object only includes properties that the Field
+ * API knows about: bundle, id, revision id, and field values (no node title,
+ * user name...)
+
+ * The changes made to the objects' field values get cached by the field cache
+ * for subsequent loads.
  *
  * See field_attach_load() for details and arguments.
  */
-function hook_field_attach_load($obj_type, &$objects, $age) {
+function hook_field_attach_load($obj_type, $objects, $age) {
 }
 
 /**
@@ -586,6 +687,40 @@ function hook_field_attach_pre_update($obj_type, $object, &$skip_fields) {
 }
 
 /**
+ * Act on field_attach_pre_query.
+ *
+ * This hook should be implemented by modules that use
+ * hook_field_attach_pre_load(), hook_field_attach_pre_insert() and
+ * hook_field_attach_pre_update() to bypass the regular storage engine, to
+ * handle field queries.
+ *
+ * @param $field_name
+ *   The name of the field to query.
+ * @param $conditions
+ *   See field_attach_query().
+ *   A storage module that doesn't support querying a given column should raise
+ *   a FieldQueryException. Incompatibilities should be mentioned on the module
+ *   project page.
+ * @param $count
+ *   See field_attach_query().
+ * @param $cursor
+ *   See field_attach_query().
+ * @param $age
+ *   - FIELD_LOAD_CURRENT: query the most recent revisions for all
+ *     objects. The results will be keyed by object type and object id.
+ *   - FIELD_LOAD_REVISION: query all revisions. The results will be keyed by
+ *     object type and object revision id.
+ * @param $skip_field
+ *   Boolean, always coming as FALSE.
+ * @return
+ *   See field_attach_query().
+ *   The $skip_field parameter should be set to TRUE if the query has been
+ *   handled.
+ */
+function hook_field_attach_pre_query($field_name, $conditions, $count, &$cursor = NULL, $age, &$skip_field) {
+}
+
+/**
  * Act on field_attach_delete.
  *
  * This hook is invoked after the field module has performed the operation.
@@ -616,10 +751,10 @@ function hook_field_attach_delete_revision($obj_type, $object) {
  *   The type of $object; e.g. 'node' or 'user'.
  * @param $object
  *   The object with fields to render.
- * @param $teaser
- *   Whether to display the teaser only, as on the main page.
+ * @param $build_mode
+ *   Build mode, e.g. 'full', 'teaser'...
  */
-function hook_field_attach_view_alter($output, $obj_type, $object, $teaser) {
+function hook_field_attach_view_alter($output, $obj_type, $object, $build_mode) {
 }
 
 /**
@@ -639,7 +774,7 @@ function hook_field_attach_create_bundle($bundle) {
  *
  * See field_attach_rename_bundle() for details and arguments.
  */
-function hook_field_rename_bundle($bundle_old, $bundle_new) {
+function hook_field_attach_rename_bundle($bundle_old, $bundle_new) {
 }
 
 /**
@@ -688,7 +823,7 @@ function hook_field_attach_delete_bundle($bundle, $instances) {
  *   Loaded field values are added to $objects. Fields with no values should be
  *   set as an empty array.
  */
-function hook_field_storage_load($obj_type, &$objects, $age, $skip_fields) {
+function hook_field_storage_load($obj_type, $objects, $age, $skip_fields) {
 }
 
 /**
@@ -734,6 +869,28 @@ function hook_field_storage_delete($obj_type, $object) {
  *   hook_fieldable_info() for $obj_type.
  */
 function hook_field_storage_delete_revision($obj_type, $object) {
+}
+
+/**
+ * Handle a field query.
+ *
+ * @param $field_name
+ *   The name of the field to query.
+ * @param $conditions
+ *   See field_attach_query().
+ *   A storage module that doesn't support querying a given column should raise
+ *   a FieldQueryException. Incompatibilities should be mentioned on the module
+ *   project page.
+ * @param $count
+ *   See field_attach_query().
+ * @param $cursor
+ *   See field_attach_query().
+ * @param $age
+ *   See field_attach_query().
+ * @return
+ *   See field_attach_query().
+ */
+function hook_field_storage_query($field_name, $conditions, $count, &$cursor = NULL, $age) {
 }
 
 /**

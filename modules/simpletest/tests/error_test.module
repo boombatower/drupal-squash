@@ -2,7 +2,7 @@
 // $Id$
 
 /**
- * Implementation of hook_menu().
+ * Implement hook_menu().
  */
 function error_test_menu() {
   $items['error-test/generate-warnings'] = array(
@@ -62,5 +62,5 @@ function error_test_trigger_exception() {
  */
 function error_test_trigger_pdo_exception() {
   define('SIMPLETEST_COLLECT_ERRORS', FALSE);
-  db_query("SELECT * FROM bananas_are_awesome");
+  db_query('SELECT * FROM bananas_are_awesome');
 }

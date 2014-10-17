@@ -89,21 +89,21 @@ function user_pass_reset(&$form_state, $uid, $timestamp, $hashed_pass, $action =
     $current = REQUEST_TIME;
     // Some redundant checks for extra security ?
     $users = user_load_multiple(array($uid), array('status' => '1'));
-    if ($timestamp < $current && $account = reset($users)) {
+    if ($timestamp <= $current && $account = reset($users)) {
       // No time out for first time login.
       if ($account->login && $current - $timestamp > $timeout) {
         drupal_set_message(t('You have tried to use a one-time login link that has expired. Please request a new one using the form below.'));
         drupal_goto('user/password');
       }
-      elseif ($account->uid && $timestamp > $account->login && $timestamp < $current && $hashed_pass == user_pass_rehash($account->pass, $timestamp, $account->login)) {
+      elseif ($account->uid && $timestamp >= $account->login && $timestamp <= $current && $hashed_pass == user_pass_rehash($account->pass, $timestamp, $account->login)) {
         // First stage is a confirmation form, then login
         if ($action == 'login') {
           watchdog('user', 'User %name used one-time login link at time %timestamp.', array('%name' => $account->name, '%timestamp' => $timestamp));
           // Set the new user.
           $user = $account;
-          // user_authenticate_finalize() also updates the login timestamp of the
+          // user_login_finalize() also updates the login timestamp of the
           // user, which invalidates further use of the one-time login link.
-          user_authenticate_finalize($form_state['values']);
+          user_login_finalize();
           drupal_set_message(t('You have just used your one-time login link. It is no longer necessary to use this link to login. Please change your password.'));
           drupal_goto('user/' . $user->uid . '/edit');
         }
@@ -136,12 +136,10 @@ function user_logout() {
 
   watchdog('user', 'Session closed for %name.', array('%name' => $user->name));
 
-  // Destroy the current session:
-  session_destroy();
   module_invoke_all('user_logout', NULL, $user);
 
-  // Load the anonymous user
-  $user = drupal_anonymous_user();
+  // Destroy the current session, and reset $user to the anonymous user.
+  session_destroy();
 
   drupal_goto();
 }
@@ -185,23 +183,11 @@ function user_view($account) {
  * The $variables array contains the following arguments:
  * - $account
  *
- * @see user-picture.tpl.php
+ * @see user-profile.tpl.php
  */
 function template_preprocess_user_profile(&$variables) {
   $account = $variables['elements']['#account'];
-
-  $variables['profile'] = array();
-  // Sort sections by weight
-  uasort($account->content, 'element_sort');
-  // Provide keyed variables so themers can print each section independently.
-  foreach (element_children($account->content) as $key) {
-    $variables['profile'][$key] = drupal_render($account->content[$key]);
-  }
-  // Collect all profiles to make it easier to print all items at once.
-  $variables['user_profile'] = implode($variables['profile']);
-
-  // Add $FIELD_NAME_rendered variables for fields.
-  $variables += field_attach_preprocess('user', $account);
+  $variables['user_profile'] = $account->content;
 }
 
 /**

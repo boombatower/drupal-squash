@@ -255,6 +255,12 @@ Drupal.ACDB.prototype.search = function (searchString) {
   var db = this;
   this.searchString = searchString;
 
+  // See if this string needs to be searched for anyway.
+  searchString = searchString.replace(/^\s+|\s+$/, '');
+  if (searchString.charAt(searchString.length - 1) == ',') {
+    return;
+  }
+
   // See if this key has been searched for before.
   if (this.cache[searchString]) {
     return this.owner.found(this.cache[searchString]);
@@ -270,7 +276,7 @@ Drupal.ACDB.prototype.search = function (searchString) {
     // Ajax GET request for autocompletion.
     $.ajax({
       type: 'GET',
-      url: db.uri + '/' + Drupal.encodeURIComponent(searchString),
+      url: db.uri + '/' + Drupal.encodePath(searchString),
       dataType: 'json',
       success: function (matches) {
         if (typeof matches.status == 'undefined' || matches.status != 0) {

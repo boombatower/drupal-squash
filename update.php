@@ -292,7 +292,7 @@ function update_batch() {
 
   // During the update, bring the site offline so that schema changes do not
   // affect visiting users.
-  drupal_set_session('site_offline', variable_get('site_offline', FALSE));
+  $_SESSION['site_offline'] = variable_get('site_offline', FALSE);
   if ($_SESSION['site_offline'] == FALSE) {
     variable_set('site_offline', TRUE);
   }
@@ -326,9 +326,9 @@ function update_finished($success, $results, $operations) {
   // clear the caches in case the data has been updated.
   drupal_flush_all_caches();
 
-  drupal_set_session('update_results', $results);
-  drupal_set_session('update_success', $success);
-  drupal_set_session('updates_remaining', $operations);
+  $_SESSION['update_results'] = $results;
+  $_SESSION['update_success'] = $success;
+  $_SESSION['updates_remaining'] = $operations;
 
   // Now that the update is done, we can put the site back online if it was
   // previously turned off.
@@ -445,34 +445,6 @@ function update_access_denied_page() {
 }
 
 /**
- * Create the batch table.
- *
- * This is part of the Drupal 5.x to 6.x migration.
- */
-function update_create_batch_table() {
-
-  // If batch table exists, update is not necessary
-  if (db_table_exists('batch')) {
-    return;
-  }
-
-  $schema['batch'] = array(
-    'fields' => array(
-      'bid'       => array('type' => 'serial', 'unsigned' => TRUE, 'not null' => TRUE),
-      'token'     => array('type' => 'varchar', 'length' => 64, 'not null' => TRUE),
-      'timestamp' => array('type' => 'int', 'not null' => TRUE),
-      'batch'     => array('type' => 'text', 'not null' => FALSE, 'size' => 'big')
-    ),
-    'primary key' => array('bid'),
-    'indexes' => array('token' => array('token')),
-  );
-
-  $ret = array();
-  db_create_table($ret, 'batch', $schema['batch']);
-  return $ret;
-}
-
-/**
  * Disable anything in the {system} table that is not compatible with the
  * current version of Drupal core.
  */
@@ -499,8 +471,8 @@ function update_check_incompatibility($name, $type = 'module') {
 
   // Store values of expensive functions for future use.
   if (empty($themes) || empty($modules)) {
-    $themes = _system_theme_data();
-    $modules = module_rebuild_cache();
+    $themes = _system_get_theme_data();
+    $modules = system_get_module_data();
   }
 
   if ($type == 'module' && isset($modules[$name])) {
@@ -517,61 +489,6 @@ function update_check_incompatibility($name, $type = 'module') {
     return TRUE;
   }
   return FALSE;
-}
-
-/**
- * Perform Drupal 5.x to 6.x updates that are required for update.php
- * to function properly.
- *
- * This function runs when update.php is run the first time for 6.x,
- * even before updates are selected or performed. It is important
- * that if updates are not ultimately performed that no changes are
- * made which make it impossible to continue using the prior version.
- * Just adding columns is safe. However, renaming the
- * system.description column to owner is not. Therefore, we add the
- * system.owner column and leave it to system_update_6008() to copy
- * the data from description and remove description. The same for
- * renaming locales_target.locale to locales_target.language, which
- * will be finished by locale_update_6002().
- */
-function update_fix_d6_requirements() {
-  $ret = array();
-
-  if (drupal_get_installed_schema_version('system') < 6000 && !variable_get('update_d6_requirements', FALSE)) {
-    $spec = array('type' => 'int', 'size' => 'small', 'default' => 0, 'not null' => TRUE);
-    db_add_field($ret, 'cache', 'serialized', $spec);
-    db_add_field($ret, 'cache_filter', 'serialized', $spec);
-    db_add_field($ret, 'cache_page', 'serialized', $spec);
-    db_add_field($ret, 'cache_menu', 'serialized', $spec);
-
-    db_add_field($ret, 'system', 'info', array('type' => 'text'));
-    db_add_field($ret, 'system', 'owner', array('type' => 'varchar', 'length' => 255, 'not null' => TRUE, 'default' => ''));
-    if (db_table_exists('locales_target')) {
-      db_add_field($ret, 'locales_target', 'language', array('type' => 'varchar', 'length' => 12, 'not null' => TRUE, 'default' => ''));
-    }
-    if (db_table_exists('locales_source')) {
-      db_add_field($ret, 'locales_source', 'textgroup', array('type' => 'varchar', 'length' => 255, 'not null' => TRUE, 'default' => 'default'));
-      db_add_field($ret, 'locales_source', 'version', array('type' => 'varchar', 'length' => 20, 'not null' => TRUE, 'default' => 'none'));
-    }
-    variable_set('update_d6_requirements', TRUE);
-
-    // Create the cache_block table. See system_update_6027() for more details.
-    $schema['cache_block'] = array(
-      'fields' => array(
-        'cid'        => array('type' => 'varchar', 'length' => 255, 'not null' => TRUE, 'default' => ''),
-        'data'       => array('type' => 'blob', 'not null' => FALSE, 'size' => 'big'),
-        'expire'     => array('type' => 'int', 'not null' => TRUE, 'default' => 0),
-        'created'    => array('type' => 'int', 'not null' => TRUE, 'default' => 0),
-        'headers'    => array('type' => 'text', 'not null' => FALSE),
-        'serialized' => array('type' => 'int', 'size' => 'small', 'not null' => TRUE, 'default' => 0)
-      ),
-      'indexes' => array('expire' => array('expire')),
-      'primary key' => array('cid'),
-    );
-    db_create_table($ret, 'cache_block', $schema['cache_block']);
-  }
-
-  return $ret;
 }
 
 /**
@@ -608,7 +525,7 @@ function update_prepare_d7_bootstrap() {
   // Allow the database system to work even if the registry has not been
   // created yet.
   drupal_bootstrap(DRUPAL_BOOTSTRAP_DATABASE);
-  drupal_install_init_database();
+  drupal_install_initialize_database();
   spl_autoload_unregister('drupal_autoload_class');
   spl_autoload_unregister('drupal_autoload_interface');
   // The new {blocked_ips} table is used in Drupal 7 to store a list of
@@ -648,9 +565,14 @@ function update_fix_d7_requirements() {
 
     // Add the cache_path table.
     $schema['cache_path'] = drupal_get_schema_unprocessed('system', 'cache');
-    $schema['cache_path']['description'] = t('Cache table used for path alias lookups.');
+    $schema['cache_path']['description'] = 'Cache table used for path alias lookups.';
     db_create_table($ret, 'cache_path', $schema['cache_path']);
     variable_set('update_d7_requirements', TRUE);
+
+    // Add column for locale context.
+    if (db_table_exists('locales_source')) {
+      db_add_field($ret, 'locales_source', 'context', array('type' => 'varchar', 'length' => 255, 'not null' => TRUE, 'default' => '', 'description' => 'The context this string applies to.'));
+    }
   }
 
   return $ret;
@@ -760,7 +682,7 @@ if (empty($op) && $update_access_allowed) {
   drupal_load('module', 'filter');
 
   // Set up $language, since the installer components require it.
-  drupal_init_language();
+  drupal_language_initialize();
 
   // Set up theme system for the maintenance page.
   drupal_maintenance_theme();
@@ -786,7 +708,6 @@ if ($update_access_allowed) {
   include_once DRUPAL_ROOT . '/includes/batch.inc';
   drupal_load_updates();
 
-  update_fix_d6_requirements();
   update_fix_d7_requirements();
   update_fix_compatibility();
 

@@ -7,7 +7,7 @@
  */
 
 /**
- * Implementation of hook_install().
+ * Implement hook_install().
  */
 function simpletest_install() {
   drupal_install_schema('simpletest');
@@ -99,16 +99,16 @@ function simpletest_get_file_count($directory, $filename) {
 }
 
 /**
- * Implementation of hook_uninstall().
+ * Implement hook_uninstall().
  */
 function simpletest_uninstall() {
   simpletest_clean_environment();
 
   // Remove settings variables.
-  variable_del('simpletest_httpauth');
-  variable_del('simpletest_httpauth_username');
-  variable_del('simpletest_httpauth_pass');
-  variable_del('simpletest_devel');
+  variable_del('simpletest_username');
+  variable_del('simpletest_password');
+  variable_del('simpletest_clear_results');
+  variable_del('simpletest_verbose');
 
   // Uninstall schema.
   drupal_uninstall_schema('simpletest');
@@ -130,6 +130,7 @@ function simpletest_requirements($phase) {
   $t = get_t();
 
   $has_curl = function_exists('curl_init');
+  $has_hash = function_exists('hash_hmac');
   $has_domdocument = class_exists('DOMDocument');
 
   $requirements['curl'] = array(
@@ -139,6 +140,14 @@ function simpletest_requirements($phase) {
   if (!$has_curl) {
     $requirements['curl']['severity'] = REQUIREMENT_ERROR;
     $requirements['curl']['description'] = $t('Simpletest could not be installed because the PHP <a href="@curl_url">cURL</a> library is not available.', array('@curl_url' => 'http://php.net/manual/en/curl.setup.php'));
+  }
+  $requirements['hash'] = array(
+    'title' => $t('hash'),
+    'value' => $has_hash ? $t('Enabled') : $t('Not found'),
+  );
+  if (!$has_hash) {
+    $requirements['hash']['severity'] = REQUIREMENT_ERROR;
+    $requirements['hash']['description'] = $t('Simpletest could not be installed because the PHP <a href="@hash_url">hash</a> extension is disabled.', array('@hash_url' => 'http://php.net/manual/en/book.hash.php'));
   }
 
   $requirements['php_domdocument'] = array(
@@ -228,6 +237,13 @@ function simpletest_schema() {
         'not null' => TRUE,
         'description' => 'Primary Key: Unique simpletest ID used to group test results together. Each time a set of tests
                             are run a new test ID is used.',
+      ),
+      'last_prefix' => array(
+        'type' => 'varchar',
+        'length' => 60,
+        'not null' => FALSE,
+        'default' => '',
+        'description' => 'The last database prefix used during testing.',
       ),
     ),
     'primary key' => array('test_id'),

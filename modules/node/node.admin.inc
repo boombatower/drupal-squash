@@ -7,72 +7,11 @@
  */
 
 /**
- * Menu callback; presents general node configuration options.
- */
-function node_configure() {
-  // Only show rebuild button if there are either 0, or 2 or more, rows
-  // in the {node_access} table, or if there are modules that
-  // implement hook_node_grants().
-  if (db_query('SELECT COUNT(*) FROM {node_access}')->fetchField() != 1 || count(module_implements('node_grants')) > 0) {
-    $status = '<p>' . t('If the site is experiencing problems with permissions to content, you may have to rebuild the permissions cache. Possible causes for permission problems are disabling modules or configuration changes to permissions. Rebuilding will remove all privileges to posts, and replace them with permissions based on the current modules and settings.') . '</p>';
-    $status .= '<p>' . t('Rebuilding may take some time if there is a lot of content or complex permission settings. After rebuilding has completed posts will automatically use the new permissions.') . '</p>';
-
-    $form['access'] = array(
-      '#type' => 'fieldset',
-      '#title' => t('Node access status'),
-    );
-    $form['access']['status'] = array('#markup' => $status);
-    $form['access']['rebuild'] = array(
-      '#type' => 'submit',
-      '#value' => t('Rebuild permissions'),
-      '#submit' => array('node_configure_access_submit'),
-    );
-  }
-
-  $form['default_nodes_main'] = array(
-    '#type' => 'select', '#title' => t('Number of posts on main page'),
-    '#default_value' => 10,
-    '#options' => drupal_map_assoc(array(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 25, 30)),
-    '#description' => t('The default maximum number of posts to display per page on overview pages such as the main page.')
-  );
-  $form['teaser_length'] = array(
-    '#type' => 'select', '#title' => t('Length of trimmed posts'),
-    '#default_value' => 600,
-    '#options' => drupal_map_assoc(array(0, 200, 400, 600, 800, 1000, 1200, 1400, 1600, 1800, 2000), '_node_characters'),
-    '#description' => t("The maximum number of characters used in the trimmed version of a post. Drupal will use this setting to determine at which offset long posts should be trimmed. The trimmed version of a post is typically used as a teaser when displaying the post on the main page, in XML feeds, etc. To disable teasers, set to 'Unlimited' . Note that this setting will only affect new or updated content and will not affect existing teasers.")
-  );
-
-  $form['node_preview'] = array(
-    '#type' => 'radios',
-    '#title' => t('Preview post'),
-    '#default_value' => 0,
-    '#options' => array(t('Optional'), t('Required')),
-    '#description' => t('Must users preview posts before submitting?'),
-  );
-
-  return system_settings_form($form, TRUE);
-}
-
-/**
- * Helper function for teaser length choices.
- */
-function _node_characters($length) {
-  return ($length == 0) ? t('Unlimited') : format_plural($length, '1 character', '@count characters');
-}
-
-/**
- * Form button submit callback.
- */
-function node_configure_access_submit($form, &$form_state) {
-  $form_state['redirect'] = 'admin/content/node-settings/rebuild';
-}
-
-/**
  * Menu callback: confirm rebuilding of permissions.
  */
 function node_configure_rebuild_confirm() {
   return confirm_form(array(), t('Are you sure you want to rebuild the permissions on site content?'),
-                  'admin/content/node-settings', t('This action rebuilds all permissions on site content, and may be a lengthy process. This action cannot be undone.'), t('Rebuild permissions'), t('Cancel'));
+                  'admin/reports/status', t('This action rebuilds all permissions on site content, and may be a lengthy process. This action cannot be undone.'), t('Rebuild permissions'), t('Cancel'));
 }
 
 /**
@@ -80,11 +19,11 @@ function node_configure_rebuild_confirm() {
  */
 function node_configure_rebuild_confirm_submit($form, &$form_state) {
   node_access_rebuild(TRUE);
-  $form_state['redirect'] = 'admin/content/node-settings';
+  $form_state['redirect'] = 'admin/reports/status';
 }
 
 /**
- * Implementation of hook_node_operations().
+ * Implement hook_node_operations().
  */
 function node_node_operations() {
   $operations = array(
@@ -150,7 +89,7 @@ function node_filters() {
     );
   }
 
-  $filters['type'] = array('title' => t('type'), 'options' => node_get_types('names'));
+  $filters['type'] = array('title' => t('type'), 'options' => node_type_get_names());
 
   // The taxonomy filter
   if ($taxonomy = module_invoke('taxonomy', 'form_all', 1)) {
@@ -165,47 +104,39 @@ function node_filters() {
 }
 
 /**
- * Build query for node administration filters based on session.
+ * Apply filters for node administration filters based on session.
+ *
+ * @param $query
+ *   A SelectQuery to which the filters should be applied.
  */
-function node_build_filter_query() {
+function node_build_filter_query(SelectQueryInterface $query) {
   // Build query
-  $where = $args = array();
-  $join = '';
-  foreach ($_SESSION['node_overview_filter'] as $index => $filter) {
+  $filter_data = isset($_SESSION['node_overview_filter']) ? $_SESSION['node_overview_filter'] : array();
+  $counter = 0;
+  foreach ($filter_data as $index => $filter) {
     list($key, $value) = $filter;
     switch ($key) {
+      case 'term':
+        $index = 'tn' . $counter++;
+        $query->join('taxonomy_term_node', $index, "n.nid = $index.nid");
+        $query->condition($index . '.tid', $value);
+        break;
       case 'status':
         // Note: no exploitable hole as $key/$value have already been checked when submitted
         list($key, $value) = explode('-', $value, 2);
-        $where[] = 'n.' . $key . ' = %d';
-        break;
-      case 'term':
-        $table = "tn$index";
-        $where[] = "$table.tid = %d";
-        $join .= "INNER JOIN {taxonomy_term_node} $table ON n.nid = $table.nid ";
-        break;
       case 'type':
-        $where[] = "n.type = '%s'";
-        break;
       case 'language':
-        $where[] = "n.language = '%s'";
+        $query->condition('n.' . $key, $value);
         break;
     }
-    $args[] = $value;
   }
-  $where = count($where) ? 'WHERE ' . implode(' AND ', $where) : '';
-
-  return array('where' => $where, 'join' => $join, 'args' => $args);
 }
 
 /**
  * Return form for node administration filters.
  */
 function node_filter_form() {
-  if (!isset($_SESSION['node_overview_filter'])) {
-    drupal_set_session('node_overview_filter', array());
-  }
-  $session = &$_SESSION['node_overview_filter'];
+  $session = isset($_SESSION['node_overview_filter']) ? $_SESSION['node_overview_filter'] : array();
   $filters = node_filters();
 
   $i = 0;
@@ -320,9 +251,6 @@ function node_filter_form_submit($form, &$form_state) {
         $flat_options = form_options_flatten($filters[$filter]['options']);
 
         if (isset($flat_options[$form_state['values'][$filter]])) {
-          if (!isset($_SESSION['node_overview_filter'])) {
-            drupal_set_session('node_overview_filter', array());
-          }
           $_SESSION['node_overview_filter'][] = array($filter, $form_state['values'][$filter]);
         }
       }
@@ -331,7 +259,7 @@ function node_filter_form_submit($form, &$form_state) {
       array_pop($_SESSION['node_overview_filter']);
       break;
     case t('Reset'):
-      drupal_set_session('node_overview_filter', array());
+      $_SESSION['node_overview_filter'] = array();
       break;
   }
 }
@@ -443,7 +371,15 @@ function node_admin_content($form_state) {
   if (isset($form_state['values']['operation']) && $form_state['values']['operation'] == 'delete') {
     return node_multiple_delete_confirm($form_state, array_filter($form_state['values']['nodes']));
   }
-  $form = node_filter_form();
+  $form = array();
+  // Show the 'add new content' link.
+  if (_node_add_access()) {
+    $form['add_content'] = array(
+      '#type' => 'markup',
+      '#markup' => l(t('Add new content'), 'node/add', array('attributes' => array('class' => 'node-admin-add-content'))),
+    );
+  }
+  $form[] = node_filter_form();
 
   $form['#theme'] = 'node_filter_form';
   $form['admin'] = node_admin_nodes();
@@ -477,11 +413,15 @@ function node_admin_nodes() {
    '#value' => $header,
   );
 
-  // Build the query and load the nodes we want to display.
-  $filter = node_build_filter_query();
+  $query = db_select('node', 'n')->extend('PagerDefault')->extend('TableSort');
+  $query->join('users', 'u', 'n.uid = u.uid');
+  node_build_filter_query($query);
 
-  $sort = tablesort_sql($header, '', 'n.changed DESC');
-  $result = pager_query(db_rewrite_sql('SELECT n.*, u.name FROM {node} n ' . $filter['join'] . ' INNER JOIN {users} u ON n.uid = u.uid ' . $filter['where'] . $sort), 50, 0, NULL, $filter['args']);
+  $result = $query
+    ->fields('n')
+    ->fields('u', array('name'))
+    ->limit(50)
+    ->execute();
 
   // Build the 'Update options' form.
   $form['options'] = array(
@@ -508,11 +448,11 @@ function node_admin_nodes() {
   $languages = language_list();
   $destination = drupal_get_destination();
   $nodes = array();
-  while ($node = db_fetch_object($result)) {
+  foreach ($result as $node) {
     $nodes[$node->nid] = '';
     $options = empty($node->language) ? array() : array('language' => $languages[$node->language]);
     $form['title'][$node->nid] = array('#markup' => l($node->title, 'node/' . $node->nid, $options) . ' ' . theme('mark', node_mark($node->nid, $node->changed)));
-    $form['name'][$node->nid] =  array('#markup' => check_plain(node_get_types('name', $node)));
+    $form['name'][$node->nid] =  array('#markup' => check_plain(node_type_get_name($node)));
     $form['username'][$node->nid] = array('#markup' => theme('username', $node));
     $form['status'][$node->nid] =  array('#markup' => ($node->status ? t('published') : t('not published')));
     $form['changed'][$node->nid] = array('#markup' => format_date($node->changed, 'small'));
@@ -651,4 +591,12 @@ function node_multiple_delete_confirm_submit($form, &$form_state) {
   }
   $form_state['redirect'] = 'admin/content/node';
   return;
+}
+
+/**
+ * Implement hook_modules_installed()
+ */
+function node_modules_installed($modules) {
+  // Clear node type cache for node permissions.
+  node_type_clear();
 }

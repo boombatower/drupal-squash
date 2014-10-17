@@ -9,9 +9,9 @@ define('SEARCH_TYPE_2', '_test2_');
 class SearchMatchTestCase extends DrupalWebTestCase {
   public static function getInfo() {
     return array(
-      'name' => t('Search engine queries'),
-      'description' => t('Indexes content and queries it.'),
-      'group' => t('Search'),
+      'name' => 'Search engine queries',
+      'description' => 'Indexes content and queries it.',
+      'group' => 'Search',
     );
   }
 
@@ -199,9 +199,9 @@ class SearchBikeShed extends DrupalWebTestCase {
 
   public static function getInfo() {
     return array(
-      'name' => t('Bike shed'),
-      'description' => t('Tests the bike shed text on the no results page.'),
-      'group' => t('Search')
+      'name' => 'Bike shed',
+      'description' => 'Tests the bike shed text on the no results page.',
+      'group' => 'Search'
     );
   }
 
@@ -229,9 +229,9 @@ class SearchAdvancedSearchForm extends DrupalWebTestCase {
 
   public static function getInfo() {
     return array(
-      'name' => t('Advanced search form'),
-      'description' => t('Indexes content and tests the advanced search form.'),
-      'group' => t('Search'),
+      'name' => 'Advanced search form',
+      'description' => 'Indexes content and tests the advanced search form.',
+      'group' => 'Search',
     );
   }
 
@@ -266,11 +266,11 @@ class SearchAdvancedSearchForm extends DrupalWebTestCase {
     $this->assertNotEqual($dummy_title, $this->node->title, t("Dummy title doens't equal node title"));
 
     // Search for the dummy title with a GET query.
-    $this->drupalGet('search/node/' . drupal_urlencode($dummy_title));
+    $this->drupalGet('search/node/' . $dummy_title);
     $this->assertNoText($this->node->title, t('Page node is not found with dummy title.'));
 
     // Search for the title of the node with a GET query.
-    $this->drupalGet('search/node/' . drupal_urlencode($this->node->title));
+    $this->drupalGet('search/node/' . $this->node->title);
     $this->assertText($this->node->title, t('Page node is found with GET query.'));
 
     // Search for the title of the node with a POST query.
@@ -290,9 +290,9 @@ class SearchAdvancedSearchForm extends DrupalWebTestCase {
 class SearchRankingTestCase extends DrupalWebTestCase {
   public static function getInfo() {
     return array(
-      'name' => t('Search engine ranking'),
-      'description' => t('Indexes content and tests ranking factors.'),
-      'group' => t('Search'),
+      'name' => 'Search engine ranking',
+      'description' => 'Indexes content and tests ranking factors.',
+      'group' => 'Search',
     );
   }
 
@@ -312,7 +312,7 @@ class SearchRankingTestCase extends DrupalWebTestCase {
 
     // Create nodes for testing.
     foreach ($node_ranks as $node_rank) {
-      $settings = array('type' => 'page', 'title' => 'Drupal rocks', 'body' => "Drupal's search rocks");
+      $settings = array('type' => 'page', 'title' => 'Drupal rocks', 'body' => array(array('value' => "Drupal's search rocks")));
       foreach (array(0, 1) as $num) {
         if ($num == 1) {
           switch ($node_rank) {
@@ -321,7 +321,7 @@ class SearchRankingTestCase extends DrupalWebTestCase {
               $settings[$node_rank] = 1;
               break;
             case 'relevance':
-              $settings['body'] .= " really rocks";
+              $settings['body'][0]['value'] .= " really rocks";
               break;
             case 'recent':
               $settings['created'] = REQUEST_TIME + 3600;
@@ -373,9 +373,9 @@ class SearchRankingTestCase extends DrupalWebTestCase {
 class SearchBlockTestCase extends DrupalWebTestCase {
   public static function getInfo() {
     return array(
-      'name' => t('Block availability'),
-      'description' => t('Check if the search form block is available.'),
-      'group' => t('Search'),
+      'name' => 'Block availability',
+      'description' => 'Check if the search form block is available.',
+      'group' => 'Search',
     );
   }
 
@@ -394,13 +394,13 @@ class SearchBlockTestCase extends DrupalWebTestCase {
 
   function testSearchFormBlock() {
     // Set block title to confirm that the interface is availble.
-    $this->drupalPost('admin/build/block/configure/search/form', array('title' => $this->randomName(8)), t('Save block'));
+    $this->drupalPost('admin/structure/block/configure/search/form', array('title' => $this->randomName(8)), t('Save block'));
     $this->assertText(t('The block configuration has been saved.'), t('Block configuration set.'));
 
     // Set the block to a region to confirm block is availble.
     $edit = array();
     $edit['search_form[region]'] = 'footer';
-    $this->drupalPost('admin/build/block', $edit, t('Save blocks'));
+    $this->drupalPost('admin/structure/block', $edit, t('Save blocks'));
     $this->assertText(t('The block settings have been updated.'), t('Block successfully move to footer region.'));
   }
 
@@ -411,7 +411,7 @@ class SearchBlockTestCase extends DrupalWebTestCase {
     // Enable the block, and place it in the 'content' region so that it isn't
     // hidden on 404 pages.
     $edit = array('search_form[region]' => 'content');
-    $this->drupalPost('admin/build/block', $edit, t('Save blocks'));
+    $this->drupalPost('admin/structure/block', $edit, t('Save blocks'));
 
     // Test a normal search via the block form, from the front page.
     $terms = array('search_block_form' => 'test');
@@ -424,7 +424,7 @@ class SearchBlockTestCase extends DrupalWebTestCase {
 
     // Test a search from the block when it doesn't appear on the search page.
     $edit = array('pages' => 'search');
-    $this->drupalPost('admin/build/block/configure/search/form', $edit, t('Save block'));
+    $this->drupalPost('admin/structure/block/configure/search/form', $edit, t('Save block'));
     $this->drupalPost('node', $terms, t('Search'));
     $this->assertText('Your search yielded no results');
   }
@@ -439,9 +439,9 @@ class SearchCommentTestCase extends DrupalWebTestCase {
 
   public static function getInfo() {
     return array(
-      'name' => t('Comment Search tests'),
-      'description' => t('Verify text formats and filters used elsewhere.'),
-      'group' => t('Search'),
+      'name' => 'Comment Search tests',
+      'description' => 'Verify text formats and filters used elsewhere.',
+      'group' => 'Search',
     );
   }
 
@@ -463,7 +463,7 @@ class SearchCommentTestCase extends DrupalWebTestCase {
     $edit = array(
       'filters[filter/4]' => 1,
     );
-    $this->drupalPost('admin/settings/filter/1', $edit, t('Save configuration'));
+    $this->drupalPost('admin/settings/formats/1', $edit, t('Save configuration'));
     // Allow anonymous users to search content.
     $edit = array(
       DRUPAL_ANONYMOUS_RID . '[search content]' => 1,

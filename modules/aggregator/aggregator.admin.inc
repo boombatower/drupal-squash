@@ -29,6 +29,9 @@ function aggregator_view() {
   foreach ($result as $feed) {
     $rows[] = array(l($feed->title, "aggregator/sources/$feed->fid"), format_plural($feed->items, '1 item', '@count items'), ($feed->checked ? t('@time ago', array('@time' => format_interval(REQUEST_TIME - $feed->checked))) : t('never')), ($feed->checked && $feed->refresh ? t('%time left', array('%time' => format_interval($feed->checked + $feed->refresh - REQUEST_TIME))) : t('never')), l(t('edit'), "admin/content/aggregator/edit/feed/$feed->fid"), l(t('remove items'), "admin/content/aggregator/remove/$feed->fid"), l(t('update items'), "admin/content/aggregator/update/$feed->fid"));
   }
+  if (empty($rows)) {
+    $rows[] = array(array('data' => t('No feeds available. <a href="@link">Add feed</a>.', array('@link' => url('admin/content/aggregator/add/feed'))), 'colspan' => '5', 'class' => 'message'));
+  }
   $output .= theme('table', $header, $rows);
 
   $result = db_query('SELECT c.cid, c.title, COUNT(ci.iid) as items FROM {aggregator_category} c LEFT JOIN {aggregator_category_item} ci ON c.cid = ci.cid GROUP BY c.cid, c.title ORDER BY title');
@@ -39,6 +42,9 @@ function aggregator_view() {
   $rows = array();
   foreach ($result as $category) {
     $rows[] = array(l($category->title, "aggregator/categories/$category->cid"), format_plural($category->items, '1 item', '@count items'), l(t('edit'), "admin/content/aggregator/edit/category/$category->cid"));
+  }
+  if (empty($rows)) {
+    $rows[] = array(array('data' => t('No categories available. <a href="@link">Add category</a>.', array('@link' => url('admin/content/aggregator/add/category'))), 'colspan' => '5', 'class' => 'message'));
   }
   $output .= theme('table', $header, $rows);
 
@@ -54,7 +60,7 @@ function aggregator_view() {
  */
 function aggregator_form_feed(&$form_state, stdClass $feed = NULL) {
   $period = drupal_map_assoc(array(900, 1800, 3600, 7200, 10800, 21600, 32400, 43200, 64800, 86400, 172800, 259200, 604800, 1209600, 2419200), 'format_interval');
-  $period[0] = t('Never');
+  $period[AGGREGATOR_CLEAR_NEVER] = t('Never');
 
   $form['title'] = array('#type' => 'textfield',
     '#title' => t('Title'),
@@ -80,7 +86,7 @@ function aggregator_form_feed(&$form_state, stdClass $feed = NULL) {
     '#title' => t('News items in block'),
     '#default_value' => isset($feed->block) ? $feed->block : 5,
     '#options' => drupal_map_assoc(array(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20)),
-    '#description' => t("Drupal can make a block with the most recent news items of this feed. You can <a href=\"@block-admin\">configure blocks</a> to be displayed in the sidebar of your page. This setting lets you configure the number of news items to show in this feed's block. If you choose '0' this feed's block will be disabled.", array('@block-admin' => url('admin/build/block'))),
+    '#description' => t("Drupal can make a block with the most recent news items of this feed. You can <a href=\"@block-admin\">configure blocks</a> to be displayed in the sidebar of your page. This setting lets you configure the number of news items to show in this feed's block. If you choose '0' this feed's block will be disabled.", array('@block-admin' => url('admin/structure/block'))),
   );
 
   // Handling of categories.
@@ -235,6 +241,7 @@ function aggregator_form_opml(&$form_state) {
   $form['remote'] = array(
     '#type' => 'textfield',
     '#title' => t('OPML Remote URL'),
+    '#maxlength' => 1024,
     '#description' => t('Enter the URL of an OPML file. This file will be downloaded and processed only once on submission of the form.'),
   );
   $form['refresh'] = array(
@@ -248,7 +255,7 @@ function aggregator_form_opml(&$form_state) {
     '#title' => t('News items in block'),
     '#default_value' => 5,
     '#options' => drupal_map_assoc(array(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20)),
-    '#description' => t("Drupal can make a block with the most recent news items of a feed. You can <a href=\"@block-admin\">configure blocks</a> to be displayed in the sidebar of your page. This setting lets you configure the number of news items to show in a feed's block. If you choose '0' these feeds' blocks will be disabled.", array('@block-admin' => url('admin/build/block'))),
+    '#description' => t("Drupal can make a block with the most recent news items of a feed. You can <a href=\"@block-admin\">configure blocks</a> to be displayed in the sidebar of your page. This setting lets you configure the number of news items to show in a feed's block. If you choose '0' these feeds' blocks will be disabled.", array('@block-admin' => url('admin/structure/block'))),
   );
 
   // Handling of categories.
