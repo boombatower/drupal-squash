@@ -161,10 +161,7 @@ class DatabaseConnection_sqlite extends DatabaseConnection {
     return isset($specials[$operator]) ? $specials[$operator] : NULL;
   }
 
-  public function prepareQuery($query, $cache = TRUE) {
-    // It makes no sense to use the static prepared statement cache here,
-    // because all the work in our implementation is done in
-    // DatabaseStatement_sqlite::execute() and cannot be cached.
+  public function prepareQuery($query) {
     return $this->prepare($this->prefixTables($query));
   }
 
@@ -232,7 +229,7 @@ class DatabaseStatement_sqlite extends DatabaseStatementPrefetch implements Iter
       else {
         // Else, this is using named placeholders.
         foreach ($args as $placeholder => $value) {
-          if (is_numeric($value)) {
+          if (is_float($value) || is_int($value)) {
             // We will remove this placeholder from the query and PDO throws an
             // exception if the number of placeholders in the query and the
             // arguments does not match.

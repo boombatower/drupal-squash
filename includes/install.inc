@@ -131,7 +131,8 @@ function drupal_get_schema_versions($module) {
  *   Set to TRUE if you want to get information about all modules in the
  *   system.
  * @return
- *   The currently installed schema version.
+ *   The currently installed schema version, or SCHEMA_UNINSTALLED if the
+ *   module is not installed.
  */
 function drupal_get_installed_schema_version($module, $reset = FALSE, $array = FALSE) {
   static $versions = array();
@@ -148,7 +149,12 @@ function drupal_get_installed_schema_version($module, $reset = FALSE, $array = F
     }
   }
 
-  return $array ? $versions : $versions[$module];
+  if ($array) {
+    return $versions;
+  }
+  else {
+    return isset($versions[$module]) ? $versions[$module] : SCHEMA_UNINSTALLED;
+  }
 }
 
 /**
@@ -879,6 +885,7 @@ function drupal_install_fix_file($file, $mask, $message = TRUE) {
  */
 function install_goto($path) {
   global $base_url;
+  include_once DRUPAL_ROOT . '/includes/common.inc';
   header('Location: ' . $base_url . '/' . $path);
   header('Cache-Control: no-cache'); // Not a permanent redirect.
   drupal_exit();
@@ -1072,7 +1079,7 @@ function install_profile_info($profile, $locale = 'en') {
  *
  * This will run tasks that check that Drupal can perform all of the functions
  * on a database, that Drupal needs. Tasks include simple checks like CREATE
- * TABLE to database specfic functions like stored procedures and client
+ * TABLE to database specific functions like stored procedures and client
  * encoding.
  */
 function db_run_tasks($driver) {

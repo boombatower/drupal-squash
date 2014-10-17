@@ -147,15 +147,16 @@ class DatabaseSchema_pgsql extends DatabaseSchema {
     if ($spec['type'] == 'serial') {
       unset($spec['not null']);
     }
-    if (!empty($spec['unsigned'])) {
-      $sql .= " CHECK ($name >= 0)";
-    }
 
     if (in_array($spec['type'], array('varchar', 'char', 'text')) && isset($spec['length'])) {
       $sql .= '(' . $spec['length'] . ')';
     }
     elseif (isset($spec['precision']) && isset($spec['scale'])) {
       $sql .= '(' . $spec['precision'] . ', ' . $spec['scale'] . ')';
+    }
+
+    if (!empty($spec['unsigned'])) {
+      $sql .= " CHECK ($name >= 0)";
     }
 
     if (isset($spec['not null']) && $spec['not null']) {
@@ -377,7 +378,8 @@ class DatabaseSchema_pgsql extends DatabaseSchema {
   }
 
   public function indexExists($table, $name) {
-    return $this->connection->query("SELECT COUNT(indexname) FROM pg_indexes WHERE indexname = '$name'")->fetchField();
+    $index_name = $table . '_' . $name . '_idx';
+    return $this->connection->query("SELECT COUNT(indexname) FROM pg_indexes WHERE indexname = '$index_name'")->fetchField();
   }
 
   /**
@@ -577,8 +579,10 @@ class DatabaseSchema_pgsql extends DatabaseSchema {
     $table = $this->connection->prefixTables('{' . $table . '}');
     // Don't use {} around pg_class, pg_attribute tables.
     if (isset($column)) {
-      $this->connection->query('SELECT col_description(oid, attnum) FROM pg_class, pg_attribute WHERE attrelid = oid AND relname = ? AND attname = ?', array($table, $column))->fetchField();
+      return $this->connection->query('SELECT col_description(oid, attnum) FROM pg_class, pg_attribute WHERE attrelid = oid AND relname = ? AND attname = ?', array($table, $column))->fetchField();
     }
-    $this->connection->query('SELECT obj_description(oid, ?) FROM pg_class WHERE relname = ?', array('pg_class', $table))->fetchField();
+    else {
+      return $this->connection->query('SELECT obj_description(oid, ?) FROM pg_class WHERE relname = ?', array('pg_class', $table))->fetchField();
+    }
   }
 }

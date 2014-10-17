@@ -98,7 +98,7 @@ interface QueryConditionInterface {
   /**
    * Gets a complete list of all values to insert into the prepared statement.
    *
-   * @returns
+   * @return
    *   An associative array of placeholders and values.
    */
   public function arguments();
@@ -528,7 +528,7 @@ class InsertQuery extends Query {
       // We have to assume that the used aliases match the insert fields.
       // Regular fields are added to the query before expressions, maintain the
       // same order for the insert fields.
-      // This behavior can be overriden by calling fields() manually as only the
+      // This behavior can be overridden by calling fields() manually as only the
       // first call to fields() does have an effect.
       $this->fields(array_merge(array_keys($this->fromQuery->getFields()), array_keys($this->fromQuery->getExpressions())));
     }
@@ -1386,8 +1386,11 @@ function db_xor() {
 /**
  * Returns a new DatabaseCondition, set to the specified conjunction.
  *
- * @param
- *   The conjunction (AND, OR, XOR, etc.) to use on conditions.
+ * Internal API function call.  The db_and(), db_or(), and db_xor()
+ * functions are preferred.
+ *
+ * @param $conjunction
+ *   The conjunction to use for query conditions (AND, OR or XOR).
  * @return DatabaseCondition
  */
 function db_condition($conjunction) {

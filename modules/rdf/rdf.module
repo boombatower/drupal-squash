@@ -423,6 +423,7 @@ function rdf_preprocess_node(&$variables) {
     if (isset($variables['content']['links']['comment']['#links']['comment_comments'])) {
       $comment_count_attributes['property'] = $variables['node']->rdf_mapping['comment_count']['predicates'];
       $comment_count_attributes['content'] = $variables['node']->comment_count;
+      $comment_count_attributes['datatype'] = $variables['node']->rdf_mapping['comment_count']['datatype'];
       $variables['content']['links']['comment']['#links']['comment_comments']['attributes'] += $comment_count_attributes;
     }
     // In full node view, the number of comments is not displayed by
@@ -434,6 +435,7 @@ function rdf_preprocess_node(&$variables) {
           'about' => $variables['node_url'],
           'property' => $variables['node']->rdf_mapping['comment_count']['predicates'],
           'content' => $variables['node']->comment_count,
+          'datatype' => $variables['node']->rdf_mapping['comment_count']['datatype'],
         ),
       );
       drupal_add_html_head($element, 'rdf_node_comment_count');
@@ -452,6 +454,19 @@ function rdf_preprocess_field(&$variables) {
   if (!empty($mapping) && !empty($mapping[$field_name])) {
     foreach ($element['#items'] as $delta => $item) {
       $variables['item_attributes_array'][$delta] = rdf_rdfa_attributes($mapping[$field_name], $item);
+      // If this field is an image, RDFa will not output correctly when the
+      // image is in a containing 'a' tag. If the field is a file, RDFa will
+      // not output correctly if the filetype icon comes before the link to
+      // the file. We correct this by adding a resource attribute to the div if
+      // this field has a URI.
+      if (isset($item['uri'])) {
+        if (isset($element[$delta]['#image_style'])) {
+          $variables['item_attributes_array'][$delta]['resource'] = image_style_url($element[$delta]['#image_style'], $item['uri']);
+        }
+        else {
+          $variables['item_attributes_array'][$delta]['resource'] = file_create_url($item['uri']);
+        }
+      }
     }
   }
 }
@@ -463,7 +478,7 @@ function rdf_preprocess_user_profile(&$variables) {
   // Adds RDFa markup to the user profile page. Fields displayed in this page
   // will automatically describe the user.
   // @todo move to user.module
-  $account = user_load($variables['user']->uid);
+  $account = $variables['elements']['#account'];
   if (!empty($account->rdf_mapping['rdftype'])) {
     $variables['attributes_array']['typeof'] = $account->rdf_mapping['rdftype'];
     $variables['attributes_array']['about'] = url('user/' . $account->uid);
@@ -474,6 +489,15 @@ function rdf_preprocess_user_profile(&$variables) {
  * Implements MODULE_preprocess_HOOK().
  */
 function rdf_preprocess_username(&$variables) {
+  // Because xml:lang is set on the HTML element that wraps the page, the
+  // username inherits this language attribute. However, since the username
+  // might not be transliterated to the same language that the content is in,
+  // we do not want it to inherit the language attribute, so we set the
+  // attribute to an empty string.
+  if (empty($variables['attributes_array']['xml:lang'])) {
+    $variables['attributes_array']['xml:lang'] = '';
+  }
+
   // $variables['account'] is a pseudo account object, and as such, does not
   // contain the rdf mappings for the user; in the case of nodes and comments,
   // it contains the mappings for the node or comment object instead. However
@@ -548,13 +572,6 @@ function rdf_preprocess_comment(&$variables) {
     $variables['title_attributes_array']['property'] = $comment->rdf_mapping['title']['predicates'];
     $variables['title_attributes_array']['datatype'] = '';
   }
-  if (!empty($comment->rdf_mapping['body'])) {
-    // We need a special case here since the comment body is not a field. Note
-    // that for that reason, fields attached to comment will be ignored by RDFa
-    // parsers since we set the property attribute here.
-    // @todo Use fields instead, see http://drupal.org/node/538164
-    $variables['content_attributes_array']['property'] = $comment->rdf_mapping['body']['predicates'];
-  }
 
   // Annotates the parent relationship between the current comment and the node
   // it belongs to. If available, the parent comment is also annotated.
@@ -592,6 +609,13 @@ function rdf_field_attach_view_alter(&$output, $context) {
       }
     }
   }
+}
+
+/**
+ * Implements MODULE_preprocess_HOOK().
+ */
+function rdf_preprocess_image(&$variables) {
+  $variables['attributes']['typeof'] = array('foaf:Image');
 }
 
 /**
@@ -695,4 +719,3 @@ function theme_rdf_metadata($variables) {
   }
   return $output;
 }
-

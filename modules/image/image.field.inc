@@ -72,10 +72,8 @@ function image_field_settings_form($field, $instance) {
   $settings = array_merge($defaults, $field['settings']);
 
   $scheme_options = array();
-  foreach (file_get_stream_wrappers() as $scheme => $stream_wrapper) {
-    if ($scheme != 'temporary') {
-      $scheme_options[$scheme] = $stream_wrapper['name'];
-    }
+  foreach (file_get_stream_wrappers(STREAM_WRAPPERS_WRITE_VISIBLE) as $scheme => $stream_wrapper) {
+    $scheme_options[$scheme] = $stream_wrapper['name'];
   }
   $form['uri_scheme'] = array(
     '#type' => 'radios',
@@ -205,16 +203,16 @@ function _image_field_resolution_validate($element, &$form_state) {
 /**
  * Implements hook_field_load().
  */
-function image_field_load($obj_type, $objects, $field, $instances, $langcode, &$items, $age) {
-  file_field_load($obj_type, $objects, $field, $instances, $langcode, $items, $age);
+function image_field_load($entity_type, $entities, $field, $instances, $langcode, &$items, $age) {
+  file_field_load($entity_type, $entities, $field, $instances, $langcode, $items, $age);
 }
 
 /**
  * Implements hook_field_prepare_view().
  */
-function image_field_prepare_view($obj_type, $objects, $field, $instances, $langcode, &$items) {
+function image_field_prepare_view($entity_type, $entities, $field, $instances, $langcode, &$items) {
   // If there are no files specified at all, use the default.
-  foreach ($objects as $id => $object) {
+  foreach ($entities as $id => $entity) {
     if (empty($items[$id]) && $field['settings']['default_image']) {
       if ($file = file_load($field['settings']['default_image'])) {
         $items[$id][0] = (array) $file + array(
@@ -228,31 +226,38 @@ function image_field_prepare_view($obj_type, $objects, $field, $instances, $lang
 }
 
 /**
+ * Implements hook_field_presave().
+ */
+function image_field_presave($obj_type, $object, $field, $instance, $langcode, &$items) {
+  file_field_presave($obj_type, $object, $field, $instance, $langcode, $items);
+}
+
+/**
  * Implements hook_field_insert().
  */
-function image_field_insert($obj_type, $object, $field, $instance, $langcode, &$items) {
-  image_field_update($obj_type, $object, $field, $instance, $langcode, $items);
+function image_field_insert($entity_type, $entity, $field, $instance, $langcode, &$items) {
+  image_field_update($entity_type, $entity, $field, $instance, $langcode, $items);
 }
 
 /**
  * Implements hook_field_update().
  */
-function image_field_update($obj_type, $object, $field, $instance, $langcode, &$items) {
-  file_field_update($obj_type, $object, $field, $instance, $langcode, $items);
+function image_field_update($entity_type, $entity, $field, $instance, $langcode, &$items) {
+  file_field_update($entity_type, $entity, $field, $instance, $langcode, $items);
 }
 
 /**
  * Implements hook_field_delete().
  */
-function image_field_delete($obj_type, $object, $field, $instance, $langcode, &$items) {
-  file_field_delete($obj_type, $object, $field, $instance, $langcode, $items);
+function image_field_delete($entity_type, $entity, $field, $instance, $langcode, &$items) {
+  file_field_delete($entity_type, $entity, $field, $instance, $langcode, $items);
 }
 
 /**
  * Implements hook_field_delete_revision().
  */
-function image_field_delete_revision($obj_type, $object, $field, $instance, $langcode, &$items) {
-  file_field_delete_revision($obj_type, $object, $field, $instance, $langcode, $items);
+function image_field_delete_revision($entity_type, $entity, $field, $instance, $langcode, &$items) {
+  file_field_delete_revision($entity_type, $entity, $field, $instance, $langcode, $items);
 }
 
 /**
@@ -348,8 +353,8 @@ function image_field_widget_process($element, &$form_state, $form) {
   $item = $element['#value'];
   $item['fid'] = $element['fid']['#value'];
 
-  $field = field_info_field($element['#field_name']);
-  $instance = field_info_instance($element['#object_type'], $element['#field_name'], $element['#bundle']);
+  $instance = $form_state['field'][$element['#field_name']][$element['#language']]['instance'];
+
   $settings = $instance['settings'];
   $widget_settings = $instance['widget']['settings'];
 
@@ -452,7 +457,7 @@ function image_field_formatter_info() {
 /**
  * Implements hook_field_formatter_view().
  */
-function image_field_formatter_view($obj_type, $object, $field, $instance, $langcode, $items, $display) {
+function image_field_formatter_view($entity_type, $entity, $field, $instance, $langcode, $items, $display) {
   $element = array();
 
   // Check if the formatter involves a particular image style.
@@ -463,7 +468,7 @@ function image_field_formatter_view($obj_type, $object, $field, $instance, $lang
 
   // Check if the formatter involves a link.
   if (strpos($display['type'], 'image_link_content') === 0) {
-    $path = entity_path($obj_type, $object);
+    $uri = entity_uri($entity_type, $entity);
   }
   elseif (strpos($display['type'], 'image_link_file') === 0) {
     $link_file = TRUE;
@@ -471,17 +476,20 @@ function image_field_formatter_view($obj_type, $object, $field, $instance, $lang
 
   foreach ($items as $delta => $item) {
     if (isset($link_file)) {
-      $path = file_create_url($item['uri']);
+      $uri = array(
+        'path' => file_create_url($item['uri']),
+        'options' => array(),
+      );
     }
     $element[$delta] = array(
       '#theme' => 'image_formatter',
       '#item' => $item,
       '#image_style' => isset($image_style) ? $image_style : '',
-      '#path' => isset($path) ? $path : '',
+      '#path' => isset($uri) ? $uri : '',
     );
   }
 
-   return $element;
+  return $element;
 }
 
 /**
@@ -504,7 +512,11 @@ function theme_image_formatter($variables) {
   }
 
   if ($variables['path']) {
-    $output = l($output, $variables['path'], array('html' => TRUE));
+    $path = $variables['path']['path'];
+    $options = $variables['path']['options'];
+    // When displaying an image inside a link, the html option must be TRUE.
+    $options['html'] = TRUE;
+    $output = l($output, $path, $options);
   }
 
   return $output;

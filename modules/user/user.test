@@ -25,7 +25,7 @@ class UserRegistrationTestCase extends DrupalWebTestCase {
     $edit['name'] = $name = $this->randomName();
     $edit['mail'] = $mail = $edit['name'] . '@example.com';
     $this->drupalPost('user/register', $edit, t('Create new account'));
-    $this->assertText(t('Your password and further instructions have been sent to your e-mail address.'), t('User registered successfully.'));
+    $this->assertText(t('A welcome message with further instructions has been sent to your e-mail address.'), t('User registered successfully.'));
     $accounts = user_load_multiple(array(), array('name' => $name, 'mail' => $mail));
     $new_user = reset($accounts);
     $this->assertTrue($new_user->status, t('New account is active after registration.'));
@@ -971,7 +971,7 @@ class UserPermissionsTestCase extends DrupalWebTestCase {
     $this->assertFalse(user_access('administer nodes', $account), t('User does not have "administer nodes" permission.'));
     $edit = array();
     $edit[$rid . '[administer nodes]'] = TRUE;
-    $this->drupalPost('admin/config/people/permissions', $edit, t('Save permissions'));
+    $this->drupalPost('admin/people/permissions', $edit, t('Save permissions'));
     $this->assertText(t('The changes have been saved.'), t('Successful save message displayed.'));
     drupal_static_reset('user_access');
     drupal_static_reset('user_role_permissions');
@@ -981,7 +981,7 @@ class UserPermissionsTestCase extends DrupalWebTestCase {
     $this->assertTrue(user_access('access user profiles', $account), t('User has "access user profiles" permission.'));
     $edit = array();
     $edit[$rid . '[access user profiles]'] = FALSE;
-    $this->drupalPost('admin/config/people/permissions', $edit, t('Save permissions'));
+    $this->drupalPost('admin/people/permissions', $edit, t('Save permissions'));
     $this->assertText(t('The changes have been saved.'), t('Successful save message displayed.'));
     drupal_static_reset('user_access');
     drupal_static_reset('user_role_permissions');
@@ -1210,11 +1210,11 @@ class UserBlocksUnitTests extends DrupalWebTestCase {
     $edit = array();
     $edit['name'] = $user->name;
     $edit['pass'] = $user->pass_raw;
-    $this->drupalPost('admin/config/people/permissions', $edit, t('Log in'));
+    $this->drupalPost('admin/people/permissions', $edit, t('Log in'));
     $this->assertNoText(t('User login'), t('Logged in.'));
 
     // Check that we are still on the same page.
-    $this->assertPattern('!<title.*?' . t('Permissions') . '.*?</title>!', t('Still on the same page after login for access denied page'));
+    $this->assertEqual(url('admin/people/permissions', array('absolute' => TRUE)), $this->getUrl(), t('Still on the same page after login for access denied page'));
 
     // Now, log out and repeat with a non-403 page.
     $this->drupalLogout();
@@ -1350,7 +1350,7 @@ class UserCreateTestCase extends DrupalWebTestCase {
       $this->drupalPost('admin/people/create', $edit, t('Create new account'));
 
       if ($notify) {
-        $this->assertText(t('Password and further instructions have been e-mailed to the new user @name.', array('@name' => $edit['name'])), 'User created');
+        $this->assertText(t('A welcome message with further instructions has been e-mailed to the new user @name.', array('@name' => $edit['name'])), 'User created');
         $this->assertEqual(count($this->drupalGetMails()), 1, 'Notification e-mail sent');
       }
       else {
@@ -1396,5 +1396,34 @@ class UserEditTestCase extends DrupalWebTestCase {
     variable_set('user_pictures', 1);
     $this->drupalPost("user/$user1->uid/edit", $edit, t('Save'));
     $this->assertRaw(t('The name %name is already taken.', array('%name' => $edit['name'])));
+
+    // Test that the error message appears when attempting to change the mail or
+    // pass without the current password.
+    $edit = array();
+    $edit['mail'] = $this->randomName() . '@new.example.com';
+    $this->drupalPost("user/$user1->uid/edit", $edit, t('Save'));
+    $this->assertRaw(t("Your current password is missing or incorrect; it's required to change the %name.", array('%name' => t('E-mail address'))));
+
+    $edit['current_pass'] = $user1->pass_raw;
+    $this->drupalPost("user/$user1->uid/edit", $edit, t('Save'));
+    $this->assertRaw(t("The changes have been saved."));
+
+    // Test that the user must enter current password before changing passwords.
+    $edit = array();
+    $edit['pass[pass1]'] = $new_pass = $this->randomName();
+    $edit['pass[pass2]'] = $new_pass;
+    $this->drupalPost("user/$user1->uid/edit", $edit, t('Save'));
+    $this->assertRaw(t("Your current password is missing or incorrect; it's required to change the %name.", array('%name' => t('Password'))));
+
+    // Try again with the current password.
+    $edit['current_pass'] = $user1->pass_raw;
+    $this->drupalPost("user/$user1->uid/edit", $edit, t('Save'));
+    $this->assertRaw(t("The changes have been saved."));
+
+    // Make sure the user can log in with their new password.
+    $this->drupalLogout();
+    $user1->pass_raw = $new_pass;
+    $this->drupalLogin($user1);
+    $this->drupalLogout();
   }
 }

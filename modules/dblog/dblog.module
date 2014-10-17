@@ -28,7 +28,7 @@ function dblog_help($path, $arg) {
       $output .= '<dt>' . t('Debugging site problems') . '</dt>';
       $output .= '<dd>' . t('In case of errors or problems with the site, the <a href="@dblog">Recent log entries</a> page can be useful for debugging, since it shows the sequence of events. The log entries include usage information, warnings, and errors.', array('@dblog' => url('admin/reports/dblog'))) . '</dd>';
       $output .= '</dl>';
-      return $output;	
+      return $output;
     case 'admin/reports/dblog':
       return '<p>' . t('The Database logging module monitors your website, capturing system events in a log (shown here) to be reviewed by an authorized individual at a later time. This log is a list of recorded events containing usage data, performance data, errors, warnings and operational information. It is vital to check the Recent log entries report on a regular basis, as it is often the only way to tell what is going on.') . '</p>';
   }
@@ -73,6 +73,9 @@ function dblog_menu() {
   return $items;
 }
 
+/**
+ * Implements hook_init().
+ */
 function dblog_init() {
   if (arg(0) == 'admin' && arg(1) == 'reports') {
     // Add the CSS for this module
@@ -94,26 +97,6 @@ function dblog_cron() {
     db_delete('watchdog')
       ->condition('wid', $max - variable_get('dblog_row_limit', 1000), '<=')
       ->execute();
-  }
-}
-
-/**
- * Implements hook_user_cancel().
- */
-function dblog_user_cancel($edit, $account, $method) {
-  switch ($method) {
-    case 'user_cancel_reassign':
-      db_update('watchdog')
-        ->fields(array('uid' => 0))
-        ->condition('uid', $account->uid)
-        ->execute();
-      break;
-
-    case 'user_cancel_delete':
-      db_delete('watchdog')
-        ->condition('uid', $account->uid)
-        ->execute();
-      break;
   }
 }
 
@@ -163,4 +146,3 @@ function dblog_form_system_logging_settings_alter(&$form, $form_state) {
   );
   $form['actions']['#weight'] = 1;
 }
-

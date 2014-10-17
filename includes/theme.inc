@@ -41,12 +41,28 @@ define('MARK_UPDATED', 2);
  * Determines if a theme is available to use.
  *
  * @param $theme
- *   An object representing the theme to check.
+ *   Either the name of a theme or a full theme object.
+ *
  * @return
  *   Boolean TRUE if the theme is enabled or is the site administration theme;
  *   FALSE otherwise.
  */
 function drupal_theme_access($theme) {
+  if (is_object($theme)) {
+    return _drupal_theme_access($theme);
+  }
+  else {
+    $themes = list_themes();
+    return isset($themes[$theme]) && _drupal_theme_access($themes[$theme]);
+  }
+}
+
+/**
+ * Helper function for determining access to a theme.
+ *
+ * @see drupal_theme_access()
+ */
+function _drupal_theme_access($theme) {
   $admin_theme = variable_get('admin_theme');
   return !empty($theme->status) || ($admin_theme && $theme->name == $admin_theme);
 }
@@ -67,12 +83,12 @@ function drupal_theme_initialize() {
 
   // Only select the user selected theme if it is available in the
   // list of themes that can be accessed.
-  $theme = !empty($user->theme) && isset($themes[$user->theme]) && drupal_theme_access($themes[$user->theme]) ? $user->theme : variable_get('theme_default', 'garland');
+  $theme = !empty($user->theme) && drupal_theme_access($user->theme) ? $user->theme : variable_get('theme_default', 'garland');
 
-  // Allow modules to override the present theme... only select custom theme
-  // if it is available in the list of themes that can be accessed.
+  // Allow modules to override the theme. Validation has already been performed
+  // inside menu_get_custom_theme(), so we do not need to check it again here.
   $custom_theme = menu_get_custom_theme();
-  $theme = $custom_theme && isset($themes[$custom_theme]) && drupal_theme_access($themes[$custom_theme]) ? $custom_theme : $theme;
+  $theme = !empty($custom_theme) ? $custom_theme : $theme;
 
   // Store the identifier for retrieving theme settings with.
   $theme_key = $theme;
@@ -309,10 +325,6 @@ function drupal_theme_rebuild() {
  *     in hook_theme(). If there is more than one implementation and
  *     'render element' is not specified in a later one, then the previous
  *     definition is kept.
- *   - 'theme paths': The paths where implementations of a theme hook can be
- *     found. Its definition is similarly inherited like 'variables'. Each time
- *     _theme_process_registry() is called for this theme hook, either the
- *     'path' key from hook_theme() (if defined) or $path is added.
  *   - 'preprocess functions': See theme() for detailed documentation.
  *   - 'process functions': See theme() for detailed documentation.
  * @param $name
@@ -389,14 +401,6 @@ function _theme_process_registry(&$cache, $name, $type, $theme, $path) {
         if (!isset($info['path'])) {
           $result[$hook]['template'] = $path . '/' . $info['template'];
         }
-
-        // These are used for template naming suggestions. Theme implementations
-        // can occur in multiple paths. Suggestions should follow.
-        if (!isset($info['theme paths']) && isset($cache[$hook])) {
-          $result[$hook]['theme paths'] = $cache[$hook]['theme paths'];
-        }
-        // Check for sub-directories.
-        $result[$hook]['theme paths'][] = isset($info['path']) ? $info['path'] : $path;
       }
 
       // Allow variable processors for all theming hooks, whether the hook is
@@ -901,6 +905,22 @@ function theme($hook, $variables = array()) {
       }
     }
 
+    // In some cases, a template implementation may not have had
+    // template_preprocess() run (for example, if the default implementation is
+    // a function, but a template overrides that default implementation). In
+    // these cases, a template should still be able to expect to have access to
+    // the variables provided by template_preprocess(), so we add them here if
+    // they don't already exist. We don't want to run template_preprocess()
+    // twice (it would be inefficient and mess up zebra striping), so we use the
+    // 'directory' variable to determine if it has already run, which while not
+    // completely intuitive, is reasonably safe, and allows us to save on the
+    // overhead of adding some new variable to track that.
+    if (!isset($variables['directory'])) {
+      $default_template_variables = array();
+      template_preprocess($default_template_variables, $hook);
+      $variables += $default_template_variables;
+    }
+
     // Render the output using the template file.
     $template_file = $info['template'] . $extension;
     if (isset($info['path'])) {
@@ -1077,14 +1097,15 @@ function drupal_find_theme_templates($cache, $extension, $path) {
 /**
  * Retrieve a setting for the current theme or for a given theme.
  *
- * The final setting is arrived at by merging the default settings, the custom
- * theme settings defined in the theme's .info file, the site-wide settings, and
- * the settings defined for the specific theme. If an empty string is given for
- * $key, only the site-wide theme defaults are retrieved.
- *
- * The default values for each setting is defined in this function. To add new
- * settings, add their default values here, and then add form elements to
- * system_theme_settings() in system.admin.inc.
+ * The final setting is obtained from the last value found in the following
+ * sources:
+ * - the default global settings specified in this function
+ * - the default theme-specific settings defined in any base theme's .info file
+ * - the default theme-specific settings defined in the theme's .info file
+ * - the saved values from the global theme settings form
+ * - the saved values from the theme's settings form
+ * To only retrieve the default global theme setting, an empty string should be
+ * given for $theme.
  *
  * @param $setting_name
  *  The name of the setting to be retrieved.
@@ -1102,7 +1123,9 @@ function theme_get_setting($setting_name, $theme = NULL) {
   }
 
   if (empty($cache[$theme])) {
-    // Set the default settings.
+    // Set the default values for each global setting.
+    // To add new global settings, add their default values below, and then
+    // add form elements to system_theme_settings() in system.admin.inc.
     $cache[$theme] = array(
       'default_logo'                     =>  1,
       'logo_path'                        =>  '',
@@ -1123,7 +1146,8 @@ function theme_get_setting($setting_name, $theme = NULL) {
       'toggle_secondary_menu'            =>  1,
     );
 
-    // Get the default values for the custom settings from the .info file.
+    // Get the values for the theme-specific settings from the .info files of
+    // the theme and all its base themes.
     if ($theme) {
       $themes = list_themes();
       $theme_object = $themes[$theme];
@@ -1147,7 +1171,7 @@ function theme_get_setting($setting_name, $theme = NULL) {
     $cache[$theme] = array_merge($cache[$theme], variable_get('theme_settings', array()));
 
     if ($theme) {
-      // Get the saved theme settings from the database.
+      // Get the saved theme-specific settings from the database.
       $cache[$theme] = array_merge($cache[$theme], variable_get('theme_' . $theme . '_settings', array()));
 
       // Generate the path to the logo image.
@@ -1975,14 +1999,14 @@ function theme_html_tag($variables) {
  *   - title: A descriptive verb for the link, like 'Read more'
  */
 function theme_more_link($variables) {
-  return '<div class="more-link">' . t('<a href="@link" title="@title">more</a>', array('@link' => check_url($variables['url']), '@title' => $variables['title'])) . '</div>';
+  return '<div class="more-link">' . t('<a href="@link" title="@title">More</a>', array('@link' => check_url($variables['url']), '@title' => $variables['title'])) . '</div>';
 }
 
 /**
  * Preprocess variables for theme_username().
  *
  * Modules that make any changes to variables like 'name' or 'extra' must insure
- * that the final string is safe to include directly in the ouput by using
+ * that the final string is safe to include directly in the output by using
  * check_plain() or filter_xss().
  *
  * @see theme_username().
@@ -2003,7 +2027,7 @@ function template_preprocess_username(&$variables) {
 
   // Set the name to a formatted name that is safe for printing and
   // that won't break tables by being too long. Keep an unshortened,
-  // unsanitized version, in case other preproces functions want to implement
+  // unsanitized version, in case other preprocess functions want to implement
   // their own shortening logic or add markup. If they do so, they must ensure
   // that $variables['name'] is safe for printing.
   $name = $variables['name_raw'] = format_username($account);
@@ -2167,7 +2191,7 @@ function _theme_table_cell($cell, $header = FALSE) {
 /**
  * Adds a default set of helper variables for variable processors and templates.
  * This comes in before any other preprocess function which makes it possible to
- * be used in default theme implementations (non-overriden theme functions).
+ * be used in default theme implementations (non-overridden theme functions).
  */
 function template_preprocess(&$variables, $hook) {
   global $user;
@@ -2341,8 +2365,8 @@ function template_preprocess_html(&$variables) {
  * Any changes to variables in this preprocessor should also be changed inside
  * template_preprocess_maintenance_page() to keep all of them consistent.
  *
- * @see drupal_render_page
- * @see template_process_page
+ * @see drupal_render_page()
+ * @see template_process_page()
  * @see page.tpl.php
  */
 function template_preprocess_page(&$variables) {
@@ -2523,6 +2547,10 @@ function template_preprocess_maintenance_page(&$variables) {
       $head_title[] = variable_get('site_slogan', '');
     }
   }
+
+  // set the default language if necessary
+  $language = isset($GLOBALS['language']) ? $GLOBALS['language'] : language_default();
+
   $variables['head_title']        = implode(' | ', $head_title);
   $variables['base_path']         = base_path();
   $variables['front_page']        = url();
@@ -2530,8 +2558,8 @@ function template_preprocess_maintenance_page(&$variables) {
   $variables['feed_icons']        = '';
   $variables['head']              = drupal_get_html_head();
   $variables['help']              = '';
-  $variables['language']          = $GLOBALS['language'];
-  $variables['language']->dir     = $GLOBALS['language']->direction ? 'rtl' : 'ltr';
+  $variables['language']          = $language;
+  $variables['language']->dir     = $language->direction ? 'rtl' : 'ltr';
   $variables['logo']              = theme_get_setting('logo');
   $variables['messages']          = $variables['show_messages'] ? theme('status_messages') : '';
   $variables['main_menu']         = array();

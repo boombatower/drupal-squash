@@ -1168,6 +1168,10 @@ class DrupalWebTestCase extends DrupalTestCase {
     $this->refreshVariables();
     $this->checkPermissions(array(), TRUE);
 
+    // Run cron once in that environment, as install.php does at the end of
+    // the installation process.
+    drupal_cron_run();
+
     // Log in with a clean $user.
     $this->originalUser = $user;
     drupal_save_session(FALSE);
@@ -1959,6 +1963,10 @@ class DrupalWebTestCase extends DrupalTestCase {
     $this->assertTrue(isset($urls[$index]), t('Clicked link %label (@url_target) from @url_before', array('%label' => $label, '@url_target' => $url_target, '@url_before' => $url_before)), t('Browser'));
 
     if (isset($url_target)) {
+      // CURL breaks in drupalGet() if the URL contains a fragment.
+      // @todo remove when http://drupal.org/node/671520 is fixed.
+      // Strips off any fragment from the path.
+      $url_target = array_shift(explode('#', $url_target));
       return $this->drupalGet($url_target);
     }
     return FALSE;

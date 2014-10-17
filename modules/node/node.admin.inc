@@ -97,15 +97,6 @@ function node_filters() {
     ) + node_type_get_names(),
   );
 
-  // The taxonomy filter
-  if ($taxonomy = module_invoke('taxonomy', 'form_all', 1)) {
-    $filters['term'] = array(
-      'title' => t('term'),
-      'options' => array(
-        '[any]' => t('any'),
-      ) + $taxonomy,
-    );
-  }
   // Language filter if there is a list of languages
   if ($languages = module_invoke('locale', 'language_list')) {
     $languages = array(LANGUAGE_NONE => t('Language neutral')) + $languages;
@@ -622,12 +613,4 @@ function node_multiple_delete_confirm_submit($form, &$form_state) {
     drupal_set_message(t('Deleted @count posts.', array('@count' => $count)));
   }
   $form_state['redirect'] = 'admin/content';
-}
-
-/**
- * Implements hook_modules_installed().
- */
-function node_modules_installed($modules) {
-  // Clear node type cache for node permissions.
-  drupal_static_reset('_node_types_build');
 }

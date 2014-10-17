@@ -776,7 +776,7 @@ function drupal_prepare_form($form_id, &$form, &$form_state) {
  *   form validation functions are passed an explicit copy of the
  *   values for the sake of simplicity. Validation handlers can also
  *   $form_state to pass information on to submit handlers. For example:
- *     $form_state['data_for_submision'] = $data;
+ *     $form_state['data_for_submission'] = $data;
  *   This technique is useful when validation requires file parsing,
  *   web service requests, or other expensive requests that should
  *   not be repeated in the submission step.
@@ -881,7 +881,7 @@ function drupal_redirect_form($form_state) {
  *   form validation functions are passed an explicit copy of the
  *   values for the sake of simplicity. Validation handlers can also
  *   $form_state to pass information on to submit handlers. For example:
- *     $form_state['data_for_submision'] = $data;
+ *     $form_state['data_for_submission'] = $data;
  *   This technique is useful when validation requires file parsing,
  *   web service requests, or other expensive requests that should
  *   not be repeated in the submission step.
@@ -970,9 +970,7 @@ function _form_validate(&$elements, &$form_state, $form_id = NULL) {
     // #value data.
     elseif (isset($elements['#element_validate'])) {
       foreach ($elements['#element_validate'] as $function) {
-        if (function_exists($function))  {
-          $function($elements, $form_state, $form_state['complete form']);
-        }
+        $function($elements, $form_state, $form_state['complete form']);
       }
     }
     $elements['#validated'] = TRUE;
@@ -1014,22 +1012,20 @@ function form_execute_handlers($type, &$form, &$form_state) {
   }
 
   foreach ($handlers as $function) {
-    if (function_exists($function))  {
-      // Check if a previous _submit handler has set a batch, but make sure we
-      // do not react to a batch that is already being processed (for instance
-      // if a batch operation performs a drupal_form_submit()).
-      if ($type == 'submit' && ($batch =& batch_get()) && !isset($batch['id'])) {
-        // Some previous submit handler has set a batch. To ensure correct
-        // execution order, store the call in a special 'control' batch set.
-        // See _batch_next_set().
-        $batch['sets'][] = array('form_submit' => $function);
-        $batch['has_form_submits'] = TRUE;
-      }
-      else {
-        $function($form, $form_state);
-      }
-      $return = TRUE;
+    // Check if a previous _submit handler has set a batch, but make sure we
+    // do not react to a batch that is already being processed (for instance
+    // if a batch operation performs a drupal_form_submit()).
+    if ($type == 'submit' && ($batch =& batch_get()) && !isset($batch['id'])) {
+      // Some previous submit handler has set a batch. To ensure correct
+      // execution order, store the call in a special 'control' batch set.
+      // See _batch_next_set().
+      $batch['sets'][] = array('form_submit' => $function);
+      $batch['has_form_submits'] = TRUE;
     }
+    else {
+      $function($form, $form_state);
+    }
+    $return = TRUE;
   }
   return $return;
 }
@@ -1247,9 +1243,7 @@ function form_builder($form_id, $element, &$form_state) {
   // checkboxes and files.
   if (isset($element['#process']) && !$element['#processed']) {
     foreach ($element['#process'] as $process) {
-      if (function_exists($process)) {
-        $element = $process($element, $form_state, $form_state['complete form']);
-      }
+      $element = $process($element, $form_state, $form_state['complete form']);
     }
     $element['#processed'] = TRUE;
   }
@@ -2457,22 +2451,16 @@ function theme_container($variables) {
 }
 
 /**
- * Format a table with radio buttons or checkboxes.
+ * Formats a table with radio buttons or checkboxes.
  *
  * @param $variables
  *   An associative array containing:
  *   - element: An associative array containing the properties and children of
- *     the tableselect element.
- *     Each option in $variables['element']['#options'] can contain an array
- *     keyed by '#attributes' which is added to the row's HTML attributes.
- *     @see theme_table
- *     Properties used: header, options, empty, js_select.
- *
- * @return
- *   A themed HTML string representing the table.
- *
- * Example:
- *
+ *     the tableselect element. Properties used: #header, #options, #empty,
+ *     and #js_select. The #options property is an array of selection options;
+ *     each array element of #options is an array of properties. These
+ *     properties can include #attributes, which is added to the
+ *     table row's HTML attributes (see theme_table()). Example:
  * @code
  * $options = array();
  * $options[0]['title'] = "A red row"
@@ -2485,6 +2473,11 @@ function theme_container($variables) {
  * '#title' => 'My Selector'
  * '#options' => $options,
  * );
+ * @endcode
+ *
+ * @return
+ *   A themed HTML string representing the table.
+ *
  * @ingroup themeable
  */
 function theme_tableselect($variables) {
@@ -3413,7 +3406,7 @@ function batch_process($redirect = NULL, $url = 'batch', $redirect_callback = 'd
 
     // The batch is now completely built. Allow other modules to make changes
     // to the batch so that it is easier to reuse batch processes in other
-    // enviroments.
+    // environments.
     drupal_alter('batch', $batch);
 
     // Assign an arbitrary id: don't rely on a serial column in the 'batch'

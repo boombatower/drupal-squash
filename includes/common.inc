@@ -41,21 +41,6 @@
  */
 
 /**
- * Error reporting level: display no errors.
- */
-define('ERROR_REPORTING_HIDE', 0);
-
-/**
- * Error reporting level: display errors and warnings.
- */
-define('ERROR_REPORTING_DISPLAY_SOME', 1);
-
-/**
- * Error reporting level: display all messages.
- */
-define('ERROR_REPORTING_DISPLAY_ALL', 2);
-
-/**
  * Return status for saving which involved creating a new item.
  */
 define('SAVED_NEW', 1);
@@ -501,7 +486,6 @@ function drupal_http_build_query(array $query, $parent = '') {
     }
     else {
       // For better readability of paths in query strings, we decode slashes.
-      // @see drupal_encode_path()
       $params[] = $key . '=' . str_replace('%2F', '/', rawurlencode($value));
     }
   }
@@ -623,38 +607,18 @@ function drupal_parse_url($url) {
 }
 
 /**
- * Encode a path for usage in a URL.
+ * Encodes a Drupal path for use in a URL.
  *
- * Wrapper around rawurlencode() which avoids Apache quirks. Should be used when
- * placing arbitrary data into the path component of an URL.
+ * For aesthetic reasons slashes are not escaped.
  *
- * Do not use this function to pass a path to url(). url() properly handles
- * and encodes paths internally.
- * This function should only be used on paths, not on query string arguments.
- * Otherwise, unwanted double encoding will occur.
- *
- * Notes:
- * - For esthetic reasons, we do not escape slashes. This also avoids a 'feature'
- *   in Apache where it 404s on any path containing '%2F'.
- * - mod_rewrite unescapes %-encoded ampersands, hashes, and slashes when clean
- *   URLs are used, which are interpreted as delimiters by PHP. These
- *   characters are double escaped so PHP will still see the encoded version.
- * - With clean URLs, Apache changes '//' to '/', so every second slash is
- *   double escaped.
+ * Note that url() takes care of calling this function, so a path passed to that
+ * function should not be encoded in advance.
  *
  * @param $path
- *   The URL path component to encode.
+ *   The Drupal path to encode.
  */
 function drupal_encode_path($path) {
-  if (!empty($GLOBALS['conf']['clean_url'])) {
-    return str_replace(array('%2F', '%26', '%23', '//'),
-                       array('/', '%2526', '%2523', '/%252F'),
-                       rawurlencode($path)
-    );
-  }
-  else {
-    return str_replace('%2F', '/', rawurlencode($path));
-  }
+  return str_replace('%2F', '/', rawurlencode($path));
 }
 
 /**
@@ -1035,246 +999,6 @@ function drupal_http_request($url, array $options = array()) {
  * @} End of "HTTP handling".
  */
 
-/**
- * Map PHP error constants to watchdog severity levels.
- * The error constants are documented at
- * http://php.net/manual/en/errorfunc.constants.php
- */
-function drupal_error_levels() {
-  $types = array(
-    E_ERROR => array('Error', WATCHDOG_ERROR),
-    E_WARNING => array('Warning', WATCHDOG_WARNING),
-    E_PARSE => array('Parse error', WATCHDOG_ERROR),
-    E_NOTICE => array('Notice', WATCHDOG_NOTICE),
-    E_CORE_ERROR => array('Core error', WATCHDOG_ERROR),
-    E_CORE_WARNING => array('Core warning', WATCHDOG_WARNING),
-    E_COMPILE_ERROR => array('Compile error', WATCHDOG_ERROR),
-    E_COMPILE_WARNING => array('Compile warning', WATCHDOG_WARNING),
-    E_USER_ERROR => array('User error', WATCHDOG_ERROR),
-    E_USER_WARNING => array('User warning', WATCHDOG_WARNING),
-    E_USER_NOTICE => array('User notice', WATCHDOG_NOTICE),
-    E_STRICT => array('Strict warning', WATCHDOG_DEBUG),
-    E_RECOVERABLE_ERROR => array('Recoverable fatal error', WATCHDOG_ERROR),
-  );
-  // E_DEPRECATED and E_USER_DEPRECATED were added in PHP 5.3.0.
-  if (defined('E_DEPRECATED')) {
-    $types[E_DEPRECATED] = array('Deprecated function', WATCHDOG_DEBUG);
-    $types[E_USER_DEPRECATED] = array('User deprecated function', WATCHDOG_DEBUG);
-  }
-  return $types;
-}
-
-/**
- * Custom PHP error handler.
- *
- * @param $error_level
- *   The level of the error raised.
- * @param $message
- *   The error message.
- * @param $filename
- *   The filename that the error was raised in.
- * @param $line
- *   The line number the error was raised at.
- * @param $context
- *   An array that points to the active symbol table at the point the error occurred.
- */
-function _drupal_error_handler($error_level, $message, $filename, $line, $context) {
-  if ($error_level & error_reporting()) {
-    $types = drupal_error_levels();
-    list($severity_msg, $severity_level) = $types[$error_level];
-    $caller = _drupal_get_last_caller(debug_backtrace());
-
-    // We treat recoverable errors as fatal.
-    _drupal_log_error(array(
-      '%type' => isset($types[$error_level]) ? $severity_msg : 'Unknown error',
-      '%message' => $message,
-      '%function' => $caller['function'],
-      '%file' => $caller['file'],
-      '%line' => $caller['line'],
-      'severity_level' => $severity_level,
-    ), $error_level == E_RECOVERABLE_ERROR);
-  }
-}
-
-/**
- * Custom PHP exception handler.
- *
- * Uncaught exceptions are those not enclosed in a try/catch block. They are
- * always fatal: the execution of the script will stop as soon as the exception
- * handler exits.
- *
- * @param $exception
- *   The exception object that was thrown.
- */
-function _drupal_exception_handler($exception) {
-  // Log the message to the watchdog and return an error page to the user.
-  _drupal_log_error(_drupal_decode_exception($exception), TRUE);
-}
-
-/**
- * Decode an exception, especially to retrive the correct caller.
- *
- * @param $exception
- *   The exception object that was thrown.
- * @return An error in the format expected by _drupal_log_error().
- */
-function _drupal_decode_exception($exception) {
-  $message = $exception->getMessage();
-
-  $backtrace = $exception->getTrace();
-  // Add the line throwing the exception to the backtrace.
-  array_unshift($backtrace, array('line' => $exception->getLine(), 'file' => $exception->getFile()));
-
-  // For PDOException errors, we try to return the initial caller,
-  // skipping internal functions of the database layer.
-  if ($exception instanceof PDOException) {
-    // The first element in the stack is the call, the second element gives us the caller.
-    // We skip calls that occurred in one of the classes of the database layer
-    // or in one of its global functions.
-    $db_functions = array('db_query',  'db_query_range');
-    while (!empty($backtrace[1]) && ($caller = $backtrace[1]) &&
-        ((isset($caller['class']) && (strpos($caller['class'], 'Query') !== FALSE || strpos($caller['class'], 'Database') !== FALSE || strpos($caller['class'], 'PDO') !== FALSE)) ||
-        in_array($caller['function'], $db_functions))) {
-      // We remove that call.
-      array_shift($backtrace);
-    }
-    if (isset($exception->query_string, $exception->args)) {
-      $message .= ": " . $exception->query_string . "; " . print_r($exception->args, TRUE);
-    }
-  }
-  $caller = _drupal_get_last_caller($backtrace);
-
-  return array(
-    '%type' => get_class($exception),
-    '%message' => $message,
-    '%function' => $caller['function'],
-    '%file' => $caller['file'],
-    '%line' => $caller['line'],
-    'severity_level' => WATCHDOG_ERROR,
-  );
-}
-
-/**
- * Log a PHP error or exception, display an error page in fatal cases.
- *
- * @param $error
- *   An array with the following keys: %type, %message, %function, %file, %line.
- * @param $fatal
- *   TRUE if the error is fatal.
- */
-function _drupal_log_error($error, $fatal = FALSE) {
-  // Initialize a maintenance theme if the boostrap was not complete.
-  // Do it early because drupal_set_message() triggers a drupal_theme_initialize().
-  if ($fatal && (drupal_get_bootstrap_phase() != DRUPAL_BOOTSTRAP_FULL)) {
-    unset($GLOBALS['theme']);
-    if (!defined('MAINTENANCE_MODE')) {
-      define('MAINTENANCE_MODE', 'error');
-    }
-    drupal_maintenance_theme();
-  }
-
-  // When running inside the testing framework, we relay the errors
-  // to the tested site by the way of HTTP headers.
-  if (isset($_SERVER['HTTP_USER_AGENT']) && preg_match("/^simpletest\d+;/", $_SERVER['HTTP_USER_AGENT']) && !headers_sent() && (!defined('SIMPLETEST_COLLECT_ERRORS') || SIMPLETEST_COLLECT_ERRORS)) {
-    // $number does not use drupal_static as it should not be reset
-    // as it uniquely identifies each PHP error.
-    static $number = 0;
-    $assertion = array(
-      $error['%message'],
-      $error['%type'],
-      array(
-        'function' => $error['%function'],
-        'file' => $error['%file'],
-        'line' => $error['%line'],
-      ),
-    );
-    header('X-Drupal-Assertion-' . $number . ': ' . rawurlencode(serialize($assertion)));
-    $number++;
-  }
-
-  try {
-    watchdog('php', '%type: %message in %function (line %line of %file).', $error, $error['severity_level']);
-  }
-  catch (Exception $e) {
-    // Ignore any additional watchdog exception, as that probably means
-    // that the database was not initialized correctly.
-  }
-
-  if ($fatal) {
-    drupal_add_http_header('500 Service unavailable (with message)');
-  }
-
-  if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] == 'XMLHttpRequest') {
-    if ($fatal) {
-      // When called from JavaScript, simply output the error message.
-      print t('%type: %message in %function (line %line of %file).', $error);
-      exit;
-    }
-  }
-  else {
-    // Display the message if the current error reporting level allows this type
-    // of message to be displayed, and unconditionnaly in update.php.
-    $error_level = variable_get('error_level', ERROR_REPORTING_DISPLAY_ALL);
-    $display_error = $error_level == ERROR_REPORTING_DISPLAY_ALL || ($error_level == ERROR_REPORTING_DISPLAY_SOME && $error['%type'] != 'Notice');
-    if ($display_error || (defined('MAINTENANCE_MODE') && MAINTENANCE_MODE == 'update')) {
-      $class = 'error';
-
-      // If error type is 'User notice' then treat it as debug information
-      // instead of an error message, see dd().
-      if ($error['%type'] == 'User notice') {
-        $error['%type'] = 'Debug';
-        $class = 'status';
-      }
-
-      drupal_set_message(t('%type: %message in %function (line %line of %file).', $error), $class);
-    }
-
-    if ($fatal) {
-      drupal_set_title(t('Error'));
-      // We fallback to a maintenance page at this point, because the page generation
-      // itself can generate errors.
-      print theme('maintenance_page', array('content' => t('The website encountered an unexpected error. Please try again later.')));
-      exit;
-    }
-  }
-}
-
-/**
- * Gets the last caller from a backtrace.
- *
- * @param $backtrace
- *   A standard PHP backtrace.
- * @return
- *   An associative array with keys 'file', 'line' and 'function'.
- */
-function _drupal_get_last_caller($backtrace) {
-  // Errors that occur inside PHP internal functions do not generate
-  // information about file and line. Ignore black listed functions.
-  $blacklist = array('debug');
-  while (($backtrace && !isset($backtrace[0]['line'])) ||
-         (isset($backtrace[1]['function']) && in_array($backtrace[1]['function'], $blacklist))) {
-    array_shift($backtrace);
-  }
-
-  // The first trace is the call itself.
-  // It gives us the line and the file of the last call.
-  $call = $backtrace[0];
-
-  // The second call give us the function where the call originated.
-  if (isset($backtrace[1])) {
-    if (isset($backtrace[1]['class'])) {
-      $call['function'] = $backtrace[1]['class'] . $backtrace[1]['type'] . $backtrace[1]['function'] . '()';
-    }
-    else {
-      $call['function'] = $backtrace[1]['function'] . '()';
-    }
-  }
-  else {
-    $call['function'] = 'main()';
-  }
-  return $call;
-}
-
 function _fix_gpc_magic(&$item) {
   if (is_array($item)) {
     array_walk($item, '_fix_gpc_magic');
@@ -1314,255 +1038,6 @@ function fix_gpc_magic() {
     array_walk($_REQUEST, '_fix_gpc_magic');
     array_walk($_FILES, '_fix_gpc_magic_files');
     $fixed = TRUE;
-  }
-}
-
-/**
- * Translate strings to the page language or a given language.
- *
- * Human-readable text that will be displayed somewhere within a page should
- * be run through the t() function.
- *
- * Examples:
- * @code
- *   if (!$info || !$info['extension']) {
- *     form_set_error('picture_upload', t('The uploaded file was not an image.'));
- *   }
- *
- *   $form['submit'] = array(
- *     '#type' => 'submit',
- *     '#value' => t('Log in'),
- *   );
- * @endcode
- *
- * Any text within t() can be extracted by translators and changed into
- * the equivalent text in their native language.
- *
- * Special variables called "placeholders" are used to signal dynamic
- * information in a string which should not be translated. Placeholders
- * can also be used for text that may change from time to time (such as
- * link paths) to be changed without requiring updates to translations.
- *
- * For example:
- * @code
- *   $output = t('There are currently %members and %visitors online.', array(
- *     '%members' => format_plural($total_users, '1 user', '@count users'),
- *     '%visitors' => format_plural($guests->count, '1 guest', '@count guests')));
- * @endcode
- *
- * There are three styles of placeholders:
- * - !variable, which indicates that the text should be inserted as-is. This is
- *   useful for inserting variables into things like e-mail.
- *   @code
- *     $message[] = t("If you don't want to receive such e-mails, you can change your settings at !url.", array('!url' => url("user/$account->uid", array('absolute' => TRUE))));
- *   @endcode
- *
- * - @variable, which indicates that the text should be run through
- *   check_plain, to escape HTML characters. Use this for any output that's
- *   displayed within a Drupal page.
- *   @code
- *     drupal_set_title($title = t("@name's blog", array('@name' => format_username($account))), PASS_THROUGH);
- *   @endcode
- *
- * - %variable, which indicates that the string should be HTML escaped and
- *   highlighted with theme_placeholder() which shows up by default as
- *   <em>emphasized</em>.
- *   @code
- *     $message = t('%name-from sent %name-to an e-mail.', array('%name-from' => format_username($user), '%name-to' => format_username($account)));
- *   @endcode
- *
- * When using t(), try to put entire sentences and strings in one t() call.
- * This makes it easier for translators, as it provides context as to what
- * each word refers to. HTML markup within translation strings is allowed, but
- * should be avoided if possible. The exception are embedded links; link
- * titles add a context for translators, so should be kept in the main string.
- *
- * Here is an example of incorrect usage of t():
- * @code
- *   $output .= t('<p>Go to the @contact-page.</p>', array('@contact-page' => l(t('contact page'), 'contact')));
- * @endcode
- *
- * Here is an example of t() used correctly:
- * @code
- *   $output .= '<p>' . t('Go to the <a href="@contact-page">contact page</a>.', array('@contact-page' => url('contact'))) . '</p>';
- * @endcode
- *
- * Avoid escaping quotation marks wherever possible.
- *
- * Incorrect:
- * @code
- *   $output .= t('Don\'t click me.');
- * @endcode
- *
- * Correct:
- * @code
- *   $output .= t("Don't click me.");
- * @endcode
- *
- * Because t() is designed for handling code-based strings, in almost all
- * cases, the actual string and not a variable must be passed through t().
- *
- * Extraction of translations is done based on the strings contained in t()
- * calls. If a variable is passed through t(), the content of the variable
- * cannot be extracted from the file for translation.
- *
- * Incorrect:
- * @code
- *   $message = 'An error occurred.';
- *   drupal_set_message(t($message), 'error');
- *   $output .= t($message);
- * @endcode
- *
- * Correct:
- * @code
- *   $message = t('An error occurred.');
- *   drupal_set_message($message, 'error');
- *   $output .= $message;
- * @endcode
- *
- * The only case in which variables can be passed safely through t() is when
- * code-based versions of the same strings will be passed through t() (or
- * otherwise extracted) elsewhere.
- *
- * In some cases, modules may include strings in code that can't use t()
- * calls. For example, a module may use an external PHP application that
- * produces strings that are loaded into variables in Drupal for output.
- * In these cases, module authors may include a dummy file that passes the
- * relevant strings through t(). This approach will allow the strings to be
- * extracted.
- *
- * Sample external (non-Drupal) code:
- * @code
- *   class Time {
- *     public $yesterday = 'Yesterday';
- *     public $today = 'Today';
- *     public $tomorrow = 'Tomorrow';
- *   }
- * @endcode
- *
- * Sample dummy file.
- * @code
- *   // Dummy function included in example.potx.inc.
- *   function example_potx() {
- *     $strings = array(
- *       t('Yesterday'),
- *       t('Today'),
- *       t('Tomorrow'),
- *     );
- *     // No return value needed, since this is a dummy function.
- *   }
- * @endcode
- *
- * Having passed strings through t() in a dummy function, it is then
- * okay to pass variables through t().
- *
- * Correct (if a dummy file was used):
- * @code
- *   $time = new Time();
- *   $output .= t($time->today);
- * @endcode
- *
- * However tempting it is, custom data from user input or other non-code
- * sources should not be passed through t(). Doing so leads to the following
- * problems and errors:
- *  - The t() system doesn't support updates to existing strings. When user
- *    data is updated, the next time it's passed through t() a new record is
- *    created instead of an update. The database bloats over time and any
- *    existing translations are orphaned with each update.
- *  - The t() system assumes any data it receives is in English. User data may
- *    be in another language, producing translation errors.
- *  - The "Built-in interface" text group in the locale system is used to
- *    produce translations for storage in .po files. When non-code strings are
- *    passed through t(), they are added to this text group, which is rendered
- *    inaccurate since it is a mix of actual interface strings and various user
- *    input strings of uncertain origin.
- *
- * Incorrect:
- * @code
- *   $item = item_load();
- *   $output .= check_plain(t($item['title']));
- * @endcode
- *
- * Instead, translation of these data can be done through the locale system,
- * either directly or through helper functions provided by contributed
- * modules.
- * @see hook_locale()
- *
- * During installation, st() is used in place of t(). Code that may be called
- * during installation or during normal operation should use the get_t()
- * helper function.
- * @see st()
- * @see get_t()
- *
- * @param $string
- *   A string containing the English string to translate.
- * @param $args
- *   An associative array of replacements to make after translation. Incidences
- *   of any key in this array are replaced with the corresponding value. Based
- *   on the first character of the key, the value is escaped and/or themed:
- *    - !variable: inserted as is
- *    - @variable: escape plain text to HTML (check_plain)
- *    - %variable: escape text and theme as a placeholder for user-submitted
- *      content (check_plain + theme_placeholder)
- * @param $options
- *   An associative array of additional options, with the following keys:
- *     - 'langcode' (default to the current language) The language code to
- *       translate to a language other than what is used to display the page.
- *     - 'context' (default to the empty context) The context the source string
- *       belongs to.
- * @return
- *   The translated string.
- */
-function t($string, array $args = array(), array $options = array()) {
-  global $language_interface;
-  static $custom_strings;
-
-  // Merge in default.
-  if (empty($options['langcode'])) {
-    $options['langcode'] = isset($language_interface->language) ? $language_interface->language : 'en';
-  }
-  if (empty($options['context'])) {
-    $options['context'] = '';
-  }
-
-  // First, check for an array of customized strings. If present, use the array
-  // *instead of* database lookups. This is a high performance way to provide a
-  // handful of string replacements. See settings.php for examples.
-  // Cache the $custom_strings variable to improve performance.
-  if (!isset($custom_strings[$options['langcode']])) {
-    $custom_strings[$options['langcode']] = variable_get('locale_custom_strings_' . $options['langcode'], array());
-  }
-  // Custom strings work for English too, even if locale module is disabled.
-  if (isset($custom_strings[$options['langcode']][$options['context']][$string])) {
-    $string = $custom_strings[$options['langcode']][$options['context']][$string];
-  }
-  // Translate with locale module if enabled.
-  elseif (function_exists('locale') && $options['langcode'] != 'en') {
-    $string = locale($string, $options['context'], $options['langcode']);
-  }
-  if (empty($args)) {
-    return $string;
-  }
-  else {
-    // Transform arguments before inserting them.
-    foreach ($args as $key => $value) {
-      switch ($key[0]) {
-        case '@':
-          // Escaped only.
-          $args[$key] = check_plain($value);
-          break;
-
-        case '%':
-        default:
-          // Escaped and placeholder.
-          $args[$key] = drupal_placeholder(array('text' => $value));
-          break;
-
-        case '!':
-          // Pass-through.
-      }
-    }
-    return strtr($string, $args);
   }
 }
 
@@ -1673,22 +1148,25 @@ function flood_clear_event($name, $identifier = NULL) {
 }
 
 /**
- * Check if the current visitor is allowed to proceed with the specified event.
+ * Checks whether user is allowed to proceed with the specified event.
  *
- * The user is allowed to proceed if he did not trigger the specified event more
- * than $threshold times in the specified time window.
+ * Events can have thresholds saying that each user can only do that event
+ * a certain number of times in a time window. This function verifies that the
+ * current user has not exceeded this threshold.
  *
  * @param $name
- *   The name of the event.
+ *   The unique name of the event.
  * @param $threshold
- *   The maximum number of the specified event allowed per time window.
+ *   The maximum number of times each user can do this event per time window.
  * @param $window
- *   Optional number of seconds over which to look for events.  Defaults to
- *   3600 (1 hour).
+ *   Number of seconds in the time window for this event (default is 3600
+ *   seconds, or 1 hour).
  * @param $identifier
- *   Optional identifier (defaults to the current user's IP address).
+ *   Unique identifier of the current user. Defaults to their IP address.
+ *
  * @return
- *   True if the user did not exceed the hourly threshold. False otherwise.
+ *   TRUE if the user is allowed to proceed. FALSE if they have exceeded the
+ *   threshold and should not be allowed to proceed.
  */
 function flood_is_allowed($name, $threshold, $window = 3600, $identifier = NULL) {
   if (!isset($identifier)) {
@@ -2306,7 +1784,7 @@ function format_date($timestamp, $type = 'medium', $format = '', $timezone = NUL
     }
   }
   // Store DateTimeZone objects in an array rather than repeatedly
-  // contructing identical objects over the life of a request.
+  // constructing identical objects over the life of a request.
   if (!isset($timezones[$timezone])) {
     $timezones[$timezone] = timezone_open($timezone);
   }
@@ -2468,8 +1946,6 @@ function format_username($account) {
  * alternative than url().
  */
 function url($path = NULL, array $options = array()) {
-  static $url_outbound;
-
   // Merge in defaults.
   $options += array(
     'fragment' => '',
@@ -2484,7 +1960,7 @@ function url($path = NULL, array $options = array()) {
     // Only call the slow filter_xss_bad_protocol if $path contains a ':'
     // before any / ? or #.
     // Note: we could use url_is_external($path) here, but that would
-    // requre another function call, and performance inside url() is critical.
+    // require another function call, and performance inside url() is critical.
     $colonpos = strpos($path, ':');
     $options['external'] = ($colonpos !== FALSE && !preg_match('![/?#]!', substr($path, 0, $colonpos)) && filter_xss_bad_protocol($path, FALSE) == check_plain($path));
   }
@@ -2493,14 +1969,7 @@ function url($path = NULL, array $options = array()) {
   $original_path = $path;
 
   // Allow other modules to alter the outbound URL and options.
-  // Since PHP code cannot be unloaded, we statically cache the implementations
-  // of hook_url_outbound_alter() and only invoke them in case there are any.
-  if (!isset($url_outbound)) {
-    $url_outbound = (bool) module_implements('url_outbound_alter');
-  }
-  if ($url_outbound) {
-    drupal_alter('url_outbound', $path, $options, $original_path);
-  }
+  drupal_alter('url_outbound', $path, $options, $original_path);
 
   if ($options['fragment']) {
     $options['fragment'] = '#' . $options['fragment'];
@@ -2757,6 +2226,8 @@ function l($text, $path, array $options = array()) {
   if ($use_theme) {
     return theme('link', array('text' => $text, 'path' => $path, 'options' => $options));
   }
+  // The result of url() is a plain-text URL. Because we are using it here
+  // in an HTML argument context, we need to encode it properly.
   return '<a href="' . check_plain(url($path, $options)) . '"' . drupal_attributes($options['attributes']) . '>' . ($options['html'] ? $text : check_plain($text)) . '</a>';
 }
 
@@ -2842,8 +2313,7 @@ function drupal_deliver_page($page_callback_result, $default_delivery_callback =
 }
 
 /**
- * Package and send the result of a page callback to the browser as a normal
- * HTML page.
+ * Package and send the result of a page callback to the browser as HTML.
  *
  * @param $page_callback_result
  *   The result of a page callback. Can be one of:
@@ -2852,7 +2322,7 @@ function drupal_deliver_page($page_callback_result, $default_delivery_callback =
  *   - A string of HTML content.
  *   - A renderable array of content.
  *
- * @see drupal_deliver_page
+ * @see drupal_deliver_page()
  */
 function drupal_deliver_html_page($page_callback_result) {
   // Emit the correct charset HTTP header, but not if the page callback
@@ -2968,6 +2438,7 @@ function drupal_page_footer() {
   _registry_check_code(REGISTRY_WRITE_LOOKUP_CACHE);
   drupal_cache_system_paths();
   module_implements_write_cache();
+  system_run_automated_cron();
 }
 
 /**
@@ -3054,7 +2525,7 @@ function drupal_set_time_limit($time_limit) {
  * Returns the path to a system item (module, theme, etc.).
  *
  * @param $type
- *   The type of the item (i.e. theme, theme_engine, module).
+ *   The type of the item (i.e. theme, theme_engine, module, profile).
  * @param $name
  *   The name of the item for which the path is requested.
  *
@@ -3272,7 +2743,7 @@ function drupal_get_css($css = NULL) {
   // Sort css items according to their weights.
   uasort($css, 'drupal_sort_weight');
 
-  // Remove the overriden CSS files. Later CSS files override former ones.
+  // Remove the overridden CSS files. Later CSS files override former ones.
   $previous_item = array();
   foreach ($css as $key => $item) {
     if ($item['type'] == 'file') {
@@ -3485,7 +2956,7 @@ function drupal_load_stylesheet_content($contents, $optimize = FALSE) {
     // Perform some safe CSS optimizations.
     $contents = preg_replace('{
       (?<=\\\\\*/)([^/\*]+/\*)([^\*/]+\*/)  # Add a backslash also at the end ie-mac hack comment, so the next pass will not touch it.
-                                            # The added backshlash does not affect the effectiveness of the hack.
+                                            # The added backslash does not affect the effectiveness of the hack.
       }x', '\1\\\\\2', $contents);
     $contents = preg_replace('<
       \s*([@{}:;,]|\)\s|\s\()\s* |          # Remove whitespace around separators, but keep space around parentheses.
@@ -3729,7 +3200,7 @@ function drupal_region_class($region) {
  *       been toggled in admin/config/development/performance. Note that
  *       JavaScript of type 'external' is not aggregated. Defaults to TRUE.
  * @return
- *   The contructed array of JavaScript files.
+ *   The constructed array of JavaScript files.
  * @see drupal_get_js()
  */
 function drupal_add_js($data = NULL, $options = NULL) {
@@ -4073,7 +3544,7 @@ function drupal_process_attached($elements, $weight = JS_DEFAULT, $dependency_ch
  * @param $elements
  *   The structured array that may contain an array item named states. This
  *   array describes the different JavaScript states that can be applied to the
- *   element when certain contitions are met. The #states array is first keyed
+ *   element when certain conditions are met. The #states array is first keyed
  *   by one of the following states:
  *   - enabled
  *   - invisible
@@ -4538,9 +4009,7 @@ function _drupal_bootstrap_full() {
   require_once DRUPAL_ROOT . '/includes/actions.inc';
   require_once DRUPAL_ROOT . '/includes/ajax.inc';
   require_once DRUPAL_ROOT . '/includes/token.inc';
-  // Set the Drupal custom error handler.
-  set_error_handler('_drupal_error_handler');
-  set_exception_handler('_drupal_exception_handler');
+  require_once DRUPAL_ROOT . '/includes/errors.inc';
 
   // Detect string handling method
   unicode_check();
@@ -4581,7 +4050,7 @@ function _drupal_bootstrap_full() {
  * Page compression requires the PHP zlib extension
  * (http://php.net/manual/en/ref.zlib.php).
  *
- * @see drupal_page_header
+ * @see drupal_page_header()
  */
 function drupal_page_set_cache() {
   global $base_root;
@@ -4660,7 +4129,7 @@ function drupal_cron_run() {
       DrupalQueue::get($queue_name)->createQueue();
     }
     // Register shutdown callback
-    register_shutdown_function('drupal_cron_cleanup');
+    drupal_register_shutdown_function('drupal_cron_cleanup');
 
     // Lock cron semaphore
     variable_set('cron_semaphore', REQUEST_TIME);
@@ -4708,14 +4177,14 @@ function drupal_cron_cleanup() {
  * Return an array of system file objects.
  *
  * Returns an array of file objects of the given type from the site-wide
- * directory (i.e. modules/), the all-sites directory (i.e.
- * sites/all/modules/), the profiles directory, and site-specific directory
- * (i.e. sites/somesite/modules/). The returned array will be keyed using the
- * key specified (name, basename, filename). Using name or basename will cause
- * site-specific files to be prioritized over similar files in the default
- * directories. That is, if a file with the same name appears in both the
- * site-wide directory and site-specific directory, only the site-specific
- * version will be included.
+ * directory (i.e. modules/), the all-sites directory (i.e. sites/all/modules/),
+ * the profiles directory (i.e. profiles/your_site_profile/modules/), and the
+ * site-specific directory (i.e. sites/your_site_dir/modules/). The returned
+ * array will be keyed using the key specified (uri, filename, or name). Using
+ * name or filename will cause site-specific files to be prioritized over
+ * similar files in the default directories. That is, if a file with the same
+ * name appears in both the site-wide directory and site-specific directory,
+ * only the site-specific version will be included.
  *
  * @param $mask
  *   The preg_match() regular expression of the files to find.
@@ -4855,7 +4324,8 @@ function drupal_alter($type, &$data, &$context1 = NULL, &$context2 = NULL) {
  * @param $content
  *   A string or renderable array representing the body of the page.
  * @return
- *   A renderable array representing the body of the page.
+ *   If called without $content, a renderable array representing the body of
+ *   the page.
  */
 function drupal_set_page_content($content = NULL) {
   $content_block = &drupal_static(__FUNCTION__, NULL);
@@ -4995,8 +4465,8 @@ function drupal_render_page($page) {
  *       @see drupal_render_cid_create()
  *    - 'granularity' (optional): Define the cache granularity using binary
  *       combinations of the cache granularity constants, e.g. DRUPAL_CACHE_PER_USER
- *       to cache for each user seperately or
- *       DRUPAL_CACHE_PER_PAGE | DRUPAL_CACHE_PER_ROLE to cache seperately for each
+ *       to cache for each user separately or
+ *       DRUPAL_CACHE_PER_PAGE | DRUPAL_CACHE_PER_ROLE to cache separately for each
  *       page and role. If not specified the element is cached globally for each
  *       theme and language.
  *    - 'cid': Specify the cache ID directly. Either 'keys' or 'cid' is required.
@@ -5225,7 +4695,7 @@ function drupal_render_cache_get($elements) {
       drupal_process_attached($cache->data);
     }
     // Return the rendered output.
-    return $cache->data['#markup'];;
+    return $cache->data['#markup'];
   }
   return FALSE;
 }
@@ -5313,8 +4783,8 @@ function drupal_render_cache_by_query($query, $function, $expire = CACHE_TEMPORA
  *
  * @param $granularity
  *   One or more cache granularity constants, e.g. DRUPAL_CACHE_PER_USER to cache
- *   for each user seperately or DRUPAL_CACHE_PER_PAGE | DRUPAL_CACHE_PER_ROLE to
- *   cache seperately for each page and role.
+ *   for each user separately or DRUPAL_CACHE_PER_PAGE | DRUPAL_CACHE_PER_ROLE to
+ *   cache separately for each page and role.
  *
  * @return
  *   An array of cache ID parts, always containing the active theme. If the
@@ -5574,9 +5044,6 @@ function drupal_common_theme() {
     ),
     'more_link' => array(
       'variables' => array('url' => NULL, 'title' => NULL)
-    ),
-    'blocks' => array(
-      'variables' => array('region' => NULL),
     ),
     'username' => array(
       'variables' => array('account' => NULL),
@@ -6356,7 +5823,7 @@ function drupal_parse_dependency($dependency) {
  *   The version to check against (like 4.2).
  * @return
  *   NULL if compatible, otherwise the original dependency version string that
- *   caused the incompatiblity.
+ *   caused the incompatibility.
  *
  * @see drupal_parse_dependency()
  */
@@ -6423,7 +5890,12 @@ function entity_get_info($entity_type = NULL) {
     }
   }
 
-  return empty($entity_type) ? $entity_info : $entity_info[$entity_type];
+  if (empty($entity_type)) {
+    return $entity_info;
+  }
+  elseif (isset($entity_info[$entity_type])) {
+    return $entity_info[$entity_type];
+  }
 }
 
 /**
@@ -6444,7 +5916,6 @@ function entity_info_cache_clear() {
  * @return
  *   A numerically indexed array (not a hash table) containing these
  *   elements:
- *
  *   0: primary id of the entity
  *   1: revision id of the entity, or NULL if $entity_type is not versioned
  *   2: bundle name of the entity
@@ -6583,20 +6054,35 @@ function entity_prepare_view($entity_type, $entities) {
 }
 
 /**
- * Returns the path to an entity.
+ * Returns the uri elements of an entity.
  *
  * @param $entity_type
  *   The entity type; e.g. 'node' or 'user'.
  * @param $entity
  *   The entity for which to generate a path.
  * @return
- *   The path for the entity, or NULL if the entity has no page of its own.
+ *   An array containing the 'path' and 'options' keys used to build the uri of
+ *   the entity, and matching the signature of url(). NULL if the entity has no
+ *   uri of its own.
  */
-function entity_path($entity_type, $entity) {
+function entity_uri($entity_type, $entity) {
   $info = entity_get_info($entity_type);
-  if (isset($info['path callback']) && function_exists($info['path callback'])) {
-    return $info['path callback']($entity);
+  if (isset($info['uri callback']) && function_exists($info['uri callback'])) {
+    return $info['uri callback']($entity) + array('options' => array());
   }
+}
+/**
+ * Invokes entity insert/update hooks.
+ *
+ * @param $op
+ *   One of 'insert' or 'update'.
+ * @param $entity_type
+ *   The entity type; e.g. 'node' or 'user'.
+ * @param $entity
+ *   The entity object being operated on.
+ */
+function entity_invoke($op, $entity_type, $entity) {
+  module_invoke_all('entity_' . $op, $entity, $entity_type);
 }
 
 /**
@@ -6628,7 +6114,10 @@ function xmlrpc($url) {
 }
 
 /**
- * Retrieve a list of all available archivers.
+ * Retrieves a list of all available archivers.
+ *
+ * @see hook_archiver_info()
+ * @see hook_archiver_info_alter()
  */
 function archiver_get_info() {
   $archiver_info = &drupal_static(__FUNCTION__, array());

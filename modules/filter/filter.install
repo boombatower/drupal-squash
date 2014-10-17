@@ -37,7 +37,6 @@ function filter_schema() {
         'type' => 'int',
         'not null' => TRUE,
         'default' => 0,
-        'size' => 'tiny',
         'description' => 'Weight of filter within format.',
       ),
       'status' => array(
@@ -89,7 +88,6 @@ function filter_schema() {
         'type' => 'int',
         'not null' => TRUE,
         'default' => 0,
-        'size' => 'tiny',
         'description' => 'Weight of text format to use when listing.',
       )
     ),
@@ -106,6 +104,19 @@ function filter_schema() {
   $schema['cache_filter']['description'] = 'Cache table for the Filter module to store already filtered pieces of text, identified by text format and md5 hash of the text.';
 
   return $schema;
+}
+
+/**
+ * Implements hook_update_dependencies().
+ */
+function filter_update_dependencies() {
+  // Filter update 7005 migrates block data and therefore needs to run after
+  // the {block_custom} table is properly set up.
+  $dependencies['filter'][7005] = array(
+    'taxonomy' => 7002,
+  );
+
+  return $dependencies;
 }
 
 /**
@@ -335,8 +346,9 @@ function filter_update_7005() {
   // using the default text format. Therefore, we have to convert all such
   // instances (in Drupal core) to explicitly use the appropriate format.
   // Note that the update of the node body field is handled separately, in
-  // node_update_7006().
-  foreach (array('block_custom', 'comment') as $table) {
+  // node_update_7006(), as is the update of the comment body field, in
+  // comment_update_7013().
+  foreach (array('block_custom') as $table) {
     if (db_table_exists($table)) {
       db_update($table)
         ->fields(array('format' => $default_format))
@@ -356,6 +368,35 @@ function filter_update_7005() {
 function filter_update_7006() {
   db_drop_index('filter', 'list');
   db_add_index('filter', 'list', array('weight', 'module', 'name'));
+}
+
+/**
+ * Change the weight columns to normal int.
+ */
+function filter_update_7007() {
+  db_drop_index('filter', 'list');
+  db_change_field('filter', 'weight', 'weight', array(
+    'type' => 'int',
+    'not null' => TRUE,
+    'default' => 0,
+    'description' => 'Weight of filter within format.',
+  ), array(
+    'indexes' => array(
+      'list' => array('weight', 'module', 'name'),
+    ),
+  ));
+
+  db_drop_index('filter_format', 'weight');
+  db_change_field('filter_format', 'weight', 'weight', array(
+    'type' => 'int',
+    'not null' => TRUE,
+    'default' => 0,
+    'description' => 'Weight of text format to use when listing.',
+  ), array(
+    'indexes' => array(
+      'weight' => array('weight'),
+    ),
+  ));
 }
 
 /**

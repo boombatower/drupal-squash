@@ -245,7 +245,9 @@ function module_load_install($module) {
  *   module_load_include('inc', 'node', 'content_types');
  * @endcode
  *
- * Do not use this function to load an install file. Use module_load_install()
+ * Do not use this function to load an install file, use module_load_install()
+ * instead. Do not use this function in a global context since it requires
+ * Drupal to be fully bootstrapped, use require_once DRUPAL_ROOT . '/path/file'
  * instead.
  *
  * @param $type
@@ -336,6 +338,8 @@ function module_enable($module_list, $enable_dependencies = TRUE, $disable_modul
 
   $invoke_modules = array();
 
+  // Required for _drupal_install_module().
+  include_once DRUPAL_ROOT . '/includes/install.inc';
   // Try to install the enabled modules and collect which were installed.
   // $module_list is not changed and already installed modules are ignored.
   $modules_installed = array_filter($module_list, '_drupal_install_module');

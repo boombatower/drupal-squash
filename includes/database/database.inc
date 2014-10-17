@@ -112,7 +112,7 @@
  * one would instead write:
  * @code
  * $fields = array('nid' => 1, 'title' => 'my title', 'body' => 'my body');
- * db_insert('my_table')->fields($fields)->execute();
+ * db_insert('node')->fields($fields)->execute();
  * @endcode
  * This method allows databases that need special data type handling to do so,
  * while also allowing optimizations such as multi-insert queries. UPDATE and
@@ -200,16 +200,6 @@ abstract class DatabaseConnection extends PDO {
    * @var DatabaseLog
    */
   protected $logger = NULL;
-
-  /**
-   * Cache of prepared statements.
-   *
-   * This cache only lasts as long as the current page request, so it's not
-   * as useful as it could be, but every little bit helps.
-   *
-   * @var Array
-   */
-  protected $preparedStatements = array();
 
   /**
    * Track the number of "layers" of transactions currently active.
@@ -446,26 +436,14 @@ abstract class DatabaseConnection extends PDO {
    * @param $query
    *   The query string as SQL, with curly-braces surrounding the
    *   table names.
-   * @param $cache
-   *   Whether or not to cache the prepared statement for later reuse in this
-   *   same request.  Usually we want to, but queries that require preprocessing
-   *   cannot be safely cached.
    * @return DatabaseStatementInterface
    *   A PDO prepared statement ready for its execute() method.
    */
-  public function prepareQuery($query, $cache = TRUE) {
+  public function prepareQuery($query) {
     $query = $this->prefixTables($query);
-    if (isset($this->preparedStatements[$query])) {
-      $stmt = $this->preparedStatements[$query];
-    }
-    else {
-      // Call PDO::prepare.
-      $stmt = parent::prepare($query);
-      if ($cache) {
-        $this->preparedStatements[$query] = $stmt;
-      }
-    }
-    return $stmt;
+
+    // Call PDO::prepare.
+    return parent::prepare($query);
   }
 
   /**
@@ -581,8 +559,8 @@ abstract class DatabaseConnection extends PDO {
         $stmt->execute(NULL, $options);
       }
       else {
-        $modified = $this->expandArguments($query, $args);
-        $stmt = $this->prepareQuery($query, !$modified);
+        $this->expandArguments($query, $args);
+        $stmt = $this->prepareQuery($query);
         $stmt->execute($args, $options);
       }
 
@@ -836,7 +814,7 @@ abstract class DatabaseConnection extends PDO {
    * Escape characters that work as wildcard characters in a LIKE pattern.
    *
    * The wildcard characters "%" and "_" as well as backslash are prefixed with
-   * a backslash. Use this to do a seach for a verbatim string without any
+   * a backslash. Use this to do a search for a verbatim string without any
    * wildcard behavior.
    *
    * For example, the following does a case-insensitive query for all rows whose
@@ -994,6 +972,13 @@ abstract class DatabaseConnection extends PDO {
 
     if ($this->transactionLayers == 0) {
       if ($this->willRollback) {
+        // Reset the rollback status so that the next transaction starts clean.
+        $this->willRollback = FALSE;
+
+        // Reset the error log.
+        $rollback_logs = $this->rollbackLogs;
+        $this->rollbackLogs = array();
+
         $logging = Database::getLoggingCallback();
         $logging_callback = NULL;
         if (is_array($logging)) {
@@ -1016,16 +1001,10 @@ abstract class DatabaseConnection extends PDO {
         if (isset($logging_callback)) {
           // Play back the logged errors to the specified logging callback post-
           // rollback.
-          foreach ($this->rollbackLogs as $log_item) {
+          foreach ($rollback_logs as $log_item) {
             $logging_callback($log_item['type'], $log_item['message'], $log_item['variables'], $log_item['severity'], $log_item['link']);
           }
         }
-
-        // Reset any scheduled rollback.
-        $this->willRollback = FALSE;
-
-        // Reset the error logs.
-        $this->rollbackLogs = array();
       }
       elseif ($this->supportsTransactions()) {
         parent::commit();
@@ -1259,7 +1238,7 @@ abstract class Database {
    * A logging function callback array.
    *
    * The function must accept the same function signature as Drupal's
-   * watchdog(). The array containst key/value pairs for callback (string),
+   * watchdog(). The array contains key/value pairs for callback (string),
    * default_severity (int), and error_severity (int).
    *
    * @var string
@@ -1561,7 +1540,7 @@ abstract class Database {
    *   The database connection key. Defaults to NULL which means the active key.
    */
   public static function closeConnection($target = NULL, $key = NULL) {
-    // Gets the active conection by default.
+    // Gets the active connection by default.
     if (!isset($key)) {
       $key = self::$activeKey;
     }
@@ -2299,7 +2278,7 @@ function db_transaction($required = FALSE, Array $options = array()) {
  *
  * @param $key
  *   The key in the $databases array to set as the default database.
- * @returns
+ * @return
  *   The key of the formerly active database.
  */
 function db_set_active($key = 'default') {
@@ -2338,7 +2317,7 @@ function db_escape_table($table) {
  * Escape characters that work as wildcard characters in a LIKE pattern.
  *
  * The wildcard characters "%" and "_" as well as backslash are prefixed with
- * a backslash. Use this to do a seach for a verbatim string without any
+ * a backslash. Use this to do a search for a verbatim string without any
  * wildcard behavior.
  *
  * For example, the following does a case-insensitive query for all rows whose
