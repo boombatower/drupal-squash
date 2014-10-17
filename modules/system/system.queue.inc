@@ -22,7 +22,7 @@
  * long you want to have a lease for working on that item. When finished
  * processing, the item needs to be deleted by calling
  * DrupalQueueInterface::deleteItem(). If the consumer dies, the item will be
- * made available again by the DrapalQueueInterface implementation once the
+ * made available again by the DrupalQueueInterface implementation once the
  * lease expires. Another consumer will then be able to receive it when calling
  * DrupalQueueInterface::claimItem().
  *
@@ -62,7 +62,10 @@ class DrupalQueue {
   public static function get($name) {
     static $queues;
     if (!isset($queues[$name])) {
-      $class = variable_get('queue_module_' . $name, 'System') . 'Queue';
+      $class = variable_get('queue_class_' . $name, NULL);
+      if (!$class) {
+        $class = variable_get('queue_default_class', 'SystemQueue');
+      }
       $queues[$name] = new $class($name);
     }
     return $queues[$name];

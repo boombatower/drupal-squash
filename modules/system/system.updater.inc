@@ -81,10 +81,8 @@ class ModuleUpdater extends Updater implements DrupalUpdaterInterface {
   }
 
   public function postUpdateTasks() {
-    // @todo: If there are schema updates.
-    return array(
-      l(t('Run database updates for !project', array('!project' => $this->title)), 'update.php'),
-    );
+    // We don't want to check for DB updates here, we do that once for all
+    // updated modules on the landing page.
   }
 
 }
@@ -135,8 +133,7 @@ class ThemeUpdater extends Updater implements DrupalUpdaterInterface {
   public function postInstall() {
     // Update the system table.
     clearstatcache();
-    drupal_static_reset('_system_rebuild_theme_data');
-    _system_rebuild_theme_data();
+    system_rebuild_theme_data();
 
     // Active the theme
     db_update('system')

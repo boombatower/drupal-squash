@@ -7,7 +7,7 @@
 
   <?php print render($title_prefix); ?>
   <?php if (!$page): ?>
-    <h2<?php print $title_attributes; ?>><a href="<?php print $node_url; ?>"><?php print $node_title; ?></a></h2>
+    <h2<?php print $title_attributes; ?>><a href="<?php print $node_url; ?>"><?php print $title; ?></a></h2>
   <?php endif; ?>
   <?php print render($title_suffix); ?>
 
@@ -25,12 +25,6 @@
   </div>
 
   <div class="clearfix">
-    <?php if (!empty($content['links']['terms'])): ?>
-      <div class="meta">
-        <div class="terms"><?php print render($content['links']['terms']); ?></div>
-      </div>
-    <?php endif; ?>
-
     <?php if (!empty($content['links'])): ?>
       <div class="links"><?php print render($content['links']); ?></div>
     <?php endif; ?>

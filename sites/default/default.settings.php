@@ -131,6 +131,22 @@
  *     'authmap'   => 'shared_',
  *   );
  *
+ * You can also use db_prefix as a reference to a schema/database. This maybe
+ * useful if your Drupal installation exists in a schema that is not the default
+ * or you want to access several databases from the same code base at the same 
+ * time.
+ * Example:
+ *
+ *  $db_prefix = array(
+ *    'default' => 'main.',
+ *     'users'      => 'shared.',
+ *     'sessions'  => 'shared.',
+ *     'role'      => 'shared.',
+ *     'authmap'   => 'shared.',
+ *  );
+ *
+ * NOTE: MySQL and SQLite's definition of a schema is a database.
+ *
  * Database configuration format:
  *   $databases['default']['default'] = array(
  *     'driver' => 'mysql',
@@ -155,7 +171,7 @@ $databases = array();
 $db_prefix = '';
 
 /**
- * Access control for update.php script
+ * Access control for update.php script.
  *
  * If you are updating your Drupal installation using the update.php script but
  * are not logged in using either an account with the "Administer software
