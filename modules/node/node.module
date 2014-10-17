@@ -143,10 +143,6 @@ function node_theme() {
       'variables' => array('content' => NULL),
       'file' => 'node.pages.inc',
     ),
-    'node_form' => array(
-      'render element' => 'form',
-      'file' => 'node.pages.inc',
-    ),
     'node_preview' => array(
       'variables' => array('node' => NULL),
       'file' => 'node.pages.inc',
@@ -311,21 +307,13 @@ function theme_node_list($variables) {
 function node_tag_new($node) {
   global $user;
   if ($user->uid) {
-    // To avoid multiple inserts if a user repeatedly requests the same page,
-    // only update history if the node has been updated, a new comment has been
-    // posted, or more than thirty minutes has elapsed since the last request.
-    $last_viewed = node_last_viewed($node->nid);
-    if (!$last_viewed
-       || ($last_viewed <= $node->changed || $last_viewed <= $node->last_comment_timestamp)
-       || $last_viewed <= REQUEST_TIME - variable_get('node_last_viewed_threshold', 1800)) {
-      db_merge('history')
-        ->key(array(
-          'uid' => $user->uid,
-          'nid' => $node->nid,
-        ))
-        ->fields(array('timestamp' => REQUEST_TIME))
-        ->execute();
-     }
+    db_merge('history')
+      ->key(array(
+        'uid' => $user->uid,
+        'nid' => $node->nid,
+      ))
+      ->fields(array('timestamp' => REQUEST_TIME))
+      ->execute();
    }
 }
 
@@ -895,6 +883,39 @@ function node_load($nid = NULL, $vid = NULL, $reset = FALSE) {
 }
 
 /**
+ * Prepares a node object for editing.
+ *
+ * Fills in a few default values, and then invokes hook_prepare() on the node
+ * type module, and hook_node_prepare() on all modules.
+ */
+function node_object_prepare($node) {
+  // Set up default values, if required.
+  $node_options = variable_get('node_options_' . $node->type, array('status', 'promote'));
+  // If this is a new node, fill in the default values.
+  if (!isset($node->nid) || isset($node->is_new)) {
+    foreach (array('status', 'promote', 'sticky') as $key) {
+      // Multistep node forms might have filled in something already.
+      if (!isset($node->$key)) {
+        $node->$key = (int) in_array($key, $node_options);
+      }
+    }
+    global $user;
+    $node->uid = $user->uid;
+    $node->created = REQUEST_TIME;
+  }
+  else {
+    $node->date = format_date($node->created, 'custom', 'Y-m-d H:i:s O');
+    // Remove the log message from the original node object.
+    $node->log = NULL;
+  }
+  // Always use the default revision setting.
+  $node->revision = in_array('revision', $node_options);
+
+  node_invoke($node, 'prepare');
+  module_invoke_all('node_prepare', $node);
+}
+
+/**
  * Perform validation checks on the given node.
  */
 function node_validate($node, $form = array()) {
@@ -1002,7 +1023,9 @@ function node_save($node) {
       $node->created = REQUEST_TIME;
     }
     // The changed timestamp is always updated for bookkeeping purposes (revisions, searching, ...)
-    $node->changed = REQUEST_TIME;
+    if (empty($node->changed)) {
+      $node->changed = REQUEST_TIME;
+    }
 
     $node->timestamp = REQUEST_TIME;
     $update_node = TRUE;
@@ -1264,52 +1287,6 @@ function node_build_content($node, $view_mode = 'full') {
 }
 
 /**
- * Implements hook_language_negotiation_info().
- */
-function node_language_negotiation_info() {
-  $providers = array();
-
-  $providers['node-language'] = array(
-    'types' => array(LANGUAGE_TYPE_CONTENT),
-    'callbacks' => array('language' => 'node_language_provider'),
-    'file' => drupal_get_path('module', 'node') . '/node.module',
-    'name' => t('Content'),
-    'description' => t('Use the language of the displayed content.'),
-  );
-
-  return $providers;
-}
-
-/**
- * Return the language of the current node.
- *
- * @param $languages
- *   An array of valid language objects.
- *
- * @return
- *   A valid language code on success, FALSE otherwise.
- */
-function node_language_provider($languages) {
-  require_once DRUPAL_ROOT . '/' . variable_get('path_inc', 'includes/path.inc');
-
-  $path = isset($_GET['q']) ? $_GET['q'] : '';
-  list($language, $path) = language_url_split_prefix($path, $languages);
-  $language = $language ? $language : language_default();
-  $path = drupal_get_normal_path($path, $language->language);
-
-  // We cannot use args now.
-  $path = explode('/', $path);
-  // Act only if we are in a node page.
-  if (isset($path[0]) && isset($path[1]) && $path[0] == 'node' && $nid = intval($path[1])) {
-    // We cannot perform a node load here.
-    $result = db_query('SELECT n.language FROM {node} n WHERE n.nid = :nid', array(':nid' => $nid))->fetchAssoc();
-    return $result['language'];
-  }
-
-  return FALSE;
-}
-
-/**
  * Generate an array which displays a node detail page.
  *
  * @param $node
@@ -1433,6 +1410,7 @@ function node_permission() {
   $perms = array(
     'administer content types' => array(
       'title' => t('Administer content types'),
+      'description' => drupal_placeholder(array('text' => t('Warning: Give to trusted roles only; this permission has security implications.'))),
     ),
     'administer nodes' => array(
       'title' => t('Administer content'),
@@ -1523,8 +1501,8 @@ function node_search_reset() {
  * Implements hook_search_status().
  */
 function node_search_status() {
-  $total = db_query('SELECT COUNT(*) FROM {node} WHERE status = :status', array(':status' => NODE_PUBLISHED))->fetchField();
-  $remaining = db_query("SELECT COUNT(*) FROM {node} n LEFT JOIN {search_dataset} d ON d.type = 'node' AND d.sid = n.nid WHERE n.status = :status AND d.sid IS NULL OR d.reindex <> 0", array(':status' => NODE_PUBLISHED))->fetchField();
+  $total = db_query('SELECT COUNT(*) FROM {node}')->fetchField();
+  $remaining = db_query("SELECT COUNT(*) FROM {node} n LEFT JOIN {search_dataset} d ON d.type = 'node' AND d.sid = n.nid WHERE d.sid IS NULL OR d.reindex <> 0")->fetchField();
   return array('remaining' => $remaining, 'total' => $total);
 }
 
@@ -1689,27 +1667,30 @@ function node_user_cancel($edit, $account, $method) {
         ->condition('uid', $account->uid)
         ->execute();
       break;
-
-    case 'user_cancel_delete':
-      // Delete nodes (current revisions).
-      // @todo Introduce node_mass_delete() or make node_mass_update() more flexible.
-      $nodes = db_select('node', 'n')
-        ->fields('n', array('nid'))
-        ->condition('uid', $account->uid)
-        ->execute()
-        ->fetchCol();
-      node_delete_multiple($nodes);
-      // Delete old revisions.
-      $revisions = db_query('SELECT vid FROM {node_revision} WHERE uid = :uid', array(':uid' => $account->uid))->fetchCol();
-      foreach ($revisions as $revision) {
-        node_revision_delete($revision);
-      }
-      // Clean history.
-      db_delete('history')
-        ->condition('uid', $account->uid)
-          ->execute();
-      break;
   }
+}
+
+/**
+ * Implements hook_user_delete().
+ */
+function node_user_delete($account) {
+  // Delete nodes (current revisions).
+  // @todo Introduce node_mass_delete() or make node_mass_update() more flexible.
+  $nodes = db_select('node', 'n')
+    ->fields('n', array('nid'))
+    ->condition('uid', $account->uid)
+    ->execute()
+    ->fetchCol();
+  node_delete_multiple($nodes);
+  // Delete old revisions.
+  $revisions = db_query('SELECT vid FROM {node_revision} WHERE uid = :uid', array(':uid' => $account->uid))->fetchCol();
+  foreach ($revisions as $revision) {
+    node_revision_delete($revision);
+  }
+  // Clean history.
+  db_delete('history')
+    ->condition('uid', $account->uid)
+    ->execute();
 }
 
 /**
@@ -2031,7 +2012,7 @@ function node_last_changed($nid) {
  */
 function node_revision_list($node) {
   $revisions = array();
-  $result = db_query('SELECT r.vid, r.title, r.log, r.uid, n.vid AS current_vid, r.timestamp, u.name FROM {node_revision} r LEFT JOIN {node} n ON n.vid = r.vid INNER JOIN {users} u ON u.uid = r.uid WHERE r.nid = :nid ORDER BY r.timestamp DESC', array(':nid' => $node->nid));
+  $result = db_query('SELECT r.vid, r.title, r.log, r.uid, n.vid AS current_vid, r.timestamp, u.name FROM {node_revision} r LEFT JOIN {node} n ON n.vid = r.vid INNER JOIN {users} u ON u.uid = r.uid WHERE r.nid = :nid ORDER BY r.vid DESC', array(':nid' => $node->nid));
   foreach ($result as $revision) {
     $revisions[$revision->vid] = $revision;
   }
@@ -2246,12 +2227,10 @@ function node_form_block_admin_configure_alter(&$form, &$form_state) {
  * Form submit handler for block configuration form.
  */
 function node_block_admin_configure_submit($form, &$form_state) {
-  if (isset($form_state['values']['delta'])) {
-    db_delete('block_node_type')
-      ->condition('module', $form_state['values']['module'])
-      ->condition('delta', $form_state['values']['delta'])
-      ->execute();
-  }
+  db_delete('block_node_type')
+    ->condition('module', $form_state['values']['module'])
+    ->condition('delta', $form_state['values']['delta'])
+    ->execute();
   $query = db_insert('block_node_type')->fields(array('type', 'module', 'delta'));
   foreach (array_filter($form_state['values']['types']) as $type) {
     $query->values(array(
@@ -2584,7 +2563,7 @@ function node_search_validate($form, &$form_state) {
     $keys .= ' "' . str_replace('"', ' ', $form_state['values']['phrase']) . '"';
   }
   if (!empty($keys)) {
-    form_set_value($form['basic']['inline']['processed_keys'], trim($keys), $form_state);
+    form_set_value($form['basic']['processed_keys'], trim($keys), $form_state);
   }
 }
 
@@ -2929,7 +2908,7 @@ function node_query_node_access_alter(QueryAlterableInterface $query) {
   if (!$op = $query->getMetaData('op')) {
     $op = 'view';
   }
-  
+
   // If $account can bypass node access, or there are no node access
   // modules, we don't need to alter the query.
   if (user_access('bypass node access', $account)) {
@@ -3328,7 +3307,9 @@ function node_action_info() {
 }
 
 /**
- * Implements a Drupal action: sets the status of a node to 1 (published).
+ * Sets the status of a node to 1 (published).
+ *
+ * @ingroup actions
  */
 function node_publish_action($node, $context = array()) {
   $node->status = NODE_PUBLISHED;
@@ -3336,7 +3317,9 @@ function node_publish_action($node, $context = array()) {
 }
 
 /**
- * Implements a Drupal action: sets the status of a node to 0 (unpublished).
+ * Sets the status of a node to 0 (unpublished).
+ *
+ * @ingroup actions
  */
 function node_unpublish_action($node, $context = array()) {
   $node->status = NODE_NOT_PUBLISHED;
@@ -3344,7 +3327,9 @@ function node_unpublish_action($node, $context = array()) {
 }
 
 /**
- * Implements a Drupal action: sets sticky-at-top-of-list property to 1.
+ * Sets the sticky-at-top-of-list property of a node to 1.
+ *
+ * @ingroup actions
  */
 function node_make_sticky_action($node, $context = array()) {
   $node->sticky = NODE_STICKY;
@@ -3352,7 +3337,9 @@ function node_make_sticky_action($node, $context = array()) {
 }
 
 /**
- * Implements a Drupal action: sets sticky-at-top-of-list property to 0.
+ * Sets the sticky-at-top-of-list property of a node to 0.
+ *
+ * @ingroup actions
  */
 function node_make_unsticky_action($node, $context = array()) {
   $node->sticky = NODE_NOT_STICKY;
@@ -3360,7 +3347,9 @@ function node_make_unsticky_action($node, $context = array()) {
 }
 
 /**
- * Implements a Drupal action: sets the promote property of a node to 1.
+ * Sets the promote property of a node to 1.
+ *
+ * @ingroup actions
  */
 function node_promote_action($node, $context = array()) {
   $node->promote = NODE_PROMOTED;
@@ -3368,7 +3357,9 @@ function node_promote_action($node, $context = array()) {
 }
 
 /**
- * Implements a Drupal action: sets the promote property of a node to 0.
+ * Sets the promote property of a node to 0.
+ *
+ * @ingroup actions
  */
 function node_unpromote_action($node, $context = array()) {
   $node->promote = NODE_NOT_PROMOTED;
@@ -3376,7 +3367,9 @@ function node_unpromote_action($node, $context = array()) {
 }
 
 /**
- * Implements a Drupal action: saves a node.
+ * Saves a node.
+ *
+ * @ingroup actions
  */
 function node_save_action($node) {
   node_save($node);
@@ -3384,7 +3377,15 @@ function node_save_action($node) {
 }
 
 /**
- * Implements a configurable Drupal action: assigns ownership of node to user.
+ * Assigns ownership of a node to a user.
+ *
+ * @param $node
+ *   A node object to modify.
+ * @param $context
+ *   Array with the following elements:
+ *   - 'owner_uid': User ID to assign to the node.
+ *
+ * @ingroup actions
  */
 function node_assign_owner_action($node, $context) {
   $node->uid = $context['owner_uid'];
@@ -3393,7 +3394,7 @@ function node_assign_owner_action($node, $context) {
 }
 
 /**
- * Generates settings form for node_assign_owner_action().
+ * Generates the settings form for node_assign_owner_action().
  */
 function node_assign_owner_action_form($context) {
   $description = t('The username of the user to which you would like to assign ownership.');
@@ -3472,13 +3473,16 @@ function node_unpublish_by_keyword_action_submit($form, $form_state) {
 }
 
 /**
- * Implements a configurable Drupal action: unpublish node containing keywords.
+ * Unpublishes a node containing certain keywords.
  *
  * @param $node
- *   A node object.
+ *   A node object to modify.
  * @param $context
- *   An array providing more information about the context of the call to this
- *   action.
+ *   Array with the following elements:
+ *   - 'keywords': Array of keywords. If any keyword is present in the rendered
+ *     node, the node's status flag is set to unpublished.
+ *
+ * @ingroup actions
  */
 function node_unpublish_by_keyword_action($node, $context) {
   foreach ($context['keywords'] as $keyword) {
@@ -3517,13 +3521,25 @@ function node_requirements($phase) {
 }
 
 /**
+ * Implements hook_modules_enabled().
+ */
+function node_modules_enabled($modules) {
+  // Check if any of the newly enabled modules require the node_access table to
+  // be rebuilt.
+  if (!node_access_needs_rebuild() && array_intersect($modules, module_implements('node_grants'))) {
+    node_access_needs_rebuild(TRUE);
+  }
+}
+
+/**
  * Controller class for nodes.
  *
  * This extends the DrupalDefaultEntityController class, adding required
  * special handling for node objects.
  */
 class NodeController extends DrupalDefaultEntityController {
-  protected function attachLoad(&$nodes) {
+
+  protected function attachLoad(&$nodes, $revision_id = FALSE) {
     // Create an array of nodes for each content type and pass this to the
     // object type specific callback.
     $typed_nodes = array();
@@ -3539,6 +3555,6 @@ class NodeController extends DrupalDefaultEntityController {
       }
     }
     $this->hookLoadArguments[] = array_keys($typed_nodes);
-    parent::attachLoad($nodes);
+    parent::attachLoad($nodes, $revision_id);
   }
 }

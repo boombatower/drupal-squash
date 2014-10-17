@@ -7,8 +7,6 @@
  *
  * The theme system allows for nearly all output of the Drupal system to be
  * customized by user themes.
- *
- * @ingroup themeable
  */
 
 /**
@@ -384,15 +382,14 @@ function _theme_process_registry(&$cache, $name, $type, $theme, $path) {
         $result[$hook]['includes'][] = $include_file;
       }
 
-      // If 'variables' have been defined previously, carry them forward.
-      // This should happen if a theme overrides a Drupal defined theme
-      // function, for example.
-      if (!isset($info['variables']) && isset($cache[$hook]['variables'])) {
-        $result[$hook]['variables'] = $cache[$hook]['variables'];
-      }
-      // Same for 'render element'.
-      if (!isset($info['render element']) && isset($cache[$hook]['render element'])) {
-        $result[$hook]['render element'] = $cache[$hook]['render element'];
+      // If these keys are left unspecified within overridden entries returned
+      // by hook_theme(), carry them forward from the prior entry. This is so
+      // that themes don't need to specify this information, since the module
+      // that registered the theme hook already has.
+      foreach (array('variables', 'render element', 'pattern', 'base hook') as $key) {
+        if (!array_key_exists($key, $info) && isset($cache[$hook][$key])) {
+          $result[$hook][$key] = $cache[$hook][$key];
+        }
       }
 
       // The following apply only to theming hooks implemented as templates.
@@ -563,7 +560,7 @@ function _theme_build_registry($theme, $base_theme, $theme_engine) {
  *   - 'base theme': The name of the base theme.
  */
 function list_themes($refresh = FALSE) {
-  static $list = array();
+  $list = &drupal_static(__FUNCTION__, array());
 
   if ($refresh) {
     $list = array();
@@ -839,7 +836,19 @@ function theme($hook, $variables = array()) {
   }
 
   // Invoke the variable processors, if any. The processors may specify
-  // alternate suggestions for which hook's template/function to use.
+  // alternate suggestions for which hook's template/function to use. If the
+  // hook is a suggestion of a base hook, invoke the variable processors of
+  // the base hook, but retain the suggestion as a high priority suggestion to
+  // be used unless overridden by a variable processor function.
+  if (isset($info['base hook'])) {
+    $base_hook = $info['base hook'];
+    $base_hook_info = $hooks[$base_hook];
+    if (isset($base_hook_info['preprocess functions']) || isset($base_hook_info['process functions'])) {
+      $variables['theme_hook_suggestion'] = $hook;
+      $hook = $base_hook;
+      $info = $base_hook_info;
+    }
+  }
   if (isset($info['preprocess functions']) || isset($info['process functions'])) {
     $variables['theme_hook_suggestions'] = array();
     foreach (array('preprocess functions', 'process functions') as $phase) {
@@ -962,44 +971,53 @@ function path_to_theme() {
  * @param $prefixes
  *   An array of prefixes to test, in reverse order of importance.
  *
- * @return $templates
+ * @return $implementations
  *   The functions found, suitable for returning from hook_theme;
  */
 function drupal_find_theme_functions($cache, $prefixes) {
-  $templates = array();
+  $implementations = array();
   $functions = get_defined_functions();
 
   foreach ($cache as $hook => $info) {
     foreach ($prefixes as $prefix) {
+      // Find theme functions that implement possible "suggestion" variants of
+      // registered theme hooks and add those as new registered theme hooks.
+      // The 'pattern' key defines a common prefix that all suggestions must
+      // start with. The default is the name of the hook followed by '__'. An
+      // 'base hook' key is added to each entry made for a found suggestion,
+      // so that common functionality can be implemented for all suggestions of
+      // the same base hook. To keep things simple, deep heirarchy of
+      // suggestions is not supported: each suggestion's 'base hook' key
+      // refers to a base hook, not to another suggestion, and all suggestions
+      // are found using the base hook's pattern, not a pattern from an
+      // intermediary suggestion.
       $pattern = isset($info['pattern']) ? $info['pattern'] : ($hook . '__');
-      if (!empty($pattern)) {
+      if (!isset($info['base hook']) && !empty($pattern)) {
         $matches = preg_grep('/^' . $prefix . '_' . $pattern . '/', $functions['user']);
         if ($matches) {
           foreach ($matches as $match) {
             $new_hook = str_replace($prefix . '_', '', $match);
             $arg_name = isset($info['variables']) ? 'variables' : 'render element';
-            $templates[$new_hook] = array(
+            $implementations[$new_hook] = array(
               'function' => $match,
               $arg_name => $info[$arg_name],
+              'base hook' => $hook,
             );
           }
         }
       }
+      // Find theme functions that implement registered theme hooks and include
+      // that in what is returned so that the registry knows that the theme has
+      // this implementation.
       if (function_exists($prefix . '_' . $hook)) {
-        $templates[$hook] = array(
+        $implementations[$hook] = array(
           'function' => $prefix . '_' . $hook,
         );
-        // Ensure that the pattern is maintained from base themes to its sub-themes.
-        // Each sub-theme will have their functions scanned so the pattern must be
-        // held for subsequent runs.
-        if (isset($info['pattern'])) {
-          $templates[$hook]['pattern'] = $info['pattern'];
-        }
       }
     }
   }
 
-  return $templates;
+  return $implementations;
 }
 
 /**
@@ -1013,7 +1031,7 @@ function drupal_find_theme_functions($cache, $prefixes) {
  *   The path to search.
  */
 function drupal_find_theme_templates($cache, $extension, $path) {
-  $templates = array();
+  $implementations = array();
 
   // Collect paths to all sub-themes grouped by base themes. These will be
   // used for filtering. This allows base themes to have sub-themes in its
@@ -1036,9 +1054,12 @@ function drupal_find_theme_templates($cache, $extension, $path) {
 
   // Escape the periods in the extension.
   $regex = '/' . str_replace('.', '\.', $extension) . '$/';
-  // Because drupal_system_listing works the way it does, we check for real
-  // templates separately from checking for patterns.
+  // Get a listing of all template files in the path to search.
   $files = drupal_system_listing($regex, $path, 'name', 0);
+
+  // Find templates that implement registered theme hooks and include that in
+  // what is returned so that the registry knows that the theme has this
+  // implementation.
   foreach ($files as $template => $file) {
     // Ignore sub-theme templates for the current theme.
     if (strpos($file->uri, str_replace($subtheme_paths, '', $file->uri)) !== 0) {
@@ -1054,24 +1075,21 @@ function drupal_find_theme_templates($cache, $extension, $path) {
     // for the purposes of searching.
     $hook = strtr($template, '-', '_');
     if (isset($cache[$hook])) {
-      $templates[$hook] = array(
+      $implementations[$hook] = array(
         'template' => $template,
         'path' => dirname($file->uri),
       );
     }
-    // Ensure that the pattern is maintained from base themes to its sub-themes.
-    // Each sub-theme will have their templates scanned so the pattern must be
-    // held for subsequent runs.
-    if (isset($cache[$hook]['pattern'])) {
-      $templates[$hook]['pattern'] = $cache[$hook]['pattern'];
-    }
   }
 
+  // Find templates that implement possible "suggestion" variants of registered
+  // theme hooks and add those as new registered theme hooks. @see
+  // drupal_find_theme_functions() for more information about suggestions and
+  // the use of 'pattern' and 'base hook'.
   $patterns = array_keys($files);
-
   foreach ($cache as $hook => $info) {
     $pattern = isset($info['pattern']) ? $info['pattern'] : ($hook . '__');
-    if (!empty($pattern)) {
+    if (!isset($info['base hook']) && !empty($pattern)) {
       // Transform _ in pattern to - to match file naming scheme
       // for the purposes of searching.
       $pattern = strtr($pattern, '_', '-');
@@ -1082,16 +1100,17 @@ function drupal_find_theme_templates($cache, $extension, $path) {
           $file = substr($match, 0, strpos($match, '.'));
           // Put the underscores back in for the hook name and register this pattern.
           $arg_name = isset($info['variables']) ? 'variables' : 'render element';
-          $templates[strtr($file, '-', '_')] = array(
+          $implementations[strtr($file, '-', '_')] = array(
             'template' => $file,
             'path' => dirname($files[$match]->uri),
             $arg_name => $info[$arg_name],
+            'base hook' => $hook,
           );
         }
       }
     }
   }
-  return $templates;
+  return $implementations;
 }
 
 /**
@@ -1293,68 +1312,8 @@ function theme_disable($theme_list) {
 }
 
 /**
- * @defgroup themeable Default theme implementations
+ * @ingroup themeable
  * @{
- * Functions and templates that present output to the user, and can be
- * implemented by themes.
- *
- * Drupal's presentation layer is a pluggable system known as the theme
- * layer. Each theme can take control over most of Drupal's output, and
- * has complete control over the CSS.
- *
- * Inside Drupal, the theme layer is utilized by the use of the theme()
- * function, which is passed the name of a component (the theme hook)
- * and an array of variables. For example,
- * theme('table', array('header' => $header, 'rows' => $rows));
- * Additionally, the theme() function can take an array of theme
- * hooks, which can be used to provide 'fallback' implementations to
- * allow for more specific control of output. For example, the function:
- * theme(array('table__foo', 'table'), $variables) would look to see if
- * 'table__foo' is registered anywhere; if it is not, it would 'fall back'
- * to the generic 'table' implementation. This can be used to attach specific
- * theme functions to named objects, allowing the themer more control over
- * specific types of output.
- *
- * As of Drupal 6, every theme hook is required to be registered by the
- * module that owns it, so that Drupal can tell what to do with it and
- * to make it simple for themes to identify and override the behavior
- * for these calls.
- *
- * The theme hooks are registered via hook_theme(), which returns an
- * array of arrays with information about the hook. It describes the
- * arguments the function or template will need, and provides
- * defaults for the template in case they are not filled in. If the default
- * implementation is a function, by convention it is named theme_HOOK().
- *
- * Each module should provide a default implementation for theme_hooks that
- * it registers. This implementation may be either a function or a template;
- * if it is a function it must be specified via hook_theme(). By convention,
- * default implementations of theme hooks are named theme_HOOK. Default
- * template implementations are stored in the module directory.
- *
- * Drupal's default template renderer is a simple PHP parsing engine that
- * includes the template and stores the output. Drupal's theme engines
- * can provide alternate template engines, such as XTemplate, Smarty and
- * PHPTal. The most common template engine is PHPTemplate (included with
- * Drupal and implemented in phptemplate.engine, which uses Drupal's default
- * template renderer.
- *
- * In order to create theme-specific implementations of these hooks, themes can
- * implement their own version of theme hooks, either as functions or templates.
- * These implementations will be used instead of the default implementation. If
- * using a pure .theme without an engine, the .theme is required to implement
- * its own version of hook_theme() to tell Drupal what it is implementing;
- * themes utilizing an engine will have their well-named theming functions
- * automatically registered for them. While this can vary based upon the theme
- * engine, the standard set by phptemplate is that theme functions should be
- * named THEMENAME_HOOK. For example, for Drupal's default theme (Garland) to
- * implement the 'table' hook, the phptemplate.engine would find
- * garland_table().
- *
- * The theme system is described and defined in theme.inc.
- *
- * @see theme()
- * @see hook_theme()
  */
 
 /**
@@ -1592,19 +1551,6 @@ function theme_breadcrumb($variables) {
 }
 
 /**
- * Return a themed submenu, typically displayed under the tabs.
- *
- * @param $variables
- *   An associative array containing:
- *   - links: An array of links.
- */
-function theme_submenu($variables) {
-  $links = $variables['links'];
-
-  return '<div class="submenu">' . implode(' | ', $links) . '</div>';
-}
-
-/**
  * Return a themed table.
  *
  * @param $variables
@@ -1738,6 +1684,11 @@ function theme_table($variables) {
     }
   }
 
+  // Add the 'empty' row message if available.
+  if (!count($rows) && $empty) {
+    $rows[] = array(array('data' => $empty, 'colspan' => count($header), 'class' => array('empty', 'message')));
+  }
+
   // Format the table header:
   if (count($header)) {
     $ts = tablesort_init($header);
@@ -1753,11 +1704,6 @@ function theme_table($variables) {
   }
   else {
     $ts = array();
-  }
-
-  // Add the 'empty' row message if available.
-  if (!count($rows) && $empty) {
-    $rows[] = array(array('data' => $empty, 'colspan' => count($header), 'class' => array('empty', 'message')));
   }
 
   // Format the table rows:
@@ -1968,8 +1914,6 @@ function theme_feed_icon($variables) {
  *       wrapper prefix.
  *     - #value_suffix: (optional) A string to append to #value, e.g. a CDATA
  *       wrapper suffix.
- *
- * @ingroup themeable
  */
 function theme_html_tag($variables) {
   $element = $variables['element'];
@@ -2157,7 +2101,7 @@ function theme_indentation($variables) {
 }
 
 /**
- * @} End of "defgroup themeable".
+ * @} End of "ingroup themeable".
  */
 
 function _theme_table_cell($cell, $header = FALSE) {
@@ -2336,12 +2280,12 @@ function template_preprocess_html(&$variables) {
 
   // Construct page title.
   if (drupal_get_title()) {
-    $head_title = array(strip_tags(drupal_get_title()), variable_get('site_name', 'Drupal'));
+    $head_title = array(strip_tags(drupal_get_title()), check_plain(variable_get('site_name', 'Drupal')));
   }
   else {
-    $head_title = array(variable_get('site_name', 'Drupal'));
+    $head_title = array(check_plain(variable_get('site_name', 'Drupal')));
     if (variable_get('site_slogan', '')) {
-      $head_title[] = variable_get('site_slogan', '');
+      $head_title[] = filter_xss_admin(variable_get('site_slogan', ''));
     }
   }
   $variables['head_title'] = implode(' | ', $head_title);
@@ -2473,20 +2417,22 @@ function theme_get_suggestions($args, $base, $delimiter = '__') {
   // page__node__edit        page-node-edit
 
   $suggestions = array();
+  $prefix = $base;
   foreach ($args as $arg) {
     // Remove slashes or null per SA-CORE-2009-003.
     $arg = str_replace(array("/", "\\", "\0"), '', $arg);
     // The percent acts as a wildcard for numeric arguments since
     // asterisks are not valid filename characters on many filesystems.
     if (is_numeric($arg)) {
-      $suggestions[] = $base . $delimiter . '%';
+      $suggestions[] = $prefix . $delimiter . '%';
     }
-    $suggestions[] = $base . $delimiter . $arg;
+    $suggestions[] = $prefix . $delimiter . $arg;
     if (!is_numeric($arg)) {
-      $base .= $delimiter . $arg;
+      $prefix .= $delimiter . $arg;
     }
   }
   if (drupal_is_front_page()) {
+    // Front templates should be based on root only, not prefixed arguments.
     $suggestions[] = $base . $delimiter . 'front';
   }
 
@@ -2494,8 +2440,8 @@ function theme_get_suggestions($args, $base, $delimiter = '__') {
 }
 
 /**
- * The variables generated here is a mirror of template_preprocess_page().
- * This preprocessor will run it's course when theme_maintenance_page() is
+ * The variables array generated here is a mirror of template_preprocess_page().
+ * This preprocessor will run its course when theme_maintenance_page() is
  * invoked. It is also used in theme_install_page() and theme_update_page() to
  * keep all the variables consistent.
  *
@@ -2556,7 +2502,6 @@ function template_preprocess_maintenance_page(&$variables) {
   $variables['front_page']        = url();
   $variables['breadcrumb']        = '';
   $variables['feed_icons']        = '';
-  $variables['head']              = drupal_get_html_head();
   $variables['help']              = '';
   $variables['language']          = $language;
   $variables['language']->dir     = $language->direction ? 'rtl' : 'ltr';
@@ -2566,9 +2511,6 @@ function template_preprocess_maintenance_page(&$variables) {
   $variables['secondary_menu']    = array();
   $variables['site_name']         = (theme_get_setting('toggle_name') ? variable_get('site_name', 'Drupal') : '');
   $variables['site_slogan']       = (theme_get_setting('toggle_slogan') ? variable_get('site_slogan', '') : '');
-  $variables['css']               = drupal_add_css();
-  $variables['styles']            = drupal_get_css();
-  $variables['scripts']           = drupal_get_js();
   $variables['tabs']              = '';
   $variables['title']             = drupal_get_title();
   $variables['closure']           = '';
@@ -2593,6 +2535,21 @@ function template_preprocess_maintenance_page(&$variables) {
   if (isset($variables['db_is_active']) && !$variables['db_is_active']) {
     $variables['theme_hook_suggestion'] = 'maintenance_page__offline';
   }
+}
+
+/**
+ * The variables array generated here is a mirror of template_process_html().
+ * This processor will run its course when theme_maintenance_page() is invoked.
+ * It is also used in theme_install_page() and theme_update_page() to keep all
+ * the variables consistent.
+ *
+ * @see maintenance-page.tpl.php
+ */
+function template_process_maintenance_page(&$variables) {
+  $variables['head']    = drupal_get_html_head();
+  $variables['css']     = drupal_add_css();
+  $variables['styles']  = drupal_get_css();
+  $variables['scripts'] = drupal_get_js();
 }
 
 /**

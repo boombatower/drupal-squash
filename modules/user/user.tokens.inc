@@ -54,7 +54,7 @@ function user_token_info() {
   );
 
   return array(
-    'types' => array('user' => $types),
+    'types' => $types,
     'tokens' => array('user' => $user),
   );
 }
@@ -86,7 +86,7 @@ function user_tokens($type, $tokens, array $data = array(), array $options = arr
           break;
 
         case 'name':
-          $name = ($account->uid == 0) ? variable_get('anonymous', t('Anonymous')) : $account->name;
+          $name = format_username($account);
           $replacements[$original] = $sanitize ? filter_xss($name) : $name;
           break;
 

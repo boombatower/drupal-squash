@@ -9,7 +9,7 @@
 /**
  * The current system version.
  */
-define('VERSION', '7.0-alpha2');
+define('VERSION', '7.0-alpha3');
 
 /**
  * Core API compatibility.
@@ -64,7 +64,7 @@ define('CACHE_NORMAL', 1);
  * @see watchdog()
  * @see watchdog_severity_levels()
  */
-define('WATCHDOG_EMERG', 0);
+define('WATCHDOG_EMERGENCY', 0);
 
 /**
  * Log message severity -- Alert: action must be taken immediately.
@@ -189,12 +189,12 @@ define('LANGUAGE_NONE', 'und');
 /**
  * The type of language used to define the content language.
  */
-define('LANGUAGE_TYPE_CONTENT', 'language');
+define('LANGUAGE_TYPE_CONTENT', 'language_content');
 
 /**
  * The type of language used to select the user interface.
  */
-define('LANGUAGE_TYPE_INTERFACE', 'language_interface');
+define('LANGUAGE_TYPE_INTERFACE', 'language');
 
 /**
  * The type of language used for URLs.
@@ -233,6 +233,10 @@ define('CHECK_PLAIN', 0);
 define('PASS_THROUGH', -1);
 
 /**
+ * @} End of "Title text filtering flags".
+ */
+
+/**
  * Signals that the registry lookup cache should be reset.
  */
 define('REGISTRY_RESET_LOOKUP_CACHE', 1);
@@ -241,11 +245,6 @@ define('REGISTRY_RESET_LOOKUP_CACHE', 1);
  * Signals that the registry lookup cache should be written to storage.
  */
 define('REGISTRY_WRITE_LOOKUP_CACHE', 2);
-
-/**
- * @} End of "Title text filtering flags".
- */
-
 
 /**
  * Start the timer with the specified name. If you start and stop the same
@@ -296,13 +295,17 @@ function timer_read($name) {
 function timer_stop($name) {
   global $timers;
 
-  if (isset($timers[$name]['time'])) {
-    $timers[$name]['time'] += timer_read($name);
+  if (isset($timers[$name]['start'])) {
+    $stop = microtime(TRUE);
+    $diff = round(($stop - $timers[$name]['start']) * 1000, 2);
+    if (isset($timers[$name]['time'])) {
+      $timers[$name]['time'] += $diff;
+    }
+    else {
+      $timers[$name]['time'] = $diff;
+    }
+    unset($timers[$name]['start']);
   }
-  else {
-    $timers[$name]['time'] = timer_read($name);
-  }
-  unset($timers[$name]['start']);
 
   return $timers[$name];
 }
@@ -519,6 +522,10 @@ function drupal_environment_initialize() {
   ini_set('session.cache_limiter', 'none');
   // Use httponly session cookies.
   ini_set('session.cookie_httponly', '1');
+
+  // Set sane locale settings, to ensure consistent string, dates, times and
+  // numbers handling.
+  setlocale(LC_ALL, 'C');
 }
 
 /**
@@ -902,32 +909,22 @@ function drupal_load($type, $name) {
  * too. This is necessary to avoid security bugs (e.g. UTF-7 XSS).
  *
  * @param $name
- *   The HTTP header name, or a status code followed by a reason phrase, e.g.
- *   "404 Not Found".
+ *   The HTTP header name, or the special 'Status' header name.
  * @param $value
- *   The HTTP header value; if omitted, the specified header is unset.
+ *   The HTTP header value; if equal to FALSE, the specified header is unset.
+ *   If $name is 'Status', this is expected to be a status code followed by a
+ *   reason phrase, e.g. "404 Not Found".
  * @param $append
  *   Whether to append the value to an existing header or to replace it.
  */
-function drupal_add_http_header($name = NULL, $value = NULL, $append = FALSE) {
+function drupal_add_http_header($name, $value, $append = FALSE) {
   // The headers as name/value pairs.
-  $headers = &drupal_static(__FUNCTION__, array());
+  $headers = &drupal_static('drupal_http_headers', array());
 
-  if (!isset($name)) {
-    return $headers;
-  }
-
-  // Save status codes using the special key ":status".
-  if (preg_match('/^\d{3} /', $name)) {
-    $value = $name;
-    $name = $name_lower = ':status';
-  }
-  else {
-    $name_lower = strtolower($name);
-  }
+  $name_lower = strtolower($name);
   _drupal_set_preferred_header_name($name);
 
-  if (!isset($value)) {
+  if ($value === FALSE) {
     $headers[$name_lower] = FALSE;
   }
   elseif (isset($headers[$name_lower]) && $append) {
@@ -952,7 +949,7 @@ function drupal_add_http_header($name = NULL, $value = NULL, $append = FALSE) {
  *   or NULL if the header has not been set.
  */
 function drupal_get_http_header($name = NULL) {
-  $headers = drupal_add_http_header();
+  $headers = &drupal_static('drupal_http_headers', array());
   if (isset($name)) {
     $name = strtolower($name);
     return isset($headers[$name]) ? $headers[$name] : NULL;
@@ -1002,7 +999,7 @@ function drupal_send_headers($default_headers = array(), $only_default = FALSE) 
     }
   }
   foreach ($headers as $name_lower => $value) {
-    if ($name_lower == ':status') {
+    if ($name_lower == 'status') {
       header($_SERVER['SERVER_PROTOCOL'] . ' ' . $value);
     }
     // Skip headers that have been unset.
@@ -1381,12 +1378,12 @@ function drupal_unpack($obj, $field = 'data') {
  *   The translated string.
  */
 function t($string, array $args = array(), array $options = array()) {
-  global $language_interface;
+  global $language;
   static $custom_strings;
 
   // Merge in default.
   if (empty($options['langcode'])) {
-    $options['langcode'] = isset($language_interface->language) ? $language_interface->language : 'en';
+    $options['langcode'] = isset($language->language) ? $language->language : 'en';
   }
   if (empty($options['context'])) {
     $options['context'] = '';
@@ -2083,8 +2080,8 @@ function drupal_language_initialize() {
  */
 function drupal_language_types() {
   return array(
-    LANGUAGE_TYPE_CONTENT => TRUE,
     LANGUAGE_TYPE_INTERFACE => TRUE,
+    LANGUAGE_TYPE_CONTENT => FALSE,
     LANGUAGE_TYPE_URL => FALSE,
   );
 }
@@ -2093,11 +2090,7 @@ function drupal_language_types() {
  * Return true if there is more than one language enabled.
  */
 function drupal_multilingual() {
-  static $multilingual;
-  if (!isset($multilingual)) {
-    $multilingual = variable_get('language_count', 1) > 1;
-  }
-  return $multilingual;
+  return variable_get('language_count', 1) > 1;
 }
 
 /**
@@ -2194,14 +2187,19 @@ function request_path() {
     $path = '';
   }
 
+  // Under certain conditions Apache's RewriteRule directive prepends the value
+  // assigned to $_GET['q'] with a slash. Moreover we can always have a trailing
+  // slash in place, hence we need to normalize $_GET['q'].
+  $path = trim($path, '/');
+
   return $path;
 }
 
 /**
  * If Drupal is behind a reverse proxy, we use the X-Forwarded-For header
  * instead of $_SERVER['REMOTE_ADDR'], which would be the IP address of
- * the proxy server, and not the client's. If Drupal is run in a cluster
- * we use the X-Cluster-Client-Ip header instead.
+ * the proxy server, and not the client's. The actual header name can be
+ * configured by the reverse_proxy_header variable.
  *
  * @return
  *   IP address of client machine, adjusted for reverse proxy and/or cluster
@@ -2214,7 +2212,8 @@ function ip_address() {
     $ip_address = $_SERVER['REMOTE_ADDR'];
 
     if (variable_get('reverse_proxy', 0)) {
-      if (array_key_exists('HTTP_X_FORWARDED_FOR', $_SERVER)) {
+      $reverse_proxy_header = variable_get('reverse_proxy_header', 'HTTP_X_FORWARDED_FOR');
+      if (!empty($_SERVER[$reverse_proxy_header])) {
         // If an array of known reverse proxy IPs is provided, then trust
         // the XFF header if request really comes from one of them.
         $reverse_proxy_addresses = variable_get('reverse_proxy_addresses', array());
@@ -2222,16 +2221,9 @@ function ip_address() {
           // The "X-Forwarded-For" header is a comma+space separated list of IP addresses,
           // the left-most being the farthest downstream client. If there is more than
           // one proxy, we are interested in the most recent one (i.e. last one in the list).
-          $ip_address_parts = explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']);
+          $ip_address_parts = explode(',', $_SERVER[$reverse_proxy_header]);
           $ip_address = trim(array_pop($ip_address_parts));
         }
-      }
-
-      // When Drupal is run in a cluster environment, REMOTE_ADDR contains the IP
-      // address of a server in the cluster, while the IP address of the client is
-      // stored in HTTP_X_CLUSTER_CLIENT_IP.
-      if (array_key_exists('HTTP_X_CLUSTER_CLIENT_IP', $_SERVER)) {
-        $ip_address = $_SERVER['HTTP_X_CLUSTER_CLIENT_IP'];
       }
     }
   }

@@ -514,10 +514,16 @@ function trigger_user_update(&$edit, $account, $category) {
 function trigger_user_cancel($edit, $account, $method) {
   switch ($method) {
     case 'user_cancel_reassign':
-    case 'user_cancel_delete':
       _trigger_user('user_delete', $edit, $account, $method);
       break;
   }
+}
+
+/**
+ * Implements hook_user_delete().
+ */
+function trigger_user_delete($account) {
+  _trigger_user('user_delete', $edit, $account, $method);
 }
 
 /**
@@ -609,13 +615,12 @@ function trigger_actions_delete($aid) {
  * Retrieves and caches information from hook_trigger_info() implementations.
  */
 function _trigger_get_all_info() {
-  static $triggers = NULL;
-  if( $triggers ) {
-    return $triggers;
+  $triggers = &drupal_static(__FUNCTION__);
+
+  if (!isset($triggers)) {
+    $triggers = module_invoke_all('trigger_info');
+    drupal_alter('trigger_info', $triggers);
   }
 
-  $triggers = module_invoke_all('trigger_info');
-  drupal_alter('trigger_info', $triggers);
   return $triggers;
 }
-

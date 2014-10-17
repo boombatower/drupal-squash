@@ -220,6 +220,8 @@ function theme_node_filters($variables) {
   }
   $output .= '</ul>';
 
+  $output .= '<div class="clearfix">';
+
   $output .= '<dl class="multiselect">' . (!empty($form['current']) ? '<dt><em>' . t('and') . '</em> ' . t('where') . '</dt>' : '');
 
   $output .= '<dd>';
@@ -231,6 +233,8 @@ function theme_node_filters($variables) {
 
   $output .= '</dl>';
   $output .= drupal_render($form['actions']);
+
+  $output .= '</div>';
 
   return $output;
 }
@@ -388,8 +392,7 @@ function node_admin_nodes() {
   $form['options'] = array(
     '#type' => 'fieldset',
     '#title' => t('Update options'),
-    '#prefix' => '<div class="container-inline">',
-    '#suffix' => '</div>',
+    '#attributes' => array('class' => array('container-inline')),
     '#access' => $admin_access,
   );
   $options = array();

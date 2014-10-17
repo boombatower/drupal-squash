@@ -328,9 +328,8 @@ function drupal_rebuild_form($form_id, &$form_state, $form_build_id = NULL) {
   drupal_prepare_form($form_id, $form, $form_state);
 
   if (empty($form_state['no_cache'])) {
-    // We cache the form structure so it can be retrieved later for validation.
-    // If $form_state['storage'] is populated, we also cache it so that it can
-    // be used to resume complex multi-step processes.
+    // We cache the form structure and the form state so it can be retrieved
+    // later for validation.
     form_set_cache($form_build_id, $form, $form_state);
   }
 
@@ -396,8 +395,6 @@ function form_state_keys_no_cache() {
   return array(
     // Public properties defined by form constructors and form handlers.
     'always_process',
-    'cache',
-    'no_cache',
     'must_validate',
     'rebuild',
     'redirect',
@@ -418,9 +415,14 @@ function form_state_keys_no_cache() {
 }
 
 /**
- * Retrieves a form using a form_id, populates it with $form_state['values'],
- * processes it, and returns any validation errors encountered. This
- * function is the programmatic counterpart to drupal_get_form().
+ * Retrieves, populates, and processes a form.
+ *
+ * This function allows you to supply values for form elements and submit a
+ * form for processing. Compare to drupal_get_form(), which also builds and
+ * processes a form, but does not allow you to supply values.
+ *
+ * There is no return value, but you can check to see if there are errors
+ * by calling form_get_errors().
  *
  * @param $form_id
  *   The unique string identifying the desired form. If a function
@@ -443,7 +445,6 @@ function form_state_keys_no_cache() {
  *   For example, the node_edit form requires that a node object be passed
  *   in here when it is called.
  * For example:
- *
  * @code
  * // register a new user
  * $form_state = array();
@@ -453,7 +454,6 @@ function form_state_keys_no_cache() {
  * $form_state['values']['pass']['pass2'] = 'password';
  * $form_state['values']['op'] = t('Create new account');
  * drupal_form_submit('user_register_form', $form_state);
- *
  * // Create a new node
  * $form_state = array();
  * module_load_include('inc', 'node', 'node.pages');
@@ -481,6 +481,10 @@ function drupal_form_submit($form_id, &$form_state) {
   // Programmed forms are always submitted.
   $form_state['submitted'] = TRUE;
 
+  // Reset form validation.
+  $form_state['must_validate'] = TRUE;
+  form_clear_error();
+
   drupal_prepare_form($form_id, $form, $form_state);
   drupal_process_form($form_id, $form, $form_state);
 }
@@ -495,14 +499,9 @@ function drupal_form_submit($form_id, &$form_state) {
  *   using different $form_ids can implement hook_forms(), which maps
  *   different $form_id values to the proper form constructor function.
  * @param $form_state
- *   A keyed array containing the current state of the form.
- * @param ...
- *   Any additional arguments needed by the unique form constructor
- *   function. Generally, these are any arguments passed into the
- *   drupal_get_form() or drupal_form_submit() functions after the first
- *   argument. If a module implements hook_forms(), it can examine
- *   these additional arguments and conditionally return different
- *   builder functions as well.
+ *   A keyed array containing the current state of the form, including the
+ *   additional arguments to drupal_get_form() or drupal_form_submit() in the
+ *   'args' component of the array.
  */
 function drupal_retrieve_form($form_id, &$form_state) {
   $forms = &drupal_static(__FUNCTION__);
@@ -1436,7 +1435,15 @@ function _form_builder_handle_input_element($form_id, &$element, &$form_state) {
       }
     }
   }
-  form_set_value($element, $element['#value'], $form_state);
+  // Set the element's value in $form_state['values'], but only, if its key
+  // does not exist yet (a #value_callback may have already populated it).
+  $values = $form_state['values'];
+  foreach ($element['#parents'] as $key) {
+    $values = (isset($values[$key]) ? $values[$key] : NULL);
+  }
+  if (!isset($values)) {
+    form_set_value($element, $element['#value'], $form_state);
+  }
 }
 
 /**
@@ -1647,11 +1654,14 @@ function form_type_checkboxes_value($element, $input = FALSE) {
     $value = array();
     $element += array('#default_value' => array());
     foreach ($element['#default_value'] as $key) {
-      $value[$key] = 1;
+      $value[$key] = $key;
     }
     return $value;
   }
-  elseif (!isset($input)) {
+  // If the checkboxes are enabled, and NULL input is submitted, it means
+  // they're intentionally unchecked, so we need to return an empty array to
+  // prevent the default value from being used.
+  elseif (!isset($input) && empty($element['#disabled'])) {
     return array();
   }
 }
@@ -1691,7 +1701,15 @@ function form_type_password_confirm_value($element, $input = FALSE) {
 function form_type_select_value($element, $input = FALSE) {
   if ($input !== FALSE) {
     if (isset($element['#multiple']) && $element['#multiple']) {
-      return (is_array($input)) ? drupal_map_assoc($input) : array();
+      // If an enabled multi-select submits NULL, it means all items are
+      // unselected. A disabled multi-select always submits NULL, and the
+      // default value should be used.
+      if (empty($element['#disabled'])) {
+        return (is_array($input)) ? drupal_map_assoc($input) : array();
+      }
+      else {
+        return (isset($element['#default_value']) && is_array($element['#default_value'])) ? $element['#default_value'] : array();
+      }
     }
     else {
       return $input;
@@ -1712,7 +1730,7 @@ function form_type_select_value($element, $input = FALSE) {
  *   for this element. Return nothing to use the default.
  */
 function form_type_textfield_value($element, $input = FALSE) {
-  if ($input !== FALSE) {
+  if ($input !== FALSE && $input !== NULL) {
     // Equate $input to the form value to ensure it's marked for
     // validation.
     return str_replace(array("\r", "\n"), '', $input);
@@ -1950,8 +1968,10 @@ function theme_fieldset($variables) {
 
   $output = '<fieldset' . drupal_attributes($element['#attributes']) . '>';
   if (!empty($element['#title'])) {
-    $output .= '<legend>' . $element['#title'] . '</legend>';
+    // Always wrap fieldset legends in a SPAN for CSS positioning.
+    $output .= '<legend><span class="fieldset-legend">' . $element['#title'] . '</span></legend>';
   }
+  $output .= '<div class="fieldset-wrapper">';
   if (!empty($element['#description'])) {
     $output .= '<div class="fieldset-description">' . $element['#description'] . '</div>';
   }
@@ -1959,6 +1979,7 @@ function theme_fieldset($variables) {
   if (isset($element['#value'])) {
     $output .= $element['#value'];
   }
+  $output .= '</div>';
   $output .= "</fieldset>\n";
   return $output;
 }
@@ -2196,115 +2217,12 @@ function form_process_radios($element) {
           '#parents' => $element['#parents'],
           '#id' => drupal_html_id('edit-' . implode('-', $parents_for_id)),
           '#ajax' => isset($element['#ajax']) ? $element['#ajax'] : NULL,
+          '#disabled' => isset($element['#disabled']) ? $element['#disabled'] : NULL,
         );
       }
     }
   }
   return $element;
-}
-
-/**
- * Add text format selector to text elements with the #text_format property.
- *
- * The #text_format property should be the ID of an text format, found in
- * {filter_format}.format, which gets passed to filter_form().
- *
- * If the property #text_format is set, the form element will be expanded into
- * two separate form elements, one holding the content of the element, and the
- * other holding the text format selector. The original element is shifted into
- * a child element, but is otherwise unaltered, so that the format selector is
- * at the same level as the text field which it affects.
- *
- * For example:
- * @code
- *   // A simple textarea, such as a node body.
- *   $form['body'] = array(
- *     '#type' => 'textarea',
- *     '#title' => t('Body'),
- *     '#text_format' => isset($node->format) ? $node->format : filter_default_format(),
- *   );
- * @endcode
- *
- * Becomes:
- * @code
- *   $form['body'] = array(
- *     // Type switches to 'markup', as we're only interested in submitting the child elements.
- *     '#type' => 'markup',
- *     // 'value' holds the original element.
- *     'value' => array(
- *       '#type' => 'textarea',
- *       '#title' => t('Body'),
- *       '#parents' => array('body'),
- *     ),
- *     // 'format' holds the text format selector.
- *     'format' => array(
- *       '#parents' => array('body_format'),
- *       ...
- *     ),
- *   );
- * @endcode
- *
- * And would result in:
- * @code
- *   // Original, unaltered form element value.
- *   $form_state['values']['body'] = 'Example content';
- *   // Chosen text format.
- *   $form_state['values']['body_format'] = 1;
- * @endcode
- *
- * @see system_element_info(), filter_form()
- */
-function form_process_text_format($element) {
-  if (isset($element['#text_format'])) {
-    // Determine the form element parents and element name to use for the input
-    // format widget. This simulates the 'element' and 'element_format' pair of
-    // parents that filter_form() expects.
-    $element_parents = $element['#parents'];
-    $element_name = array_pop($element_parents);
-    $element_parents[] = $element_name . '_format';
-
-    // We need to break references, otherwise form_builder recurses infinitely.
-    $element['value'] = (array)$element;
-    $element['value']['#weight'] = 0;
-    unset($element['value']['#description']);
-    $element['#type'] = 'markup';
-    $element['#theme'] = NULL;
-    $element['#theme_wrappers'] = array('text_format_wrapper');
-    $element['format'] = filter_form($element['#text_format'], 1, $element_parents);
-
-    // We need to clear the #text_format from the new child otherwise we
-    // would get into an infinite loop.
-    unset($element['value']['#text_format']);
-  }
-  return $element;
-}
-
-/**
- * Theme a text format form element.
- *
- * @param $variables
- *   An associative array containing:
- *   - element: An associative array containing the properties of the element.
- *     Properties used: #children, #description
- *
- * @return
- *   A string representing the form element.
- *
- * @ingroup themeable
- */
-function theme_text_format_wrapper($variables) {
-  $element = $variables['element'];
-  $output = '<div class="text-format-wrapper">' . "\n";
-
-  $output .= $element['#children'] . "\n";
-
-  if (!empty($element['#description'])) {
-    $output .= '<div class="description">' . $element['#description'] . "</div>\n";
-  }
-
-  $output .= "</div>\n";
-
-  return $output;
 }
 
 /**
@@ -2402,6 +2320,7 @@ function form_process_checkboxes($element) {
           '#default_value' => isset($value[$key]) ? $key : NULL,
           '#attributes' => $element['#attributes'],
           '#ajax' => isset($element['#ajax']) ? $element['#ajax'] : NULL,
+          '#disabled' => isset($element['#disabled']) ? $element['#disabled'] : NULL,
         );
       }
     }
@@ -2553,6 +2472,7 @@ function form_process_tableselect($element) {
             '#default_value' => isset($value[$key]) ? $key : NULL,
             '#attributes' => $element['#attributes'],
             '#ajax' => isset($element['#ajax']) ? $element['#ajax'] : NULL,
+            '#disabled' => isset($element['#disabled']) ? $element['#disabled'] : NULL,
           );
         }
         else {
@@ -2568,6 +2488,7 @@ function form_process_tableselect($element) {
             '#parents' => $element['#parents'],
             '#id' => drupal_html_id('edit-' . implode('-', $parents_for_id)),
             '#ajax' => isset($element['#ajax']) ? $element['#ajax'] : NULL,
+            '#disabled' => isset($element['#disabled']) ? $element['#disabled'] : NULL,
           );
         }
       }
@@ -2847,15 +2768,8 @@ function theme_textfield($variables) {
   }
   _form_set_class($element, $class);
 
-  if (isset($element['#field_prefix'])) {
-    $output .= '<span class="field-prefix">' . $element['#field_prefix'] . '</span> ';
-  }
-
   $output .= '<input type="text"' . $maxlength . ' name="' . $element['#name'] . '" id="' . $element['#id'] . '"' . $size . ' value="' . check_plain($element['#value']) . '"' . drupal_attributes($element['#attributes']) . ' />';
 
-  if (isset($element['#field_suffix'])) {
-    $output .= ' <span class="field-suffix">' . $element['#field_suffix'] . '</span>';
-  }
   return $output . $extra;
 }
 
@@ -2895,16 +2809,24 @@ function theme_form($variables) {
  */
 function theme_textarea($variables) {
   $element = $variables['element'];
+  $wrapper_attributes = array(
+    'class' => array('form-textarea-wrapper'),
+  );
   $class = array('form-textarea');
 
-  // Add resizable behavior
-  if ($element['#resizable'] !== FALSE) {
+  // Add resizable behavior.
+  if (!empty($element['#resizable'])) {
     drupal_add_js('misc/textarea.js');
-    $class[] = 'resizable';
+    $wrapper_attributes['class'][] = 'resizable';
   }
 
+  $output = '<div' . drupal_attributes($wrapper_attributes) . '>';
+
   _form_set_class($element, $class);
-  return '<textarea cols="' . $element['#cols'] . '" rows="' . $element['#rows'] . '" name="' . $element['#name'] . '" id="' . $element['#id'] . '" ' . drupal_attributes($element['#attributes']) . '>' . check_plain($element['#value']) . '</textarea>';
+  $output .= '<textarea cols="' . $element['#cols'] . '" rows="' . $element['#rows'] . '" name="' . $element['#name'] . '" id="' . $element['#id'] . '" ' . drupal_attributes($element['#attributes']) . '>' . check_plain($element['#value']) . '</textarea>';
+
+  $output .= '</div>';
+  return $output;
 }
 
 /**
@@ -3029,6 +2951,10 @@ function theme_form_element($variables) {
 
   $output = '<div class="' . implode(' ', $class) . '">' . "\n";
 
+  if (isset($element['#field_prefix'])) {
+    $output .= '<span class="field-prefix">' . $element['#field_prefix'] . '</span> ';
+  }
+
   switch ($element['#title_display']) {
     case 'before':
       $output .= ' ' . theme('form_element_label', $variables);
@@ -3045,6 +2971,10 @@ function theme_form_element($variables) {
       // Output no label and no required marker, only the children.
       $output .= ' ' . $element['#children'] . "\n";
       break;
+  }
+
+  if (isset($element['#field_suffix'])) {
+    $output .= ' <span class="field-suffix">' . $element['#field_suffix'] . '</span>';
   }
 
   if (!empty($element['#description'])) {

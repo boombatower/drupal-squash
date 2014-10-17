@@ -239,7 +239,7 @@ function block_admin_configure($form, &$form_state, $module, $delta) {
         '#type' => 'select',
         '#title' => $theme->info['name'],
         '#default_value' => (!empty($region) ? $region : BLOCK_REGION_NONE),
-        '#options' => array(BLOCK_REGION_NONE => t('Disabled')) + $theme->info['regions'],
+        '#options' => array(BLOCK_REGION_NONE => t('<none>')) + system_region_list($key, REGIONS_VISIBLE),
         '#expandable' => ($key !== $theme_default),
         '#weight' => ($key == $theme_default ? 9 : 10),
       );
@@ -443,7 +443,7 @@ function block_add_block_form_submit($form, &$form_state) {
     ->fields(array(
       'body' => $form_state['values']['body'],
       'info' => $form_state['values']['info'],
-      'format' => $form_state['values']['body_format'],
+      'format' => $form_state['values']['format'],
     ))
     ->execute();
 
@@ -513,6 +513,10 @@ function block_custom_block_delete_submit($form, &$form_state) {
     ->condition('bid', $form_state['values']['bid'])
     ->execute();
   db_delete('block')
+    ->condition('module', 'block')
+    ->condition('delta', $form_state['values']['bid'])
+    ->execute();
+  db_delete('block_role')
     ->condition('module', 'block')
     ->condition('delta', $form_state['values']['bid'])
     ->execute();

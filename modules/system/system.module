@@ -91,7 +91,7 @@ function system_help($path, $arg) {
     case 'admin/appearance/settings/' . $arg[3]:
       $reference = explode('.', $arg[3], 2);
       $theme = array_pop($reference);
-      return '<p>' . t('These options control the display settings for the <code>%template</code> theme. When your site is displayed using this theme, these settings will be used. By clicking "Reset to defaults," you can choose to use the <a href="@global">global settings</a> for this theme.', array('%template' => $theme, '@global' => url('admin/appearance/settings'))) . '</p>';
+      return '<p>' . t('These options control the display settings for the <code>%template</code> theme. When your site is displayed using this theme, these settings will be used.', array('%template' => $theme)) . '</p>';
     case 'admin/appearance/settings':
       return '<p>' . t('These options control the default display settings for your entire site, across all themes. Unless they have been overridden by a specific theme, these settings will be used.') . '</p>';
     case 'admin/modules':
@@ -207,6 +207,7 @@ function system_permission() {
     ),
     'administer site configuration' => array(
       'title' => t('Administer site configuration'),
+      'description' => drupal_placeholder(array('text' => t('Warning: Give to trusted roles only; this permission has security implications.'))),
     ),
     'administer themes' => array(
       'title' => t('Administer themes'),
@@ -233,32 +234,13 @@ function system_permission() {
 }
 
 /**
- * Implements hook_rdf_namespaces().
- */
-function system_rdf_namespaces() {
-  return array(
-    'admin'    => 'http://webns.net/mvcb/',
-    'content'  => 'http://purl.org/rss/1.0/modules/content/',
-    'dc'       => 'http://purl.org/dc/terms/',
-    'foaf'     => 'http://xmlns.com/foaf/0.1/',
-    'owl'      => 'http://www.w3.org/2002/07/owl#',
-    'rdf'      => 'http://www.w3.org/1999/02/22-rdf-syntax-ns#',
-    'rdfs'     => 'http://www.w3.org/2000/01/rdf-schema#',
-    'rss'      => 'http://purl.org/rss/1.0/',
-    'tags'     => 'http://www.holygoat.co.uk/owl/redwood/0.1/tags/',
-    'sioc'     => 'http://rdfs.org/sioc/ns#',
-    'sioct'    => 'http://rdfs.org/sioc/types#',
-    'ctag'     => 'http://commontag.org/ns#',
-    'skos'     => 'http://www.w3.org/2004/02/skos/core#',
-    'xsd'      => 'http://www.w3.org/2001/XMLSchema#',
-  );
-}
-
-/**
  * Implements hook_hook_info().
  */
 function system_hook_info() {
   $hooks['token_info'] = array(
+    'group' => 'tokens',
+  );
+  $hooks['token_info_alter'] = array(
     'group' => 'tokens',
   );
   $hooks['tokens'] = array(
@@ -308,14 +290,22 @@ function system_element_info() {
   // HTML page, so we don't provide defaults for #theme or #theme_wrappers.
   // However, modules can set these properties (for example, to provide an HTML
   // debugging page that displays rather than executes AJAX commands).
-  $types['ajax_commands'] = array(
-    '#ajax_commands' => array(),
+  $types['ajax'] = array(
+    '#header' => TRUE,
+    '#commands' => array(),
+    '#error' => NULL,
   );
-
   $types['html_tag'] = array(
     '#theme' => 'html_tag',
+    '#pre_render' => array('drupal_pre_render_conditional_comments'),
     '#attributes' => array(),
     '#value' => NULL,
+  );
+  $types['styles'] = array(
+    '#items' => array(),
+    '#pre_render' => array('drupal_pre_render_styles'),
+    '#group_callback' => 'drupal_group_css',
+    '#aggregate_callback' => 'drupal_aggregate_css',
   );
 
   // Input elements.
@@ -350,7 +340,7 @@ function system_element_info() {
     '#size' => 60,
     '#maxlength' => 128,
     '#autocomplete_path' => FALSE,
-    '#process' => array('form_process_text_format', 'ajax_process_form'),
+    '#process' => array('ajax_process_form'),
     '#theme' => 'textfield',
     '#theme_wrappers' => array('form_element'),
   );
@@ -372,7 +362,7 @@ function system_element_info() {
     '#cols' => 60,
     '#rows' => 5,
     '#resizable' => TRUE,
-    '#process' => array('form_process_text_format', 'ajax_process_form'),
+    '#process' => array('ajax_process_form'),
     '#theme' => 'textarea',
     '#theme_wrappers' => array('form_element'),
   );
@@ -1058,7 +1048,7 @@ function system_library() {
   $libraries['jquery'] = array(
     'title' => 'jQuery',
     'website' => 'http://jquery.com',
-    'version' => '1.3.2',
+    'version' => '1.4.2',
     'js' => array(
       'misc/jquery.js' => array('weight' => JS_LIBRARY - 20),
     ),
@@ -1090,7 +1080,7 @@ function system_library() {
     'website' => 'http://benalman.com/projects/jquery-bbq-plugin/',
     'version' => '1.0.2',
     'js' => array(
-      'misc/jquery.ba-bbq.js',
+      'misc/jquery.ba-bbq.js' => array(),
     ),
   );
 
@@ -1134,38 +1124,67 @@ function system_library() {
   $libraries['ui'] = array(
     'title' => 'jQuery UI: Core',
     'website' => 'http://jqueryui.com',
-    'version' => '1.7.2',
+    'version' => '1.8',
     'js' => array(
-      'misc/ui/ui.core.js' => array('weight' => JS_LIBRARY - 10),
+      'misc/ui/jquery.ui.core.min.js' => array('weight' => JS_LIBRARY - 11),
     ),
     'css' => array(
-      'misc/ui/ui.core.css' => array(),
-      'misc/ui/ui.theme.css' => array(),
+      'misc/ui/jquery.ui.core.css' => array(),
+      'misc/ui/jquery.ui.theme.css' => array(),
     ),
   );
   $libraries['ui.accordion'] = array(
     'title' => 'jQuery UI: Accordion',
     'website' => 'http://jqueryui.com/demos/accordion/',
-    'version' => '1.7.2',
+    'version' => '1.8',
     'js' => array(
-      'misc/ui/ui.accordion.js' => array(),
+      'misc/ui/jquery.ui.accordion.min.js' => array(),
     ),
     'css' => array(
-      'misc/ui/ui.accordion.css' => array(),
+      'misc/ui/jquery.ui.accordion.css' => array(),
     ),
     'dependencies' => array(
-      array('system', 'ui'),
+      array('system', 'ui.widget'),
+    ),
+  );
+  $libraries['ui.autocomplete'] = array(
+    'title' => 'jQuery UI: Autocomplete',
+    'website' => 'http://jqueryui.com/demos/autocomplete/',
+    'version' => '1.8',
+    'js' => array(
+      'misc/ui/jquery.ui.autocomplete.min.js' => array(),
+    ),
+    'css' => array(
+      'misc/ui/jquery.ui.autocomplete.css' => array(),
+    ),
+    'dependencies' => array(
+      array('system', 'ui.widget'),
+      array('system', 'ui.position'),
+    ),
+  );
+  $libraries['ui.button'] = array(
+    'title' => 'jQuery UI: Button',
+    'website' => 'http://jqueryui.com/demos/button/',
+    'version' => '1.8',
+    'js' => array(
+      'misc/ui/jquery.ui.button.min.js' => array(),
+    ),
+    'css' => array(
+      'misc/ui/jquery.ui.button.css' => array(),
+    ),
+    'dependencies' => array(
+      array('system', 'ui.widget'),
     ),
   );
   $libraries['ui.datepicker'] = array(
     'title' => 'jQuery UI: Date Picker',
     'website' => 'http://jqueryui.com/demos/datepicker/',
-    'version' => '1.7.2',
+    'version' => '1.8',
     'js' => array(
-      'misc/ui/ui.datepicker.js' => array(),
+      'misc/ui/jquery.ui.datepicker.min.js' => array(),
     ),
     'css' => array(
-      'misc/ui/ui.datepicker.css' => array(),
+      'misc/ui/jquery.ui.datepicker.css' => array(),
     ),
     'dependencies' => array(
       array('system', 'ui'),
@@ -1174,116 +1193,152 @@ function system_library() {
   $libraries['ui.dialog'] = array(
     'title' => 'jQuery UI: Dialog',
     'website' => 'http://jqueryui.com/demos/dialog/',
-    'version' => '1.7.2',
+    'version' => '1.8',
     'js' => array(
-      'misc/ui/ui.dialog.js' => array(),
+      'misc/ui/jquery.ui.dialog.min.js' => array(),
     ),
     'css' => array(
-      'misc/ui/ui.dialog.css' => array(),
+      'misc/ui/jquery.ui.dialog.css' => array(),
     ),
     'dependencies' => array(
-      array('system', 'ui'),
+      array('system', 'ui.widget'),
     ),
   );
   $libraries['ui.draggable'] = array(
     'title' => 'jQuery UI: Draggable',
     'website' => 'http://jqueryui.com/demos/draggable/',
-    'version' => '1.7.2',
+    'version' => '1.8',
     'js' => array(
-      'misc/ui/ui.draggable.js' => array(),
+      'misc/ui/jquery.ui.draggable.min.js' => array(),
     ),
     'dependencies' => array(
-      array('system', 'ui'),
+      array('system', 'ui.widget'),
+      array('system', 'ui.mouse'),
     ),
   );
   $libraries['ui.droppable'] = array(
     'title' => 'jQuery UI: Droppable',
     'website' => 'http://jqueryui.com/demos/droppable/',
-    'version' => '1.7.2',
+    'version' => '1.8',
     'js' => array(
-      'misc/ui/ui.droppable.js' => array(),
+      'misc/ui/jquery.ui.droppable.min.js' => array(),
     ),
     'dependencies' => array(
-      array('system', 'ui'),
+      array('system', 'ui.widget'),
+      array('system', 'ui.mouse'),
       array('system', 'ui.draggable'),
+    ),
+  );
+  $libraries['ui.mouse'] = array(
+    'title' => 'jQuery UI: Droppable',
+    'website' => 'http://docs.jquery.com/UI/Mouse',
+    'version' => '1.8',
+    'js' => array(
+      'misc/ui/jquery.ui.mouse.min.js' => array(),
+    ),
+    'dependencies' => array(
+      array('system', 'ui.widget'),
+    ),
+  );
+  $libraries['ui.position'] = array(
+    'title' => 'jQuery UI: Position',
+    'website' => 'http://jqueryui.com/demos/position/',
+    'version' => '1.8',
+    'js' => array(
+      'misc/ui/jquery.ui.position.min.js' => array(),
     ),
   );
   $libraries['ui.progressbar'] = array(
     'title' => 'jQuery UI: Progress Bar',
     'website' => 'http://jqueryui.com/demos/progressbar/',
-    'version' => '1.7.2',
+    'version' => '1.8',
     'js' => array(
-      'misc/ui/ui.progressbar.js' => array(),
+      'misc/ui/jquery.ui.progressbar.min.js' => array(),
     ),
     'css' => array(
-      'misc/ui/ui.progressbar.css' => array(),
+      'misc/ui/jquery.ui.progressbar.css' => array(),
     ),
     'dependencies' => array(
-      array('system', 'ui'),
+      array('system', 'ui.widget'),
     ),
   );
   $libraries['ui.resizable'] = array(
     'title' => 'jQuery UI: Resizable',
     'website' => 'http://jqueryui.com/demos/resizable/',
-    'version' => '1.7.2',
+    'version' => '1.8',
     'js' => array(
-      'misc/ui/ui.resizable.js' => array(),
+      'misc/ui/jquery.ui.resizable.min.js' => array(),
     ),
     'css' => array(
-      'misc/ui/ui.resizable.css' => array(),
+      'misc/ui/jquery.ui.resizable.css' => array(),
     ),
     'dependencies' => array(
-      array('system', 'ui'),
+      array('system', 'ui.widget'),
+      array('system', 'ui.mouse'),
     ),
   );
   $libraries['ui.selectable'] = array(
     'title' => 'jQuery UI: Selectable',
     'website' => 'http://jqueryui.com/demos/selectable/',
-    'version' => '1.7.2',
+    'version' => '1.8',
     'js' => array(
-      'misc/ui/ui.selectable.js' => array(),
+      'misc/ui/jquery.ui.selectable.min.js' => array(),
     ),
     'css' => array(
-      'misc/ui/ui.selectable.css' => array(),
+      'misc/ui/jquery.ui.selectable.css' => array(),
     ),
     'dependencies' => array(
-      array('system', 'ui'),
+      array('system', 'ui.widget'),
+      array('system', 'ui.mouse'),
     ),
   );
   $libraries['ui.slider'] = array(
     'title' => 'jQuery UI: Slider',
     'website' => 'http://jqueryui.com/demos/slider/',
-    'version' => '1.7.2',
+    'version' => '1.8',
     'js' => array(
-      'misc/ui/ui.slider.js' => array(),
+      'misc/ui/jquery.ui.slider.min.js' => array(),
     ),
     'css' => array(
-      'misc/ui/ui.slider.css' => array(),
+      'misc/ui/jquery.ui.slider.css' => array(),
     ),
     'dependencies' => array(
-      array('system', 'ui'),
+      array('system', 'ui.widget'),
+      array('system', 'ui.mouse'),
     ),
   );
   $libraries['ui.sortable'] = array(
     'title' => 'jQuery UI: Sortable',
     'website' => 'http://jqueryui.com/demos/sortable/',
-    'version' => '1.7.2',
+    'version' => '1.8',
     'js' => array(
-      'misc/ui/ui.sortable.js' => array(),
+      'misc/ui/jquery.ui.sortable.min.js' => array(),
     ),
     'dependencies' => array(
-      array('system', 'ui'),
+      array('system', 'ui.widget'),
+      array('system', 'ui.mouse'),
     ),
   );
   $libraries['ui.tabs'] = array(
     'title' => 'jQuery UI: Tabs',
     'website' => 'http://jqueryui.com/demos/tabs/',
-    'version' => '1.7.2',
+    'version' => '1.8',
     'js' => array(
-      'misc/ui/ui.tabs.js' => array(),
+      'misc/ui/jquery.ui.tabs.min.js' => array(),
     ),
     'css' => array(
-      'misc/ui/ui.tabs.css' => array(),
+      'misc/ui/jquery.ui.tabs.css' => array(),
+    ),
+    'dependencies' => array(
+      array('system', 'ui.widget'),
+    ),
+  );
+  $libraries['ui.widget'] = array(
+    'title' => 'jQuery UI: Widget',
+    'website' => 'http://docs.jquery.com/UI/Widget',
+    'version' => '1.8',
+    'js' => array(
+      'misc/ui/jquery.ui.widget.min.js' => array('weight' => JS_LIBRARY - 10),
     ),
     'dependencies' => array(
       array('system', 'ui'),
@@ -1292,20 +1347,17 @@ function system_library() {
   $libraries['effects'] = array(
     'title' => 'jQuery UI: Effects',
     'website' => 'http://jqueryui.com/demos/effect/',
-    'version' => '1.7.2',
+    'version' => '1.8',
     'js' => array(
-      'misc/ui/effects.core.js' => array('weight' => JS_LIBRARY - 9),
-    ),
-    'dependencies' => array(
-      array('system', 'ui'),
+      'misc/ui/jquery.effects.core.min.js' => array('weight' => JS_LIBRARY - 9),
     ),
   );
   $libraries['effects.blind'] = array(
     'title' => 'jQuery UI: Effects Blind',
     'website' => 'http://jqueryui.com/demos/effect/',
-    'version' => '1.7.2',
+    'version' => '1.8',
     'js' => array(
-      'misc/ui/effects.blind.js' => array(),
+      'misc/ui/jquery.effects.blind.min.js' => array(),
     ),
     'dependencies' => array(
       array('system', 'effects'),
@@ -1314,9 +1366,9 @@ function system_library() {
   $libraries['effects.bounce'] = array(
     'title' => 'jQuery UI: Effects Bounce',
     'website' => 'http://jqueryui.com/demos/effect/',
-    'version' => '1.7.2',
+    'version' => '1.8',
     'js' => array(
-      'misc/ui/effects.bounce.js' => array(),
+      'misc/ui/jquery.effects.bounce.min.js' => array(),
     ),
     'dependencies' => array(
       array('system', 'effects'),
@@ -1325,9 +1377,9 @@ function system_library() {
   $libraries['effects.clip'] = array(
     'title' => 'jQuery UI: Effects Clip',
     'website' => 'http://jqueryui.com/demos/effect/',
-    'version' => '1.7.2',
+    'version' => '1.8',
     'js' => array(
-      'misc/ui/effects.clip.js' => array(),
+      'misc/ui/jquery.effects.clip.min.js' => array(),
     ),
     'dependencies' => array(
       array('system', 'effects'),
@@ -1336,9 +1388,9 @@ function system_library() {
   $libraries['effects.drop'] = array(
     'title' => 'jQuery UI: Effects Drop',
     'website' => 'http://jqueryui.com/demos/effect/',
-    'version' => '1.7.2',
+    'version' => '1.8',
     'js' => array(
-      'misc/ui/effects.drop.js' => array(),
+      'misc/ui/jquery.effects.drop.min.js' => array(),
     ),
     'dependencies' => array(
       array('system', 'effects'),
@@ -1347,9 +1399,20 @@ function system_library() {
   $libraries['effects.explode'] = array(
     'title' => 'jQuery UI: Effects Explode',
     'website' => 'http://jqueryui.com/demos/effect/',
-    'version' => '1.7.2',
+    'version' => '1.8',
     'js' => array(
-      'misc/ui/effects.explode.js' => array(),
+      'misc/ui/jquery.effects.explode.min.js' => array(),
+    ),
+    'dependencies' => array(
+      array('system', 'effects'),
+    ),
+  );
+  $libraries['effects.fade'] = array(
+    'title' => 'jQuery UI: Effects Fade',
+    'website' => 'http://jqueryui.com/demos/effect/',
+    'version' => '1.8',
+    'js' => array(
+      'misc/ui/jquery.effects.fade.min.js' => array(),
     ),
     'dependencies' => array(
       array('system', 'effects'),
@@ -1358,9 +1421,9 @@ function system_library() {
   $libraries['effects.fold'] = array(
     'title' => 'jQuery UI: Effects Fold',
     'website' => 'http://jqueryui.com/demos/effect/',
-    'version' => '1.7.2',
+    'version' => '1.8',
     'js' => array(
-      'misc/ui/effects.fold.js' => array(),
+      'misc/ui/jquery.effects.fold.min.js' => array(),
     ),
     'dependencies' => array(
       array('system', 'effects'),
@@ -1369,9 +1432,9 @@ function system_library() {
   $libraries['effects.highlight'] = array(
     'title' => 'jQuery UI: Effects Highlight',
     'website' => 'http://jqueryui.com/demos/effect/',
-    'version' => '1.7.2',
+    'version' => '1.8',
     'js' => array(
-      'misc/ui/effects.highlight.js' => array(),
+      'misc/ui/jquery.effects.highlight.min.js' => array(),
     ),
     'dependencies' => array(
       array('system', 'effects'),
@@ -1380,9 +1443,9 @@ function system_library() {
   $libraries['effects.pulsate'] = array(
     'title' => 'jQuery UI: Effects Pulsate',
     'website' => 'http://jqueryui.com/demos/effect/',
-    'version' => '1.7.2',
+    'version' => '1.8',
     'js' => array(
-      'misc/ui/effects.pulsate.js' => array(),
+      'misc/ui/jquery.effects.pulsate.min.js' => array(),
     ),
     'dependencies' => array(
       array('system', 'effects'),
@@ -1391,9 +1454,9 @@ function system_library() {
   $libraries['effects.scale'] = array(
     'title' => 'jQuery UI: Effects Scale',
     'website' => 'http://jqueryui.com/demos/effect/',
-    'version' => '1.7.2',
+    'version' => '1.8',
     'js' => array(
-      'misc/ui/effects.scale.js' => array(),
+      'misc/ui/jquery.effects.scale.min.js' => array(),
     ),
     'dependencies' => array(
       array('system', 'effects'),
@@ -1402,9 +1465,9 @@ function system_library() {
   $libraries['effects.shake'] = array(
     'title' => 'jQuery UI: Effects Shake',
     'website' => 'http://jqueryui.com/demos/effect/',
-    'version' => '1.7.2',
+    'version' => '1.8',
     'js' => array(
-      'misc/ui/effects.shake.js' => array(),
+      'misc/ui/jquery.effects.shake.min.js' => array(),
     ),
     'dependencies' => array(
       array('system', 'effects'),
@@ -1413,9 +1476,9 @@ function system_library() {
   $libraries['effects.slide'] = array(
     'title' => 'jQuery UI: Effects Slide',
     'website' => 'http://jqueryui.com/demos/effect/',
-    'version' => '1.7.2',
+    'version' => '1.8',
     'js' => array(
-      'misc/ui/effects.slide.js' => array(),
+      'misc/ui/jquery.effects.slide.min.js' => array(),
     ),
     'dependencies' => array(
       array('system', 'effects'),
@@ -1424,9 +1487,9 @@ function system_library() {
   $libraries['effects.transfer'] = array(
     'title' => 'jQuery UI: Effects Transfer',
     'website' => 'http://jqueryui.com/demos/effect/',
-    'version' => '1.7.2',
+    'version' => '1.8',
     'js' => array(
-      'misc/ui/effects.transfer.js' => array(),
+      'misc/ui/jquery.effects.transfer.min.js' => array(),
     ),
     'dependencies' => array(
       array('system', 'effects'),
@@ -2220,6 +2283,8 @@ function _system_update_bootstrap_status() {
     $query->condition('name', $bootstrap_modules, 'NOT IN');
   }
   $query->execute();
+  // Reset the cached list of bootstrap modules.
+  system_list_reset();
 }
 
 /**
@@ -2853,7 +2918,22 @@ function system_send_email_action_submit($form, $form_state) {
 }
 
 /**
- * Implements a configurable Drupal action: sends an email.
+ * Sends an e-mail message.
+ *
+ * @param object $entity
+ *   An optional node object, which will be added as $context['node'] if
+ *   provided.
+ * @param array $context
+ *   Array with the following elements:
+ *   - 'recipient': E-mail message recipient. This will be passed through
+ *     token_replace().
+ *   - 'subject': The subject of the message. This will be passed through
+ *     token_replace().
+ *   - 'message': The message to send. This will be passed through
+ *     token_replace().
+ *   - Other elements will be used as the data for token replacement.
+ *
+ * @ingroup actions
  */
 function system_send_email_action($entity, $context) {
   if (empty($context['node'])) {
@@ -2903,7 +2983,19 @@ function system_message_action_submit($form, $form_state) {
 }
 
 /**
- * A configurable Drupal action. Sends a message to the current user's screen.
+ * Sends a message to the current user's screen.
+ *
+ * @param object $entity
+ *   An optional node object, which will be added as $context['node'] if
+ *   provided.
+ * @param array $context
+ *   Array with the following elements:
+ *   - 'message': The message to send. This will be passed through
+ *     token_replace().
+ *   - Other elements will be used as the data for token replacement in
+ *     the message.
+ *
+ * @ingroup actions
  */
 function system_message_action(&$entity, $context = array()) {
   if (empty($context['node'])) {
@@ -2915,7 +3007,7 @@ function system_message_action(&$entity, $context = array()) {
 }
 
 /**
- * Implements a configurable Drupal action: redirect user to a URL.
+ * Settings form for system_goto_action().
  */
 function system_goto_action_form($context) {
   $form['url'] = array(
@@ -2934,12 +3026,27 @@ function system_goto_action_submit($form, $form_state) {
   );
 }
 
+/**
+ * Redirects to a different URL.
+ *
+ * @param $entity
+ *   Ignored.
+ * @param array $context
+ *   Array with the following elements:
+ *   - 'url': URL to redirect to. This will be passed through
+ *     token_replace().
+ *   - Other elements will be used as the data for token replacement.
+ *
+ * @ingroup actions
+ */
 function system_goto_action($entity, $context) {
   drupal_goto(token_replace($context['url'], $context));
 }
 
 /**
- * Implements a Drupal action: blocks the user's IP address.
+ * Blocks the current user's IP address.
+ *
+ * @ingroup actions
  */
 function system_block_ip_action() {
   $ip = ip_address();
@@ -3049,32 +3156,49 @@ function system_image_toolkits() {
  *   The URL of the file to grab.
  *
  * @param $destination
- *   Where the file should be saved, if a directory is provided, file is saved
- *   in that directory with its original name.  If a filename is provided,
- *   remote file is stored to that location.  NOTE: Relative to drupal "files" directory"
+ *   Stream wrapper URI specifying where the file should be placed. If a
+ *   directory path is provided, the file is saved into that directory under
+ *   its original name. If the path contains a filename as well, that one will
+ *   be used instead.
+ *   If this value is omitted, the site's default files scheme will be used,
+ *   usually "public://".
  *
- * @param $overwrite boolean
- *   Defaults to TRUE, will overwrite existing files of the same name.
+ * @param $managed boolean
+ *   If this is set to TRUE, the file API hooks will be invoked and the file is
+ *   registered in the database.
+ *
+ * @param $replace boolean
+ *   Replace behavior when the destination file already exists:
+ *   - FILE_EXISTS_REPLACE: Replace the existing file.
+ *   - FILE_EXISTS_RENAME: Append _{incrementing number} until the filename is
+ *     unique.
+ *   - FILE_EXISTS_ERROR: Do nothing and return FALSE.
  *
  * @return
- *   On success the address the files was saved to, FALSE on failure.
+ *   On success the location the file was saved to, FALSE on failure.
  */
-function system_retrieve_file($url, $destination = NULL, $overwrite = TRUE) {
-  if (!$destination) {
-    $destination = file_directory_path('temporary');
-  }
+function system_retrieve_file($url, $destination = NULL, $managed = FALSE, $replace = FILE_EXISTS_RENAME) {
   $parsed_url = parse_url($url);
-  $local = is_dir(file_directory_path() . '/' . $destination) ? $destination . '/' . basename($parsed_url['path']) : $destination;
-
-  if (!$overwrite && file_exists($local)) {
-    drupal_set_message(t('@remote could not be saved. @local already exists', array('@remote' => $url, '@local' => $local)), 'error');
+  if (!isset($destination)) {
+    $path = file_build_uri(basename($parsed_url['path']));
+  }
+  else {
+    if (is_dir(drupal_realpath($destination))) {
+      // Prevent URIs with triple slashes when glueing parts together.
+      $path = str_replace('///', '//', "$destination/") . basename($parsed_url['path']);
+    }
+    else {
+      $path = $destination;
+    }
+  }
+  $result = drupal_http_request($url);
+  if ($result->code != 200) {
+    drupal_set_message(t('HTTP error @errorcode occured when trying to fetch @remote.', array('@errorcode' => $result->code, '@remote' => $url)), 'error');
     return FALSE;
   }
-
-  $result = drupal_http_request($url);
-  if ($result->code != 200 || !file_save_data($result->data, $local)) {
-    drupal_set_message(t('@remote could not be saved.', array('@remote' => $url)), 'error');
-    return FALSE;
+  $local = $managed ? file_save_data($result->data, $path, $replace) : file_unmanaged_save_data($result->data, $path, $replace);
+  if (!$local) {
+    drupal_set_message(t('@remote could not be saved to @path.', array('@remote' => $url, '@path' => $path)), 'error');
   }
 
   return $local;

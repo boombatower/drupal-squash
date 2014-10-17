@@ -137,6 +137,7 @@ function theme_install_page($variables) {
   template_preprocess($variables, 'install_page');
   template_preprocess_maintenance_page($variables);
   template_process($variables, 'install_page');
+  template_process_maintenance_page($variables);
 
   // Special handling of error messages
   $messages = drupal_set_message();
@@ -144,7 +145,7 @@ function theme_install_page($variables) {
     $title = count($messages['error']) > 1 ? st('The following errors must be resolved before you can continue the installation process') : st('The following error must be resolved before you can continue the installation process');
     $variables['messages'] .= '<h3>' . $title . ':</h3>';
     $variables['messages'] .= theme('status_messages', array('display' => 'error'));
-    $variables['content'] .= '<p>' . st('Check the error messages and <a href="!url">try again</a>.', array('!url' => request_uri())) . '</p>';
+    $variables['content'] .= '<p>' . st('Check the error messages and <a href="!url">try again</a>.', array('!url' => check_url(request_uri()))) . '</p>';
   }
 
   // Special handling of warning messages
@@ -197,6 +198,7 @@ function theme_update_page($variables) {
   template_preprocess($variables, 'update_page');
   template_preprocess_maintenance_page($variables);
   template_process($variables, 'update_page');
+  template_process_maintenance_page($variables);
 
   // Special handling of warning messages.
   $messages = drupal_set_message();

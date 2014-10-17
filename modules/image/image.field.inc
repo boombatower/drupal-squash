@@ -233,13 +233,6 @@ function image_field_presave($obj_type, $object, $field, $instance, $langcode, &
 }
 
 /**
- * Implements hook_field_insert().
- */
-function image_field_insert($entity_type, $entity, $field, $instance, $langcode, &$items) {
-  image_field_update($entity_type, $entity, $field, $instance, $langcode, $items);
-}
-
-/**
  * Implements hook_field_update().
  */
 function image_field_update($entity_type, $entity, $field, $instance, $langcode, &$items) {
@@ -313,6 +306,10 @@ function image_field_widget_settings_form($field, $instance) {
  * Implements hook_field_widget_form().
  */
 function image_field_widget_form(&$form, &$form_state, $field, $instance, $langcode, $items, $delta, $element) {
+
+  // Add display_field setting to field because file_field_widget_form() assumes it is set.
+  $field['settings']['display_field'] = 0;
+
   $elements = file_field_widget_form($form, $form_state, $field, $instance, $langcode, $items, $delta, $element);
   $settings = $instance['settings'];
 

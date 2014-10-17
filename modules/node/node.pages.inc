@@ -81,39 +81,6 @@ function node_form_validate($form, &$form_state) {
 }
 
 /**
- * Prepares a node object for editing.
- *
- * Fills in a few default values, and then invokes hook_prepare() on the node
- * type module, and hook_node_prepare() on all modules.
- */
-function node_object_prepare($node) {
-  // Set up default values, if required.
-  $node_options = variable_get('node_options_' . $node->type, array('status', 'promote'));
-  // If this is a new node, fill in the default values.
-  if (!isset($node->nid) || isset($node->is_new)) {
-    foreach (array('status', 'promote', 'sticky') as $key) {
-      // Multistep node forms might have filled in something already.
-      if (!isset($node->$key)) {
-        $node->$key = (int) in_array($key, $node_options);
-      }
-    }
-    global $user;
-    $node->uid = $user->uid;
-    $node->created = REQUEST_TIME;
-  }
-  else {
-    $node->date = format_date($node->created, 'custom', 'Y-m-d H:i:s O');
-    // Remove the log message from the original node object.
-    $node->log = NULL;
-  }
-  // Always use the default revision setting.
-  $node->revision = in_array('revision', $node_options);
-
-  node_invoke($node, 'prepare');
-  module_invoke_all('node_prepare', $node);
-}
-
-/**
  * Generate the node add/edit form array.
  */
 function node_form($form, &$form_state, $node) {
@@ -141,9 +108,12 @@ function node_form($form, &$form_state, $node) {
     $node->in_preview = TRUE;
   }
 
-  // Set the id and identify this as a node edit form.
-  $form['#id'] = 'node-form';
+  // Identify this as a node edit form.
   $form['#node_edit_form'] = TRUE;
+  $form['#attributes']['class'][] = 'node-form';
+  if (!empty($node->type)) {
+    $form['#attributes']['class'][] = 'node-' . $node->type . '-form';
+  }
 
   // Basic node information.
   // These elements are just values so they are not even sent to the client.
@@ -322,25 +292,6 @@ function node_form_delete_submit($form, &$form_state) {
 function node_form_build_preview($form, &$form_state) {
   $node = node_form_submit_build_node($form, $form_state);
   $form_state['node_preview'] = node_preview($node);
-}
-
-/**
- * Present a node submission form.
- *
- * @ingroup themeable
- */
-function theme_node_form($variables) {
-  $form = $variables['form'];
-
-  $output = "\n<div class=\"node-form\">\n";
-
-  $output .= "  <div class=\"standard\">\n";
-  $output .= drupal_render_children($form);
-  $output .= "  </div>\n";
-
-  $output .= "</div>\n";
-
-  return $output;
 }
 
 /**

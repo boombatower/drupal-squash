@@ -808,7 +808,7 @@ class MergeQuery extends Query {
     $select = $select->countQuery();
     $sql = (string)$select;
     $arguments = $select->getArguments();
-    $num_existing = db_query($sql, $arguments)->fetchField();
+    $num_existing = $this->connection->query($sql, $arguments)->fetchField();
 
 
     if ($num_existing) {
@@ -1332,6 +1332,7 @@ class DatabaseCondition implements QueryConditionInterface, Countable {
       'IS NOT NULL' => array('use_value' => FALSE),
       // Use backslash for escaping wildcard characters.
       'LIKE' => array('postfix' => " ESCAPE '\\\\'"),
+      'NOT LIKE' => array('postfix' => " ESCAPE '\\\\'"),
       // These ones are here for performance reasons.
       '=' => array(),
       '<' => array(),

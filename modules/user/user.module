@@ -228,7 +228,8 @@ function user_load_multiple($uids = array(), $conditions = array(), $reset = FAL
  * special handling for user objects.
  */
 class UserController extends DrupalDefaultEntityController {
-  function attachLoad(&$queried_users) {
+
+  function attachLoad(&$queried_users, $revision_id = FALSE) {
     // Build an array of user picture IDs so that these can be fetched later.
     $picture_fids = array();
     foreach ($queried_users as $key => $record) {
@@ -263,7 +264,7 @@ class UserController extends DrupalDefaultEntityController {
     }
     // Call the default attachLoad() method. This will add fields and call
     // hook_user_load().
-    parent::attachLoad($queried_users);
+    parent::attachLoad($queried_users, $revision_id);
   }
 }
 
@@ -344,7 +345,6 @@ function user_save($account, $edit = array(), $category = 'account') {
   $transaction = db_transaction();
   try {
     $table = drupal_get_schema('users');
-    $user_fields = $table['fields'];
 
     if (!empty($edit['pass'])) {
       // Allow alternate password hashing schemes.
@@ -360,43 +360,29 @@ function user_save($account, $edit = array(), $category = 'account') {
       unset($edit['pass']);
     }
 
-    // Get the fields form so we can recognize the fields in the $edit
-    // form that should not go into the serialized data array.
-    $field_form = array();
-    $field_form_state = form_state_defaults();
+    // Presave field allowing changing of $edit.
     $edit = (object) $edit;
-    field_attach_form('user', $edit, $field_form, $field_form_state);
-
-    // Presave fields.
     field_attach_presave('user', $edit);
-
     $edit = (array) $edit;
 
     if (!isset($account->is_new)) {
       $account->is_new = empty($account->uid);
     }
-
+    // Prepopulate $edit['data'] with the current value of $account->data.
+    // Modules can add to or remove from this array in hook_user_presave().
+    if (!empty($account->data)) {
+      $data = unserialize($account->data);
+      foreach ($data as $key => $value) {
+        $edit['data'][$key] = $value;
+      }
+    }
     user_module_invoke('presave', $edit, $account, $category);
 
     if (is_object($account) && !$account->is_new) {
-      $data = unserialize(db_query('SELECT data FROM {users} WHERE uid = :uid', array(':uid' => $account->uid))->fetchField());
       // Consider users edited by an administrator as logged in, if they haven't
       // already, so anonymous users can view the profile (if allowed).
       if (empty($edit['access']) && empty($account->access) && user_access('administer users')) {
         $edit['access'] = REQUEST_TIME;
-      }
-      foreach ($edit as $key => $value) {
-        // Form fields that don't pertain to the users, user_roles, or
-        // Field API are automatically serialized into the users.data
-        // column.
-        if (!in_array($key, array('roles', 'is_new')) && empty($user_fields[$key]) && empty($field_form[$key])) {
-          if ($value === NULL) {
-            unset($data[$key]);
-          }
-          else {
-            $data[$key] = $value;
-          }
-        }
       }
 
       // Process picture uploads.
@@ -420,7 +406,6 @@ function user_save($account, $edit = array(), $category = 'account') {
       }
       $edit['picture'] = empty($edit['picture']->fid) ? 0 : $edit['picture']->fid;
 
-      $edit['data'] = $data;
       // Do not allow 'uid' to be changed.
       $edit['uid'] = $account->uid;
       // Save changes to the user table.
@@ -520,27 +505,8 @@ function user_save($account, $edit = array(), $category = 'account') {
       user_module_invoke('insert', $edit, $user, $category);
       entity_invoke('insert', 'user', $user);
 
-      // Note, we wait with saving the data column to prevent module-handled
-      // fields from being saved there.
-      $data = array();
-      foreach ($edit as $key => $value) {
-        // Form fields that don't pertain to the users, user_roles, or
-        // Field API are automatically serialized into the user.data
-        // column.
-        if ((!in_array($key, array('roles', 'is_new'))) && (empty($user_fields[$key]) && empty($field_form[$key])) && ($value !== NULL)) {
-          $data[$key] = $value;
-        }
-      }
-      if (!empty($data)) {
-        $data_array = array('uid' => $user->uid, 'data' => $data);
-        drupal_write_record('users', $data_array, 'uid');
-      }
-
-      // Save user roles (delete just to be safe).
+      // Save user roles.
       if (isset($edit['roles']) && is_array($edit['roles'])) {
-        db_delete('users_roles')
-          ->condition('uid', $edit['uid'])
-          ->execute();
         $query = db_insert('users_roles')->fields(array('uid', 'rid'));
         foreach (array_keys($edit['roles']) as $rid) {
           if (!in_array($rid, array(DRUPAL_ANONYMOUS_RID, DRUPAL_AUTHENTICATED_RID))) {
@@ -855,11 +821,11 @@ function user_search_execute($keys = NULL) {
   if (user_access('administer users')) {
     // Administrators can also search in the otherwise private email field.
     $query->condition(db_or()->
-      where('LOWER(name) LIKE LOWER(:name)', array(':name' => "%$keys%"))->
-      where('LOWER(mail) LIKE LOWER(:mail)', array(':mail' => "%$keys%")));
+      condition('name', '%' . db_like($keys) . '%', 'LIKE')->
+      condition('mail', '%' . db_like($keys) . '%', 'LIKE'));
   }
   else {
-    $query->where('LOWER(name) LIKE LOWER(:name)', array(':name' => "%$keys%"));
+    $query->condition('name', '%' . db_like($keys) . '%', 'LIKE');
   }
   $result = $query
     ->limit(15)
@@ -996,10 +962,10 @@ function user_account_form(&$form, &$form_state) {
   }
 
   if ($admin) {
-    $status = (isset($account->status) ? $account->status : 1);
+    $status = isset($account->status) ? $account->status : 1;
   }
   else {
-    $status = (variable_get('user_register', 1) == 1);
+    $status = $register ? variable_get('user_register', 1) == 1 : $account->status;
   }
   $form['account']['status'] = array(
     '#type' => 'radios',
@@ -1124,7 +1090,7 @@ function user_account_form_validate($form, &$form_state) {
     if ($error = user_validate_mail($form_state['values']['mail'])) {
       form_set_error('mail', $error);
     }
-    elseif ((bool) db_query_range("SELECT 1 FROM {users} WHERE uid <> :uid AND LOWER(mail) = LOWER(:mail)", 0, 1, array(':uid' => $account->uid, ':mail' => $form_state['values']['mail']))->fetchField()) {
+    elseif ((bool) db_select('users')->fields('users', array('uid'))->condition('uid', $account->uid, '<>')->condition('mail', db_like($form_state['values']['mail']), 'LIKE')->range(0, 1)->execute()->fetchField()) {
       // Format error message dependent on whether the user is logged in or not.
       if ($GLOBALS['user']->uid) {
         form_set_error('mail', t('The e-mail address %email is already taken.', array('%email' => $form_state['values']['mail'])));
@@ -1157,13 +1123,16 @@ function user_user_presave(&$edit, $account, $category) {
     elseif (!empty($edit['picture_delete'])) {
       $edit['picture'] = NULL;
     }
-    // Remove these values so they don't end up serialized in the data field.
-    $edit['picture_upload'] = NULL;
-    $edit['picture_delete'] = NULL;
-
     // Prepare user roles.
     if (isset($edit['roles'])) {
       $edit['roles'] = array_filter($edit['roles']);
+    }
+  }
+
+  // Move account cancellation information into $user->data.
+  foreach (array('user_cancel_method', 'user_cancel_notify') as $key) {
+    if (isset($edit[$key])) {
+      $edit['data'][$key] = $edit[$key];
     }
   }
 }
@@ -1306,7 +1275,7 @@ function user_block_view($delta = '') {
         // rather than u.access because it is much faster.
         $authenticated_count = db_query("SELECT COUNT(DISTINCT s.uid) FROM {sessions} s WHERE s.timestamp >= :timestamp AND s.uid > 0", array(':timestamp' => $interval))->fetchField();
 
-        $output = format_plural($authenticated_count, 'There is currently 1 user online.', 'There are currently @count users online.');
+        $output = '<p>' . format_plural($authenticated_count, 'There is currently 1 user online.', 'There are currently @count users online.') . '</p>';
 
         // Display a list of currently online users.
         $max_users = variable_get('user_block_max_list_count', 10);
@@ -1448,11 +1417,6 @@ function user_edit_access($account) {
  */
 function user_cancel_access($account) {
   return ((($GLOBALS['user']->uid == $account->uid) && user_access('cancel account')) || user_access('administer users')) && $account->uid > 0;
-}
-
-function user_load_self($arg) {
-  $arg[1] = user_load($GLOBALS['user']->uid);
-  return $arg;
 }
 
 /**
@@ -2142,8 +2106,11 @@ function user_cancel($edit, $uid, $method) {
   );
   batch_set($batch);
 
-  // Allow modules to add further sets to this batch.
-  module_invoke_all('user_cancel', $edit, $account, $method);
+  // Modules use hook_user_delete() to respond to deletion.
+  if ($method != 'user_cancel_delete') {
+    // Allow modules to add further sets to this batch.
+    module_invoke_all('user_cancel', $edit, $account, $method);
+  }
 
   // Finish the batch and actually cancel the account.
   $batch = array(
@@ -2191,15 +2158,7 @@ function _user_cancel($edit, $account, $method) {
       if (!empty($edit['user_cancel_notify'])) {
         _user_mail_notify('status_canceled', $account);
       }
-      db_delete('users')
-        ->condition('uid', $account->uid)
-        ->execute();
-      db_delete('users_roles')
-        ->condition('uid', $account->uid)
-        ->execute();
-      db_delete('authmap')
-        ->condition('uid', $account->uid)
-        ->execute();
+      user_delete($account->uid);
       drupal_set_message(t('%name has been deleted.', array('%name' => $account->name)));
       watchdog('user', 'Deleted user: %name %email.', array('%name' => $account->name, '%email' => '<' . $account->mail . '>'), WATCHDOG_NOTICE);
       break;
@@ -2216,6 +2175,45 @@ function _user_cancel($edit, $account, $method) {
 
   // Clear the cache for anonymous users.
   cache_clear_all();
+}
+
+/**
+ * Delete a user.
+ *
+ * @param $uid
+ *   A user ID.
+ */
+function user_delete($uid) {
+  user_delete_multiple(array($uid));
+}
+
+/**
+ * Delete multiple user accounts.
+ *
+ * @param $uids
+ *   An array of user IDs.
+ */
+function user_delete_multiple(array $uids) {
+  if (!empty($uids)) {
+    $accounts = user_load_multiple($uids, array());
+
+    foreach ($accounts as $uid => $account) {
+      module_invoke_all('user_delete', $account);
+      field_attach_delete('user', $account);
+    }
+
+    db_delete('users')
+      ->condition('uid', $uids, 'IN')
+      ->execute();
+    db_delete('users_roles')
+      ->condition('uid', $uids, 'IN')
+      ->execute();
+    db_delete('authmap')
+      ->condition('uid', $uids, 'IN')
+      ->execute();
+
+    entity_get_controller('user')->resetCache();
+  }
 }
 
 /**
@@ -2406,7 +2404,7 @@ Your account at !site-name-token has been activated.
 
 You may now log in by clicking this link or copying and pasting it into your browser:
 
-!site-login-url-token
+!one-time-login-token
 
 This link can only be used once to log in and will lead you to a page where you can set your password.
 
@@ -2415,7 +2413,7 @@ After setting your password, you will be able to log in at !site-login-url-token
 username: !user-name-token
 password: Your password
 
---  !site-name-token team", array('!user-name-token' => '[user:name]', '!site-name-token' => '[site:name]',  '!site-login-url-token' => '[site:login-url]'), array('langcode' => $langcode));
+--  !site-name-token team", array('!user-name-token' => '[user:name]', '!site-name-token' => '[site:name]',  '!site-login-url-token' => '[site:login-url]', '!one-time-login-token' => '[user:one-time-login-url]'), array('langcode' => $langcode));
         break;
 
       case 'status_blocked_subject':
@@ -3097,7 +3095,7 @@ function theme_user_signature($variables) {
  */
 function user_preferred_language($account, $default = NULL) {
   $language_list = language_list();
-  if ($account->language && isset($language_list[$account->language])) {
+  if (!empty($account->language) && isset($language_list[$account->language])) {
     return $language_list[$account->language];
   }
   else {
@@ -3242,8 +3240,9 @@ function user_action_info() {
 }
 
 /**
- * Implement a Drupal action.
  * Blocks the current user.
+ *
+ * @ingroup actions
  */
 function user_block_user_action(&$entity, $context = array()) {
   if (isset($entity->uid)) {

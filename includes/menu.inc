@@ -969,7 +969,7 @@ function menu_tree_all_data($menu_name, $link = NULL, $max_depth = NULL) {
   // Use $mlid as a flag for whether the data being loaded is for the whole tree.
   $mlid = isset($link['mlid']) ? $link['mlid'] : 0;
   // Generate a cache ID (cid) specific for this $menu_name, $link, $language, and depth.
-  $cid = 'links:' . $menu_name . ':all-cid:' . $mlid . ':' . $GLOBALS['language_interface']->language . ':' . (int)$max_depth;
+  $cid = 'links:' . $menu_name . ':all-cid:' . $mlid . ':' . $GLOBALS['language']->language . ':' . (int)$max_depth;
 
   if (!isset($tree[$cid])) {
     // If the static variable doesn't have the data, check {cache_menu}.
@@ -1081,7 +1081,7 @@ function menu_tree_page_data($menu_name, $max_depth = NULL) {
       $max_depth = min($max_depth, MENU_MAX_DEPTH);
     }
     // Generate a cache ID (cid) specific for this page.
-    $cid = 'links:' . $menu_name . ':page-cid:' . $item['href'] . ':' . $GLOBALS['language_interface']->language . ':' . (int)$item['access'] . ':' . (int)$max_depth;
+    $cid = 'links:' . $menu_name . ':page-cid:' . $item['href'] . ':' . $GLOBALS['language']->language . ':' . (int)$item['access'] . ':' . (int)$max_depth;
 
     if (!isset($tree[$cid])) {
       // If the static variable doesn't have the data, check {cache_menu}.
@@ -1229,7 +1229,7 @@ function menu_tree_page_data($menu_name, $max_depth = NULL) {
  * Helper function - compute the real cache ID for menu tree data.
  */
 function _menu_tree_cid($menu_name, $data) {
-  return 'links:' . $menu_name . ':tree-data:' . $GLOBALS['language_interface']->language . ':' . md5(serialize($data));
+  return 'links:' . $menu_name . ':tree-data:' . $GLOBALS['language']->language . ':' . md5(serialize($data));
 }
 
 /**
@@ -1704,10 +1704,12 @@ function menu_local_tasks($level = 0) {
       $tasks[$item['path']] = $item;
     }
     // Find all tabs below the current path.
-    $path = $router_item['path'];
+    $path = ($router_item['type'] == MENU_DEFAULT_LOCAL_TASK ? $router_item['tab_parent'] : $router_item['path']);
     // Tab parenting may skip levels, so the number of parts in the path may not
     // equal the depth. Thus we use the $depth counter (offset by 1000 for ksort).
     $depth = 1001;
+    $actions['count'] = 0;
+    $actions['output'] = array();
     while (isset($children[$path])) {
       $tabs_current = array();
       $actions_current = array();
@@ -1752,8 +1754,8 @@ function menu_local_tasks($level = 0) {
       $path = $next_path;
       $tabs[$depth]['count'] = $tab_count;
       $tabs[$depth]['output'] = $tabs_current;
-      $actions['count'] = $action_count;
-      $actions['output'] = $actions_current;
+      $actions['count'] += $action_count;
+      $actions['output'] = array_merge($actions['output'], $actions_current);
       $depth++;
     }
     $data['actions'] = $actions;

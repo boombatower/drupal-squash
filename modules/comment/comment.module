@@ -116,7 +116,7 @@ function comment_entity_info() {
 
   foreach (node_type_get_names() as $type => $name) {
     $return['comment']['bundles']['comment_node_' . $type] = array(
-      'label' => $name,
+      'label' => t('@node_type comment', array('@node_type' => $name)),
       'admin' => array(
         // Place the Field UI paths for comments one level below the
         // corresponding paths for nodes, so that they appear in the same set
@@ -233,45 +233,44 @@ function comment_menu() {
     'access arguments' => array('administer comments'),
     'type' => MENU_LOCAL_TASK,
   );
-  $items['comment/%comment'] = array(
+  $items['comment/%'] = array(
     'title' => 'Comment permalink',
     'page callback' => 'comment_permalink',
     'page arguments' => array(1),
     'access arguments' => array('access comments'),
     'type' => MENU_CALLBACK,
   );
-  $items['comment/%comment/view'] = array(
+  $items['comment/%/view'] = array(
     'title' => 'View comment',
     'type' => MENU_DEFAULT_LOCAL_TASK,
     'weight' => -10,
   );
+  // Every other comment path uses %, but this one loads the comment directly,
+  // so we don't end up loading it twice (in the page and access callback).
   $items['comment/%comment/edit'] = array(
     'title' => 'Edit',
-    'page callback' => 'drupal_get_form',
-    'page arguments' => array('comment_form', 1),
+    'page callback' => 'comment_edit_page',
+    'page arguments' => array(1),
     'access callback' => 'comment_access',
     'access arguments' => array('edit', 1),
     'type' => MENU_LOCAL_TASK,
-    'context' => MENU_CONTEXT_PAGE | MENU_CONTEXT_INLINE,
     'weight' => 0,
   );
-  $items['comment/%comment/approve'] = array(
+  $items['comment/%/approve'] = array(
     'title' => 'Approve',
     'page callback' => 'comment_approve',
     'page arguments' => array(1),
     'access arguments' => array('administer comments'),
-    'type' => MENU_LOCAL_TASK,
-    'context' => MENU_CONTEXT_INLINE,
+    'type' => MENU_CALLBACK,
     'file' => 'comment.pages.inc',
     'weight' => 1,
   );
-  $items['comment/%comment/delete'] = array(
+  $items['comment/%/delete'] = array(
     'title' => 'Delete',
-    'page callback' => 'drupal_get_form',
-    'page arguments' => array('comment_confirm_delete', 1),
+    'page callback' => 'comment_confirm_delete_page',
+    'page arguments' => array(1),
     'access arguments' => array('administer comments'),
     'type' => MENU_LOCAL_TASK,
-    'context' => MENU_CONTEXT_PAGE | MENU_CONTEXT_INLINE,
     'file' => 'comment.admin.inc',
     'weight' => 2,
   );
@@ -437,14 +436,13 @@ function comment_block_view($delta = '') {
  * calculates the page number based on current comment settings and returns
  * the full comment view with the pager set dynamically.
  *
- * @param $comment
- *   A comment object.
+ * @param $cid
+ *   A comment identifier.
  * @return
  *   The comment listing set to the page on which the comment appears.
  */
-function comment_permalink($comment) {
-  $node = node_load($comment->nid);
-  if ($node && $comment) {
+function comment_permalink($cid) {
+  if (($comment = comment_load($cid)) && ($node = node_load($comment->nid))) {
 
     // Find the current display page for this comment.
     $page = comment_get_display_page($comment->cid, $node->type);
@@ -591,7 +589,9 @@ function comment_node_view($node, $view_mode) {
       }
     }
     elseif ($view_mode == 'teaser') {
-      // Main page: display the number of comments that have been posted.
+      // Teaser view: display the number of comments that have been posted,
+      // or a link to add new comments if the user has permission, the node
+      // is open to new comments, and there currently are none.
       if (user_access('access comments')) {
         if (!empty($node->comment_count)) {
           $links['comment_comments'] = array(
@@ -632,9 +632,11 @@ function comment_node_view($node, $view_mode) {
         }
       }
     }
-    else {
-      // Node page: add a "post comment" link if the user is allowed to post
-      // comments and if this node is not read-only.
+    elseif ($view_mode != 'search_index') {
+      // Node in other view modes: add a "post comment" link if the user is
+      // allowed to post comments and if this node is allowing new comments.
+      // But we don't want this link if we're building the node for search
+      // indexing.
       if ($node->comment == COMMENT_NODE_OPEN) {
         if (user_access('post comments')) {
           $links['comment_add'] = array(
@@ -1310,13 +1312,15 @@ function comment_user_cancel($edit, $account, $method) {
         ->condition('last_comment_uid', $account->uid)
         ->execute();
       break;
-
-    case 'user_cancel_delete':
-      module_load_include('inc', 'comment', 'comment.admin');
-      $cids = db_query('SELECT c.cid FROM {comment} c WHERE uid = :uid', array(':uid' => $account->uid))->fetchCol();
-      comment_delete_multiple($cids);
-      break;
   }
+}
+
+/**
+ * Implements hook_user_delete().
+ */
+function comment_user_delete($account) {
+  $cids = db_query('SELECT c.cid FROM {comment} c WHERE uid = :uid', array(':uid' => $account->uid))->fetchCol();
+  comment_delete_multiple($cids);
 }
 
 /**
@@ -1533,39 +1537,6 @@ function comment_delete_multiple($cids) {
 }
 
 /**
- * Comment operations. Offer different update operations depending on
- * which comment administration page is being viewed.
- *
- * @param $action
- *   The comment administration page.
- * @return
- *   An associative array containing the offered operations.
- */
-function comment_operations($action = NULL) {
-  if ($action == 'publish') {
-    $operations = array(
-      'publish' => array(t('Publish the selected comments'), db_update('comment')->fields(array('status' => COMMENT_PUBLISHED))),
-      'delete' => array(t('Delete the selected comments'), ''),
-    );
-  }
-  elseif ($action == 'unpublish') {
-    $operations = array(
-      'unpublish' => array(t('Unpublish the selected comments'), db_update('comment')->fields(array('status' => COMMENT_NOT_PUBLISHED))),
-      'delete' => array(t('Delete the selected comments'), ''),
-    );
-  }
-  else {
-    $operations = array(
-      'publish' => array(t('Publish the selected comments'), db_update('comment')->fields(array('status' => COMMENT_PUBLISHED))),
-      'unpublish' => array(t('Unpublish the selected comments'), db_update('comment')->fields(array('status' => COMMENT_NOT_PUBLISHED))),
-      'delete' => array(t('Delete the selected comments'), ''),
-    );
-  }
-
-  return $operations;
-}
-
-/**
  * Load comments from the database.
  *
  * @param $cids
@@ -1600,17 +1571,19 @@ function comment_load($cid) {
  * special handling for comment objects.
  */
 class CommentController extends DrupalDefaultEntityController {
-  protected function buildQuery() {
-    parent::buildQuery();
+
+  protected function buildQuery($ids, $conditions = array(), $revision_id = FALSE) {
+    $query = parent::buildQuery($ids, $conditions, $revision_id);
     // Specify additional fields from the user and node tables.
-    $this->query->innerJoin('node', 'n', 'base.nid = n.nid');
-    $this->query->addField('n', 'type', 'node_type');
-    $this->query->innerJoin('users', 'u', 'base.uid = u.uid');
-    $this->query->addField('u', 'name', 'registered_name');
-    $this->query->fields('u', array('uid', 'signature', 'picture', 'data'));
+    $query->innerJoin('node', 'n', 'base.nid = n.nid');
+    $query->addField('n', 'type', 'node_type');
+    $query->innerJoin('users', 'u', 'base.uid = u.uid');
+    $query->addField('u', 'name', 'registered_name');
+    $query->fields('u', array('uid', 'signature', 'picture', 'data'));
+    return $query;
   }
 
-  protected function attachLoad(&$comments) {
+  protected function attachLoad(&$comments, $revision_id = FALSE) {
     // Setup standard comment properties.
     foreach ($comments as $key => $comment) {
       $comment = drupal_unpack($comment);
@@ -1619,7 +1592,7 @@ class CommentController extends DrupalDefaultEntityController {
       $comment->node_type = 'comment_node_' . $comment->node_type;
       $comments[$key] = $comment;
     }
-    parent::attachLoad($comments);
+    parent::attachLoad($comments, $revision_id);
   }
 }
 
@@ -1715,6 +1688,14 @@ function comment_get_display_page($cid, $node_type) {
   $ordinal = comment_get_display_ordinal($cid, $node_type);
   $comments_per_page = variable_get('comment_default_per_page_' . $node_type, 50);
   return floor($ordinal / $comments_per_page);
+}
+
+/**
+ * Page callback for comment editing.
+ */
+function comment_edit_page($comment) {
+  drupal_set_title(t('Edit comment %comment', array('%comment' => $comment->subject)), PASS_THROUGH);
+  return drupal_get_form('comment_form', $comment);
 }
 
 /**
@@ -2072,7 +2053,6 @@ function comment_submit($comment) {
     // 1) Filter it into HTML
     // 2) Strip out all HTML tags
     // 3) Convert entities back to plain-text.
-
     $comment['subject'] = truncate_utf8(trim(decode_entities(strip_tags(check_markup($comment['comment_body'][LANGUAGE_NONE][0]['value'], $comment['comment_body'][LANGUAGE_NONE][0]['format'])))), 29, TRUE);
     // Edge cases where the comment body is populated only by HTML tags will
     // require a default subject.
@@ -2354,8 +2334,6 @@ function vancode2int($c = '00') {
 
 /**
  * Implements hook_action_info().
- *
- * @ingroup actions
  */
 function comment_action_info() {
   return array(
@@ -2390,12 +2368,13 @@ function comment_action_info() {
 }
 
 /**
- * Action to publish a comment.
+ * Publishes a comment.
  *
  * @param $comment
  *   An optional comment object.
- * @param $context
- *   Keyed array. Must contain the id of the comment if $comment is not passed.
+ * @param array $context
+ *   Array with components:
+ *   - 'cid': Comment ID. Required if $comment is not given.
  *
  * @ingroup actions
  */
@@ -2416,12 +2395,13 @@ function comment_publish_action($comment, $context = array()) {
 }
 
 /**
- * Action to unpublish a comment.
+ * Unpublishes a comment.
  *
  * @param $comment
  *   An optional comment object.
- * @param $context
- *   Keyed array. Must contain the id of the comment if $comment is not passed.
+ * @param array $context
+ *   Array with components:
+ *   - 'cid': Comment ID. Required if $comment is not given.
  *
  * @ingroup actions
  */
@@ -2442,12 +2422,14 @@ function comment_unpublish_action($comment, $context = array()) {
 }
 
 /**
- * Action to unpublish a comment if it contains a certain string.
+ * Unpublishes a comment if it contains certain keywords.
  *
  * @param $comment
- *   A comment object.
- * @param $context
- *   Keyed array. Must contain the id of the comment if $comment is not passed.
+ *   Comment object to modify.
+ * @param array $context
+ *   Array with components:
+ *   - 'keywords': Keywords to look for. If the comment contains at least one
+ *     of the keywords, it is unpublished.
  *
  * @ingroup actions
  * @see comment_unpublish_by_keyword_action_form()
@@ -2492,7 +2474,9 @@ function comment_unpublish_by_keyword_action_submit($form, $form_state) {
 }
 
 /**
- * Action to save a comment.
+ * Saves a comment.
+ *
+ * @ingroup actions
  */
 function comment_save_action($comment) {
   comment_save($comment);

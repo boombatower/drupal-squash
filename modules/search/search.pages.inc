@@ -122,7 +122,7 @@ function template_preprocess_search_result(&$variables) {
  * value for the basic search form.
  */
 function search_form_validate($form, &$form_state) {
-  form_set_value($form['basic']['inline']['processed_keys'], trim($form_state['values']['keys']), $form_state);
+  form_set_value($form['basic']['processed_keys'], trim($form_state['values']['keys']), $form_state);
 }
 
 /**
@@ -136,6 +136,6 @@ function search_form_submit($form, &$form_state) {
   }
 
   $type = $form_state['values']['module'] ? $form_state['values']['module'] : 'node';
-  $form_state['redirect'] = 'search/' . $type . '/' . $keys;
+  $form_state['redirect'] = $form_state['action'] . '/' . $keys;
   return;
 }

@@ -250,8 +250,8 @@ function drupal_get_breadcrumb() {
 }
 
 /**
- * Return a string containing RDF namespaces for the <html> tag of an XHTML
- * page.
+ * Return a string containing RDF namespace declarations for use in XML and
+ * XHTML output.
  */
 function drupal_get_rdf_namespaces() {
   // Serialize the RDF namespaces used in RDFa annotation.
@@ -337,13 +337,6 @@ function drupal_get_html_head() {
   $elements = drupal_add_html_head();
   drupal_alter('html_head', $elements);
   return drupal_render($elements);
-}
-
-/**
- * Reset the static variable which holds the aliases mapped for this request.
- */
-function drupal_clear_path_cache() {
-  drupal_lookup_path('wipe');
 }
 
 /**
@@ -1928,8 +1921,10 @@ function format_username($account) {
  *   - 'alias': Defaults to FALSE. Whether the given path is a URL alias
  *     already.
  *   - 'external': Whether the given path is an external URL.
- *   - 'language': An optional language object. Used to build the URL to link
- *     to and look up the proper alias for the link.
+ *   - 'language': An optional language object. If the path being linked to is
+ *     internal to the site, $options['language'] is used to look up the alias
+ *     for the URL. If $options['language'] is omitted, the global $language
+ *     will be used.
  *   - 'https': Whether this URL should point to a secure location. If not
  *     defined, the current scheme is used, so the user stays on http or https
  *     respectively. TRUE enforces HTTPS and FALSE enforces HTTP, but HTTPS can
@@ -2154,24 +2149,27 @@ function drupal_attributes(array $attributes = array()) {
  *       used as is.
  * @param $options
  *   An associative array of additional options, with the following keys:
- *     - 'attributes'
- *       An associative array of HTML attributes to apply to the anchor tag.
- *     - 'query'
- *       A query string to append to the link, or an array of query key/value
- *       properties.
- *     - 'fragment'
- *       A fragment identifier (named anchor) to append to the link.
+ *     - attributes: An associative array of HTML attributes to apply to the
+ *       anchor tag.
+ *     - query: A query string to append to the link, or an array of query
+ *       key/value properties.
+ *     - fragment: A fragment identifier (named anchor) to append to the link.
  *       Do not include the '#' character.
- *     - 'absolute' (default FALSE)
- *       Whether to force the output to be an absolute link (beginning with
- *       http:). Useful for links that will be displayed outside the site, such
- *       as in an RSS feed.
- *     - 'html' (default FALSE)
- *       Whether $text is HTML, or just plain-text. For example for making
- *       an image a link, this must be set to TRUE, or else you will see the
- *       escaped HTML.
- *     - 'alias' (default FALSE)
- *       Whether the given path is an alias already.
+ *     - absolute: (default FALSE) Whether to force the output to be an absolute
+ *       link (beginning with http:). Useful for links that will be displayed
+ *       outside the site, such as in an RSS feed.
+ *     - html: (default FALSE) Whether $text is HTML, or just plain-text. For
+ *       example for making an image a link, this must be set to TRUE, or else
+ *       you will see the escaped HTML.
+ *     - alias: (default FALSE) Whether the given path is an alias already.
+ *     - language: An optional language object. If the path being linked to is
+ *       internal to the site, $options['language'] is used to look up the alias
+ *       for the URL, and to determine whether the link is "active", or pointing
+ *       to the current page (the language as well as the path must match). If
+ *       $options['language'] is omitted, the language defined by the current
+ *       page's URL will be used; this depends on the site's language
+ *       negotiation settings (sub-domain or URL prefix).
+ *
  * @return
  *   an HTML string containing a link to the given path.
  */
@@ -2339,7 +2337,7 @@ function drupal_deliver_html_page($page_callback_result) {
     switch ($page_callback_result) {
       case MENU_NOT_FOUND:
         // Print a 404 page.
-        drupal_add_http_header('404 Not Found');
+        drupal_add_http_header('Status', '404 Not Found');
 
         watchdog('page not found', check_plain($_GET['q']), NULL, WATCHDOG_WARNING);
 
@@ -2369,7 +2367,7 @@ function drupal_deliver_html_page($page_callback_result) {
 
       case MENU_ACCESS_DENIED:
         // Print a 403 page.
-        drupal_add_http_header('403 Forbidden');
+        drupal_add_http_header('Status', '403 Forbidden');
         watchdog('access denied', check_plain($_GET['q']), NULL, WATCHDOG_WARNING);
 
         // Keep old path for reference, and to allow forms to redirect to it.
@@ -2397,7 +2395,7 @@ function drupal_deliver_html_page($page_callback_result) {
       case MENU_SITE_OFFLINE:
         // Print a 503 page.
         drupal_maintenance_theme();
-        drupal_add_http_header('503 Service unavailable');
+        drupal_add_http_header('Status', '503 Service unavailable');
         drupal_set_title(t('Site under maintenance'));
         print theme('maintenance_page', array('content' => filter_xss_admin(variable_get('maintenance_mode_message',
           t('@site is currently under maintenance. We should be back shortly. Thank you for your patience.', array('@site' => variable_get('site_name', 'Drupal')))))));
@@ -2651,6 +2649,9 @@ function drupal_add_html_head_link($attributes, $header = FALSE) {
  *   - 'preprocess': If TRUE, Allows the CSS to be aggregated and compressed if
  *     the Optimize CSS feature has been turned on under the performance
  *     section.  Defaults to TRUE.
+ *   - 'browsers': An array containing information specifying which browsers
+ *     should load the CSS item. See drupal_pre_render_conditional_comments()
+ *     for details.
  *
  * @return
  *   An array of queued cascading stylesheets.
@@ -2677,6 +2678,11 @@ function drupal_add_css($data = NULL, $options = NULL) {
       'media' => 'all',
       'preprocess' => TRUE,
       'data' => $data,
+      'browsers' => array(),
+    );
+    $options['browsers'] += array(
+      'IE' => TRUE,
+      '!IE' => TRUE,
     );
 
     // Always add a tiny value to the weight, to conserve the insertion order.
@@ -2722,25 +2728,14 @@ function drupal_add_css($data = NULL, $options = NULL) {
  *   A string of XHTML CSS tags.
  */
 function drupal_get_css($css = NULL) {
-  $output = '';
   if (!isset($css)) {
     $css = drupal_add_css();
   }
 
-  $preprocess_css = (variable_get('preprocess_css', FALSE) && (!defined('MAINTENANCE_MODE') || MAINTENANCE_MODE != 'update'));
-  $directory = file_directory_path('public');
-  $is_writable = is_dir($directory) && is_writable($directory);
-
-  // A dummy query-string is added to filenames, to gain control over
-  // browser-caching. The string changes on every update or full cache
-  // flush, forcing browsers to load a new copy of the files, as the
-  // URL changed.
-  $query_string = '?' . substr(variable_get('css_js_query_string', '0'), 0, 1);
-
-  // Allow modules to alter the css items.
+  // Allow modules to alter the CSS items.
   drupal_alter('css', $css);
 
-  // Sort css items according to their weights.
+  // Sort CSS items according to their weights.
   uasort($css, 'drupal_sort_weight');
 
   // Remove the overridden CSS files. Later CSS files override former ones.
@@ -2756,75 +2751,347 @@ function drupal_get_css($css = NULL) {
     }
   }
 
-  // If CSS preprocessing is off, we still need to output the styles.
-  // Additionally, go through any remaining styles if CSS preprocessing is on
-  // and output the non-cached ones.
-  $css_element = array(
+  // Render the HTML needed to load the CSS.
+  $styles = array(
+    '#type' => 'styles',
+    '#items' => $css,
+  );
+  return drupal_render($styles);
+}
+
+/**
+ * Default callback to group CSS items.
+ *
+ * This function arranges the CSS items that are in the #items property of the
+ * styles element into groups. Arranging the CSS items into groups serves two
+ * purposes. When aggregation is enabled, files within a group are aggregated
+ * into a single file, significantly improving page loading performance by
+ * minimizing network traffic overhead. When aggregation is disabled, grouping
+ * allows multiple files to be loaded from a single STYLE tag, enabling sites
+ * with many modules enabled or a complex theme being used to stay within IE's
+ * 31 CSS inclusion tag limit: http://drupal.org/node/228818.
+ *
+ * This function puts multiple items into the same group if they are groupable
+ * and if they are for the same 'media' and 'browsers'. Items of the 'file' type
+ * are groupable if their 'preprocess' flag is TRUE, items of the 'inline' type
+ * are always groupable, and items of the 'external' type are never groupable.
+ * This function also ensures that the process of grouping items does not change
+ * their relative order. This requirement may result in multiple groups for the
+ * same type, media, and browsers, if needed to accomodate other items in
+ * between.
+ *
+ * @param $css
+ *   An array of CSS items, as returned by drupal_add_css(), but after
+ *   alteration performed by drupal_get_css().
+ *
+ * @return
+ *   An array of CSS groups. Each group contains the same keys (e.g., 'media',
+ *   'data', etc.) as a CSS item from the $css parameter, with the value of
+ *   each key applying to the group as a whole. Each group also contains an
+ *   'items' key, which is the subset of items from $css that are in the group.
+ *
+ * @see drupal_pre_render_styles()
+ */
+function drupal_group_css($css) {
+  $groups = array();
+  // If a group can contain multiple items, we track the information that must
+  // be the same for each item in the group, so that when we iterate the next
+  // item, we can determine if it can be put into the current group, or if a
+  // new group needs to be made for it.
+  $current_group_keys = NULL;
+  // When creating a new group, we pre-increment $i, so by initializing it to
+  // -1, the first group will have index 0.
+  $i = -1;
+  foreach ($css as $item) {
+    // The browsers for which the CSS item needs to be loaded is part of the
+    // information that determines when a new group is needed, but the order of
+    // keys in the array doesn't matter, and we don't want a new group if all
+    // that's different is that order.
+    ksort($item['browsers']);
+
+    // If the item can be grouped with other items, set $group_keys to an array
+    // of information that must be the same for all items in its group. If the
+    // item can't be grouped with other items, set $group_keys to FALSE. We
+    // put items into a group that can be aggregated together: whether they will
+    // be aggregated is up to the _drupal_css_aggregate() function or an
+    // override of that function specified in hook_css_alter(), but regardless
+    // of the details of that function, a group represents items that can be
+    // aggregated. Since a group may be rendered with a single HTML tag, all
+    // items in the group must share the same information that would need to be
+    // part of that HTML tag.
+    switch ($item['type']) {
+      case 'file':
+        // Group file items if their 'preprocess' flag is TRUE.
+        $group_keys = $item['preprocess'] ? array($item['type'], $item['media'], $item['browsers']) : FALSE;
+        break;
+      case 'inline':
+        // Always group inline items.
+        $group_keys = array($item['type'], $item['media'], $item['browsers']);
+        break;
+      case 'external':
+        // Do not group external items.
+        $group_keys = FALSE;
+        break;
+    }
+
+    // If the group keys don't match the most recent group we're working with,
+    // then a new group must be made.
+    if ($group_keys !== $current_group_keys) {
+      $i++;
+      // Initialize the new group with the same properties as the first item
+      // being placed into it. The item's 'data' and 'weight' properties are
+      // unique to the item and should not be carried over to the group.
+      $groups[$i] = $item;
+      unset($groups[$i]['data'], $groups[$i]['weight']);
+      $groups[$i]['items'] = array();
+      $current_group_keys = $group_keys ? $group_keys : NULL;
+    }
+
+    // Add the item to the current group.
+    $groups[$i]['items'][] = $item;
+  }
+  return $groups;
+}
+
+/**
+ * Default callback to aggregate CSS files and inline content.
+ *
+ * Having the browser load fewer CSS files results in much faster page loads
+ * than when it loads many small files. This function aggregates files within
+ * the same group into a single file unless the site-wide setting to do so is
+ * disabled (commonly the case during site development). To optimize download,
+ * it also compresses the aggregate files by removing comments, whitespace, and
+ * other unnecessary content. Additionally, this functions aggregates inline
+ * content together, regardless of the site-wide aggregation setting.
+ *
+ * @param $css_groups
+ *   An array of CSS groups as returned by drupal_group_css(). This function
+ *   modifies the group's 'data' property for each group that is aggregated.
+ *
+ * @see drupal_group_css()
+ * @see drupal_pre_render_styles()
+ */
+function drupal_aggregate_css(&$css_groups) {
+  $preprocess_css = (variable_get('preprocess_css', FALSE) && (!defined('MAINTENANCE_MODE') || MAINTENANCE_MODE != 'update'));
+  $directory = file_directory_path('public');
+  $is_writable = is_dir($directory) && is_writable($directory);
+
+  // For each group that needs aggregation, aggregate its items.
+  foreach ($css_groups as $key => $group) {
+    switch ($group['type']) {
+      // If a file group can be aggregated into a single file, do so, and set
+      // the group's data property to the file path of the aggregate file.
+      case 'file':
+        if ($group['preprocess'] && $preprocess_css && $is_writable) {
+          // Prefix filename to prevent blocking by firewalls which reject files
+          // starting with "ad*".
+          $filename = 'css_' . md5(serialize($group['items'])) . '.css';
+          $css_groups[$key]['data'] = drupal_build_css_cache($group['items'], $filename);
+        }
+        break;
+      // Aggregate all inline CSS content into the group's data property.
+      case 'inline':
+        $css_groups[$key]['data'] = '';
+        foreach ($group['items'] as $item) {
+          $css_groups[$key]['data'] .= drupal_load_stylesheet_content($item['data'], $item['preprocess']);
+        }
+        break;
+    }
+  }
+}
+
+/**
+ * #pre_render callback to add the elements needed for CSS tags to be rendered.
+ *
+ * For production websites, LINK tags are preferable to STYLE tags with @import
+ * statements, because:
+ * - They are the standard tag intended for linking to a resource.
+ * - On Firefox 2 and perhaps other browsers, CSS files included with @import
+ *   statements don't get saved when saving the complete web page for offline
+ *   use: http://drupal.org/node/145218.
+ * - On IE, if only LINK tags and no @import statements are used, all the CSS
+ *   files are downloaded in parallel, resulting in faster page load, but if
+ *   @import statements are used and span across multiple STYLE tags, all the
+ *   ones from one STYLE tag must be downloaded before downloading begins for
+ *   the next STYLE tag. Furthermore, IE7 does not support media declaration on
+ *   the @import statement, so multiple STYLE tags must be used when different
+ *   files are for different media types. Non-IE browsers always download in
+ *   parallel, so this is an IE-specific performance quirk:
+ *   http://www.stevesouders.com/blog/2009/04/09/dont-use-import/.
+ *
+ * However, IE has an annoying limit of 31 total CSS inclusion tags
+ * (http://drupal.org/node/228818) and LINK tags are limited to one file per
+ * tag, whereas STYLE tags can contain multiple @import statements allowing
+ * multiple files to be loaded per tag. When CSS aggregation is disabled, a
+ * Drupal site can easily have more than 31 CSS files that need to be loaded, so
+ * using LINK tags exclusively would result in a site that would display
+ * incorrectly in IE. Depending on different needs, different strategies can be
+ * employed to decide when to use LINK tags and when to use STYLE tags.
+ *
+ * The strategy employed by this function is to use LINK tags for all aggregate
+ * files and for all files that cannot be aggregated (e.g., if 'preprocess' is
+ * set to FALSE or the type is 'external'), and to use STYLE tags for groups
+ * of files that could be aggregated together but aren't (e.g., if the site-wide
+ * aggregation setting is disabled). This results in all LINK tags when
+ * aggregation is enabled, a guarantee that as many or only slightly more tags
+ * are used with aggregation disabled than enabled (so that if the limit were to
+ * be crossed with aggregation enabled, the site developer would also notice the
+ * problem while aggregation is disabled), and an easy way for a developer to
+ * view HTML source while aggregation is disabled and know what files will be
+ * aggregated together when aggregation becomes enabled.
+ *
+ * This function evaluates the aggregation enabled/disabled condition on a group
+ * by group basis by testing whether an aggregate file has been made for the
+ * group rather than by testing the site-wide aggregation setting. This allows
+ * this function to work correctly even if modules have implemented custom
+ * logic for grouping and aggregating files.
+ *
+ * @param $element
+ *   A render array containing:
+ *   - '#items': The CSS items as returned by drupal_add_css() and altered by
+ *     drupal_get_css().
+ *   - '#group_callback': A function to call to group #items to enable the use
+ *     of fewer tags by aggregating files and/or using multiple @import
+ *     statements within a single tag.
+ *   - '#aggregate_callback': A function to call to aggregate the items within
+ *     the groups arranged by the #group_callback function.
+ *
+ * @return
+ *   A render array that will render to a string of XHTML CSS tags.
+ *
+ * @see drupal_get_css()
+ */
+function drupal_pre_render_styles($elements) {
+  // Group and aggregate the items.
+  if (isset($elements['#group_callback'])) {
+    $elements['#groups'] = $elements['#group_callback']($elements['#items']);
+  }
+  if (isset($elements['#aggregate_callback'])) {
+    $elements['#aggregate_callback']($elements['#groups']);
+  }
+
+  // A dummy query-string is added to filenames, to gain control over
+  // browser-caching. The string changes on every update or full cache
+  // flush, forcing browsers to load a new copy of the files, as the
+  // URL changed.
+  $query_string = substr(variable_get('css_js_query_string', '0'), 0, 2);
+
+  // Defaults for LINK and STYLE elements.
+  $link_element_defaults = array(
+    '#type' => 'html_tag',
     '#tag' => 'link',
     '#attributes' => array(
       'type' => 'text/css',
       'rel' => 'stylesheet',
     ),
   );
-  $rendered_css = array();
-  $inline_css = '';
-  $external_css = '';
-  $preprocess_items = array();
-  foreach ($css as $data => $item) {
-    // Loop through each of the stylesheets, including them appropriately based
-    // on their type.
-    switch ($item['type']) {
+  $style_element_defaults = array(
+    '#type' => 'html_tag',
+    '#tag' => 'style',
+    '#attributes' => array(
+      'type' => 'text/css',
+    ),
+  );
+
+  // Loop through each group.
+  foreach ($elements['#groups'] as $group) {
+    switch ($group['type']) {
+      // For file items, there are three possibilites.
+      // - The group has been aggregated: in this case, output a LINK tag for
+      //   the aggregate file.
+      // - The group can be aggregated but has not been (most likely because
+      //   the site administrator disabled the site-wide setting): in this case,
+      //   output as few STYLE tags for the group as possible, using @import
+      //   statement for each file in the group. This enables us to stay within
+      //   IE's limit of 31 total CSS inclusion tags.
+      // - The group contains items not eligible for aggregation (their
+      //   'preprocess' flag has been set to FALSE): in this case, output a LINK
+      //   tag for each file.
       case 'file':
-        // Depending on whether aggregation is desired, include the file.
-        if (!$item['preprocess'] || !($is_writable && $preprocess_css)) {
-          $element = $css_element;
-          $element['#attributes']['media'] = $item['media'];
-          $element['#attributes']['href'] = file_create_url($item['data']) . $query_string;
-          $rendered_css[] = theme('html_tag', array('element' => $element));
+        // The group has been aggregated into a single file: output a LINK tag
+        // for the aggregate file.
+        if (isset($group['data'])) {
+          $element = $link_element_defaults;
+          $element['#attributes']['href'] = file_create_url($group['data']) . '?' . $query_string;
+          $element['#attributes']['media'] = $group['media'];
+          $element['#browsers'] = $group['browsers'];
+          $elements[] = $element;
+        }
+        // The group can be aggregated, but hasn't been: combine multiple items
+        // into as few STYLE tags as possible.
+        elseif ($group['preprocess']) {
+          $import = array();
+          foreach ($group['items'] as $item) {
+            // The dummy query string needs to be added to the URL to control
+            // browser-caching. IE7 does not support a media type on the @import
+            // statement, so we instead specify the media for the group on the
+            // STYLE tag.
+            $query_string_separator = (strpos($item['data'], '?') !== FALSE) ? '&' : '?';
+            $import[] = '@import url("' . check_plain(file_create_url($item['data']) . $query_string_separator . $query_string) . '");';
+          }
+          // In addition to IE's limit of 31 total CSS inclusion tags, it also
+          // has a limit of 31 @import statements per STYLE tag.
+          while (!empty($import)) {
+            $import_batch = array_slice($import, 0, 31);
+            $import = array_slice($import, 31);
+            $element = $style_element_defaults;
+            $element['#value'] = implode("\n", $import_batch);
+            $element['#attributes']['media'] = $group['media'];
+            $element['#browsers'] = $group['browsers'];
+            $elements[] = $element;
+          }
+        }
+        // The group contains items ineligible for aggregation: output a LINK
+        // tag for each file.
+        else {
+          foreach ($group['items'] as $item) {
+            $element = $link_element_defaults;
+            // The dummy query string needs to be added to the URL to control
+            // browser-caching.
+            $query_string_separator = (strpos($item['data'], '?') !== FALSE) ? '&' : '?';
+            $element['#attributes']['href'] = file_create_url($item['data']) . $query_string_separator . $query_string;
+            $element['#attributes']['media'] = $item['media'];
+            $element['#browsers'] = $group['browsers'];
+            $elements[] = $element;
+          }
+        }
+        break;
+      // For inline content, the 'data' property contains the CSS content. If
+      // the group's 'data' property is set, then output it in a single STYLE
+      // tag. Otherwise, output a separate STYLE tag for each item.
+      case 'inline':
+        if (isset($group['data'])) {
+          $element = $style_element_defaults;
+          $element['#value'] = $group['data'];
+          $element['#attributes']['media'] = $group['media'];
+          $element['#browsers'] = $group['browsers'];
+          $elements[] = $element;
         }
         else {
-          $preprocess_items[$item['media']][] = $item;
-          // Mark the position of the preprocess element,
-          // it should be at the position of the first preprocessed file.
-          $rendered_css['preprocess'] = '';
+          foreach ($group['items'] as $item) {
+            $element = $style_element_defaults;
+            $element['#value'] = $item['data'];
+            $element['#attributes']['media'] = $item['media'];
+            $element['#browsers'] = $group['browsers'];
+            $elements[] = $element;
+          }
         }
         break;
-      case 'inline':
-        // Include inline stylesheets.
-        $inline_css .= drupal_load_stylesheet_content($item['data'], $item['preprocess']);
-        break;
+      // Output a LINK tag for each external item. The item's 'data' property
+      // contains the full URL.
       case 'external':
-        // Preprocessing for external CSS files is ignored.
-        $element = $css_element;
-        $element['#attributes']['media'] = $item['media'];
-        $element['#attributes']['href'] = $item['data'];
-        $external_css .= theme('html_tag', array('element' => $element));
+        foreach ($group['items'] as $item) {
+          $element = $link_element_defaults;
+          $element['#attributes']['href'] = $item['data'];
+          $element['#attributes']['media'] = $item['media'];
+          $element['#browsers'] = $group['browsers'];
+          $elements[] = $element;
+        }
         break;
     }
   }
 
-  if (!empty($preprocess_items)) {
-    foreach ($preprocess_items as $media => $items) {
-      // Prefix filename to prevent blocking by firewalls which reject files
-      // starting with "ad*".
-      $element = $css_element;
-      $element['#attributes']['media'] = $media;
-      $filename = 'css_' . md5(serialize($items) . $query_string) . '.css';
-      $element['#attributes']['href'] = file_create_url(drupal_build_css_cache($items, $filename));
-      $rendered_css['preprocess'] .= theme('html_tag', array('element' => $element));
-    }
-  }
-  // Enclose the inline CSS with the style tag if required.
-  if (!empty($inline_css)) {
-    $element = $css_element;
-    $element['#tag'] = 'style';
-    $element['#value'] = $inline_css;
-    unset($element['#attributes']['rel']);
-    $inline_css = "\n" . theme('html_tag', array('element' => $element));
-  }
-
-  // Output all the CSS files with the inline stylesheets showing up last.
-  return implode($rendered_css) . $external_css . $inline_css;
+  return $elements;
 }
 
 /**
@@ -3199,6 +3466,10 @@ function drupal_region_class($region) {
  *       Aggregate the JavaScript if the JavaScript optimization setting has
  *       been toggled in admin/config/development/performance. Note that
  *       JavaScript of type 'external' is not aggregated. Defaults to TRUE.
+ *   - version
+ *       If not empty, the version is added as a query string instead of the
+ *       incremental query string that changes on cache clearing. Primarily
+ *       used for libraries.
  * @return
  *   The constructed array of JavaScript files.
  * @see drupal_get_js()
@@ -3288,6 +3559,7 @@ function drupal_js_defaults($data = NULL) {
     'cache' => TRUE,
     'defer' => FALSE,
     'preprocess' => TRUE,
+    'version' => NULL,
     'data' => $data,
   );
 }
@@ -3339,8 +3611,10 @@ function drupal_get_js($scope = 'header', $javascript = NULL) {
   }
 
   $output = '';
-  $preprocessed = '';
-  $no_preprocess = "\n";
+  // The index counter is used to keep aggregated and non-aggregated files in
+  // order by weight.
+  $index = 1;
+  $processed = array();
   $files = array();
   $preprocess_js = (variable_get('preprocess_js', FALSE) && (!defined('MAINTENANCE_MODE') || MAINTENANCE_MODE != 'update'));
   $directory = file_directory_path('public');
@@ -3352,13 +3626,17 @@ function drupal_get_js($scope = 'header', $javascript = NULL) {
   // URL changed. Files that should not be cached (see drupal_add_js())
   // get REQUEST_TIME as query-string instead, to enforce reload on every
   // page request.
-  $query_string = '?' . substr(variable_get('css_js_query_string', '0'), 0, 1);
+  $default_query_string = substr(variable_get('css_js_query_string', '0'), 0, 2);
 
   // For inline Javascript to validate as XHTML, all Javascript containing
   // XHTML needs to be wrapped in CDATA. To make that backwards compatible
   // with HTML 4, we need to comment out the CDATA-tag.
   $embed_prefix = "\n<!--//--><![CDATA[//><!--\n";
   $embed_suffix = "\n//--><!]]>\n";
+
+  // Since Javascript may look for arguments in the url and act on them, some
+  // third-party code might require the use of a different query string.
+  $js_version_string = variable_get('drupal_js_version_query_string', 'v=');
 
   // Sort the JavaScript by weight so that it appears in the correct order.
   uasort($items, 'drupal_sort_weight');
@@ -3372,6 +3650,8 @@ function drupal_get_js($scope = 'header', $javascript = NULL) {
     ),
   );
   foreach ($items as $item) {
+    $query_string =  empty($item['version']) ? $default_query_string : $js_version_string . $item['version'];
+
     switch ($item['type']) {
       case 'setting':
         $js_element = $element;
@@ -3398,11 +3678,16 @@ function drupal_get_js($scope = 'header', $javascript = NULL) {
           if ($item['defer']) {
             $js_element['#attributes']['defer'] = 'defer';
           }
-          $js_element['#attributes']['src'] = file_create_url($item['data']) . ($item['cache'] ? $query_string : '?' . REQUEST_TIME);
-          $no_preprocess .= theme('html_tag', array('element' => $js_element));
+          $query_string_separator = (strpos($item['data'], '?') !== FALSE) ? '&' : '?';
+          $js_element['#attributes']['src'] = file_create_url($item['data']) . $query_string_separator . ($item['cache'] ? $query_string : REQUEST_TIME);
+          $processed[$index++] = theme('html_tag', array('element' => $js_element));
         }
         else {
-          $files[$item['data']] = $item;
+          // By increasing the index for each aggregated file, we maintain
+          // the relative ordering of JS by weight.
+          $key = 'aggregate' . $index;
+          $processed[$key] = '';
+          $files[$key][$item['data']] = $item;
         }
         break;
 
@@ -3413,7 +3698,7 @@ function drupal_get_js($scope = 'header', $javascript = NULL) {
           $js_element['#attributes']['defer'] = 'defer';
         }
         $js_element['#attributes']['src'] = $item['data'];
-        $output .= theme('html_tag', array('element' => $js_element));
+        $processed[$index++] = theme('html_tag', array('element' => $js_element));
         break;
     }
   }
@@ -3422,16 +3707,18 @@ function drupal_get_js($scope = 'header', $javascript = NULL) {
   if ($is_writable && $preprocess_js && count($files) > 0) {
     // Prefix filename to prevent blocking by firewalls which reject files
     // starting with "ad*".
-    $filename = 'js_' . md5(serialize($files) . $query_string) . '.js';
-    $preprocess_file = file_create_url(drupal_build_js_cache($files, $filename));
-    $js_element = $element;
-    $js_element['#attributes']['src'] = $preprocess_file;
-    $preprocessed .= theme('html_tag', array('element' => $js_element)) . "\n";
+    foreach ($files as $key => $file_set) {
+      $filename = 'js_' . md5(serialize($file_set)) . '.js';
+      $preprocess_file = file_create_url(drupal_build_js_cache($file_set, $filename)) . '?' . $default_query_string;
+      $js_element = $element;
+      $js_element['#attributes']['src'] = $preprocess_file;
+      $processed[$key] = theme('html_tag', array('element' => $js_element));
+    }
   }
 
   // Keep the order of JS files consistent as some are preprocessed and others are not.
   // Make sure any inline or JS setting variables appear last after libraries have loaded.
-  return $preprocessed . $no_preprocess . $output;
+  return implode('', $processed) . $output;
 }
 
 /**
@@ -3658,21 +3945,27 @@ function drupal_add_library($module, $name) {
 function drupal_get_library($module, $name) {
   $libraries = &drupal_static(__FUNCTION__, array());
 
-  if (!array_key_exists($module, $libraries)) {
+  if (!isset($libraries[$module])) {
     // Retrieve all libraries associated with the module.
     $module_libraries = module_invoke($module, 'library');
-
+    if (empty($module_libraries)) {
+      $module_libraries = array();
+    }
     // Allow modules to alter the module's registered libraries.
-    if (!empty($module_libraries)) {
-      drupal_alter('library', $module_libraries, $module);
+    drupal_alter('library', $module_libraries, $module);
+
+    foreach ($module_libraries as $key => $data) {
+      if (is_array($data)) {
+        // Add default elements to allow for easier processing.
+        $module_libraries[$key] += array('dependencies' => array(), 'js' => array(), 'css' => array());
+        foreach ($module_libraries[$key]['js'] as $file => $options) {
+          $module_libraries[$key]['js'][$file]['version'] = $module_libraries[$key]['version'];
+        }
+      }
     }
     $libraries[$module] = $module_libraries;
   }
-  if (!empty($libraries[$module][$name]) && is_array($libraries[$module][$name])) {
-    // Add default elements to allow for easier processing.
-    $libraries[$module][$name] += array('dependencies' => array(), 'js' => array(), 'css' => array());
-  }
-  else {
+  if (empty($libraries[$module][$name])) {
     $libraries[$module][$name] = FALSE;
   }
 
@@ -4097,6 +4390,14 @@ function drupal_cron_run() {
   // Allow execution to continue even if the request gets canceled.
   @ignore_user_abort(TRUE);
 
+  // Prevent session information from being saved while cron is running.
+  drupal_save_session(FALSE);
+
+  // Force the current user to anonymous to ensure consistent permissions on
+  // cron runs.
+  $original_user = $GLOBALS['user'];
+  $GLOBALS['user'] = drupal_anonymous_user();
+
   // Try to allocate enough time to run all the hook_cron implementations.
   drupal_set_time_limit(240);
 
@@ -4157,6 +4458,10 @@ function drupal_cron_run() {
       $queue->deleteItem($item);
     }
   }
+  // Restore the user.
+  $GLOBALS['user'] = $original_user;
+  drupal_save_session(TRUE);
+
   return $return;
 }
 
@@ -4342,6 +4647,82 @@ function drupal_set_page_content($content = NULL) {
     $main_content_display = TRUE;
     return $content_block;
   }
+}
+
+/**
+ * #pre_render callback to render #browsers into #prefix and #suffix.
+ *
+ * @param $elements
+ *   A render array with a '#browsers' property. The '#browsers' property can
+ *   contain any or all of the following keys:
+ *   - 'IE': If FALSE, the element is not rendered by Internet Explorer. If
+ *     TRUE, the element is rendered by Internet Explorer. Can also be a string
+ *     containing an expression for Internet Explorer to evaluate as part of a
+ *     conditional comment. For example, this can be set to 'lt IE 7' for the
+ *     element to be rendered in Internet Explorer 6, but not in Internet
+ *     Explorer 7 or higher. Defaults to TRUE.
+ *   - '!IE': If FALSE, the element is not rendered by browsers other than
+ *     Internet Explorer. If TRUE, the element is rendered by those browsers.
+ *     Defaults to TRUE.
+ *   Examples:
+ *   - To render an element in all browsers, '#browsers' can be left out or set
+ *     to array('IE' => TRUE, '!IE' => TRUE).
+ *   - To render an element in Internet Explorer only, '#browsers' can be set
+ *     to array('!IE' => FALSE).
+ *   - To render an element in Internet Explorer 6 only, '#browsers' can be set
+ *     to array('IE' => 'lt IE 7', '!IE' => FALSE).
+ *   - To render an element in Internet Explorer 8 and higher and in all other
+ *     browsers, '#browsers' can be set to array('IE' => 'gte IE 8').
+ *
+ * @return
+ *   The passed in element with markup for conditional comments potentially
+ *   added to '#prefix' and '#suffix'.
+ */
+function drupal_pre_render_conditional_comments($elements) {
+  $browsers = isset($elements['#browsers']) ? $elements['#browsers'] : array();
+  $browsers += array(
+    'IE' => TRUE,
+    '!IE' => TRUE,
+  );
+
+  // If rendering in all browsers, no need for conditional comments.
+  if ($browsers['IE'] === TRUE && $browsers['!IE']) {
+    return $elements;
+  }
+
+  // Determine the conditional comment expression for Internet Explorer to
+  // evaluate.
+  if ($browsers['IE'] === TRUE) {
+    $expression = 'IE';
+  }
+  elseif ($browsers['IE'] === FALSE) {
+    $expression = '!IE';
+  }
+  else {
+    $expression = $browsers['IE'];
+  }
+
+  // Wrap the element's potentially existing #prefix and #suffix properties with
+  // conditional comment markup. The conditional comment expression is evaluated
+  // by Internet Explorer only. To control the rendering by other browsers,
+  // either the "downlevel-hidden" or "downlevel-revealed" technique must be
+  // used. See http://en.wikipedia.org/wiki/Conditional_comment for details.
+  $elements += array(
+    '#prefix' => '',
+    '#suffix' => '',
+  );
+  if (!$browsers['!IE']) {
+    // "downlevel-hidden".
+    $elements['#prefix'] = "\n<!--[if $expression]>\n" . $elements['#prefix'];
+    $elements['#suffix'] .= "<![endif]-->\n";
+  }
+  else {
+    // "downlevel-revealed".
+    $elements['#prefix'] = "\n<!--[if $expression]><!-->\n" . $elements['#prefix'];
+    $elements['#suffix'] .= "<!--<![endif]-->\n";
+  }
+
+  return $elements;
 }
 
 /**
@@ -5018,9 +5399,6 @@ function drupal_common_theme() {
     'help' => array(
       'variables' => array(),
     ),
-    'submenu' => array(
-      'variables' => array('links' => NULL),
-    ),
     'table' => array(
       'variables' => array('header' => NULL, 'rows' => NULL, 'attributes' => array(), 'caption' => NULL, 'colgroups' => array(), 'sticky' => TRUE, 'empty' => ''),
     ),
@@ -5174,9 +5552,6 @@ function drupal_common_theme() {
     'form_element_label' => array(
       'render element' => 'element',
     ),
-    'text_format_wrapper' => array(
-      'render element' => 'element',
-    ),
     'vertical_tabs' => array(
       'render element' => 'element',
     ),
@@ -5320,26 +5695,30 @@ function drupal_schema_fields_sql($table, $prefix = NULL) {
 }
 
 /**
- * Save a record to the database based upon the schema.
+ * Saves a record to the database based upon the schema.
  *
  * Default values are filled in for missing items, and 'serial' (auto increment)
  * types are filled in with IDs.
  *
  * @param $table
- *   The name of the table; this must exist in schema API.
+ *   The name of the table; this must be defined by a hook_schema()
+ *   implementation.
  * @param $object
- *   The object to write. This is a reference, as defaults according to the
- *   schema may be filled in on the object, as well as ID on the serial type(s).
- *   Both array and object types may be passed.
+ *   An object or array representing the record to write, passed in by
+ *   reference. The function will fill in defaults from the schema and add an
+ *   ID value to serial fields.
  * @param $primary_keys
- *   If this is an update, specify the primary keys' field names. It is the
- *   caller's responsibility to know if a record for this object already exists
- *   in the database. If there is only 1 key, you may pass a simple string.
+ *   If this is an update, specify the primary keys' field names. If this is a
+ *   new record, you must not provide this value. If there is only 1 field in
+ *   the key, you may pass in a string; if there are multiple fields in the key,
+ *   pass in an array.
+ *
  * @return
  *   Failure to write a record will return FALSE. Otherwise SAVED_NEW or
  *   SAVED_UPDATED is returned depending on the operation performed. The $object
- *   parameter contains values for any serial fields defined by the $table. For
- *   example, $object->nid will be populated after inserting a new a new node.
+ *   parameter will contain values for any serial fields defined by the $table.
+ *   For example, $object->nid or $object['nid'] will be populated after
+ *   inserting a new a new node.
  */
 function drupal_write_record($table, &$object, $primary_keys = array()) {
   // Standardize $primary_keys to an array.
@@ -5389,7 +5768,7 @@ function drupal_write_record($table, &$object, $primary_keys = array()) {
     if (empty($info['serialize'])) {
       $fields[$field] = $object->$field;
     }
-    elseif (!empty($object->$field)) {
+    elseif (isset($object->$field)) {
       $fields[$field] = serialize($object->$field);
     }
     else {
@@ -5426,6 +5805,7 @@ function drupal_write_record($table, &$object, $primary_keys = array()) {
 
   // Build the SQL.
   if (empty($primary_keys)) {
+    // We are doing an insert.
     $options = array('return' => Database::RETURN_INSERT_ID);
     if (isset($serial) && isset($fields[$serial])) {
       // If the serial column has been explicitly set with an ID, then we don't
@@ -5451,7 +5831,7 @@ function drupal_write_record($table, &$object, $primary_keys = array()) {
   }
 
   // Execute the SQL.
-  if ($last_insert_id = $query->execute()) {
+  if ($query_return = $query->execute()) {
     if (isset($serial)) {
       // If the database was not told to return the last insert id, it will be
       // because we already know it.
@@ -5459,7 +5839,7 @@ function drupal_write_record($table, &$object, $primary_keys = array()) {
         $object->$serial = $fields[$serial];
       }
       else {
-        $object->$serial = $last_insert_id;
+        $object->$serial = $query_return;
       }
     }
   }
@@ -5467,7 +5847,7 @@ function drupal_write_record($table, &$object, $primary_keys = array()) {
   // query failed. Note that we explicitly check for FALSE, because
   // a valid update query which doesn't change any values will return
   // zero (0) affected rows.
-  elseif ($last_insert_id === FALSE && count($primary_keys) == 1) {
+  elseif ($query_return === FALSE && count($primary_keys) == 1) {
     $return = FALSE;
   }
 
@@ -5629,14 +6009,14 @@ function drupal_parse_info_format($data) {
  */
 function watchdog_severity_levels() {
   return array(
-    WATCHDOG_EMERG    => t('emergency'),
-    WATCHDOG_ALERT    => t('alert'),
-    WATCHDOG_CRITICAL => t('critical'),
-    WATCHDOG_ERROR    => t('error'),
-    WATCHDOG_WARNING  => t('warning'),
-    WATCHDOG_NOTICE   => t('notice'),
-    WATCHDOG_INFO     => t('info'),
-    WATCHDOG_DEBUG    => t('debug'),
+    WATCHDOG_EMERGENCY => t('emergency'),
+    WATCHDOG_ALERT     => t('alert'),
+    WATCHDOG_CRITICAL  => t('critical'),
+    WATCHDOG_ERROR     => t('error'),
+    WATCHDOG_WARNING   => t('warning'),
+    WATCHDOG_NOTICE    => t('notice'),
+    WATCHDOG_INFO      => t('info'),
+    WATCHDOG_DEBUG     => t('debug'),
   );
 }
 
@@ -5721,8 +6101,8 @@ function drupal_flush_all_caches() {
  *
  * Changes the character added to all css/js files as dummy query-string,
  * so that all browsers are forced to reload fresh files. We keep
- * 20 characters history (FIFO) to avoid repeats, but only the first
- * (newest) character is actually used on urls, to keep them short.
+ * 20 characters history (FIFO) to avoid repeats, but only the first two
+ * (newest) characters are actually used on urls, to keep them short.
  * This is also called from update.php.
  */
 function _drupal_flush_css_js() {
@@ -5848,6 +6228,8 @@ function drupal_check_incompatibility($v, $current_version) {
  *   to return an array with info about all types.
  */
 function entity_get_info($entity_type = NULL) {
+  global $language;
+
   // Use the advanced drupal_static() pattern, since this is called very often.
   static $drupal_static_fast;
   if (!isset($drupal_static_fast)) {
@@ -5855,8 +6237,12 @@ function entity_get_info($entity_type = NULL) {
   }
   $entity_info = &$drupal_static_fast['entity_info'];
 
+  // hook_entity_info() includes translated strings, so each language is cached
+  // separately.
+  $langcode = $language->language;
+
   if (empty($entity_info)) {
-    if ($cache = cache_get('entity_info')) {
+    if ($cache = cache_get("entity_info:$langcode")) {
       $entity_info = $cache->data;
     }
     else {
@@ -5886,7 +6272,7 @@ function entity_get_info($entity_type = NULL) {
       }
       // Let other modules alter the entity info.
       drupal_alter('entity_info', $entity_info);
-      cache_set('entity_info', $entity_info);
+      cache_set("entity_info:$langcode", $entity_info);
     }
   }
 
@@ -5903,7 +6289,8 @@ function entity_get_info($entity_type = NULL) {
  */
 function entity_info_cache_clear() {
   drupal_static_reset('entity_get_info');
-  cache_clear_all('entity_info', 'cache');
+  // Clear all languages.
+  cache_clear_all('entity_info:', 'cache', TRUE);
 }
 
 /**

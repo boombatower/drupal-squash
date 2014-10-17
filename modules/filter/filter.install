@@ -54,9 +54,6 @@ function filter_schema() {
       ),
     ),
     'primary key' => array('format', 'name'),
-    'unique keys' => array(
-      'fmn' => array('format', 'module', 'name'),
-    ),
     'indexes' => array(
       'list' => array('weight', 'module', 'name'),
     ),
@@ -107,6 +104,42 @@ function filter_schema() {
 }
 
 /**
+ * Implements hook_install().
+ */
+function filter_install() {
+  // All sites require at least one text format (the fallback format) that all
+  // users have access to, so add it here. We initialize it as a simple, safe
+  // plain text format with very basic formatting, but it can be modified by
+  // installation profiles to have other properties.
+  $plain_text_format = array(
+    'name' => 'Plain text',
+    'weight' => 10,
+    'filters' => array(
+      // Escape all HTML.
+      'filter_html_escape' => array(
+        'weight' => 0,
+        'status' => 1,
+      ),
+      // URL filter.
+      'filter_url' => array(
+        'weight' => 1,
+        'status' => 1,
+      ),
+      // Line break filter.
+      'filter_autop' => array(
+        'weight' => 2,
+        'status' => 1,
+      ),
+    ),
+  );
+  $plain_text_format = (object) $plain_text_format;
+  filter_format_save($plain_text_format);
+
+  // Set the fallback format to plain text.
+  variable_set('filter_fallback_format', $plain_text_format->format);
+}
+
+/**
  * Implements hook_update_dependencies().
  */
 function filter_update_dependencies() {
@@ -125,11 +158,31 @@ function filter_update_dependencies() {
  */
 
 /**
- * Add a weight column to the filter formats table.
+ * Increase the size of {filters}.weight and add {filter_formats}.weight.
  */
 function filter_update_7000() {
-  db_add_field('filter_formats', 'weight', array('type' => 'int', 'not null' => TRUE, 'default' => 0, 'size' => 'tiny'));
-  db_add_index('filter_formats', 'weight', array('weight'));
+  // The list index will be recreated by filter_update_7003().
+  db_drop_index('filters', 'list');
+
+  // Change the weight column of the filter table to normal (ie. non tiny) int.
+  db_change_field('filters', 'weight', 'weight', array(
+    'type' => 'int',
+    'not null' => TRUE,
+    'default' => 0,
+    'description' => 'Weight of filter within format.',
+  ));
+
+  // Add a new filter_format.weight column.
+  db_add_field('filter_formats', 'weight', array(
+    'type' => 'int',
+    'not null' => TRUE,
+    'default' => 0,
+    'description' => 'Weight of text format to use when listing.',
+  ), array(
+    'indexes' => array(
+      'weight' => array('weight'),
+    ),
+  ));
 }
 
 /**
@@ -181,9 +234,11 @@ function filter_update_7003() {
     ),
   );
 
-  // Rename field 'delta' to 'name'.
+  // The unique key on (filter, module, delta) is not necessary anymore,
+  // as filter_update_7004() will add a primary key on (filter, name).
   db_drop_unique_key('filter', 'fmd');
-  db_drop_index('filter', 'list');
+
+  // Rename field 'delta' to 'name'.
   db_change_field('filter', 'delta', 'name',
     array(
       'type' => 'varchar',
@@ -193,11 +248,8 @@ function filter_update_7003() {
       'description' => 'Name of the filter being referenced.',
     ),
     array(
-      'unique keys' => array(
-        'fmn' => array('format', 'module', 'name'),
-      ),
       'indexes' => array(
-        'list' => array('format', 'weight', 'module', 'name'),
+        'list' => array('weight', 'module', 'name'),
       ),
     )
   );
@@ -317,18 +369,27 @@ function filter_update_7005() {
   $start_name = 'Plain text';
   $format_name = $start_name;
   while ($format = db_query('SELECT format FROM {filter_format} WHERE name = :name', array(':name' => $format_name))->fetchField()) {
-    $id = empty($id) ? 1 : $id + 1;
+    $id = empty($id) ? 2 : $id + 1;
     $format_name = $start_name . ' ' . $id;
   }
   $fallback_format = new stdClass();
   $fallback_format->name = $format_name;
-  $fallback_format->cache = 1;
   $fallback_format->weight = 1;
   // This format should output plain text, so we escape all HTML and apply the
-  // line break filter only.
+  // line break and URL filters only.
   $fallback_format->filters = array(
-    'filter_html_escape' => array('status' => 1),
-    'filter_autop' => array('status' => 1),
+    'filter_html_escape' => array(
+      'weight' => 0,
+      'status' => 1,
+    ),
+    'filter_url' => array(
+      'weight' => 1,
+      'status' => 1,
+    ),
+    'filter_autop' => array(
+      'weight' => 2,
+      'status' => 1,
+    ),
   );
   filter_format_save($fallback_format);
   variable_set('filter_fallback_format', $fallback_format->format);
@@ -363,40 +424,24 @@ function filter_update_7005() {
 }
 
 /**
- * Remove the 'format' column from 'list' index on {filter}.
+ * Grant usage of all text formats to user roles having the 'administer filters' permission.
  */
-function filter_update_7006() {
-  db_drop_index('filter', 'list');
-  db_add_index('filter', 'list', array('weight', 'module', 'name'));
-}
-
-/**
- * Change the weight columns to normal int.
- */
-function filter_update_7007() {
-  db_drop_index('filter', 'list');
-  db_change_field('filter', 'weight', 'weight', array(
-    'type' => 'int',
-    'not null' => TRUE,
-    'default' => 0,
-    'description' => 'Weight of filter within format.',
-  ), array(
-    'indexes' => array(
-      'list' => array('weight', 'module', 'name'),
-    ),
-  ));
-
-  db_drop_index('filter_format', 'weight');
-  db_change_field('filter_format', 'weight', 'weight', array(
-    'type' => 'int',
-    'not null' => TRUE,
-    'default' => 0,
-    'description' => 'Weight of text format to use when listing.',
-  ), array(
-    'indexes' => array(
-      'weight' => array('weight'),
-    ),
-  ));
+function filter_update_7008() {
+  // Build the list of permissions to grant.
+  $permissions = array();
+  foreach (filter_formats() as $format_id => $format) {
+    if ($permission = filter_permission_name($format)) {
+      $permissions[] = $permission;
+    }
+  }
+  // Grant text format permissions to all roles that can 'administer filters'.
+  // Albeit anonymous users *should not* have the permission, we cannot presume
+  // that they do not or must not.
+  if ($roles = user_roles(FALSE, 'administer filters')) {
+    foreach ($roles as $rid => $name) {
+      user_role_grant_permissions($rid, $permissions);
+    }
+  }
 }
 
 /**

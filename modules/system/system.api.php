@@ -383,13 +383,31 @@ function hook_cron() {
  *     worker in seconds. Defaults to 15.
  *
  * @see hook_cron()
+ * @see hook_cron_queue_info_alter()
  */
 function hook_cron_queue_info() {
   $queues['aggregator_feeds'] = array(
     'worker callback' => 'aggregator_refresh',
-    'time' => 15,
+    'time' => 60,
   );
   return $queues;
+}
+
+/**
+ * Alter cron queue information before cron runs.
+ *
+ * Called by drupal_run_cron() to allow modules to alter cron queue settings
+ * before any jobs are processesed.
+ *
+ * @param array $queues
+ *   An array of cron queue information.
+ *
+ *  @see hook_cron_queue_info()
+ */
+function hook_cron_queue_info_alter(&$queues) {
+  // This site has many feeds so let's spend 90 seconds on each cron run
+  // updating feeds instead of the default 60.
+  $queues['aggregator_feeds']['time'] = 90;
 }
 
 /**
@@ -776,53 +794,29 @@ function hook_form_FORM_ID_alter(&$form, &$form_state) {
 }
 
 /**
- * Allow themes to alter the theme-specific settings form.
+ * Map form_ids to form builder functions.
  *
- * With this hook, themes can alter the theme-specific settings form in any way
- * allowable by Drupal's Forms API, such as adding form elements, changing
- * default values and removing form elements. See the Forms API documentation on
- * api.drupal.org for detailed information.
+ * By default, when drupal_get_form() is called, the system will look for a
+ * function with the same name as the form ID, and use that function to build
+ * the form. This hook allows you to override that behavior in two ways.
  *
- * Note that the base theme's form alterations will be run before any sub-theme
- * alterations.
+ * First, you can use this hook to tell the form system to use a different
+ * function to build certain forms in your module; this is often used to define
+ * a form "factory" function that is used to build several similar forms. In
+ * this case, your hook implementation will likely ignore all of the input
+ * arguments. See node_forms() for an example of this.
  *
- * @param $form
- *   Nested array of form elements that comprise the form.
- * @param $form_state
- *   A keyed array containing the current state of the form.
- */
-function hook_form_system_theme_settings_alter(&$form, &$form_state) {
-  // Add a checkbox to toggle the breadcrumb trail.
-  $form['toggle_breadcrumb'] = array(
-    '#type' => 'checkbox',
-    '#title' => t('Display the breadcrumb'),
-    '#default_value' => theme_get_setting('toggle_breadcrumb'),
-    '#description'   => t('Show a trail of links from the homepage to the current page.'),
-  );
-}
-
-/**
- * Map form_ids to builder functions.
- *
- * This hook allows modules to build multiple forms from a single form "factory"
- * function but each form will have a different form id for submission,
- * validation, theming or alteration by other modules.
- *
- * The 'callback arguments' will be passed as parameters to the function defined
- * in 'callback'. In case the code that calls drupal_get_form() also passes
- * parameters, then the 'callback' function will receive the
- * 'callback arguments' specified in hook_forms() before those that have been
- * passed to drupal_get_form().
- *
- * See node_forms() for an actual example of how multiple forms share a common
- * building function.
+ * Second, you could use this hook to define how to build a form with a
+ * dynamically-generated form ID. In this case, you would need to verify that
+ * the $form_id input matched your module's format for dynamically-generated
+ * form IDs, and if so, act appropriately.
  *
  * @param $form_id
  *   The unique string identifying the desired form.
  * @param $args
- *   An array containing the original arguments provided to drupal_get_form().
- *   These are always passed to the form builder and do not have to be specified
- *   manually in 'callback arguments'.
+ *   An array containing the original arguments provided to drupal_get_form()
+ *   or drupal_form_submit(). These are always passed to the form builder and
+ *   do not have to be specified manually in 'callback arguments'.
  *
  * @return
  *   An associative array whose keys define form_ids and whose values are an
@@ -1318,7 +1312,7 @@ function hook_xmlrpc_alter(&$methods) {
  *   - ip: The IP address where the request for the page came from.
  *   - timestamp: The UNIX timestamp of the date/time the event occurred
  *   - severity: One of the following values as defined in RFC 3164 http://www.faqs.org/rfcs/rfc3164.html
- *     WATCHDOG_EMERG     Emergency: system is unusable
+ *     WATCHDOG_EMERGENCY Emergency: system is unusable
  *     WATCHDOG_ALERT     Alert: action must be taken immediately
  *     WATCHDOG_CRITICAL  Critical: critical conditions
  *     WATCHDOG_ERROR     Error: error conditions
@@ -1333,14 +1327,14 @@ function hook_watchdog(array $log_entry) {
   global $base_url, $language;
 
   $severity_list = array(
-    WATCHDOG_EMERG    => t('Emergency'),
-    WATCHDOG_ALERT    => t('Alert'),
-    WATCHDOG_CRITICAL => t('Critical'),
-    WATCHDOG_ERROR    => t('Error'),
-    WATCHDOG_WARNING  => t('Warning'),
-    WATCHDOG_NOTICE   => t('Notice'),
-    WATCHDOG_INFO     => t('Info'),
-    WATCHDOG_DEBUG    => t('Debug'),
+    WATCHDOG_EMERGENCY => t('Emergency'),
+    WATCHDOG_ALERT     => t('Alert'),
+    WATCHDOG_CRITICAL  => t('Critical'),
+    WATCHDOG_ERROR     => t('Error'),
+    WATCHDOG_WARNING   => t('Warning'),
+    WATCHDOG_NOTICE    => t('Notice'),
+    WATCHDOG_INFO      => t('Info'),
+    WATCHDOG_DEBUG     => t('Debug'),
   );
 
   $to = 'someone@example.com';
@@ -1568,7 +1562,7 @@ function hook_modules_uninstalled($modules) {
  *   - 'description' A string with a short description of what the wrapper does.
  *   - 'type' A bitmask of flags indicating what type of streams this wrapper
  *     will access - local or remote, readable and/or writeable, etc. Many
- *     shortcut constants are defined in stream_wrappers.inc. 
+ *     shortcut constants are defined in stream_wrappers.inc.
  *
  * @see file_get_stream_wrappers()
  * @see hook_stream_wrappers_alter()
@@ -2137,10 +2131,11 @@ function hook_install() {
 }
 
 /**
- * Perform a single update. For each patch which requires a database change add
- * a new hook_update_N() which will be called by update.php.
+ * Perform a single update.
  *
- * The database updates are numbered sequentially according to the version of Drupal you are compatible with.
+ * For each patch which requires a database change add a new hook_update_N()
+ * which will be called by update.php. The database updates are numbered
+ * sequentially according to the version of Drupal you are compatible with.
  *
  * Schema updates should adhere to the Schema API:
  * @link http://drupal.org/node/150215 http://drupal.org/node/150215 @endlink
@@ -2689,6 +2684,8 @@ function hook_file_mimetype_mapping_alter(&$mapping) {
  *       Modules that are processing actions (like Trigger module) should take
  *       special care for the "presave" hook, in which case a dependent "save"
  *       action should NOT be invoked.
+ *
+ * @ingroup actions
  */
 function hook_action_info() {
   return array(

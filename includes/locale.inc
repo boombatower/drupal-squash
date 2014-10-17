@@ -41,12 +41,12 @@ define('LOCALE_LANGUAGE_NEGOTIATION_URL_DOMAIN', 1);
  */
 
 /**
- * Identify the language from the current content language.
+ * Identifies the language from the current interface language.
  *
  * @return
- *   The current content language code.
+ *   The current interface language code.
  */
-function locale_language_from_content() {
+function locale_language_from_interface() {
   global $language;
   return isset($language->language) ? $language->language : FALSE;
 }
@@ -678,27 +678,33 @@ function _locale_import_one_string($op, $value = NULL, $mode = NULL, $lang = NUL
     case 'db-store':
       // We got header information.
       if ($value['msgid'] == '') {
-        $header = _locale_import_parse_header($value['msgstr']);
+        $languages = language_list();
+        if (($mode != LOCALE_IMPORT_KEEP) || empty($languages[$lang]->plurals)) {
+          // Since we only need to parse the header if we ought to update the
+          // plural formula, only run this if we don't need to keep existing 
+          // data untouched or if we don't have an existing plural formula.
+          $header = _locale_import_parse_header($value['msgstr']);
 
-        // Get the plural formula and update in database.
-        if (isset($header["Plural-Forms"]) && $p = _locale_import_parse_plural_forms($header["Plural-Forms"], $file->uri)) {
-          list($nplurals, $plural) = $p;
-          db_update('languages')
-            ->fields(array(
-              'plurals' => $nplurals,
-              'formula' => $plural,
-            ))
-            ->condition('language', $lang)
-            ->execute();
-        }
-        else {
-          db_update('languages')
-            ->fields(array(
-              'plurals' => 0,
-              'formula' => '',
-            ))
-            ->condition('language', $lang)
-            ->execute();
+          // Get the plural formula and update in database.
+          if (isset($header["Plural-Forms"]) && $p = _locale_import_parse_plural_forms($header["Plural-Forms"], $file->uri)) {
+            list($nplurals, $plural) = $p;
+            db_update('languages')
+              ->fields(array(
+                'plurals' => $nplurals,
+                'formula' => $plural,
+              ))
+              ->condition('language', $lang)
+              ->execute();
+          }
+          else {
+            db_update('languages')
+              ->fields(array(
+                'plurals' => 0,
+                'formula' => '',
+              ))
+              ->condition('language', $lang)
+              ->execute();
+          }
         }
         $header_done = TRUE;
       }
@@ -1158,6 +1164,10 @@ function _locale_import_parse_quoted($string) {
 function _locale_parse_js_file($filepath) {
   global $language;
 
+  // The file path might contain a query string, so make sure we only use the
+  // actual file.
+  $parsed_url = drupal_parse_url($filepath);
+  $filepath = $parsed_url['path'];
   // Load the JavaScript file.
   $file = file_get_contents($filepath);
 
@@ -1321,10 +1331,10 @@ function _locale_export_po_generate($language = NULL, $strings = array(), $heade
       if ($string['comment']) {
         $output .= '#: ' . $string['comment'] . "\n";
       }
-      $output .= 'msgid ' . _locale_export_string($string['source']);
       if (!empty($string['context'])) {
         $output .= 'msgctxt ' . _locale_export_string($string['context']);
       }
+      $output .= 'msgid ' . _locale_export_string($string['source']);
       if (!empty($string['plural'])) {
         $plural = $string['plural'];
         $output .= 'msgid_plural ' . _locale_export_string($strings[$plural]['source']);
@@ -2068,4 +2078,3 @@ function locale_get_localized_date_format($languages) {
 
   return $formats;
 }
-

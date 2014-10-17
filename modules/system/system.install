@@ -95,30 +95,71 @@ function system_requirements($phase) {
     $requirements['php_register_globals']['value'] = $t('Disabled');
   }
 
-  // Test PDO library availability.
-  $requirements['pdo'] = array(
-    'title' => $t('PDO library'),
+  // Test for PHP extensions.
+  $requirements['php_extensions'] = array(
+    'title' => $t('PHP extensions'),
   );
-  if (extension_loaded('pdo')) {
-    $requirements['pdo']['value'] = $t('Enabled');
-  }
-  else {
-    $requirements['pdo']['value'] = $t('Disabled');
-    $requirements['pdo']['severity'] = REQUIREMENT_ERROR;
-    $requirements['pdo']['description'] = $t('Your server does not have the PHP PDO extension enabled. See the <a href="@system_requirements">system requirements page</a> for more information.', array('@system_requirements' => 'http://drupal.org/requirements'));
+
+  $missing_extensions = array();
+  $required_extensions = array(
+    'date',
+    'dom',
+    'filter',
+    'gd',
+    'hash',
+    'json',
+    'pcre',
+    'pdo',
+    'session',
+    'SimpleXML',
+    'SPL',
+    'xml',
+  );
+  foreach ($required_extensions as $extension) {
+    if (!extension_loaded($extension)) {
+      $missing_extensions[] = $extension;
+    }
   }
 
-  // Test JSON library availability.
-  $requirements['json'] = array(
-    'title' => $t('JSON library'),
-  );
-  if (extension_loaded('json')) {
-    $requirements['json']['value'] = $t('Enabled');
+  if (!empty($missing_extensions)) {
+    $description = $t('Drupal requires you to enable the PHP extensions in the following list (see the <a href="@system_requirements">system requirements page</a> for more information):', array(
+      '@system_requirements' => 'http://drupal.org/requirements',
+    ));
+
+    $description .= theme('item_list',  array(
+      'type' => 'ul',
+      'items' => $missing_extensions,
+    ));
+
+    $requirements['php_extensions']['value'] = $t('Disabled');
+    $requirements['php_extensions']['severity'] = REQUIREMENT_ERROR;
+    $requirements['php_extensions']['description'] = $description;
   }
   else {
-    $requirements['json']['value'] = $t('Disabled');
-    $requirements['json']['severity'] = REQUIREMENT_ERROR;
-    $requirements['json']['description'] = $t('Your server does not have the PHP JSON extension enabled. See the <a href="@system_requirements">system requirements page</a> for more information.', array('@system_requirements' => 'http://drupal.org/requirements'));
+    $requirements['php_extensions']['value'] = $t('Enabled');
+  }
+
+  // Test for PDO (database).
+  $requirements['database_extensions'] = array(
+    'title' => $t('Database support'),
+  );
+
+  // Test for at least one suitable PDO extension, if PDO is available.
+  $database_ok = extension_loaded('pdo');
+  if ($database_ok) {
+    $drivers = drupal_detect_database_types();
+    $database_ok = !empty($drivers);
+  }
+
+  if (!$database_ok) {
+    $requirements['database_extensions']['value'] = $t('Disabled');
+    $requirements['database_extensions']['severity'] = REQUIREMENT_ERROR;
+    $requirements['database_extensions']['description'] = $t('Your web server does not appear to support any common PDO database extensions. Check with your hosting provider to see if they support PDO (PHP Data Objects) and offer any databases that <a href="@drupal-databases">Drupal supports</a>.', array(
+      '@drupal-databases' => 'http://drupal.org/node/270#database',
+    ));
+  }
+  else {
+    $requirements['database_extensions']['value'] = $t('Enabled');
   }
 
   // Test PHP memory_limit
@@ -316,17 +357,6 @@ function system_requirements($phase) {
   include_once DRUPAL_ROOT . '/includes/unicode.inc';
   $requirements = array_merge($requirements, unicode_requirements());
 
-  // Verify if the DOM PHP 5 extension is available.
-  $has_dom = class_exists('DOMDocument');
-  if (!$has_dom) {
-    $requirements['php_dom'] = array(
-      'title' => $t('PHP DOM Extension'),
-      'value' => $t('Not found'),
-      'severity' => REQUIREMENT_ERROR,
-      'description' => $t("The DOM extension is part of PHP 5 core, but doesn't seem to be enabled on your system. You need to enable the DOM extension on your PHP installation."),
-    );
-  }
-
   if ($phase == 'runtime') {
     // Check for update status module.
     if (!module_exists('update')) {
@@ -362,13 +392,10 @@ function system_requirements($phase) {
  */
 function system_install() {
   // Create tables.
-  $modules = array('system', 'filter', 'user', 'node');
-  foreach ($modules as $module) {
-    drupal_install_schema($module);
-    $versions = drupal_get_schema_versions($module);
-    $version = $versions ? max($versions) : SCHEMA_INSTALLED;
-    drupal_set_installed_schema_version($module, $version);
-  }
+  drupal_install_schema('system');
+  $versions = drupal_get_schema_versions('system');
+  $version = $versions ? max($versions) : SCHEMA_INSTALLED;
+  drupal_set_installed_schema_version('system', $version);
 
   // Clear out module list and hook implementation statics before calling
   // system_rebuild_theme_data().
@@ -378,73 +405,16 @@ function system_install() {
   // Load system theme data appropriately.
   system_rebuild_theme_data();
 
-  db_insert('users')
-    ->fields(array(
-      'uid' => 0,
-      'name' => '',
-      'mail' => '',
-    ))
-    ->execute();
-  // We need some placeholders here as name and mail are uniques and data is
-  // presumed to be a serialized array. This will be changed by the settings
-  // form.
-  db_insert('users')
-    ->fields(array(
-      'uid' => 1,
-      'name' => 'placeholder-for-uid-1',
-      'mail' => 'placeholder-for-uid-1',
-      'created' => REQUEST_TIME,
-      'status' => 1,
-      'data' => serialize(array()),
-    ))
-    ->execute();
-  // Built-in roles.
-  $rid_anonymous = db_insert('role')
-    ->fields(array('name' => 'anonymous user'))
-    ->execute();
-
-  $rid_authenticated = db_insert('role')
-    ->fields(array('name' => 'authenticated user'))
-    ->execute();
-
-  // Sanity check to ensure the anonymous and authenticated role IDs are the
-  // same as the drupal defined constants. In certain situations, this will
-  // not be true.
-  if ($rid_anonymous != DRUPAL_ANONYMOUS_RID) {
-    db_update('role')
-      ->fields(array('rid' => DRUPAL_ANONYMOUS_RID))
-      ->condition('rid', $rid_anonymous)
-      ->execute();
-  }
-
-  if ($rid_authenticated != DRUPAL_AUTHENTICATED_RID) {
-    db_update('role')
-      ->fields(array('rid' => DRUPAL_AUTHENTICATED_RID))
-      ->condition('rid', $rid_authenticated)
-      ->execute();
-  }
-
+  // Enable the default theme.
   variable_set('theme_default', 'garland');
-
   db_update('system')
     ->fields(array('status' => 1))
     ->condition('type', 'theme')
     ->condition('name', 'garland')
     ->execute();
 
-  db_insert('node_access')
-    ->fields(array(
-      'nid' => 0,
-      'gid' => 0,
-      'realm' => 'all',
-      'grant_view' => 1,
-      'grant_update' => 0,
-      'grant_delete' => 0,
-    ))
-    ->execute();
-
+  // Populate the cron key variable.
   $cron_key = md5(mt_rand());
-
   variable_set('cron_key', $cron_key);
 }
 
@@ -564,7 +534,7 @@ function system_schema() {
       'ip' => array(
         'description' => 'IP address',
         'type' => 'varchar',
-        'length' => 32,
+        'length' => 40,
         'not null' => TRUE,
         'default' => '',
       ),
@@ -1593,7 +1563,7 @@ function system_update_6051() {
       'description' => 'The {filter_formats}.format of the signature.',
     );
 
-    db_add_field($ret, 'users', 'signature_format', $schema);
+    db_add_field('users', 'signature_format', $schema);
 
     // Set the format of existing signatures to the current default text format.
     if ($current_default_filter = variable_get('filter_default_format', 0)) {
@@ -1606,26 +1576,37 @@ function system_update_6051() {
 
     drupal_set_message("User signatures no longer inherit comment text formats. Each user's signature now has its own associated format that can be selected on the user's account page. Existing signatures have been set to your site's default text format.");
   }
-
-  return $ret;
 }
 
 /**
  * Add a missing index on the {menu_router} table.
  */
 function system_update_6052() {
-  $ret = array();
-  db_add_index($ret, 'menu_router', 'tab_root_weight_title', array(array('tab_root', 64), 'weight', 'title'));
-  return $ret;
+  db_add_index('menu_router', 'tab_root_weight_title', array(array('tab_root', 64), 'weight', 'title'));
 }
 
 /**
  * Add a {system} index on type and name.
  */
 function system_update_6053() {
-  $ret = array();
-  db_add_index($ret, 'system', 'type_name', array(array('type', 12), 'name'));
-  return $ret;
+  db_add_index('system', 'type_name', array(array('type', 12), 'name'));
+}
+
+/**
+ * Improve indexes on the {url_alias} table.
+ */
+function system_update_6055() {
+  db_drop_index('url_alias', 'src_language');
+  db_drop_unique_key('url_alias', 'dst_language');
+  db_add_index('url_alias', 'src_language_pid', array('src', 'language', 'pid'));
+  db_add_unique_key('url_alias', 'dst_language_pid', array('dst', 'language', 'pid'));
+}
+
+/**
+ * Add semaphore table.
+ */
+function system_update_6054() {
+  // Lives in update_fix_d7_requirements()
 }
 
 /**
@@ -1734,7 +1715,7 @@ function system_update_7003() {
     ));
     $or = db_condition('or');
     foreach ($result as $allowed) {
-      $or->where('LOWER(ip) LIKE LOWER(:mask)', array(':mask' => $allowed->mask));
+      $or->condition('ip', $allowed->mask, 'LIKE');
     }
     if (count($or)) {
       db_delete('blocked_ips')
@@ -2057,25 +2038,6 @@ function system_update_7024() {
 }
 
 /**
- * Improve indexes on the {url_alias} table.
- */
-function system_update_7025() {
-  db_drop_index('url_alias', 'src_language');
-  db_drop_index('url_alias', 'dst_language');
-  db_add_index('url_alias', 'dst_language_pid', array('dst', 'language', 'pid'));
-  db_add_index('url_alias', 'src_language_pid', array('src', 'language', 'pid'));
-}
-
-/**
- * Increase permitted length of url aliases to 255 characters.
- *
- */
-function system_update_7026() {
-  db_change_field('url_alias', 'src', 'src', array('type' => 'varchar', 'length' => 255, 'not null' => TRUE));
-  db_change_field('url_alias', 'dst', 'dst', array('type' => 'varchar', 'length' => 255, 'not null' => TRUE));
-}
-
-/**
  * Enable field type modules.
  */
 function system_update_7027() {
@@ -2303,7 +2265,7 @@ function system_update_7041() {
 }
 
 /**
- * Rename dst and src to source and alias.
+ * Upgrade the {url_alias} table and create a cache bin for path aliases.
  */
 function system_update_7042() {
   // update_fix_d7_requirements() adds 'fake' source and alias columns to
@@ -2312,20 +2274,15 @@ function system_update_7042() {
   db_drop_field('url_alias', 'source');
   db_drop_field('url_alias', 'alias');
 
-  // Add the cache_path table.
-  $schema['cache_path'] = drupal_get_schema_unprocessed('system', 'cache');
-  $schema['cache_path']['description'] = 'Cache table used for path alias lookups.';
-  db_create_table('cache_path', $schema['cache_path']);
   // Drop indexes.
   db_drop_index('url_alias', 'src_language_pid');
   db_drop_unique_key('url_alias', 'dst_language_pid');
-  // Rename fields.
+  // Rename the fields, and increase their length to 255 characters.
   db_change_field('url_alias', 'src', 'source', array('type' => 'varchar', 'length' => 255, 'not null' => TRUE, 'default' => ''));
   db_change_field('url_alias', 'dst', 'alias', array('type' => 'varchar', 'length' => 255, 'not null' => TRUE, 'default' => ''));
   // Add indexes back.
   db_add_index('url_alias', 'source_language_pid', array('source', 'language', 'pid'));
   db_add_unique_key('url_alias', 'alias_language_pid', array('alias', 'language', 'pid'));
-
 }
 
 /**
@@ -2423,6 +2380,13 @@ function system_update_7049() {
  */
 function system_update_7050() {
   db_change_field('batch', 'bid', 'bid', array('description' => 'Primary Key: Unique batch ID.', 'type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE));
+}
+
+/**
+ * make the IP field IPv6 compatible
+ */
+function system_update_7051() {
+  db_change_field('blocked_ips', 'ip', 'ip', array('description' => 'IP address', 'type' => 'varchar', 'length' => 40, 'not null' => TRUE, 'default' => ''));
 }
 
 /**

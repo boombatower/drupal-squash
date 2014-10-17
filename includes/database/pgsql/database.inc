@@ -36,6 +36,8 @@ class DatabaseConnection_pgsql extends DatabaseConnection {
       $connection_options['password'] = null;
     }
 
+    $this->connectionOptions = $connection_options;
+
     $dsn = 'pgsql:host=' . $connection_options['host'] . ' dbname=' . $connection_options['database'] . ' port=' . $connection_options['port'];
     parent::__construct($dsn, $connection_options['username'], $connection_options['password'], array(
       // Convert numeric values to strings when fetching.
@@ -128,6 +130,7 @@ class DatabaseConnection_pgsql extends DatabaseConnection {
       // statements, we need to use ILIKE instead. Use backslash for escaping
       // wildcard characters.
       'LIKE' => array('operator' => 'ILIKE', 'postfix' => " ESCAPE '\\\\'"),
+      'NOT LIKE' => array('operator' => 'NOT ILIKE', 'postfix' => " ESCAPE '\\\\'"),
     );
 
     return isset($specials[$operator]) ? $specials[$operator] : NULL;

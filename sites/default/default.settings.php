@@ -212,7 +212,7 @@ $drupal_hash_salt = '';
  *
  * To see what PHP settings are possible, including whether they can be set at
  * runtime (by using ini_set()), read the PHP documentation:
- * http://www.php.net/manual/en/ini.php#ini.list
+ * http://www.php.net/manual/en/ini.list.php
  * See drupal_initialize_variables() in includes/bootstrap.inc for required
  * runtime settings and the .htaccess file for non-runtime settings. Settings
  * defined there should not be duplicated here so as to avoid conflict issues.
@@ -284,8 +284,6 @@ ini_set('session.cookie_lifetime', 2000000);
 # $conf['maintenance_theme'] = 'garland';
 
 /**
- * reverse_proxy accepts a boolean value.
- *
  * Enable this setting to determine the correct IP address of the remote
  * client by examining information stored in the X-Forwarded-For headers.
  * X-Forwarded-For headers are a standard mechanism for identifying client
@@ -300,6 +298,15 @@ ini_set('session.cookie_lifetime', 2000000);
  * a shared hosting environment, this setting should remain commented out.
  */
 # $conf['reverse_proxy'] = TRUE;
+
+/**
+ * Set this value if your proxy server sends the client IP in a header other
+ * than X-Forwarded-For.
+ *
+ * The "X-Forwarded-For" header is a comma+space separated list of IP addresses,
+ * only the last one (the left-most) will be used.
+ */
+# $conf['reverse_proxy_header'] = 'HTTP_X_CLUSTER_CLIENT_IP';
 
 /**
  * reverse_proxy accepts an array of IP addresses.

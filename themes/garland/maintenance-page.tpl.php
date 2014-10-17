@@ -20,9 +20,6 @@
     <?php print $head ?>
     <?php print $styles ?>
     <?php print $scripts ?>
-    <!--[if lt IE 7]>
-      <?php print garland_get_ie_styles(); ?>
-    <![endif]-->
   </head>
   <body class="<?php print $classes ?>">
 
@@ -38,10 +35,10 @@
           // Prepare header
           $site_fields = array();
           if ($site_name) {
-            $site_fields[] = check_plain($site_name);
+            $site_fields[] = $site_name;
           }
           if ($site_slogan) {
-            $site_fields[] = check_plain($site_slogan);
+            $site_fields[] = $site_slogan;
           }
           $site_title = implode(' ', $site_fields);
           if ($site_fields) {

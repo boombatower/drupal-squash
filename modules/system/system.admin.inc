@@ -1205,7 +1205,7 @@ function system_modules_submit($form, &$form_state) {
     foreach ($modules_to_be_enabled as $module) {
       $sort[$module] = $files[$module]->sort;
     }
-    array_multisort($sort, $modules_to_be_enabled);
+    array_multisort($sort, SORT_DESC, $modules_to_be_enabled);
     module_enable($modules_to_be_enabled, FALSE);
   }
   // Disable the modules that need disabling.
@@ -1214,8 +1214,8 @@ function system_modules_submit($form, &$form_state) {
     foreach ($disable_modules as $module) {
       $sort[$module] = $files[$module]->sort;
     }
-    array_multisort($sort, $disable_modules);
-    module_disable($disable_modules);
+    array_multisort($sort, SORT_ASC, $disable_modules);
+    module_disable($disable_modules, FALSE);
   }
 
   // Install new modules.
@@ -1227,7 +1227,7 @@ function system_modules_submit($form, &$form_state) {
       }
       $sort[$module] = $files[$module]->sort;
     }
-    array_multisort($sort, $new_modules);
+    array_multisort($sort, SORT_DESC, $new_modules);
     module_enable($new_modules, FALSE);
   }
 
@@ -1659,17 +1659,14 @@ function system_performance_settings() {
     '#description' => t('External resources  can be optimized automatically, which can reduce both the size and number of requests made to your website.') . $disabled_message,
   );
 
-  // Do not allow Drupal to gzip pages if the server already does that.
-  if (strpos($_SERVER['HTTP_ACCEPT_ENCODING'], 'gzip') === FALSE) {
-    $js_hide = $cache == CACHE_DISABLED ? ' class="js-hide"' : '';
-    $form['bandwidth_optimization']['page_compression'] = array(
-      '#type' => 'checkbox',
-      '#title' => t('Compress cached pages.'),
-      '#default_value' => variable_get('page_compression', TRUE),
-      '#prefix' => '<div id="page-compression-wrapper"' . $js_hide . '>',
-      '#suffix' => '</div>',
-    );
-  }
+  $js_hide = $cache == CACHE_DISABLED ? ' class="js-hide"' : '';
+  $form['bandwidth_optimization']['page_compression'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Compress cached pages.'),
+    '#default_value' => variable_get('page_compression', TRUE),
+    '#prefix' => '<div id="page-compression-wrapper"' . $js_hide . '>',
+    '#suffix' => '</div>',
+  );
   $form['bandwidth_optimization']['preprocess_css'] = array(
     '#type' => 'checkbox',
     '#title' => t('Aggregate and compress CSS files into one file.'),
@@ -2900,8 +2897,7 @@ function system_actions_manage_form($form, &$form_state, $options = array()) {
   $form['parent'] = array(
     '#type' => 'fieldset',
     '#title' => t('Create an advanced action'),
-    '#prefix' => '<div class="container-inline">',
-    '#suffix' => '</div>',
+    '#attributes' => array('class' => array('container-inline')),
   );
   $form['parent']['action'] = array(
     '#type' => 'select',

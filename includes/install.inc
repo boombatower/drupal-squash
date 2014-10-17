@@ -95,6 +95,11 @@ function drupal_get_schema_versions($module) {
   $updates = &drupal_static(__FUNCTION__, NULL);
   if (!isset($updates[$module])) {
     $updates = array();
+
+    foreach (module_list() as $loaded_module) {
+      $updates[$loaded_module] = array();
+    }
+
     // Prepare regular expression to match all possible defined hook_update_N().
     $regexp = '/^(?P<module>.+)_update_(?P<version>\d+)$/';
     $functions = get_defined_functions();
@@ -117,7 +122,7 @@ function drupal_get_schema_versions($module) {
       sort($module_updates, SORT_NUMERIC);
     }
   }
-  return isset($updates[$module]) ? $updates[$module] : FALSE;
+  return empty($updates[$module]) ? FALSE : $updates[$module];
 }
 
 /**
@@ -542,31 +547,6 @@ function drupal_verify_profile($install_state) {
 }
 
 /**
- * Callback to install an individual install profile module.
- *
- * Used during installation to install modules one at a time and then
- * enable them, or to install a number of modules at one time
- * from admin/modules.
- *
- * @param $module
- *   The machine name of the module to install.
- * @return
- *   TRUE if the module got installed.
- */
-function _drupal_install_module($module) {
-  if (drupal_get_installed_schema_version($module, TRUE) == SCHEMA_UNINSTALLED) {
-    drupal_load('module', $module);
-    drupal_install_schema($module);
-    // Now allow the module to perform install tasks.
-    module_invoke($module, 'install');
-    $versions = drupal_get_schema_versions($module);
-    drupal_set_installed_schema_version($module, $versions ? max($versions) : SCHEMA_INSTALLED);
-    system_list_reset();
-    return TRUE;
-  }
-}
-
-/**
  * Manually include all files for the active database.
  *
  * Because we have no registry yet, we need to manually include the
@@ -614,8 +594,6 @@ function drupal_install_system() {
         'bootstrap' => 0,
       ))
     ->execute();
-  // Now that we've installed things properly, bootstrap the full Drupal environment
-  drupal_bootstrap(DRUPAL_BOOTSTRAP_FULL);
   system_rebuild_module_data();
 }
 
