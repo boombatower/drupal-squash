@@ -7,6 +7,11 @@
  */
 
 /**
+ * Denotes that a feed's items should never expire.
+ */
+define('AGGREGATOR_CLEAR_NEVER', 0);
+
+/**
  * Implementation of hook_aggregator_process_info().
  */
 function aggregator_aggregator_process_info() {
@@ -26,19 +31,19 @@ function aggregator_aggregator_process($feed) {
         // Save this item. Try to avoid duplicate entries as much as possible. If
         // we find a duplicate entry, we resolve it and pass along its ID is such
         // that we can update it if needed.
-        if (!empty($item['GUID'])) {
-          $entry = db_query("SELECT iid, timestamp FROM {aggregator_item} WHERE fid = :fid AND guid = :guid", array(':fid' => $feed->fid, ':guid' => $item['GUID']))->fetchObject();
+        if (!empty($item['guid'])) {
+          $entry = db_query("SELECT iid, timestamp FROM {aggregator_item} WHERE fid = :fid AND guid = :guid", array(':fid' => $feed->fid, ':guid' => $item['guid']))->fetchObject();
         }
-        elseif ($item['LINK'] && $item['LINK'] != $feed->link && $item['LINK'] != $feed->url) {
-          $entry = db_query("SELECT iid, timestamp FROM {aggregator_item} WHERE fid = :fid AND link = :link", array(':fid' => $feed->fid, ':link' => $item['LINK']))->fetchObject();
+        elseif ($item['link'] && $item['link'] != $feed->link && $item['link'] != $feed->url) {
+          $entry = db_query("SELECT iid, timestamp FROM {aggregator_item} WHERE fid = :fid AND link = :link", array(':fid' => $feed->fid, ':link' => $item['link']))->fetchObject();
         }
         else {
-          $entry = db_query("SELECT iid, timestamp FROM {aggregator_item} WHERE fid = :fid AND title = :title", array(':fid' => $feed->fid, ':title' => $item['TITLE']))->fetchObject();
+          $entry = db_query("SELECT iid, timestamp FROM {aggregator_item} WHERE fid = :fid AND title = :title", array(':fid' => $feed->fid, ':title' => $item['title']))->fetchObject();
         }
-        if (!$item['TIMESTAMP']) {
-          $item['TIMESTAMP'] = isset($entry->timestamp) ? $entry->timestamp : REQUEST_TIME;
+        if (!$item['timestamp']) {
+          $item['timestamp'] = isset($entry->timestamp) ? $entry->timestamp : REQUEST_TIME;
         }
-        aggregator_save_item(array('iid' => (isset($entry->iid) ? $entry->iid : ''), 'fid' => $feed->fid, 'timestamp' => $item['TIMESTAMP'], 'title' => $item['TITLE'], 'link' => $item['LINK'], 'author' => $item['AUTHOR'], 'description' => $item['DESCRIPTION'], 'guid' => $item['GUID']));
+        aggregator_save_item(array('iid' => (isset($entry->iid) ? $entry->iid : ''), 'fid' => $feed->fid, 'timestamp' => $item['timestamp'], 'title' => $item['title'], 'link' => $item['link'], 'author' => $item['author'], 'description' => $item['description'], 'guid' => $item['guid']));
       }
     }
   }
@@ -72,6 +77,7 @@ function aggregator_form_aggregator_admin_form_alter(&$form, $form_state) {
     $info = module_invoke('aggregator', 'aggregator_process', 'info');
     $items = array(0 => t('none')) + drupal_map_assoc(array(3, 5, 10, 15, 20, 25), '_aggregator_items');
     $period = drupal_map_assoc(array(3600, 10800, 21600, 32400, 43200, 86400, 172800, 259200, 604800, 1209600, 2419200, 4838400, 9676800), 'format_interval');
+    $period[AGGREGATOR_CLEAR_NEVER] = t('Never');
 
     // Only wrap into a collapsible fieldset if there is a basic configuration.
     if (isset($form['basic_conf'])) {
@@ -163,15 +169,23 @@ function aggregator_save_item($edit) {
  *   Object describing feed.
  */
 function aggregator_expire($feed) {
-  // Remove all items that are older than flush item timer.
-  $age = REQUEST_TIME - variable_get('aggregator_clear', 9676800);
-  $iids = db_query('SELECT iid FROM {aggregator_item} WHERE fid = :fid AND timestamp < :timestamp', array(':fid' => $feed->fid, ':timestamp' => $age))->fetchCol();
-  if ($iids) {
-    db_delete('aggregator_category_item')
-      ->condition('iid', $iids, 'IN')
-      ->execute();
-    db_delete('aggregator_item')
-      ->condition('iid', $iids, 'IN')
-      ->execute();
+  $aggregator_clear = variable_get('aggregator_clear', 9676800);
+
+  if ($aggregator_clear != AGGREGATOR_CLEAR_NEVER) {
+    // Remove all items that are older than flush item timer.
+    $age = REQUEST_TIME - $aggregator_clear;
+    $iids = db_query('SELECT iid FROM {aggregator_item} WHERE fid = :fid AND timestamp < :timestamp', array(
+      ':fid' => $feed->fid,
+      ':timestamp' => $age,
+    ))
+    ->fetchCol();
+    if ($iids) {
+      db_delete('aggregator_category_item')
+        ->condition('iid', $iids, 'IN')
+        ->execute();
+      db_delete('aggregator_item')
+        ->condition('iid', $iids, 'IN')
+        ->execute();
+    }
   }
 }

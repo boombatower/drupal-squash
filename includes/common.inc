@@ -10,6 +10,21 @@
  */
 
 /**
+ * Error reporting level: display no errors.
+ */
+define('ERROR_REPORTING_HIDE', 0);
+
+/**
+ * Error reporting level: display errors and warnings.
+ */
+define('ERROR_REPORTING_DISPLAY_SOME', 1);
+
+/**
+ * Error reporting level: display all messages.
+ */
+define('ERROR_REPORTING_DISPLAY_ALL', 2);
+
+/**
  * Return status for saving which involved creating a new item.
  */
 define('SAVED_NEW', 1);
@@ -41,14 +56,14 @@ define('JS_DEFAULT', 0);
 define('JS_THEME', 100);
 
 /**
- * Set content for a specified region.
+ * Add content to a specified region.
  *
  * @param $region
- *   Page region the content is assigned to.
+ *   Page region the content is added to.
  * @param $data
- *   Content to be set.
+ *   Content to be added.
  */
-function drupal_set_content($region = NULL, $data = NULL) {
+function drupal_add_region_content($region = NULL, $data = NULL) {
   static $content = array();
 
   if (!is_null($region) && !is_null($data)) {
@@ -58,7 +73,7 @@ function drupal_set_content($region = NULL, $data = NULL) {
 }
 
 /**
- * Get assigned content.
+ * Get assigned content for a given region.
  *
  * @param $region
  *   A specified region to fetch content for. If NULL, all regions will be
@@ -66,8 +81,8 @@ function drupal_set_content($region = NULL, $data = NULL) {
  * @param $delimiter
  *   Content to be inserted between exploded array elements.
  */
-function drupal_get_content($region = NULL, $delimiter = ' ') {
-  $content = drupal_set_content();
+function drupal_get_region_content($region = NULL, $delimiter = ' ') {
+  $content = drupal_add_region_content();
   if (isset($region)) {
     if (isset($content[$region]) && is_array($content[$region])) {
       return implode($delimiter, $content[$region]);
@@ -130,7 +145,7 @@ function drupal_get_rdf_namespaces() {
  *
  * This function can be called as long the headers aren't sent.
  */
-function drupal_set_html_head($data = NULL) {
+function drupal_add_html_head($data = NULL) {
   static $stored_head = '';
 
   if (!is_null($data)) {
@@ -144,7 +159,7 @@ function drupal_set_html_head($data = NULL) {
  */
 function drupal_get_html_head() {
   $output = "<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\" />\n";
-  return $output . drupal_set_html_head();
+  return $output . drupal_add_html_head();
 }
 
 /**
@@ -152,32 +167,6 @@ function drupal_get_html_head() {
  */
 function drupal_clear_path_cache() {
   drupal_lookup_path('wipe');
-}
-
-/**
- * Set an HTTP response header for the current page.
- *
- * Note: When sending a Content-Type header, always include a 'charset' type,
- * too. This is necessary to avoid security bugs (e.g. UTF-7 XSS).
- */
-function drupal_set_header($header = NULL) {
-  // We use an array to guarantee there are no leading or trailing delimiters.
-  // Otherwise, header('') could get called when serving the page later, which
-  // ends HTTP headers prematurely on some PHP versions.
-  static $stored_headers = array();
-
-  if (strlen($header)) {
-    header($header);
-    $stored_headers[] = $header;
-  }
-  return implode("\n", $stored_headers);
-}
-
-/**
- * Get the HTTP response headers for the current page.
- */
-function drupal_get_headers() {
-  return drupal_set_header();
 }
 
 /**
@@ -329,8 +318,6 @@ function drupal_goto($path = '', $query = NULL, $fragment = NULL, $http_response
   }
 
   $url = url($path, array('query' => $query, 'fragment' => $fragment, 'absolute' => TRUE));
-  // Remove newlines from the URL to avoid header injection attacks.
-  $url = str_replace(array("\n", "\r"), '', $url);
 
   // Allow modules to react to the end of the page request before redirecting.
   // We do not want this while running update.php.
@@ -357,7 +344,7 @@ function drupal_goto($path = '', $query = NULL, $fragment = NULL, $http_response
  */
 function drupal_site_offline() {
   drupal_maintenance_theme();
-  drupal_set_header($_SERVER['SERVER_PROTOCOL'] . ' 503 Service unavailable');
+  drupal_set_header('503 Service unavailable');
   drupal_set_title(t('Site offline'));
   print theme('maintenance_page', filter_xss_admin(variable_get('site_offline_message',
     t('@site is currently under maintenance. We should be back shortly. Thank you for your patience.', array('@site' => variable_get('site_name', 'Drupal'))))));
@@ -367,14 +354,9 @@ function drupal_site_offline() {
  * Generates a 404 error if the request can not be handled.
  */
 function drupal_not_found() {
-  drupal_set_header($_SERVER['SERVER_PROTOCOL'] . ' 404 Not Found');
+  drupal_set_header('404 Not Found');
 
   watchdog('page not found', check_plain($_GET['q']), NULL, WATCHDOG_WARNING);
-
-  // Keep old path for reference.
-  if (!isset($_REQUEST['destination'])) {
-    $_REQUEST['destination'] = $_GET['q'];
-  }
 
   $path = drupal_get_normal_path(variable_get('site_404', ''));
   if ($path && $path != $_GET['q']) {
@@ -390,7 +372,8 @@ function drupal_not_found() {
     $return = t('The requested page could not be found.');
   }
 
-  $page = drupal_get_page($return);
+  drupal_set_page_content($return);
+  $page = element_info('page');
   // To conserve CPU and bandwidth, omit the blocks.
   $page['#show_blocks'] = FALSE;
 
@@ -401,13 +384,9 @@ function drupal_not_found() {
  * Generates a 403 error if the request is not allowed.
  */
 function drupal_access_denied() {
-  drupal_set_header($_SERVER['SERVER_PROTOCOL'] . ' 403 Forbidden');
-  watchdog('access denied', check_plain($_GET['q']), NULL, WATCHDOG_WARNING);
+  drupal_set_header('403 Forbidden');
 
-  // Keep old path for reference.
-  if (!isset($_REQUEST['destination'])) {
-    $_REQUEST['destination'] = $_GET['q'];
-  }
+  watchdog('access denied', check_plain($_GET['q']), NULL, WATCHDOG_WARNING);
 
   $path = drupal_get_normal_path(variable_get('site_403', ''));
   if ($path && $path != $_GET['q']) {
@@ -452,12 +431,16 @@ function drupal_access_denied() {
  *   - code
  *       An integer containing the response status code, or the error code if
  *       an error occurred.
+ *   - protocol
+ *      The response protocol (e.g. HTTP/1.1 or HTTP/1.0).
+ *   - status_message
+ *      The status message from the response, if a response was received.
  *   - redirect_code
  *       If redirected, an integer containing the initial response status code.
  *   - redirect_url
  *       If redirected, a string containing the redirection location.
  *   - error
- *       If an error occurred, the error message.
+ *       If an error occurred, the error message. Otherwise not set.
  *   - headers
  *       An array containing the response headers as name/value pairs.
  *   - data
@@ -530,15 +513,23 @@ function drupal_http_request($url, array $options = array()) {
 
   // Merge the default headers.
   $options['headers'] += array(
-    // RFC 2616: "non-standard ports MUST, default ports MAY be included".
-    // We don't add the port to prevent from breaking rewrite rules checking the
-    // host that do not take into account the port number.
-    'Host' => $host,
     'User-Agent' => 'Drupal (+http://drupal.org/)',
-    'Content-Length' => strlen($options['data']),
   );
 
-  // If the server url has a user then attempt to use basic authentication
+  // RFC 2616: "non-standard ports MUST, default ports MAY be included".
+  // We don't add the standard port to prevent from breaking rewrite rules
+  // checking the host that do not take into account the port number.
+  $options['headers']['Host'] = $host;
+
+  // Only add Content-Length if we actually have any content or if it is a POST
+  // or PUT request. Some non-standard servers get confused by Content-Length in
+  // at least HEAD/GET requests, and Squid always requires Content-Length in
+  // POST/PUT requests.
+  if (!empty($options['data']) || $options['method'] == 'POST' || $options['method'] == 'PUT') {
+    $options['headers']['Content-Length'] = strlen($options['data']);
+  }
+
+  // If the server URL has a user then attempt to use basic authentication.
   if (isset($uri['user'])) {
     $options['headers']['Authorization'] = 'Basic ' . base64_encode($uri['user'] . (!empty($uri['pass']) ? ":" . $uri['pass'] : ''));
   }
@@ -553,13 +544,11 @@ function drupal_http_request($url, array $options = array()) {
     $options['headers']['User-Agent'] = $matches[0];
   }
 
-  foreach ($options['headers'] as $name => $value) {
-    $options['headers'][$name] = $name . ': ' . trim($value);
-  }
-
   $request = $options['method'] . ' ' . $path . " HTTP/1.0\r\n";
-  $request .= implode("\r\n", $options['headers']);
-  $request .= "\r\n\r\n" . $options['data'];
+  foreach ($options['headers'] as $name => $value) {
+    $request .= $name . ': ' . trim($value) . "\r\n";
+  }
+  $request .= "\r\n" . $options['data'];
   $result->request = $request;
 
   fwrite($fp, $request);
@@ -576,7 +565,10 @@ function drupal_http_request($url, array $options = array()) {
   $response = preg_split("/\r\n|\n|\r/", $response);
 
   // Parse the response status line.
-  list($protocol, $code, $status) = explode(' ', trim(array_shift($response)), 3);
+  list($protocol, $code, $status_message) = explode(' ', trim(array_shift($response)), 3);
+  $result->protocol = $protocol;
+  $result->status_message = $status_message;
+
   $result->headers = array();
 
   // Parse the response headers.
@@ -658,7 +650,7 @@ function drupal_http_request($url, array $options = array()) {
       $result->redirect_url = $location;
       break;
     default:
-      $result->error = $status;
+      $result->error = $status_message;
   }
 
   return $result;
@@ -749,8 +741,8 @@ function _drupal_decode_exception($exception) {
     // or in one of its global functions.
     $db_functions = array('db_query', 'pager_query', 'db_query_range', 'db_query_temporary', 'update_sql');
     while (!empty($backtrace[1]) && ($caller = $backtrace[1]) &&
-         ((isset($caller['class']) && (strpos($caller['class'], 'Query') !== FALSE || strpos($caller['class'], 'Database') !== FALSE)) ||
-         in_array($caller['function'], $db_functions))) {
+        ((isset($caller['class']) && (strpos($caller['class'], 'Query') !== FALSE || strpos($caller['class'], 'Database') !== FALSE)) ||
+        in_array($caller['function'], $db_functions))) {
       // We remove that call.
       array_shift($backtrace);
     }
@@ -775,7 +767,7 @@ function _drupal_decode_exception($exception) {
  *   TRUE if the error is fatal.
  */
 function _drupal_log_error($error, $fatal = FALSE) {
-  // Initialize a maintenance theme early if the boostrap was not complete.
+  // Initialize a maintenance theme if the boostrap was not complete.
   // Do it early because drupal_set_message() triggers an init_theme().
   if ($fatal && (drupal_get_bootstrap_phase() != DRUPAL_BOOTSTRAP_FULL)) {
     unset($GLOBALS['theme']);
@@ -802,34 +794,41 @@ function _drupal_log_error($error, $fatal = FALSE) {
     $number++;
   }
 
-  // Force display of error messages in update.php or if the proper error
-  // reporting level is set.
-  $error_level = variable_get('error_level', 2);
-  if ($error_level == 2 || ($error_level == 1 && $error['%type'] != 'Notice') || (defined('MAINTENANCE_MODE') && MAINTENANCE_MODE == 'update')) {
-    drupal_set_message(t('%type: %message in %function (line %line of %file).', $error), 'error');
-  }
-
   try {
     watchdog('php', '%type: %message in %function (line %line of %file).', $error, WATCHDOG_ERROR);
   }
   catch (Exception $e) {
-    $new_error = _drupal_decode_exception($e);
-    drupal_set_message(t('%type: %message in %function (line %line of %file).', $new_error), 'error');
+    // Ignore any additional watchdog exception, as that probably means
+    // that the database was not initialized correctly.
   }
 
   if ($fatal) {
-    drupal_set_header($_SERVER['SERVER_PROTOCOL'] . ' Service unavailable');
-    drupal_set_title(t('Error'));
-    if (!defined('MAINTENANCE_MODE') && drupal_get_bootstrap_phase() == DRUPAL_BOOTSTRAP_FULL) {
-      // To conserve CPU and bandwidth, omit the blocks.
-      $page = drupal_get_page(t('The website encountered an unexpected error. Please try again later.'));
-      $page['#show_blocks'] = FALSE;
-      print drupal_render_page($page);
+    drupal_set_header($_SERVER['SERVER_PROTOCOL'] . ' 500 Service unavailable (with message)');
+  }
+
+  if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] == 'XMLHttpRequest') {
+    if ($fatal) {
+      // When called from JavaScript, simply output the error message.
+      print t('%type: %message in %function (line %line of %file).', $error);
+      exit;
     }
-    else {
+  }
+  else {
+    // Display the message if the current error reporting level allows this type
+    // of message to be displayed, and unconditionnaly in update.php.
+    $error_level = variable_get('error_level', ERROR_REPORTING_DISPLAY_ALL);
+    $display_error = $error_level == ERROR_REPORTING_DISPLAY_ALL || ($error_level == ERROR_REPORTING_DISPLAY_SOME && $error['%type'] != 'Notice');
+    if ($display_error || (defined('MAINTENANCE_MODE') && MAINTENANCE_MODE == 'update')) {
+      drupal_set_message(t('%type: %message in %function (line %line of %file).', $error), 'error');
+    }
+
+    if ($fatal) {
+      drupal_set_title(t('Error'));
+      // We fallback to a maintenance page at this point, because the page generation
+      // itself can generate errors.
       print theme('maintenance_page', t('The website encountered an unexpected error. Please try again later.'), FALSE);
+      exit;
     }
-    exit;
   }
 }
 
@@ -1122,7 +1121,10 @@ function t($string, $args = array(), $langcode = NULL) {
     $string = $custom_strings[$langcode][$string];
   }
   // Translate with locale module if enabled.
-  elseif (function_exists('locale') && $langcode != 'en') {
+  // We don't use drupal_function_exists() here, because it breaks the testing
+  // framework if the locale module is enabled in the parent site (we cannot
+  // unload functions in PHP).
+  elseif (module_exists('locale') && $langcode != 'en') {
     $string = locale($string, $langcode);
   }
   if (empty($args)) {
@@ -1255,11 +1257,302 @@ function check_file($filename) {
 }
 
 /**
+ * @defgroup sanitization Sanitization functions
+ * @{
+ * Functions to sanitize values.
+ */
+
+/**
  * Prepare a URL for use in an HTML attribute. Strips harmful protocols.
  */
 function check_url($uri) {
   return filter_xss_bad_protocol($uri, FALSE);
 }
+
+/**
+ * Very permissive XSS/HTML filter for admin-only use.
+ *
+ * Use only for fields where it is impractical to use the
+ * whole filter system, but where some (mainly inline) mark-up
+ * is desired (so check_plain() is not acceptable).
+ *
+ * Allows all tags that can be used inside an HTML body, save
+ * for scripts and styles.
+ */
+function filter_xss_admin($string) {
+  return filter_xss($string, array('a', 'abbr', 'acronym', 'address', 'b', 'bdo', 'big', 'blockquote', 'br', 'caption', 'cite', 'code', 'col', 'colgroup', 'dd', 'del', 'dfn', 'div', 'dl', 'dt', 'em', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'i', 'img', 'ins', 'kbd', 'li', 'ol', 'p', 'pre', 'q', 'samp', 'small', 'span', 'strong', 'sub', 'sup', 'table', 'tbody', 'td', 'tfoot', 'th', 'thead', 'tr', 'tt', 'ul', 'var'));
+}
+
+/**
+ * Filter XSS.
+ *
+ * Based on kses by Ulf Harnhammar, see
+ * http://sourceforge.net/projects/kses
+ *
+ * For examples of various XSS attacks, see:
+ * http://ha.ckers.org/xss.html
+ *
+ * This code does four things:
+ * - Removes characters and constructs that can trick browsers
+ * - Makes sure all HTML entities are well-formed
+ * - Makes sure all HTML tags and attributes are well-formed
+ * - Makes sure no HTML tags contain URLs with a disallowed protocol (e.g. javascript:)
+ *
+ * @param $string
+ *   The string with raw HTML in it. It will be stripped of everything that can cause
+ *   an XSS attack.
+ * @param $allowed_tags
+ *   An array of allowed tags.
+ */
+function filter_xss($string, $allowed_tags = array('a', 'em', 'strong', 'cite', 'blockquote', 'code', 'ul', 'ol', 'li', 'dl', 'dt', 'dd')) {
+  // Only operate on valid UTF-8 strings. This is necessary to prevent cross
+  // site scripting issues on Internet Explorer 6.
+  if (!drupal_validate_utf8($string)) {
+    return '';
+  }
+  // Store the text format
+  _filter_xss_split($allowed_tags, TRUE);
+  // Remove NULL characters (ignored by some browsers)
+  $string = str_replace(chr(0), '', $string);
+  // Remove Netscape 4 JS entities
+  $string = preg_replace('%&\s*\{[^}]*(\}\s*;?|$)%', '', $string);
+
+  // Defuse all HTML entities
+  $string = str_replace('&', '&amp;', $string);
+  // Change back only well-formed entities in our whitelist
+  // Named entities
+  $string = preg_replace('/&amp;([A-Za-z][A-Za-z0-9]*;)/', '&\1', $string);
+  // Decimal numeric entities
+  $string = preg_replace('/&amp;#([0-9]+;)/', '&#\1', $string);
+  // Hexadecimal numeric entities
+  $string = preg_replace('/&amp;#[Xx]0*((?:[0-9A-Fa-f]{2})+;)/', '&#x\1', $string);
+
+  return preg_replace_callback('%
+    (
+    <(?=[^a-zA-Z!/])  # a lone <
+    |                 # or
+    <[^>]*(>|$)       # a string that starts with a <, up until the > or the end of the string
+    |                 # or
+    >                 # just a >
+    )%x', '_filter_xss_split', $string);
+}
+
+/**
+ * Processes an HTML tag.
+ *
+ * @param $m
+ *   An array with various meaning depending on the value of $store.
+ *   If $store is TRUE then the array contains the allowed tags.
+ *   If $store is FALSE then the array has one element, the HTML tag to process.
+ * @param $store
+ *   Whether to store $m.
+ * @return
+ *   If the element isn't allowed, an empty string. Otherwise, the cleaned up
+ *   version of the HTML element.
+ */
+function _filter_xss_split($m, $store = FALSE) {
+  static $allowed_html;
+
+  if ($store) {
+    $allowed_html = array_flip($m);
+    return;
+  }
+
+  $string = $m[1];
+
+  if (substr($string, 0, 1) != '<') {
+    // We matched a lone ">" character
+    return '&gt;';
+  }
+  elseif (strlen($string) == 1) {
+    // We matched a lone "<" character
+    return '&lt;';
+  }
+
+  if (!preg_match('%^<\s*(/\s*)?([a-zA-Z0-9]+)([^>]*)>?$%', $string, $matches)) {
+    // Seriously malformed
+    return '';
+  }
+
+  $slash = trim($matches[1]);
+  $elem = &$matches[2];
+  $attrlist = &$matches[3];
+
+  if (!isset($allowed_html[strtolower($elem)])) {
+    // Disallowed HTML element
+    return '';
+  }
+
+  if ($slash != '') {
+    return "</$elem>";
+  }
+
+  // Is there a closing XHTML slash at the end of the attributes?
+  $attrlist = preg_replace('%(\s?)/\s*$%', '\1', $attrlist, -1, $count);
+  $xhtml_slash = $count ? ' /' : '';
+
+  // Clean up attributes
+  $attr2 = implode(' ', _filter_xss_attributes($attrlist));
+  $attr2 = preg_replace('/[<>]/', '', $attr2);
+  $attr2 = strlen($attr2) ? ' ' . $attr2 : '';
+
+  return "<$elem$attr2$xhtml_slash>";
+}
+
+/**
+ * Processes a string of HTML attributes.
+ *
+ * @return
+ *   Cleaned up version of the HTML attributes.
+ */
+function _filter_xss_attributes($attr) {
+  $attrarr = array();
+  $mode = 0;
+  $attrname = '';
+
+  while (strlen($attr) != 0) {
+    // Was the last operation successful?
+    $working = 0;
+
+    switch ($mode) {
+      case 0:
+        // Attribute name, href for instance
+        if (preg_match('/^([-a-zA-Z]+)/', $attr, $match)) {
+          $attrname = strtolower($match[1]);
+          $skip = ($attrname == 'style' || substr($attrname, 0, 2) == 'on');
+          $working = $mode = 1;
+          $attr = preg_replace('/^[-a-zA-Z]+/', '', $attr);
+        }
+        break;
+
+      case 1:
+        // Equals sign or valueless ("selected")
+        if (preg_match('/^\s*=\s*/', $attr)) {
+          $working = 1; $mode = 2;
+          $attr = preg_replace('/^\s*=\s*/', '', $attr);
+          break;
+        }
+
+        if (preg_match('/^\s+/', $attr)) {
+          $working = 1; $mode = 0;
+          if (!$skip) {
+            $attrarr[] = $attrname;
+          }
+          $attr = preg_replace('/^\s+/', '', $attr);
+        }
+        break;
+
+      case 2:
+        // Attribute value, a URL after href= for instance
+        if (preg_match('/^"([^"]*)"(\s+|$)/', $attr, $match)) {
+          $thisval = filter_xss_bad_protocol($match[1]);
+
+          if (!$skip) {
+            $attrarr[] = "$attrname=\"$thisval\"";
+          }
+          $working = 1;
+          $mode = 0;
+          $attr = preg_replace('/^"[^"]*"(\s+|$)/', '', $attr);
+          break;
+        }
+
+        if (preg_match("/^'([^']*)'(\s+|$)/", $attr, $match)) {
+          $thisval = filter_xss_bad_protocol($match[1]);
+
+          if (!$skip) {
+            $attrarr[] = "$attrname='$thisval'";
+          }
+          $working = 1; $mode = 0;
+          $attr = preg_replace("/^'[^']*'(\s+|$)/", '', $attr);
+          break;
+        }
+
+        if (preg_match("%^([^\s\"']+)(\s+|$)%", $attr, $match)) {
+          $thisval = filter_xss_bad_protocol($match[1]);
+
+          if (!$skip) {
+            $attrarr[] = "$attrname=\"$thisval\"";
+          }
+          $working = 1; $mode = 0;
+          $attr = preg_replace("%^[^\s\"']+(\s+|$)%", '', $attr);
+        }
+        break;
+    }
+
+    if ($working == 0) {
+      // not well formed, remove and try again
+      $attr = preg_replace('/
+        ^
+        (
+        "[^"]*("|$)     # - a string that starts with a double quote, up until the next double quote or the end of the string
+        |               # or
+        \'[^\']*(\'|$)| # - a string that starts with a quote, up until the next quote or the end of the string
+        |               # or
+        \S              # - a non-whitespace character
+        )*              # any number of the above three
+        \s*             # any number of whitespaces
+        /x', '', $attr);
+      $mode = 0;
+    }
+  }
+
+  // The attribute list ends with a valueless attribute like "selected".
+  if ($mode == 1) {
+    $attrarr[] = $attrname;
+  }
+  return $attrarr;
+}
+
+/**
+ * Processes an HTML attribute value and ensures it does not contain an URL with a disallowed protocol (e.g. javascript:).
+ *
+ * @param $string
+ *   The string with the attribute value.
+ * @param $decode
+ *   Whether to decode entities in the $string. Set to FALSE if the $string
+ *   is in plain text, TRUE otherwise. Defaults to TRUE.
+ * @return
+ *   Cleaned up and HTML-escaped version of $string.
+ */
+function filter_xss_bad_protocol($string, $decode = TRUE) {
+  static $allowed_protocols;
+
+  if (!isset($allowed_protocols)) {
+    $allowed_protocols = array_flip(variable_get('filter_allowed_protocols', array('ftp', 'http', 'https', 'irc', 'mailto', 'news', 'nntp', 'rtsp', 'sftp', 'ssh', 'telnet', 'webcal')));
+  }
+
+  // Get the plain text representation of the attribute value (i.e. its meaning).
+  if ($decode) {
+    $string = decode_entities($string);
+  }
+
+  // Iteratively remove any invalid protocol found.
+  do {
+    $before = $string;
+    $colonpos = strpos($string, ':');
+    if ($colonpos > 0) {
+      // We found a colon, possibly a protocol. Verify.
+      $protocol = substr($string, 0, $colonpos);
+      // If a colon is preceded by a slash, question mark or hash, it cannot
+      // possibly be part of the URL scheme. This must be a relative URL,
+      // which inherits the (safe) protocol of the base document.
+      if (preg_match('![/?#]!', $protocol)) {
+        break;
+      }
+      // Per RFC2616, section 3.2.3 (URI Comparison) scheme comparison must be case-insensitive
+      // Check if this is a disallowed protocol.
+      if (!isset($allowed_protocols[strtolower($protocol)])) {
+        $string = substr($string, $colonpos + 1);
+      }
+    }
+  } while ($before != $string);
+
+  return check_plain($string);
+}
+
+/**
+ * @} End of "defgroup sanitization".
+ */
 
 /**
  * @defgroup format Formatting
@@ -1493,7 +1786,15 @@ function format_size($size, $langcode = NULL) {
  *   A translated string representation of the interval.
  */
 function format_interval($timestamp, $granularity = 2, $langcode = NULL) {
-  $units = array('1 year|@count years' => 31536000, '1 week|@count weeks' => 604800, '1 day|@count days' => 86400, '1 hour|@count hours' => 3600, '1 min|@count min' => 60, '1 sec|@count sec' => 1);
+  $units = array(
+    '1 year|@count years' => 31536000,
+    '1 month|@count months' => 2592000,
+    '1 week|@count weeks' => 604800,
+    '1 day|@count days' => 86400,
+    '1 hour|@count hours' => 3600,
+    '1 min|@count min' => 60,
+    '1 sec|@count sec' => 1
+  );
   $output = '';
   foreach ($units as $key => $value) {
     $key = explode('|', $key);
@@ -1802,7 +2103,7 @@ function drupal_attributes($attributes = array()) {
  *       http:). Useful for links that will be displayed outside the site, such
  *       as in an RSS feed.
  *     - 'html' (default FALSE)
- *       Whether the title is HTML, or just plain-text. For example for making
+ *       Whether $text is HTML, or just plain-text. For example for making
  *       an image a link, this must be set to TRUE, or else you will see the
  *       escaped HTML.
  *     - 'alias' (default FALSE)
@@ -1864,6 +2165,7 @@ function drupal_page_footer() {
 
   module_implements(MODULE_IMPLEMENTS_WRITE_CACHE);
   _registry_check_code(REGISTRY_WRITE_LOOKUP_CACHE);
+  drupal_cache_system_paths();
 }
 
 /**
@@ -1900,50 +2202,6 @@ function drupal_map_assoc($array, $function = NULL) {
 }
 
 /**
- * Evaluate a string of PHP code.
- *
- * This is a wrapper around PHP's eval(). It uses output buffering to capture both
- * returned and printed text. Unlike eval(), we require code to be surrounded by
- * <?php ?> tags; in other words, we evaluate the code as if it were a stand-alone
- * PHP file.
- *
- * Using this wrapper also ensures that the PHP code which is evaluated can not
- * overwrite any variables in the calling code, unlike a regular eval() call.
- *
- * @param $code
- *   The code to evaluate.
- * @return
- *   A string containing the printed output of the code, followed by the returned
- *   output of the code.
- */
-function drupal_eval($code) {
-  global $theme_path, $theme_info, $conf;
-
-  // Store current theme path.
-  $old_theme_path = $theme_path;
-
-  // Restore theme_path to the theme, as long as drupal_eval() executes,
-  // so code evaluated will not see the caller module as the current theme.
-  // If theme info is not initialized get the path from theme_default.
-  if (!isset($theme_info)) {
-    $theme_path = drupal_get_path('theme', $conf['theme_default']);
-  }
-  else {
-    $theme_path = dirname($theme_info->filename);
-  }
-
-  ob_start();
-  print eval('?>' . $code);
-  $output = ob_get_contents();
-  ob_end_clean();
-
-  // Recover original theme path.
-  $theme_path = $old_theme_path;
-
-  return $output;
-}
-
-/**
  * Returns the path to a system item (module, theme, etc.).
  *
  * @param $type
@@ -1959,8 +2217,14 @@ function drupal_get_path($type, $name) {
 }
 
 /**
- * Returns the base URL path of the Drupal installation.
- * At the very least, this will always default to /.
+ * Return the base URL path (i.e., directory) of the Drupal installation.
+ *
+ * base_path() prefixes and suffixes a "/" onto the returned path if the path is
+ * not empty. At the very least, this will return "/".
+ *
+ * Examples:
+ * - http://example.com returns "/" because the path is empty.
+ * - http://example.com/drupal/folder returns "/drupal/folder/".
  */
 function base_path() {
   return $GLOBALS['base_path'];
@@ -1972,71 +2236,75 @@ function base_path() {
  * This function can be called as long the HTML header hasn't been sent.
  */
 function drupal_add_link($attributes) {
-  drupal_set_html_head('<link' . drupal_attributes($attributes) . " />\n");
+  drupal_add_html_head('<link' . drupal_attributes($attributes) . " />\n");
 }
 
 /**
- * Adds a CSS file to the stylesheet queue.
+ * Adds a cascading stylesheet to the stylesheet queue.
  *
- * @param $path
- *   (optional) The path to the CSS file relative to the base_path(), e.g.,
- *   /modules/devel/devel.css.
+ * Calling drupal_static_reset('drupal_add_css') will clear all cascading
+ * stylesheets added so far.
  *
- *   Modules should always prefix the names of their CSS files with the module
- *   name, for example: system-menus.css rather than simply menus.css. Themes
- *   can override module-supplied CSS files based on their filenames, and this
- *   prefixing helps prevent confusing name collisions for theme developers.
- *   See drupal_get_css where the overrides are performed.
+ * @param $data
+ *   (optional) The stylesheet data to be added, depending on what is passed
+ *   through to the $options['type'] parameter:
+ *   - 'module' or 'theme': The path to the CSS file relative to the base_path(),
+ *     e.g., "modules/devel/devel.css".
  *
- *   If the direction of the current language is right-to-left (Hebrew,
- *   Arabic, etc.), the function will also look for an RTL CSS file and append
- *   it to the list. The name of this file should have an '-rtl.css' suffix.
- *   For example a CSS file called 'name.css' will have a 'name-rtl.css'
- *   file added to the list, if exists in the same directory. This CSS file
- *   should contain overrides for properties which should be reversed or
- *   otherwise different in a right-to-left display.
+ *     Modules should always prefix the names of their CSS files with the
+ *     module name, for example: system-menus.css rather than simply menus.css.
+ *     Themes can override module-supplied CSS files based on their filenames,
+ *     and this prefixing helps prevent confusing name collisions for theme
+ *     developers. See drupal_get_css where the overrides are performed.
  *
- *   Note that if $options or $options['type'] is 'reset', then $path will be
- *   ignored.
+ *     If the direction of the current language is right-to-left (Hebrew,
+ *     Arabic, etc.), the function will also look for an RTL CSS file and append
+ *     it to the list. The name of this file should have an '-rtl.css' suffix.
+ *     For example a CSS file called 'mymodule-name.css' will have a
+ *     'mymodule-name-rtl.css' file added to the list, if exists in the same
+ *     directory. This CSS file should contain overrides for properties which
+ *     should be reversed or otherwise different in a right-to-left display.
+ *   - 'inline': A string of CSS that should be placed in the given scope. Note
+ *     that it is better practice to use 'module' or 'theme' stylesheets, rather
+ *     than 'inline' as the CSS would then be aggregated and cached.
+ *
  * @param $options
- *   (optional) A string defining the type of CSS that is being added in the
- *   $path parameter ('module' or 'theme'), or an associative array of
+ *   (optional) A string defining the 'type' of CSS that is being added in the
+ *   $data parameter ('module', 'theme' or 'inline'), or an associative array of
  *   additional options, with the following keys:
- *     - 'type'
- *       The type of stylesheet that is being added. Types are: 'module',
- *       'theme', or 'reset'. Defaults to 'module'. If the type is 'reset',
- *       then the CSS will be reset, ignoring $path and other $options.
- *     - 'media'
- *       The media type for the stylesheet, e.g., all, print, screen. Defaults
- *       to 'all'.
- *     - 'preprocess':
- *       Allow this CSS file to be aggregated and compressed if the Optimize
- *       CSS feature has been turned on under the performance section. Defaults
- *       to TRUE.
+ *   - 'type': The type of stylesheet that is being added. Types are: 'module',
+ *     'theme' or 'inline'. Defaults to 'module'.
+ *   - 'media': The media type for the stylesheet, e.g., all, print, screen.
+ *     Defaults to 'all'.
+ *   - 'preprocess': Allows the CSS to be aggregated and compressed if the
+ *     Optimize CSS feature has been turned on under the performance section.
+ *     Defaults to TRUE.
  *
- *       What does this actually mean?
- *       CSS preprocessing is the process of aggregating a bunch of separate CSS
- *       files into one file that is then compressed by removing all extraneous
- *       white space.
+ *     What does this actually mean?
+ *     CSS preprocessing is the process of aggregating a bunch of separate CSS
+ *     files into one file that is then compressed by removing all extraneous
+ *     white space. Note that preprocessed inline stylesheets will not be
+ *     aggregated into this single file, instead it will just be compressed
+ *     when being output on the page.
  *
- *       The reason for merging the CSS files is outlined quite thoroughly here:
- *       http://www.die.net/musings/page_load_time/
- *       "Load fewer external objects. Due to request overhead, one bigger file
- *       just loads faster than two smaller ones half its size."
+ *     The reason for merging the CSS files is outlined quite thoroughly here:
+ *     http://www.die.net/musings/page_load_time/
+ *     "Load fewer external objects. Due to request overhead, one bigger file
+ *     just loads faster than two smaller ones half its size."
  *
- *       However, you should *not* preprocess every file as this can lead to
- *       redundant caches. You should set $preprocess = FALSE when your styles
- *       are only used rarely on the site. This could be a special admin page,
- *       the homepage, or a handful of pages that does not represent the
- *       majority of the pages on your site.
+ *     However, you should *not* preprocess every file as this can lead to
+ *     redundant caches. You should set $preprocess = FALSE when your styles
+ *     are only used rarely on the site. This could be a special admin page,
+ *     the homepage, or a handful of pages that does not represent the
+ *     majority of the pages on your site.
  *
- *       Typical candidates for caching are for example styles for nodes across
- *       the site, or used in the theme.
+ *     Typical candidates for caching are for example styles for nodes across
+ *     the site, or used in the theme.
  * @return
- *   An array of CSS files.
+ *   An array of queued cascading stylesheets.
  */
-function drupal_add_css($path = NULL, $options = NULL) {
-  static $css = array();
+function drupal_add_css($data = NULL, $options = NULL) {
+  $css = &drupal_static(__FUNCTION__, array());
   global $language;
 
   // Construct the options, taking the defaults into consideration.
@@ -2049,14 +2317,9 @@ function drupal_add_css($path = NULL, $options = NULL) {
     $options = array();
   }
 
-  // Request made to reset the CSS added so far.
-  if (isset($options['type']) && $options['type'] == 'reset') {
-    return $css = array();
-  }
-
   // Create an array of CSS files for each media type first, since each type needs to be served
   // to the browser differently.
-  if (isset($path)) {
+  if (isset($data)) {
     $options += array(
       'type' => 'module',
       'media' => 'all',
@@ -2067,13 +2330,13 @@ function drupal_add_css($path = NULL, $options = NULL) {
 
     // This check is necessary to ensure proper cascading of styles and is faster than an asort().
     if (!isset($css[$media])) {
-      $css[$media] = array('module' => array(), 'theme' => array());
+      $css[$media] = array('module' => array(), 'theme' => array(), 'inline' => array());
     }
-    $css[$media][$type][$path] = $options['preprocess'];
+    $css[$media][$type][$data] = $options['preprocess'];
 
     // If the current language is RTL, add the CSS file with RTL overrides.
-    if ($language->direction == LANGUAGE_RTL) {
-      $rtl_path = str_replace('.css', '-rtl.css', $path);
+    if ($type != 'inline' && $language->direction == LANGUAGE_RTL) {
+      $rtl_path = str_replace('.css', '-rtl.css', $data);
       if (file_exists($rtl_path)) {
         $css[$media][$type][$rtl_path] = $options['preprocess'];
       }
@@ -2112,6 +2375,7 @@ function drupal_get_css($css = NULL) {
   }
   $no_module_preprocess = '';
   $no_theme_preprocess = '';
+  $no_inline_preprocess = '';
 
   $preprocess_css = (variable_get('preprocess_css', FALSE) && (!defined('MAINTENANCE_MODE') || MAINTENANCE_MODE != 'update'));
   $directory = file_directory_path();
@@ -2126,7 +2390,7 @@ function drupal_get_css($css = NULL) {
   foreach ($css as $media => $types) {
     // If CSS preprocessing is off, we still need to output the styles.
     // Additionally, go through any remaining styles if CSS preprocessing is on and output the non-cached ones.
-    foreach ($types as $type => $files) {
+    foreach ($types as $type => $information) {
       if ($type == 'module') {
         // Setup theme overrides for module styles.
         $theme_styles = array();
@@ -2134,29 +2398,33 @@ function drupal_get_css($css = NULL) {
           $theme_styles[] = basename($theme_style);
         }
       }
-      foreach ($types[$type] as $file => $preprocess) {
+      foreach ($types[$type] as $data => $preprocess) {
         // If the theme supplies its own style using the name of the module style, skip its inclusion.
         // This includes any RTL styles associated with its main LTR counterpart.
-        if ($type == 'module' && in_array(str_replace('-rtl.css', '.css', basename($file)), $theme_styles)) {
+        if ($type == 'module' && in_array(str_replace('-rtl.css', '.css', basename($data)), $theme_styles)) {
           // Unset the file to prevent its inclusion when CSS aggregation is enabled.
-          unset($types[$type][$file]);
+          unset($types[$type][$data]);
           continue;
         }
+        // Include inline stylesheets.
+        if ($type == 'inline') {
+          $no_inline_preprocess .= drupal_load_stylesheet_content($data, $preprocess);
+        }
         // Only include the stylesheet if it exists.
-        if (file_exists($file)) {
+        elseif (file_exists($data)) {
           if (!$preprocess || !($is_writable && $preprocess_css)) {
             // If a CSS file is not to be preprocessed and it's a module CSS file, it needs to *always* appear at the *top*,
             // regardless of whether preprocessing is on or off.
             if (!$preprocess && $type == 'module') {
-              $no_module_preprocess .= '<link type="text/css" rel="stylesheet" media="' . $media . '" href="' . base_path() . $file . $query_string . '" />' . "\n";
+              $no_module_preprocess .= '<link type="text/css" rel="stylesheet" media="' . $media . '" href="' . base_path() . $data . $query_string . '" />' . "\n";
             }
             // If a CSS file is not to be preprocessed and it's a theme CSS file, it needs to *always* appear at the *bottom*,
             // regardless of whether preprocessing is on or off.
             elseif (!$preprocess && $type == 'theme') {
-              $no_theme_preprocess .= '<link type="text/css" rel="stylesheet" media="' . $media . '" href="' . base_path() . $file . $query_string . '" />' . "\n";
+              $no_theme_preprocess .= '<link type="text/css" rel="stylesheet" media="' . $media . '" href="' . base_path() . $data . $query_string . '" />' . "\n";
             }
             else {
-              $output .= '<link type="text/css" rel="stylesheet" media="' . $media . '" href="' . base_path() . $file . $query_string . '" />' . "\n";
+              $output .= '<link type="text/css" rel="stylesheet" media="' . $media . '" href="' . base_path() . $data . $query_string . '" />' . "\n";
             }
           }
         }
@@ -2164,13 +2432,17 @@ function drupal_get_css($css = NULL) {
     }
 
     if ($is_writable && $preprocess_css) {
-      $filename = md5(serialize($types) . $query_string) . '.css';
+      // Prefix filename to prevent blocking by firewalls which reject files
+      // starting with "ad*".
+      $filename = 'css_' . md5(serialize($types) . $query_string) . '.css';
       $preprocess_file = drupal_build_css_cache($types, $filename);
       $output .= '<link type="text/css" rel="stylesheet" media="' . $media . '" href="' . base_path() . $preprocess_file . '" />' . "\n";
     }
   }
-
-  return $no_module_preprocess . $output . $no_theme_preprocess;
+  if (!empty($no_inline_preprocess)) {
+    $no_inline_preprocess = '<style type="text/css">' . $no_inline_preprocess . '</style>';
+  }
+  return $no_module_preprocess . $output . $no_theme_preprocess . $no_inline_preprocess;
 }
 
 /**
@@ -2193,15 +2465,18 @@ function drupal_build_css_cache($types, $filename) {
 
   if (!file_exists($csspath . '/' . $filename)) {
     // Build aggregate CSS file.
-    foreach ($types as $type) {
-      foreach ($type as $file => $cache) {
-        if ($cache) {
-          $contents = drupal_load_stylesheet($file, TRUE);
-          // Return the path to where this CSS file originated from.
-          $base = base_path() . dirname($file) . '/';
-          _drupal_build_css_path(NULL, $base);
-          // Prefix all paths within this CSS file, ignoring external and absolute paths.
-          $data .= preg_replace_callback('/url\([\'"]?(?![a-z]+:|\/+)([^\'")]+)[\'"]?\)/i', '_drupal_build_css_path', $contents);
+    foreach ($types as $type => $css) {
+      // Only 'module' or 'theme' stylesheets can be aggregated.
+      if ($type == 'module' || $type == 'theme') {
+        foreach ($css as $stylesheet => $cache) {
+          if ($cache) {
+            $contents = drupal_load_stylesheet($stylesheet, TRUE);
+            // Return the path to where this CSS file originated from.
+            $base = base_path() . dirname($stylesheet) . '/';
+            _drupal_build_css_path(NULL, $base);
+            // Prefix all paths within this CSS file, ignoring external and absolute paths.
+            $data .= preg_replace_callback('/url\([\'"]?(?![a-z]+:|\/+)([^\'")]+)[\'"]?\)/i', '_drupal_build_css_path', $contents);
+          }
         }
       }
     }
@@ -2257,7 +2532,7 @@ function _drupal_build_css_path($matches, $base = NULL) {
  * @param $optimize
  *   Defines if CSS contents should be compressed or not.
  * @return
- *   Contents of the stylesheet including the imported stylesheets.
+ *   Contents of the stylesheet, including any resolved @import commands.
  */
 function drupal_load_stylesheet($file, $optimize = NULL) {
   static $_optimize;
@@ -2275,25 +2550,42 @@ function drupal_load_stylesheet($file, $optimize = NULL) {
     $cwd = getcwd();
     chdir(dirname($file));
 
-    // Replaces @import commands with the actual stylesheet content.
-    // This happens recursively but omits external files.
-    $contents = preg_replace_callback('/@import\s*(?:url\()?[\'"]?(?![a-z]+:)([^\'"\()]+)[\'"]?\)?;/', '_drupal_load_stylesheet', $contents);
-    // Remove multiple charset declarations for standards compliance (and fixing Safari problems).
-    $contents = preg_replace('/^@charset\s+[\'"](\S*)\b[\'"];/i', '', $contents);
-
-    if ($_optimize) {
-      // Perform some safe CSS optimizations.
-      $contents = preg_replace('<
-        \s*([@{}:;,]|\)\s|\s\()\s* |  # Remove whitespace around separators, but keep space around parentheses.
-        /\*([^*\\\\]|\*(?!/))+\*/ |   # Remove comments that are not CSS hacks.
-        [\n\r]                        # Remove line breaks.
-        >x', '\1', $contents);
-    }
+    // Process the stylesheet.
+    $contents = drupal_load_stylesheet_content($contents, $_optimize);
 
     // Change back directory.
     chdir($cwd);
   }
 
+  return $contents;
+}
+
+/**
+ * Process the contents of a stylesheet for aggregation.
+ *
+ * @param $contents
+ *   The contents of the stylesheet.
+ * @param $optimize
+ *   (optional) Boolean whether CSS contents should be minified. Defaults to
+ *   FALSE.
+ * @return
+ *   Contents of the stylesheet including the imported stylesheets.
+ */
+function drupal_load_stylesheet_content($contents, $optimize = FALSE) {
+  // Replaces @import commands with the actual stylesheet content.
+  // This happens recursively but omits external files.
+  $contents = preg_replace_callback('/@import\s*(?:url\()?[\'"]?(?![a-z]+:)([^\'"\()]+)[\'"]?\)?;/', '_drupal_load_stylesheet', $contents);
+  // Remove multiple charset declarations for standards compliance (and fixing Safari problems).
+  $contents = preg_replace('/^@charset\s+[\'"](\S*)\b[\'"];/i', '', $contents);
+
+  if ($optimize) {
+    // Perform some safe CSS optimizations.
+    $contents = preg_replace('<
+      \s*([@{}:;,]|\)\s|\s\()\s* |  # Remove whitespace around separators, but keep space around parentheses.
+      /\*([^*\\\\]|\*(?!/))+\*/ |   # Remove comments that are not CSS hacks.
+      [\n\r]                        # Remove line breaks.
+      >x', '\1', $contents);
+  }
   return $contents;
 }
 
@@ -2335,7 +2627,7 @@ function drupal_clear_css_cache() {
  *   a new message arrived, by opening a pop up, alert box etc. This should only
  *   be used for JavaScript which cannot be placed and executed from a file.
  *   When adding inline code, make sure that you are not relying on $ being jQuery.
- *   Wrap your code in (function($) { ... })(jQuery); or use jQuery instead of $.
+ *   Wrap your code in (function ($) { ... })(jQuery); or use jQuery instead of $.
  *
  * - Add external JavaScript ('external'):
  *   Allows the inclusion of external JavaScript files that are not hosted on the
@@ -2351,12 +2643,15 @@ function drupal_clear_css_cache() {
  * @code
  *   drupal_add_js('misc/collapse.js');
  *   drupal_add_js('misc/collapse.js', 'file');
- *   drupal_add_js('jQuery(document).ready(function(){alert("Hello!");});', 'inline');
- *   drupal_add_js('jQuery(document).ready(function(){alert("Hello!");});',
+ *   drupal_add_js('jQuery(document).ready(function () { alert("Hello!"); });', 'inline');
+ *   drupal_add_js('jQuery(document).ready(function () { alert("Hello!"); });',
  *     array('type' => 'inline', 'scope' => 'footer', 'weight' => 5)
  *   );
  *   drupal_add_js('http://example.com/example.js', 'external');
  * @endcode
+ *
+ * Calling drupal_static_reset('drupal_add_js') will clear all JavaScript added
+ * so far.
  *
  * @param $data
  *   (optional) If given, the value depends on the $options parameter:
@@ -2367,8 +2662,6 @@ function drupal_clear_css_cache() {
  *       array is directly placed in Drupal.settings. All modules should wrap
  *       their actual configuration settings in another variable to prevent
  *       the pollution of the Drupal.settings namespace.
- *   - 'reset': Anything in $data will be ignored and the JavaScript added so
- *       far will be reset.
  * @param $options
  *   (optional) A string defining the type of JavaScript that is being added
  *   in the $data parameter ('file'/'setting'/'inline'), or an array which
@@ -2376,10 +2669,8 @@ function drupal_clear_css_cache() {
  *   always pass the string 'setting' only.
  *   - type
  *       The type of JavaScript that is to be added to the page. Allowed
- *       values are 'file', 'inline', 'external', 'setting', or 'reset'. Defaults
- *       to 'file'. Note that if type is 'reset', then $data and all other
- *       $options will be ignored and the JavaScript added so far will be
- *       reset.
+ *       values are 'file', 'inline', 'external' or 'setting'. Defaults
+ *       to 'file'.
  *   - scope
  *       The location in which you want to place the script. Possible values
  *       are 'header' or 'footer'. If your theme implements different regions,
@@ -2418,7 +2709,7 @@ function drupal_clear_css_cache() {
  * @see drupal_get_js()
  */
 function drupal_add_js($data = NULL, $options = NULL) {
-  static $javascript = array();
+  $javascript = &drupal_static(__FUNCTION__, array());
 
   // Construct the options, taking the defaults into consideration.
   if (isset($options)) {
@@ -2430,11 +2721,6 @@ function drupal_add_js($data = NULL, $options = NULL) {
     $options = array();
   }
   $options += drupal_js_defaults($data);
-
-  if ($options['type'] == 'reset') {
-    // Request made to reset the JavaScript added so far
-    return $javascript = array();
-  }
 
   // Preprocess can only be set if caching is enabled.
   $options['preprocess'] = $options['cache'] ? $options['preprocess'] : FALSE;
@@ -2614,7 +2900,9 @@ function drupal_get_js($scope = 'header', $javascript = NULL) {
 
   // Aggregate any remaining JS files that haven't already been output.
   if ($is_writable && $preprocess_js && count($files) > 0) {
-    $filename = md5(serialize($files) . $query_string) . '.js';
+    // Prefix filename to prevent blocking by firewalls which reject files
+    // starting with "ad*".
+    $filename = 'js_' . md5(serialize($files) . $query_string) . '.js';
     $preprocess_file = drupal_build_js_cache($files, $filename);
     $preprocessed .= '<script type="text/javascript" src="' . base_path() . $preprocess_file . '"></script>' . "\n";
   }
@@ -2817,7 +3105,7 @@ function drupal_to_js($var) {
  */
 function drupal_json($var = NULL) {
   // We are returning JavaScript, so tell the browser.
-  drupal_set_header('Content-Type: text/javascript; charset=utf-8');
+  drupal_set_header('Content-Type', 'text/javascript; charset=utf-8');
 
   if (isset($var)) {
     echo drupal_to_js($var);
@@ -2846,8 +3134,8 @@ function drupal_json($var = NULL) {
 function drupal_urlencode($text) {
   if (variable_get('clean_url', '0')) {
     return str_replace(array('%2F', '%26', '%23', '//'),
-                       array('/', '%2526', '%2523', '/%252F'),
-                       rawurlencode($text));
+                        array('/', '%2526', '%2523', '/%252F'),
+                        rawurlencode($text));
   }
   else {
     return str_replace('%2F', '/', rawurlencode($text));
@@ -2935,34 +3223,6 @@ function drupal_valid_token($token, $value = '', $skip_anonymous = FALSE) {
   return (($skip_anonymous && $user->uid == 0) || ($token == md5(session_id() . $value . variable_get('drupal_private_key', ''))));
 }
 
-/**
- * Performs one or more XML-RPC request(s).
- *
- * @param $url
- *   An absolute URL of the XML-RPC endpoint.
- *     Example:
- *     http://www.example.com/xmlrpc.php
- * @param ...
- *   For one request:
- *     The method name followed by a variable number of arguments to the method.
- *   For multiple requests (system.multicall):
- *     An array of call arrays. Each call array follows the pattern of the single
- *     request: method name followed by the arguments to the method.
- * @return
- *   For one request:
- *     Either the return value of the method on success, or FALSE.
- *     If FALSE is returned, see xmlrpc_errno() and xmlrpc_error_msg().
- *   For multiple requests:
- *     An array of results. Each result will either be the result
- *     returned by the method called, or an xmlrpc_error object if the call
- *     failed. See xmlrpc_error().
- */
-function xmlrpc($url) {
-  require_once DRUPAL_ROOT . '/includes/xmlrpc.inc';
-  $args = func_get_args();
-  return call_user_func_array('_xmlrpc', $args);
-}
-
 function _drupal_bootstrap_full() {
   static $called;
 
@@ -2985,7 +3245,7 @@ function _drupal_bootstrap_full() {
   set_exception_handler('_drupal_exception_handler');
 
   // Emit the correct charset HTTP header.
-  drupal_set_header('Content-Type: text/html; charset=utf-8');
+  drupal_set_header('Content-Type', 'text/html; charset=utf-8');
   // Detect string handling method
   unicode_check();
   // Undo magic quotes
@@ -3017,24 +3277,41 @@ function page_set_cache() {
   global $user, $base_root;
 
   if (page_get_cache(FALSE)) {
-    $cache = TRUE;
-    $data = ob_get_contents();
+    $cache_page = TRUE;
+    $cache = (object) array(
+      'cid' => $base_root . request_uri(),
+      'data' => ob_get_clean(),
+      'expire' => CACHE_TEMPORARY,
+      'created' => REQUEST_TIME,
+      'headers' => array(),
+    );
+    // Restore preferred header names based on the lower-case names returned
+    // by drupal_get_header().
+    $header_names = _drupal_set_preferred_header_name();
+    foreach (drupal_get_header() as $name_lower => $value) {
+      $cache->headers[$header_names[$name_lower]] = $value;
+    }
     if (variable_get('page_compression', TRUE) && function_exists('gzencode')) {
       // We do not store the data in case the zlib mode is deflate. This should
       // be rarely happening.
       if (zlib_get_coding_type() == 'deflate') {
-        $cache = FALSE;
+        $cache_page = FALSE;
       }
       elseif (zlib_get_coding_type() == FALSE) {
-        $data = gzencode($data, 9, FORCE_GZIP);
+        $cache->data = gzencode($cache->data, 9, FORCE_GZIP);
       }
       // The remaining case is 'gzip' which means the data is already
       // compressed and nothing left to do but to store it.
     }
-    ob_end_flush();
-    if ($cache && $data) {
-      cache_set($base_root . request_uri(), $data, 'cache_page', CACHE_TEMPORARY, drupal_get_headers());
+    if ($cache_page && $cache->data) {
+      cache_set($cache->cid, $cache->data, 'cache_page', $cache->expire, $cache->headers);
     }
+    drupal_page_cache_header($cache);
+  }
+  else {
+    // If output buffering was enabled during bootstrap, and the headers were
+    // not sent in the DRUPAL_BOOTSTRAP_LATE_PAGE_CACHE phase, send them now.
+    drupal_page_header();
   }
 }
 
@@ -3047,8 +3324,10 @@ function drupal_cron_run() {
   // Allow execution to continue even if the request gets canceled.
   @ignore_user_abort(TRUE);
 
-  // Increase the maximum execution time.
-  @set_time_limit(240);
+  // Try to increase the maximum execution time if it is too low.
+  if (ini_get('max_execution_time') < 240) {
+    @set_time_limit(240);
+  }
 
   // Fetch the cron semaphore
   $semaphore = variable_get('cron_semaphore', FALSE);
@@ -3218,24 +3497,25 @@ function drupal_alter($type, &$data) {
 }
 
 /**
- * Retrieve a $page element that is ready for decorating.
+ * Set the main page content value for later use.
  *
- * Used by menu callbacks in order to populate the page with content
- * and behavior (e.g. #show_blocks).
+ * Given the nature of the Drupal page handling, this will be called once with
+ * a string or array. We store that and return it later as the block is being
+ * displayed.
  *
  * @param $content
  *   A string or renderable array representing the body of the page.
  * @return
- *   A $page element that should be decorated and then passed to drupal_render_page().
- *
- * @see drupal_render_page().
+ *   A renderable array representing the body of the page.
  */
-function drupal_get_page($content = NULL) {
-  // Initialize page array with defaults. @see hook_elements() - 'page' element.
-  $page = element_info('page');
-  $page['content'] = is_array($content) ? $content : array('main' => array('#markup' => $content));
-
-  return $page;
+function drupal_set_page_content($content = NULL) {
+  $content_block = &drupal_static(__FUNCTION__, NULL);
+  if (!empty($content)) {
+    $content_block = (is_array($content) ? $content : array('main' => array('#markup' => $content)));
+  }
+  else {
+    return $content_block;
+  }
 }
 
 /**
@@ -3245,17 +3525,19 @@ function drupal_get_page($content = NULL) {
  *   A string or array representing the content of a page. The array consists of
  *   the following keys:
  *   - #type: Value is always 'page'. This pushes the theming through page.tpl.php (required).
- *   - content: A renderable array as built by the menu callback (required).
  *   - #show_blocks: A marker which suppresses left/right regions if FALSE (optional).
  *   - #show_messages: Suppress drupal_get_message() items. Used by Batch API (optional).
  *
  * @see hook_page_alter()
- * @see drupal_get_page()
+ * @see element_info('page')
  */
 function drupal_render_page($page) {
-  // Allow menu callbacks to return strings.
-  if (is_string($page)) {
-    $page = drupal_get_page($page);
+  // Allow menu callbacks to return strings or arbitrary arrays to render.
+  // If the array returned is not of #type page directly, we need to fill
+  // in the page with defaults.
+  if (is_string($page) || (is_array($page) && (!isset($page['#type']) || ($page['#type'] != 'page')))) {
+    drupal_set_page_content($page);
+    $page = element_info('page');
   }
   // Modules alter the $page as needed. Blocks are populated into regions like
   // 'left', 'footer', etc.
@@ -3272,28 +3554,31 @@ function drupal_render_page($page) {
  * HTML generation is controlled by two properties containing theme functions,
  * #theme and #theme_wrapper.
  *
- * #theme is the theme function called first. If it is set and the element has any
- * children, they have to be rendered there. For elements that are not allowed
- * to have any children, e.g. buttons or textfields, it can be used to render
- * the element itself. If #theme is not present and the element has children,
- * they are rendered and concatenated into a string by drupal_render_children().
+ * #theme is the theme function called first. If it is set and the element has
+ * any children, they have to be rendered there. For elements that are not
+ * allowed to have any children, e.g. buttons or textfields, it can be used to
+ * render the element itself. If #theme is not present and the element has
+ * children, they are rendered and concatenated into a string by
+ * drupal_render_children().
  *
- * The theme function in #theme_wrapper will be called after #theme has run. It
- * can be used to add further markup around the rendered children, e.g. fieldsets
- * add the required markup for a fieldset around their rendered child elements.
- * A wrapper theme function always has to include the element's #children property
- * in its output, as this contains the rendered children.
+ * The theme function in #theme_wrapper will be called after #theme has run.
+ * It can be used to add further markup around the rendered children, e.g.
+ * fieldsets add the required markup for a fieldset around their rendered
+ * child elements.  A wrapper theme function always has to include the
+ * element's #children property in its output, as this contains the rendered
+ * children.
  *
  * For example, for the form element type, by default only the #theme_wrapper
- * property is set, which adds the form markup around the rendered child elements
- * of the form. This allows you to set the #theme property on a specific form to
- * a custom theme function, giving you complete control over the placement of the
- * form's children while not at all having to deal with the form markup itself.
+ * property is set, which adds the form markup around the rendered child
+ * elements of the form. This allows you to set the #theme property on a
+ * specific form to a custom theme function, giving you complete control over
+ * the placement of the form's children while not at all having to deal with
+ * the form markup itself.
  *
  * This function is usually called from within a another function, like
- * drupal_get_form() or node_view(). Elements are sorted internally using
- * uasort(). Since this is expensive, when passing already sorted elements to
- * drupal_render(), for example from a database query, set
+ * drupal_get_form() or a theme function. Elements are sorted internally
+ * using uasort(). Since this is expensive, when passing already sorted
+ * elements to drupal_render(), for example from a database query, set
  * $elements['#sorted'] = TRUE to avoid sorting them a second time.
  *
  * @param $elements
@@ -3334,6 +3619,28 @@ function drupal_render(&$elements) {
     foreach ($elements['#pre_render'] as $function) {
       if (drupal_function_exists($function)) {
         $elements = $function($elements);
+      }
+    }
+  }
+
+  // Add additional CSS and JavaScript files associated with this element.
+  foreach (array('css', 'js') as $kind) {
+    if (!empty($elements['#attached_' . $kind]) && is_array($elements['#attached_' . $kind])) {
+      foreach ($elements['#attached_' . $kind] as $data => $options) {
+        // If the value is not an array, it's a filename and passed as first
+        // (and only) argument.
+        if (!is_array($options)) {
+          $data = $options;
+          $options = NULL;
+        }
+        // When drupal_add_js with 'type' => 'setting' is called, the first
+        // parameter ($data) is an array. Arrays can't be keys in PHP, so we
+        // have to get $data from the value array.
+        if (is_numeric($data)) {
+          $data = $options['data'];
+          unset($options['data']);
+        }
+        call_user_func('drupal_add_' . $kind, $data, $options);
       }
     }
   }
@@ -3579,14 +3886,6 @@ function drupal_common_theme() {
     'tablesort_indicator' => array(
       'arguments' => array('style' => NULL),
     ),
-    'box' => array(
-      'arguments' => array('title' => NULL, 'content' => NULL, 'region' => 'main'),
-      'template' => 'box',
-    ),
-    'block' => array(
-      'arguments' => array('block' => NULL),
-      'template' => 'block',
-    ),
     'mark' => array(
       'arguments' => array('type' => MARK_NEW),
     ),
@@ -3597,9 +3896,6 @@ function drupal_common_theme() {
       'arguments' => array('elements' => NULL),
     ),
     'more_help_link' => array(
-      'arguments' => array('url' => NULL),
-    ),
-    'xml_icon' => array(
       'arguments' => array('url' => NULL),
     ),
     'feed_icon' => array(
@@ -3625,19 +3921,19 @@ function drupal_common_theme() {
     ),
     // from pager.inc
     'pager' => array(
-      'arguments' => array('tags' => array(), 'limit' => 10, 'element' => 0, 'parameters' => array()),
+      'arguments' => array('tags' => array(), 'element' => 0, 'parameters' => array()),
     ),
     'pager_first' => array(
-      'arguments' => array('text' => NULL, 'limit' => NULL, 'element' => 0, 'parameters' => array()),
+      'arguments' => array('text' => NULL, 'element' => 0, 'parameters' => array()),
     ),
     'pager_previous' => array(
-      'arguments' => array('text' => NULL, 'limit' => NULL, 'element' => 0, 'interval' => 1, 'parameters' => array()),
+      'arguments' => array('text' => NULL, 'element' => 0, 'interval' => 1, 'parameters' => array()),
     ),
     'pager_next' => array(
-      'arguments' => array('text' => NULL, 'limit' => NULL, 'element' => 0, 'interval' => 1, 'parameters' => array()),
+      'arguments' => array('text' => NULL, 'element' => 0, 'interval' => 1, 'parameters' => array()),
     ),
     'pager_last' => array(
-      'arguments' => array('text' => NULL, 'limit' => NULL, 'element' => 0, 'parameters' => array()),
+      'arguments' => array('text' => NULL, 'element' => 0, 'parameters' => array()),
     ),
     'pager_link' => array(
       'arguments' => array('text' => NULL, 'page_new' => NULL, 'element' => NULL, 'parameters' => array(), 'attributes' => array()),
@@ -3715,6 +4011,12 @@ function drupal_common_theme() {
       'arguments' => array('element' => NULL),
     ),
     'form_element' => array(
+      'arguments' => array('element' => NULL),
+    ),
+    'text_format_wrapper' => array(
+      'arguments' => array('element' => NULL),
+    ),
+    'vertical_tabs' => array(
       'arguments' => array('element' => NULL),
     ),
   );
@@ -3922,8 +4224,6 @@ function drupal_write_record($table, &$object, $primary_keys = array()) {
     // NOTE: Each table should come with one serial field only.
     if ($info['type'] == 'serial') {
       $serial = $field;
-      // Ignore values for serial when inserting data. Unsupported.
-      unset($object->$field);
     }
 
     // Build arrays for the fields and values in our query.
@@ -3972,12 +4272,25 @@ function drupal_write_record($table, &$object, $primary_keys = array()) {
 
   // Build the SQL.
   if (empty($primary_keys)) {
-    $query = db_insert($table)->fields($fields);
+    $options = array('return' => Database::RETURN_INSERT_ID);
+    if (isset($serial) && isset($fields[$serial])) {
+      // If the serial column has been explicitly set with an ID, then we don't
+      // require the database to return the last insert id.
+      if ($fields[$serial]) {
+        $options['return'] = Database::RETURN_AFFECTED;
+      }
+      // If a serial column does exist with no value (i.e. 0) then remove it as
+      // the database will insert the correct value for us.
+      else {
+        unset($fields[$serial]);
+      }
+    }
+    $query = db_insert($table, $options)->fields($fields);
     $return = SAVED_NEW;
   }
   else {
     $query = db_update($table)->fields($fields);
-    foreach ($primary_keys as $key){
+    foreach ($primary_keys as $key) {
       $query->condition($key, $object->$key);
     }
     $return = SAVED_UPDATED;
@@ -3986,8 +4299,14 @@ function drupal_write_record($table, &$object, $primary_keys = array()) {
   // Execute the SQL.
   if ($last_insert_id = $query->execute()) {
     if (isset($serial)) {
-      // Populate the serial field.
-      $object->$serial = $last_insert_id;
+      // If the database was not told to return the last insert id, it will be
+      // because we already know it.
+      if (isset($options) && $options['return'] != Database::RETURN_INSERT_ID) {
+        $object->$serial = $fields[$serial];
+      }
+      else {
+        $object->$serial = $last_insert_id;
+      }
     }
   }
   // If we have a single-field primary key but got no insert ID, the
@@ -4218,7 +4537,7 @@ function drupal_flush_all_caches() {
   node_types_rebuild();
   // Don't clear cache_form - in-progress form submissions may break.
   // Ordered so clearing the page cache will always be the last action.
-  $core = array('cache', 'cache_block', 'cache_filter', 'cache_registry', 'cache_page');
+  $core = array('cache', 'cache_filter', 'cache_registry', 'cache_page');
   $cache_tables = array_merge(module_invoke_all('flush_caches'), $core);
   foreach ($cache_tables as $table) {
     cache_clear_all('*', $table, TRUE);
@@ -4237,7 +4556,8 @@ function drupal_flush_all_caches() {
 function _drupal_flush_css_js() {
   $string_history = variable_get('css_js_query_string', '00000000000000000000');
   $new_character = $string_history[0];
-  $characters = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  // Not including 'q' to allow certain JavaScripts to re-use query string.
+  $characters = 'abcdefghijklmnoprstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   while (strpos($string_history, $new_character) !== FALSE) {
     $new_character = $characters[mt_rand(0, strlen($characters) - 1)];
   }

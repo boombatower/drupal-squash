@@ -6,12 +6,13 @@
  * @{
  */
 
-class InsertQuery_pgsql extends InsertQuery {
+/**
+ * @file
+ * Query code for PostgreSQL embedded database engine.
+ */
 
-  public function __construct($connection, $table, array $options = array()) {
-    parent::__construct($connection, $table, $options);
-    $this->queryOptions['return'] = Database::RETURN_NULL;
-  }
+
+class InsertQuery_pgsql extends InsertQuery {
 
   public function execute() {
 
@@ -22,6 +23,11 @@ class InsertQuery_pgsql extends InsertQuery {
     }
 
     if (count($this->insertFields) + count($this->defaultFields) == 0) {
+      return NULL;
+    }
+
+    // Don't execute query without values.
+    if (!isset($this->insertValues[0]) && count($this->insertFields) > 0) {
       return NULL;
     }
 
@@ -46,7 +52,7 @@ class InsertQuery_pgsql extends InsertQuery {
           ++$blob_count;
         }
         else {
-          $stmt->bindParam(':db_insert_placeholder_'. $max_placeholder++, $insert_values[$idx]);
+          $stmt->bindParam(':db_insert_placeholder_' . $max_placeholder++, $insert_values[$idx]);
         }
       }
     }
@@ -58,7 +64,10 @@ class InsertQuery_pgsql extends InsertQuery {
 
     if (!empty($table_information->sequences)) {
       $options['sequence_name'] = $table_information->sequences[0];
-      $options['return'] = Database::RETURN_INSERT_ID;
+    }
+    // If there are no sequences then we can't get a last insert id.
+    elseif ($options['return'] == Database::RETURN_INSERT_ID) {
+      $options['return'] = Database::RETURN_NULL;
     }
     $last_insert_id = $this->connection->query($stmt, array(), $options);
 
@@ -96,7 +105,7 @@ class InsertQuery_pgsql extends InsertQuery {
     else {
       // If there are no values, then this is a default-only query. We still need to handle that.
       $placeholders = array_fill(0, count($this->defaultFields), 'default');
-      $values[] = '(' . implode(', ', $placeholders) .')';
+      $values[] = '(' . implode(', ', $placeholders) . ')';
     }
 
     $query .= implode(', ', $values);

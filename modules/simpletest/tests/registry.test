@@ -2,7 +2,7 @@
 // $Id$
 
 class RegistryParseFileTestCase extends DrupalWebTestCase {
-  function getInfo() {
+  public static function getInfo() {
     return array(
       'name' => t('Registry parse file test'),
       'description' => t('Parse a simple file and check that its resources are saved to the database.'),
@@ -51,7 +51,7 @@ CONTENTS;
 class RegistryParseFilesTestCase extends DrupalWebTestCase {
   protected $fileTypes = array('new', 'existing_changed');
 
-  function getInfo() {
+  public static function getInfo() {
     return array(
       'name' => t('Registry parse files test'),
       'description' => t('Read two a simple files from disc, and check that their resources are saved to the database.'),
@@ -135,3 +135,32 @@ CONTENTS;
 
 }
 
+class RegistrySkipBodyTestCase extends DrupalUnitTestCase {
+  public static function getInfo() {
+    return array(
+      'name' => t('Skip function body test'),
+      'description' => t('Tokenize a simple function and check that the body is skipped right'),
+      'group' => t('System'),
+    );
+  }
+
+  function testRegistrySkipBody() {
+    // This string contains all three kinds of opening braces.
+    $function = '<?php function foo () { $x = "{$y}"; $x = "${y}"; }';
+    $tokens = token_get_all($function);
+    require_once DRUPAL_ROOT . '/includes/registry.inc';
+    _registry_skip_body($tokens);
+    // Consume the last }
+    each($tokens);
+    $this->assertIdentical(each($tokens), FALSE, t('Tokens skipped'));
+
+    // Check workaround for PHP < 5.2.3 regarding tokenization of strings
+    // containing variables. The { contained in the string should not be
+    // treated as a separate token.
+    $function = '<?php function foo() { $x = "$y {"; $x = `$y {`; $x = ' . "<<<EOD\n\$y {\nEOD\n; } function bar() {}";
+    $tokens = token_get_all($function);
+    _registry_skip_body($tokens);
+    $this->assertTrue(each($tokens), t('Tokens not skipped to end of file.'));
+  }
+
+}

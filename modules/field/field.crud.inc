@@ -7,11 +7,6 @@
  */
 
 /**
- * TODO: Fill me in.
- */
-class FieldException extends Exception {}
-
-/**
  * @defgroup field_structs Field API data structures
  * @{
  * Represent Field API fields and instances.
@@ -47,7 +42,7 @@ class FieldException extends Exception {}
  *     in $object->$field_name.
  * - type (string)
  *     The type of the field, such as 'text' or 'image'. Field types
- *     are defined by modules that implement hook_field_into().
+ *     are defined by modules that implement hook_field_info().
  * - cardinality (integer)
  *     The number of values the field can hold. Legal values are any
  *     positive integer or FIELD_CARDINALITY_UNLIMITED.
@@ -70,6 +65,12 @@ class FieldException extends Exception {}
  *     exactly like Schema API column specifications but, depending on
  *     the field storage module in use, the name of the column may not
  *     represent an actual column in an SQL database.
+ * - indexes (array).
+ *     An array of indexes on data columns, using the same definition format
+ *     as Schema API index specifications. Only columns that appear in the
+ *     'columns' setting are allowed. Note that field types can specify
+ *     default indexes, which can be modified or added to when
+ *     creating a field.
  * - settings (array)
  *     A sub-array of key/value pairs of field-type-specific settings. Each
  *     field type module defines and documents its own field settings.
@@ -136,18 +137,26 @@ class FieldException extends Exception {}
  *         Each field widget type module defines and documents its own
  *         widget settings.
  * - display (array)
- *     A sub-array of key/value pairs identifying display contexts
- *     and the way the field should be displayed in that context.
- *     TODO more work to do here.
- *     - (context_1)
- *       - label
- *       - exclude
- *       - type
- *       - settings
+ *     A sub-array of key/value pairs identifying display contexts and the way
+ *     the field should be displayed in that context.
+ *     - example_context_1 (array)
+ *         A sub-array of key/value pairs of the display options to be used
+ *         when the field is being displayed in the "example_context_1" context.
+ *         - label (string)
+ *             Position of the label. 'inline', 'above' and 'hidden' are the
+ *             values recognized by the default 'field' theme implementation.
+ *         - exclude (integer)
+ *             TODO This is subject to change, see: http://drupal.org/node/367215
+ *         - type (string)
+ *             The type of the display formatter to use for the field in
+ *             this context.
+ *         - settings (array)
+ *             A sub-array of key/value pairs of display options specific to
+ *             the display formatter used in this context.
+ *         - module (string, read-only)
+ *             The name of the module which implements the display formatter.
+ *     - example_context_2
  *         - ...
- *       - module (internal)
- *     - (context 2)
- *       - ...
  *
  * TODO D7 : document max length for field types, widget types,
  * formatter names...
@@ -169,12 +178,25 @@ class FieldException extends Exception {}
  */
 
 /**
- * Create a field. This function does not bind the field to any
- * bundle; use field_create_instance for that.
+ * Create a field.
+ *
+ * This function does not bind the field to any bundle; use
+ * field_create_instance() for that.
  *
  * @param $field
- *   A field structure. The field_name and type properties are
- *   required.
+ *   A field structure. The field_name and type properties are required.
+ *   Other properties, if omitted, will be given the following default values:
+ *   - cardinality: 1
+ *   - locked: FALSE
+ *   - indexes: the field-type indexes, specified by the field type's
+ *     hook_field_schema(). The indexes specified in $field are added
+ *     to those default indexes. It is possible to override the
+ *     definition of a field-type index by providing an index with the
+ *     same name, or to remove it by redefining it as an empty array
+ *     of columns. Overriding field-type indexes should be done
+ *     carefully, for it might seriously affect the site's performance.
+ *   - settings: each omitted setting is given the default value defined in
+ *     hook_field_info().
  * @throw
  *   FieldException
  */
@@ -182,6 +204,10 @@ function field_create_field($field) {
   // Field name is required.
   if (empty($field['field_name'])) {
     throw new FieldException('Attempt to create an unnamed field.');
+  }
+  // Field type is required.
+  if (empty($field['type'])) {
+    throw new FieldException('Attempt to create a field with no type.');
   }
   // Field name cannot contain invalid characters.
   if (preg_match('/[^a-z0-9_]/', $field['field_name'])) {
@@ -208,17 +234,36 @@ function field_create_field($field) {
     'locked' => FALSE,
     'settings' => array(),
   );
-  $module = $field_type['module'];
   // Create all per-field-type properties (needed here as long as we have
   // settings that impact column definitions).
   $field['settings'] += field_info_field_settings($field['type']);
-  $field['module'] = $module;
+  $field['module'] = $field_type['module'];
   $field['active'] = 1;
   $field['deleted'] = 0;
-  // Create the data table. We need to populate the field columns, even though
-  // we don't actually store them.
-  $field['columns'] = (array) module_invoke($field['module'], 'field_columns', $field);
+
+  // Collect storage information.
+  $schema = (array) module_invoke($field['module'], 'field_schema', $field);
+  $schema += array('columns' => array(), 'indexes' => array());
+
+  // 'columns' are hardcoded in the field type.
+  $field['columns'] = $schema['columns'];
+
+  // 'indexes' can be both hardcoded in the field type, and specified in the
+  // incoming $field definition.
+  $field += array(
+    'indexes' => array(),
+  );
+  $field['indexes'] += $schema['indexes'];
+
+  // Inform the storage engine.
   module_invoke(variable_get('field_storage_module', 'field_sql_storage'), 'field_storage_create_field', $field);
+
+  // The serialized 'data' column contains everything from $field that does not
+  // have its own column and is not automatically populated when the field is
+  // read.
+  $data = $field;
+  unset($data['columns'], $data['field_name'], $data['type'], $data['locked'], $data['module'], $data['active'], $data['deleted']);
+  $field['data'] = $data;
 
   drupal_write_record('field_config', $field);
 
@@ -278,13 +323,17 @@ function field_read_fields($params = array(), $include_additional = array()) {
   $fields = array();
   $results = $query->execute();
   foreach ($results as $field) {
-    // drupal_write_record() writes an empty string for empty arrays.
-    $field['settings'] = $field['settings'] ? unserialize($field['settings']) : array();
+    // Extract serialized data.
+    $data = unserialize($field['data']);
+    unset($field['data']);
+    $field += $data;
 
     module_invoke_all('field_read_field', $field);
 
-    // Populate storage columns.
-    $field['columns'] = (array) module_invoke($field['module'], 'field_columns', $field);
+    // Populate storage information.
+    $schema = (array) module_invoke($field['module'], 'field_schema', $field);
+    $schema += array('columns' => array(), 'indexes' => array());
+    $field['columns'] = $schema['columns'];
 
     $fields[$field['field_name']] = $field;
   }
@@ -319,8 +368,29 @@ function field_delete_field($field_name) {
  * Creates an instance of a field, binding it to a bundle.
  *
  * @param $instance
- *   A field instance structure. The field_name and bundle properties
- *   are required.
+ *   A field instance structure. The field_name and bundle properties are
+ *   required.
+ *   Other properties, if omitted, will be given the following default values:
+ *   - label: the field name
+ *   - description: empty string
+ *   - weight: 0
+ *   - required: FALSE
+ *   - default_value_function: empty string
+ *   - settings: each omitted setting is given the default value specified in
+ *     hook_field_info().
+ *   - widget:
+ *     - type: the default widget specified in hook_field_info().
+ *     - settings: each omitted setting is given the default value specified in
+ *       hook_field_widget_info().
+ *   - display:
+ *     Settings for the 'full' build mode will be added, and each build mode
+ *     will be completed with the follwong default values:
+ *     - label: 'above'
+ *     - exclude: FALSE
+ *       TODO This is subject to change, see: http://drupal.org/node/367215
+ *     - type: the default formatter specified in hook_field_info().
+ *     - settings: each omitted setting is given the default value specified in
+ *       hook_field_formatter_info().
  * @throw
  *   FieldException
  */
@@ -351,10 +421,12 @@ function field_create_instance($instance) {
 
   _field_write_instance($instance);
 
-  module_invoke_all('field_create_instance', $instance);
-
   // Clear caches
   field_cache_clear();
+
+  // Invoke external hooks after the cache is cleared for API consistency.
+  module_invoke_all('field_create_instance', $instance);
+
   return FALSE;
 }
 
@@ -456,8 +528,9 @@ function _field_write_instance($instance, $update = FALSE) {
     $instance['display'][$context]['settings'] += field_info_formatter_settings($instance['display'][$context]['type']);
   }
 
-  // Create $data to contain everything from $instance that does not
-  // have its own column, and thus will be stored serialized.
+  // The serialized 'data' column contains everything from $instance that does
+  // not have its own column and is not automatically populated when the
+  // instance is read.
   $data = $instance;
   unset($data['id'], $data['field_id'], $data['field_name'], $data['bundle'], $data['widget']['type'], $data['weight'], $data['deleted']);
 
@@ -477,7 +550,8 @@ function _field_write_instance($instance, $update = FALSE) {
   if ($update) {
     $record['id'] = $instance['id'];
     $primary_key = array('id');
-  } else {
+  }
+  else {
     $primary_key = array();
   }
   drupal_write_record('field_config_instance', $record, $primary_key);

@@ -39,10 +39,16 @@ function _registry_rebuild() {
 
   // Reset the resources cache.
   _registry_get_resource_name();
+
+  // Get current list of modules and their files.
+  $modules = drupal_system_listing('/\.module$/', 'modules', 'name', 0);
+  system_get_files_database($modules, 'module');
   // Get the list of files we are going to parse.
   $files = array();
-  foreach (module_rebuild_cache() as $module) {
+  foreach ($modules as $module) {
     if ($module->status) {
+      // Parse .info file only for enabled modules.
+      $module->info = drupal_parse_info_file(dirname($module->filepath) . '/' . $module->name . '.info');
       $dir = dirname($module->filepath);
       foreach ($module->info['files'] as $file) {
         $files["$dir/$file"] = array('module' => $module->name, 'weight' => $module->weight);
@@ -145,7 +151,7 @@ function _registry_parse_files($files) {
  *   (optional) Weight of the module.
  */
 function _registry_parse_file($filename, $contents, $module = '', $weight = 0) {
-  static $map = array(T_FUNCTION => 'function', T_CLASS => 'class', T_INTERFACE => 'interface');
+  $map = &drupal_static(__FUNCTION__, array(T_FUNCTION => 'function', T_CLASS => 'class', T_INTERFACE => 'interface'));
   // Delete registry entries for this file, so we can insert the new resources.
   db_delete('registry')
     ->condition('filename', $filename)
@@ -207,7 +213,7 @@ function _registry_parse_file($filename, $contents, $module = '', $weight = 0) {
 function _registry_get_resource_name(&$tokens = NULL, $type = NULL) {
   // Keep a running list of all resources we've saved so far, so that we never
   // save one more than once.
-  static $resources;
+  $resources = &drupal_static(__FUNCTION__);
 
   if (!isset($tokens)) {
     $resources = array();
@@ -248,11 +254,19 @@ function _registry_skip_body(&$tokens) {
   // Scan through the rest of the tokens until we reach the matching
   // end brace.
   while ($num_braces && ($token = next($tokens))) {
-    if ($token == '{') {
+    // PHP is really logical to have three different tokens for { with
+    // inconsistent names and only one for a closing brace.
+    if ($token == '{' || (is_array($token) && ($token[0] == T_DOLLAR_OPEN_CURLY_BRACES || $token[0] == T_CURLY_OPEN))) {
       ++$num_braces;
     }
     elseif ($token == '}') {
       --$num_braces;
+    }
+    // Consume strings manually as workaround for a bug in PHP < 5.2.3 (see
+    // http://drupal.org/node/368116).
+    elseif ($token == '"' || $token == '`' || (is_array($token) && $token[0] == T_START_HEREDOC)) {
+      $stop = is_array($token) ? T_END_HEREDOC : $token;
+      while (($token = next($tokens)) && (is_array($token) ? $token[0] : $token) != $stop);
     }
   }
 }

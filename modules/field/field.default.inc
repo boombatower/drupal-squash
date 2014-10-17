@@ -3,50 +3,57 @@
 
 /**
  * @file
- * Default 'implementations' of hook_field_*().
+ * Default 'implementations' of hook_field_*(): common field housekeeping.
  *
- * Handles common field housekeeping.
  * Those implementations are special, as field.module does not define any field
  * types. Those functions take care of default stuff common to all field types.
+ * They are called through the _field_invoke_default() iterator, generally in
+ * the corresponding field_attach_[operation]() function.
  */
 
-function field_default_validate($obj_type, $object, $field, $instance, $items, $form) {
+function field_default_extract_form_values($obj_type, $object, $field, $instance, &$items, $form, &$form_state) {
+  $field_name = $field['field_name'];
+
+  if (isset($form_state['values'][$field_name])) {
+    $items = $form_state['values'][$field_name];
+    // Remove the 'value' of the 'add more' button.
+    unset($items[$field_name . '_add_more']);
+  }
+}
+
+function field_default_validate($obj_type, $object, $field, $instance, $items) {
   // TODO: here we could validate that required fields are filled in (for programmatic save)
 }
 
 function field_default_submit($obj_type, &$object, $field, $instance, &$items, $form, &$form_state) {
-  // Get field values from the submitted form values. Assigning them to $items
-  // populates $object->field_name when we return from _field_invoke_default().
+  $field_name = $field['field_name'];
 
-  // TODO D7: Allow the values to be form_altered to another location, like we
-  // do for the form definition ($form['#fields'][$field_name]['form_path']) ?
+  // TODO: should me move what's below to __extract_form_values ?
 
-  if (isset($form_state['values'][$field['field_name']])) {
-    $items = $form_state['values'][$field['field_name']];
-
-    // Remove the 'value' of the 'add more' button.
-    unset($items[$field['field_name'] . '_add_more']);
-
-    // TODO: the above should be moved to validate time (and values saved back
-    // using form_set_value() ), so that hook_field_validate() works on clean data.
-    // Not sure we'll want what's below in validate too.
-
-    // Reorder items to account for drag-n-drop reordering.
-    if (field_behaviors_widget('multiple values', $instance) == FIELD_BEHAVIOR_DEFAULT) {
-      $items = _field_sort_items($field, $items);
-    }
-
-    // Filter out empty values.
-    $items = field_set_empty($field, $items);
-
-    // _field_invoke() does not add back items for fields not present in the
-    // original $object, so add them manually.
-    $object->{$field['field_name']} = $items;
+  // Reorder items to account for drag-n-drop reordering.
+  if (field_behaviors_widget('multiple values', $instance) == FIELD_BEHAVIOR_DEFAULT) {
+    $items = _field_sort_items($field, $items);
   }
-  else {
-    // The form did not include this field, for instance because of access
-    // rules: make sure any existing value for the field stays unchanged.
-    unset($object->{$field['field_name']});
+
+  // Filter out empty values.
+  $items = field_set_empty($field, $items);
+}
+
+/**
+ * Default field 'insert' operation.
+ *
+ * Insert default value if no $object->$field_name entry was provided.
+ * This can happen with programmatic saves, or on form-based creation where
+ * the current user doesn't have 'edit' permission for the field.
+ */
+function field_default_insert($obj_type, &$object, $field, $instance, &$items) {
+  // _field_invoke() populates $items with an empty array if the $object has no
+  // entry for the field, so we check on the $object itself.
+  if (!property_exists($object, $field['field_name']) && !empty($instance['default_value_function'])) {
+    $function = $instance['default_value_function'];
+    if (drupal_function_exists($function)) {
+      $items = $function($obj_type, $object, $field, $instance);
+    }
   }
 }
 

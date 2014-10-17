@@ -15,12 +15,12 @@
  */
 function comment_edit($cid) {
   global $user;
-  $comment = db_query('SELECT c.*, u.uid, u.name AS registered_name, u.data FROM {comment} c INNER JOIN {users} u ON c.uid = u.uid WHERE c.cid = :cid', array(':cid'=>$cid) )->fetchObject();
+  $comment = db_query('SELECT c.*, u.uid, u.name AS registered_name, u.data FROM {comment} c INNER JOIN {users} u ON c.uid = u.uid WHERE c.cid = :cid', array(':cid' => $cid))->fetchObject();
   $comment = drupal_unpack($comment);
   $comment->name = $comment->uid ? $comment->registered_name : $comment->name;
 
   if (comment_access('edit', $comment)) {
-    return comment_form_box((array)$comment);
+    return theme('comment_form_box', (array)$comment);
   }
   else {
     drupal_access_denied();
@@ -58,7 +58,7 @@ function comment_reply($node, $pid = NULL) {
     // The user is previewing a comment prior to submitting it.
     if ($op == t('Preview')) {
       if (user_access('post comments')) {
-        $output .= comment_form_box(array('pid' => $pid, 'nid' => $node->nid), NULL);
+        $output .= theme('comment_form_box', array('pid' => $pid, 'nid' => $node->nid), NULL);
       }
       else {
         drupal_set_message(t('You are not authorized to post comments.'), 'error');
@@ -70,8 +70,9 @@ function comment_reply($node, $pid = NULL) {
       if ($pid) {
         // Load the comment whose cid = $pid
         $comment = db_query('SELECT c.*, u.uid, u.name AS registered_name, u.signature, u.picture, u.data FROM {comment} c INNER JOIN {users} u ON c.uid = u.uid WHERE c.cid = :cid AND c.status = :status', array(
-          ':cid'=>$pid,
-          ':status'=>COMMENT_PUBLISHED))->fetchObject();
+          ':cid' => $pid,
+          ':status' => COMMENT_PUBLISHED,
+        ))->fetchObject();
         if ( $comment ) {
           // If that comment exists, make sure that the current comment and the
           // parent comment both belong to the same parent node.
@@ -101,7 +102,7 @@ function comment_reply($node, $pid = NULL) {
         drupal_goto("node/$node->nid");
       }
       elseif (user_access('post comments')) {
-        $output .= comment_form_box(array('pid' => $pid, 'nid' => $node->nid), t('Reply'));
+        $output .= theme('comment_form_box', array('pid' => $pid, 'nid' => $node->nid), t('Reply'));
       }
       else {
         drupal_set_message(t('You are not authorized to post comments.'), 'error');

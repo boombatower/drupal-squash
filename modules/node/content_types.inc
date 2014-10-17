@@ -52,7 +52,7 @@ function theme_node_admin_overview($name, $type) {
  * Generates the node type editing form.
  */
 function node_type_form(&$form_state, $type = NULL) {
-  drupal_add_js(drupal_get_path('module', 'node') .'/content_types.js');
+  drupal_add_js(drupal_get_path('module', 'node') . '/content_types.js');
   if (!isset($type->type)) {
     // This is a new type. Node module managed types are custom and unlocked.
     $type = node_type_set_defaults(array('custom' => 1, 'locked' => 0));
@@ -69,7 +69,7 @@ function node_type_form(&$form_state, $type = NULL) {
     '#title' => t('Name'),
     '#type' => 'textfield',
     '#default_value' => $type->name,
-    '#description' => t('The human-readable name of this content type. This text will be displayed as part of the list on the <em>create content</em> page. It is recommended that this name begin with a capital letter and contain only letters, numbers, and <strong>spaces</strong>. This name must be unique.'),
+    '#description' => t('The human-readable name of this content type. This text will be displayed as part of the list on the <em>add new content</em> page. It is recommended that this name begin with a capital letter and contain only letters, numbers, and <strong>spaces</strong>. This name must be unique.'),
     '#required' => TRUE,
     '#field_suffix' => ' <small id="node-type-name-suffix">&nbsp;</small>',
   );
@@ -81,7 +81,7 @@ function node_type_form(&$form_state, $type = NULL) {
       '#default_value' => $type->type,
       '#maxlength' => 32,
       '#required' => TRUE,
-      '#description' => t('The machine-readable name of this content type. This text will be used for constructing the URL of the <em>create content</em> page for this content type. This name must contain only lowercase letters, numbers, and underscores. Underscores will be converted into hyphens when constructing the URL of the <em>create content</em> page. This name must be unique.'),
+      '#description' => t('The machine-readable name of this content type. This text will be used for constructing the URL of the <em>add new content</em> page for this content type. This name must contain only lowercase letters, numbers, and underscores. Underscores will be converted into hyphens when constructing the URL of the <em>add new content</em> page. This name must be unique.'),
     );
   }
   else {
@@ -101,14 +101,13 @@ function node_type_form(&$form_state, $type = NULL) {
     '#title' => t('Description'),
     '#type' => 'textarea',
     '#default_value' => $type->description,
-    '#description' => t('A brief description of this content type. This text will be displayed as part of the list on the <em>create content</em> page.'),
+    '#description' => t('A brief description of this content type. This text will be displayed as part of the list on the <em>add new content</em> page.'),
     );
 
   $form['submission'] = array(
     '#type' => 'fieldset',
     '#title' => t('Submission form settings'),
     '#collapsible' => TRUE,
-    '#collapsed' => TRUE,
   );
   $form['submission']['title_label'] = array(
     '#title' => t('Title field label'),
@@ -133,7 +132,7 @@ function node_type_form(&$form_state, $type = NULL) {
     '#type' => 'select',
     '#title' => t('Minimum number of words'),
     '#default_value' => $type->min_word_count,
-    '#options' => drupal_map_assoc(array(0, 10, 25, 50, 75, 100, 125, 150, 175, 200)),
+    '#options' => drupal_map_assoc(array(0, 1, 10, 25, 50, 75, 100, 125, 150, 175, 200)),
     '#description' => t('The minimum number of words for the body field to be considered valid for this content type. This can be useful to rule out submissions that do not meet the site\'s standards, such as short test posts.')
   );
   $form['submission']['help']  = array(
@@ -144,7 +143,7 @@ function node_type_form(&$form_state, $type = NULL) {
   );
   $form['workflow'] = array(
     '#type' => 'fieldset',
-    '#title' => t('Workflow settings'),
+    '#title' => t('Publishing options'),
     '#collapsible' => TRUE,
     '#collapsed' => TRUE,
   );
@@ -168,7 +167,7 @@ function node_type_form(&$form_state, $type = NULL) {
   $form['display']['node_submitted'] = array(
     '#type' => 'checkbox',
     '#title' => t('Display post information'),
-    '#default_value' => variable_get('node_submitted_'. $type->type, TRUE),
+    '#default_value' => variable_get('node_submitted_' . $type->type, TRUE),
     '#description' => t('Enable the <em>submitted by Username on date</em> text.'),
   );
   $form['old_type'] = array(
@@ -391,7 +390,7 @@ function node_type_delete_confirm(&$form_state, $type) {
   $message = t('Are you sure you want to delete the content type %type?', array('%type' => $type->name));
   $caption = '';
 
-  $num_nodes = db_result(db_query("SELECT COUNT(*) FROM {node} WHERE type = '%s'", $type->type));
+  $num_nodes = db_query("SELECT COUNT(*) FROM {node} WHERE type = :type", array(':type' => $type->type))->fetchField();
   if ($num_nodes) {
     $caption .= '<p>' . format_plural($num_nodes, '<strong>Warning:</strong> there is currently 1 %type post on your site. It may not be able to be displayed or edited correctly, once you have removed this content type.', '<strong>Warning:</strong> there are currently @count %type posts on your site. They may not be able to be displayed or edited correctly, once you have removed this content type.', array('%type' => $type->name)) . '</p>';
   }

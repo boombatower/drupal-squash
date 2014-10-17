@@ -70,7 +70,7 @@ function system_help($path, $arg) {
       $output .= '<li>' . t('support for enabling and disabling <a href="@themes">themes</a>, which determine the design and presentation of your site. Drupal comes packaged with several core themes and additional contributed themes are available at the <a href="@drupal-themes">Drupal.org theme page</a>.', array('@themes' => url('admin/build/themes'), '@drupal-themes' => 'http://drupal.org/project/themes')) . '</li>';
       $output .= '<li>' . t('a robust <a href="@cache-settings">caching system</a> that allows the efficient re-use of previously-constructed web pages and web page components. Drupal stores the pages requested by anonymous users in a compressed format; depending on your site configuration and the amount of your web traffic tied to anonymous visitors, Drupal\'s caching system may significantly increase the speed of your site.', array('@cache-settings' => url('admin/settings/performance'))) . '</li>';
       $output .= '<li>' . t('a set of routine administrative operations that rely on a correctly-configured <a href="@cron">cron maintenance task</a> to run automatically. A number of other modules, including the feed aggregator, and search also rely on <a href="@cron">cron maintenance tasks</a>. For more information, see the online handbook entry for <a href="@handbook">configuring cron jobs</a>.', array('@cron' => url('admin/reports/status'), '@handbook' => 'http://drupal.org/cron')) . '</li>';
-      $output .= '<li>' . t('basic configuration options for your site, including <a href="@regional-settings">date and time settings</a>, <a href="@file-system">file system settings</a>, <a href="@clean-url">clean URL support</a>, <a href="@site-info">site name and other information</a>, and a <a href="@site-maintenance">site maintenance</a> function for taking your site temporarily offline.', array('@regional-settings' => url('admin/settings/regional-settings'), '@file-system' => url('admin/settings/file-system'), '@clean-url' => url('admin/settings/clean-urls'), '@site-info' => url('admin/settings/site-information'), '@site-maintenance' => url('admin/settings/site-maintenance'))) . '</li></ul>';
+      $output .= '<li>' . t('basic configuration options for your site, including <a href="@regional-settings">date and time settings</a>, <a href="@file-system">file system settings</a>, <a href="@clean-url">clean URL support</a>, <a href="@site-info">site name and other information</a>, and a <a href="@maintenance-mode">maintenance mode</a> for taking your site temporarily offline.', array('@regional-settings' => url('admin/settings/regional-settings'), '@file-system' => url('admin/settings/file-system'), '@clean-url' => url('admin/settings/clean-urls'), '@site-info' => url('admin/settings/site-information'), '@maintenance-mode' => url('admin/settings/maintenance-mode'))) . '</li></ul>';
       $output .= '<p>' . t('For more information, see the online handbook entry for <a href="@system">System module</a>.', array('@system' => 'http://drupal.org/handbook/modules/system/')) . '</p>';
       return $output;
     case 'admin/by-module':
@@ -93,7 +93,7 @@ function system_help($path, $arg) {
     case 'admin/build/modules/uninstall':
       return '<p>' . t('The uninstall process removes all data related to a module. To uninstall a module, you must first disable it. Not all modules support this feature.') . '</p>';
     case 'admin/build/block/configure':
-      if ($arg[4] == 'system' && $arg[5] == 0) {
+      if ($arg[4] == 'system' && $arg[5] == 'powered-by') {
         return '<p>' . t('The <em>Powered by Drupal</em> block is an optional link to the home page of the Drupal project. While there is absolutely no requirement that sites feature this link, it may be used to show support for Drupal.') . '</p>';
       }
       break;
@@ -381,6 +381,7 @@ function system_elements() {
     '#theme' => 'file',
     '#theme_wrapper' => 'form_element',
   );
+
   $type['tableselect'] = array(
     '#input' => TRUE,
     '#js_select' => TRUE,
@@ -419,8 +420,15 @@ function system_elements() {
     '#collapsible' => FALSE,
     '#collapsed' => FALSE,
     '#value' => NULL,
-    '#process' => array('form_process_ahah'),
+    '#process' => array('form_process_fieldset', 'form_process_ahah'),
+    '#pre_render' => array('form_pre_render_fieldset'),
     '#theme_wrapper' => 'fieldset',
+  );
+
+  $type['vertical_tabs'] = array(
+    '#theme_wrapper' => 'vertical_tabs',
+    '#default_tab' => '',
+    '#process' => array('form_process_vertical_tabs'),
   );
 
   $type['token'] = array(
@@ -458,6 +466,7 @@ function system_menu() {
     'access arguments' => array('access administration pages'),
     'page callback' => 'system_main_admin_page',
     'weight' => 9,
+    'menu_name' => 'management',
   );
   $items['admin/compact'] = array(
     'title' => 'Compact mode',
@@ -484,17 +493,19 @@ function system_menu() {
     'position' => 'left',
     'weight' => -10,
     'page callback' => 'system_admin_menu_block_page',
-    'access arguments' => array('access administration pages'),
+    'access callback' => 'system_admin_menu_block_access',
+    'access arguments' => array('admin/content', 'access administration pages'),
   );
 
-  // menu items that are basically just menu blocks
+  // Menu items that are basically just menu blocks.
   $items['admin/settings'] = array(
     'title' => 'Site configuration',
     'description' => 'Configure site settings.',
     'position' => 'right',
     'weight' => -5,
     'page callback' => 'system_settings_overview',
-    'access arguments' => array('access administration pages'),
+    'access callback' => 'system_admin_menu_block_access',
+    'access arguments' => array('admin/settings', 'access administration pages'),
   );
   $items['admin/build'] = array(
     'title' => 'Site building',
@@ -502,9 +513,10 @@ function system_menu() {
     'position' => 'right',
     'weight' => -10,
     'page callback' => 'system_admin_menu_block_page',
-    'access arguments' => array('access administration pages'),
+    'access callback' => 'system_admin_menu_block_access',
+    'access arguments' => array('admin/build', 'access administration pages'),
   );
-  // Themes:
+  // Themes.
   $items['admin/build/themes'] = array(
     'title' => 'Themes',
     'description' => 'Change which theme your site uses or allows users to set.',
@@ -524,7 +536,7 @@ function system_menu() {
     'access arguments' => array('administer site configuration'),
     'type' => MENU_LOCAL_TASK,
   );
-  // Theme configuration subtabs
+  // Theme configuration subtabs.
   $items['admin/build/themes/settings/global'] = array(
     'title' => 'Global settings',
     'type' => MENU_DEFAULT_LOCAL_TASK,
@@ -541,7 +553,7 @@ function system_menu() {
     );
   }
 
-  // Modules:
+  // Modules.
   $items['admin/build/modules'] = array(
     'title' => 'Modules',
     'description' => 'Enable or disable add-on modules for your site.',
@@ -570,7 +582,7 @@ function system_menu() {
     'type' => MENU_CALLBACK,
   );
 
-  // Actions:
+  // Actions.
   $items['admin/settings/actions'] = array(
     'title' => 'Actions',
     'description' => 'Manage the actions defined for your site.',
@@ -628,7 +640,7 @@ function system_menu() {
     'type' => MENU_CALLBACK,
   );
 
-  // Settings:
+  // Settings.
   $items['admin/settings/site-information'] = array(
     'title' => 'Site information',
     'description' => 'Change basic site information, such as the site name, slogan, e-mail address, mission, front page and more.',
@@ -637,7 +649,7 @@ function system_menu() {
     'access arguments' => array('administer site configuration'),
   );
   $items['admin/settings/logging'] = array(
-    'title' => 'Logging, errors and alerts',
+    'title' => 'Logging and errors',
     'description' => "Settings for logging and alerts modules. Various modules can route Drupal's system events to different destinations, such as syslog, database, email, etc.",
     'page callback' => 'drupal_get_form',
     'page arguments' => array('system_logging_settings'),
@@ -672,7 +684,7 @@ function system_menu() {
   );
   $items['admin/content/rss-publishing'] = array(
     'title' => 'RSS publishing',
-    'description' => 'Configure the number of items per feed and whether feeds should be titles/teasers/full-text.',
+    'description' => 'Configure the site description, the number of items per feed and whether feeds should be titles/teasers/full-text.',
     'page callback' => 'drupal_get_form',
     'page arguments' => array('system_rss_feeds_settings'),
     'access arguments' => array('administer site configuration'),
@@ -690,11 +702,11 @@ function system_menu() {
     'page callback' => 'system_date_time_lookup',
     'access arguments' => array('administer site configuration'),
   );
-  $items['admin/settings/site-maintenance'] = array(
-    'title' => 'Site maintenance',
+  $items['admin/settings/maintenance-mode'] = array(
+    'title' => 'Maintenance mode',
     'description' => 'Take the site offline for maintenance or bring it back online.',
     'page callback' => 'drupal_get_form',
-    'page arguments' => array('system_site_maintenance_settings'),
+    'page arguments' => array('system_site_maintenance_mode'),
     'access arguments' => array('administer site configuration'),
   );
   $items['admin/settings/clean-urls'] = array(
@@ -712,12 +724,13 @@ function system_menu() {
     'type' => MENU_CALLBACK,
   );
 
-  // Reports:
+  // Reports.
   $items['admin/reports'] = array(
     'title' => 'Reports',
     'description' => 'View reports from system logs and other status information.',
     'page callback' => 'system_admin_menu_block_page',
-    'access arguments' => array('access site reports'),
+    'access callback' => 'system_admin_menu_block_access',
+    'access arguments' => array('admin/reports', 'access site reports'),
     'weight' => 5,
     'position' => 'left',
   );
@@ -740,13 +753,7 @@ function system_menu() {
     'access arguments' => array('administer site configuration'),
     'type' => MENU_CALLBACK,
   );
-  $items['admin/reports/status/sql'] = array(
-    'title' => 'SQL',
-    'page callback' => 'system_sql',
-    'access arguments' => array('administer site configuration'),
-    'type' => MENU_CALLBACK,
-  );
-  // Default page for batch operations
+  // Default page for batch operations.
   $items['batch'] = array(
     'page callback' => 'system_batch_page',
     'access callback' => TRUE,
@@ -765,8 +772,7 @@ function system_menu() {
  *   The blocked IP address from the database as an array.
  */
 function blocked_ip_load($iid) {
-  $blocked_ip = db_fetch_array(db_query("SELECT * FROM {blocked_ips} WHERE iid = %d", $iid));
-  return $blocked_ip;
+  return db_query("SELECT * FROM {blocked_ips} WHERE iid = :iid", array(':iid' => $iid))->fetchAssoc();
 }
 
 /**
@@ -774,6 +780,25 @@ function blocked_ip_load($iid) {
  */
 function _system_themes_access($theme) {
   return user_access('administer site configuration') && ($theme->status || $theme->name == variable_get('admin_theme', 0));
+}
+
+/**
+ * Menu item access callback - hides empty system settings overview pages.
+ *
+ * @param $path
+ *   The path of the menu item to check for child menu entries.
+ * @param $string
+ *   The permission, such as "administer nodes", being checked for.
+ * @return
+ *   Boolean TRUE if the current user has the requested permission and the
+ *   current menu item has children.
+ */
+function system_admin_menu_block_access($path, $permission) {
+  if (!user_access($permission)) {
+    return FALSE;
+  }
+  $content = system_admin_menu_block(array('path' => $path));
+  return !empty($content);
 }
 
 /**
@@ -798,7 +823,7 @@ function system_init() {
  */
 function system_preprocess_page(&$variables) {
   // Get the major version
-  list($version,) = explode('.', VERSION);
+  list($version, ) = explode('.', VERSION);
 
   // Emit the META tag in the HTML HEAD section
   theme('meta_generator_html', $version);
@@ -880,13 +905,27 @@ function system_user_timezone(&$edit, &$form) {
  * Implementation of hook_block_list().
  */
 function system_block_list() {
-  $image_path = 'misc/' . variable_get('drupal_badge_color', 'powered-blue') . '-' . variable_get('drupal_badge_size', '80x15') . '.png';
+  $blocks['main'] = array(
+    'info' => t('Main page content'),
+     // Cached elsewhere.
+    'cache' => BLOCK_NO_CACHE,
+  );
   $blocks['powered-by'] = array(
     'info' => t('Powered by Drupal'),
     'weight' => '10',
-     // Not worth caching.
     'cache' => BLOCK_NO_CACHE,
   );
+  $blocks['help'] = array(
+    'info' => t('System help'),
+    'weight' => '5',
+  );
+  // System-defined menu blocks.
+  foreach (menu_list_system_menus() as $menu_name => $title) {
+    $blocks[$menu_name]['info'] = t($title);
+    // Menu blocks can't be cached because each menu item can have
+    // a custom access callback. menu.inc manages its own caching.
+    $blocks[$menu_name]['cache'] = BLOCK_NO_CACHE;
+  }
   return $blocks;
 }
 
@@ -894,48 +933,74 @@ function system_block_list() {
  * Implementation of hook_block_configure().
  */
 function system_block_configure($delta = '') {
-  $image_path = 'misc/' . variable_get('drupal_badge_color', 'powered-blue') . '-' . variable_get('drupal_badge_size', '80x15') . '.png';
-  drupal_add_js(drupal_get_path('module', 'system') .'/system.js');
-  // Compile a list of fields to show
-  $form['wrapper']['color'] = array(
-    '#type' => 'select',
-    '#title' => t('Badge color'),
-    '#default_value' => variable_get('drupal_badge_color', 'powered-blue'),
-    '#options' => array('powered-black' => t('Black'), 'powered-blue' => t('Blue'), 'powered-gray' => t('Gray')),
-  );
-  $form['wrapper']['size'] = array(
-    '#type' => 'select',
-    '#title' => t('Badge size'),
-    '#default_value' => variable_get('drupal_badge_size', '80x15'),
-    '#options' => array('80x15' => t('Small'), '88x31' => t('Medium'), '135x42' => t('Large')),
-  );
-  $form['wrapper']['preview'] = array(
-    '#type' => 'item',
-    '#title' => 'Preview',
-    '#markup' => theme('image', $image_path, t('Powered by Drupal, an open source content management system'), t('Powered by Drupal, an open source content management system'), array('class' => 'powered-by-preview'), FALSE),
-  );
-  return $form;
+  if ($delta == 'powered-by') {
+    $image_path = 'misc/' . variable_get('drupal_badge_color', 'powered-blue') . '-' . variable_get('drupal_badge_size', '80x15') . '.png';
+    drupal_add_js(drupal_get_path('module', 'system') . '/system.js');
+    // Compile a list of fields to show
+    $form['wrapper']['color'] = array(
+      '#type' => 'select',
+      '#title' => t('Badge color'),
+      '#default_value' => variable_get('drupal_badge_color', 'powered-blue'),
+      '#options' => array('powered-black' => t('Black'), 'powered-blue' => t('Blue'), 'powered-gray' => t('Gray')),
+    );
+    $form['wrapper']['size'] = array(
+      '#type' => 'select',
+      '#title' => t('Badge size'),
+      '#default_value' => variable_get('drupal_badge_size', '80x15'),
+      '#options' => array('80x15' => t('Small'), '88x31' => t('Medium'), '135x42' => t('Large')),
+    );
+    $form['wrapper']['preview'] = array(
+      '#type' => 'item',
+      '#title' => 'Preview',
+      '#markup' => theme('image', $image_path, t('Powered by Drupal, an open source content management system'), t('Powered by Drupal, an open source content management system'), array('class' => 'powered-by-preview'), FALSE),
+    );
+    return $form;
+  }
 }
 
 /**
  * Implementation of hook_block_save().
  */
 function system_block_save($delta = '', $edit = NULL) {
-  $image_path = 'misc/' . variable_get('drupal_badge_color', 'powered-blue') . '-' . variable_get('drupal_badge_size', '80x15') . '.png';
-  variable_set('drupal_badge_color', $edit['color']);
-  variable_set('drupal_badge_size', $edit['size']);
+  if ($delta == 'powered-by') {
+    $image_path = 'misc/' . variable_get('drupal_badge_color', 'powered-blue') . '-' . variable_get('drupal_badge_size', '80x15') . '.png';
+    variable_set('drupal_badge_color', $edit['color']);
+    variable_set('drupal_badge_size', $edit['size']);
+  }
 }
 
 /**
  * Implementation of hook_block_view().
  *
- * Generate a block with a promotional link to Drupal.org.
+ * Generate a block with a promotional link to Drupal.org and
+ * all system menu blocks.
  */
 function system_block_view($delta = '') {
-  $image_path = 'misc/' . variable_get('drupal_badge_color', 'powered-blue') . '-' . variable_get('drupal_badge_size', '80x15') . '.png';
-  $block['subject'] = NULL; // Don't display a title
-  $block['content'] = theme('system_powered_by', $image_path);
-  return $block;
+  $block = array();
+  switch ($delta) {
+    case 'main':
+      $block['subject'] = NULL;
+      $block['content'] = drupal_set_page_content();
+      return $block;
+    case 'powered-by':
+      $image_path = 'misc/' . variable_get('drupal_badge_color', 'powered-blue') . '-' . variable_get('drupal_badge_size', '80x15') . '.png';
+      $block['subject'] = NULL;
+      $block['content'] = theme('system_powered_by', $image_path);
+      return $block;
+    case 'help':
+      $block['subject'] = NULL;
+      $block['content'] = menu_get_active_help();
+      return $block;
+    default:
+      // All system menu blocks.
+      $system_menus = menu_list_system_menus();
+      if (isset($system_menus[$delta])) {
+        $block['subject'] = t($system_menus[$delta]);
+        $block['content'] = menu_tree($delta);
+        return $block;
+      }
+      break;
+  }
 }
 
 /**
@@ -945,16 +1010,20 @@ function system_block_view($delta = '') {
  *   The menu item to be displayed.
  */
 function system_admin_menu_block($item) {
-  $content = array();
+  $cache = &drupal_static(__FUNCTION__, array());
   if (!isset($item['mlid'])) {
-    $item += db_fetch_array(db_query("SELECT mlid, menu_name FROM {menu_links} ml WHERE ml.router_path = '%s' AND module = 'system'", $item['path']));
+    $item += db_query("SELECT mlid, menu_name FROM {menu_links} ml WHERE ml.router_path = :path AND module = 'system'", array(':path' => $item['path']))->fetchAssoc();
   }
+  else if (isset($cache[$item['mlid']])) {
+    return $cache[$item['mlid']];
+  }
+  $content = array();
   $result = db_query("
     SELECT m.load_functions, m.to_arg_functions, m.access_callback, m.access_arguments, m.page_callback, m.page_arguments, m.title, m.title_callback, m.title_arguments, m.type, m.description, ml.*
     FROM {menu_links} ml
     LEFT JOIN {menu_router} m ON ml.router_path = m.path
-    WHERE ml.plid = %d AND ml.menu_name = '%s' AND hidden = 0", $item['mlid'], $item['menu_name']);
-  while ($item = db_fetch_array($result)) {
+    WHERE ml.plid = :plid AND ml.menu_name = :name AND hidden = 0", array(':plid' => $item['mlid'], ':name' => $item['menu_name']), array('fetch' => PDO::FETCH_ASSOC));
+  foreach ($result as $item) {
     _menu_link_translate($item);
     if (!$item['access']) {
       continue;
@@ -969,6 +1038,7 @@ function system_admin_menu_block($item) {
     $content[(50000 + $item['weight']) . ' ' . $item['title'] . ' ' . $item['mlid']] = $item;
   }
   ksort($content);
+  $cache[$item['mlid']] = $content;
   return $content;
 }
 
@@ -1059,8 +1129,8 @@ function system_check_directory($form_element) {
  */
 function system_get_files_database(&$files, $type) {
   // Extract current files from database.
-  $result = db_query("SELECT filename, name, type, status, schema_version, weight FROM {system} WHERE type = '%s'", $type);
-  while ($file = db_fetch_object($result)) {
+  $result = db_query("SELECT filename, name, type, status, schema_version, weight FROM {system} WHERE type = :type", array(':type' => $type));
+  foreach ($result as $file) {
     if (isset($files[$file->name]) && is_object($files[$file->name])) {
       $file->filepath = $file->filename;
       $file->old_filepath = $file->filepath;
@@ -1087,12 +1157,14 @@ function system_theme_default() {
       'content' => 'Content',
       'header' => 'Header',
       'footer' => 'Footer',
+      'highlight' => 'Highlighted content',
+      'help' => 'Help',
     ),
     'description' => '',
     'features' => array(
       'comment_user_picture',
+      'comment_user_verification',
       'favicon',
-      'mission',
       'logo',
       'name',
       'node_user_picture',
@@ -1123,15 +1195,26 @@ function system_theme_data() {
   // Extract current files from database.
   system_get_files_database($themes, 'theme');
 
-  db_query("DELETE FROM {system} WHERE type = 'theme'");
+  db_delete('system')
+    ->condition('type', 'theme')
+    ->execute();
 
+  $query = db_insert('system')->fields(array('name', 'owner', 'info', 'type', 'filename', 'status'));
   foreach ($themes as $theme) {
     if (!isset($theme->owner)) {
       $theme->owner = '';
     }
 
-    db_query("INSERT INTO {system} (name, owner, info, type, filename, status) VALUES ('%s', '%s', '%s', '%s', '%s', %d)", $theme->name, $theme->owner, serialize($theme->info), 'theme', $theme->filename, isset($theme->status) ? $theme->status : 0);
+    $query->values(array(
+      'name' => $theme->name,
+      'owner' => $theme->owner,
+      'info' => serialize($theme->info),
+      'type' => 'theme',
+      'filename' => $theme->filename,
+      'status' => isset($theme->status) ? $theme->status : 0,
+    ));
   }
+  $query->execute();
 
   return $themes;
 }
@@ -1275,7 +1358,7 @@ function system_region_list($theme_key) {
   static $list = array();
 
   if (!array_key_exists($theme_key, $list)) {
-    $info = unserialize(db_result(db_query("SELECT info FROM {system} WHERE type = :type AND name = :name", array(':type' => 'theme', ':name' => $theme_key))));
+    $info = unserialize(db_query("SELECT info FROM {system} WHERE type = :type AND name = :name", array(':type' => 'theme', ':name' => $theme_key))->fetchField());
     $list[$theme_key] = array_map('t', $info['regions']);
   }
 
@@ -1293,34 +1376,6 @@ function system_region_list($theme_key) {
 function system_default_region($theme) {
   $regions = array_keys(system_region_list($theme));
   return isset($regions[0]) ? $regions[0] : '';
-}
-
-/**
- * Assign an initial, default set of blocks for a theme.
- *
- * This function is called the first time a new theme is enabled. The new theme
- * gets a copy of the default theme's blocks, with the difference that if a
- * particular region isn't available in the new theme, the block is assigned
- * to the new theme's default region.
- *
- * @param $theme
- *   The name of a theme.
- */
-function system_initialize_theme_blocks($theme) {
-  // Initialize theme's blocks if none already registered.
-  if (!(db_result(db_query("SELECT COUNT(*) FROM {block} WHERE theme = '%s'", $theme)))) {
-    $default_theme = variable_get('theme_default', 'garland');
-    $regions = system_region_list($theme);
-    $result = db_query("SELECT * FROM {block} WHERE theme = '%s'", $default_theme);
-    while ($block = db_fetch_array($result)) {
-      // If the region isn't supported by the theme, assign the block to the theme's default region.
-      if (!array_key_exists($block['region'], $regions)) {
-        $block['region'] = system_default_region($theme);
-      }
-      db_query("INSERT INTO {block} (module, delta, theme, status, weight, region, visibility, pages, custom, cache) VALUES ('%s', '%s', '%s', %d, %d, '%s', %d, '%s', %d, %d)",
-          $block['module'], $block['delta'], $theme, $block['status'], $block['weight'], $block['region'], $block['visibility'], $block['pages'], $block['custom'], $block['cache']);
-    }
-  }
 }
 
 function _system_settings_form_automatic_defaults($form) {
@@ -1348,6 +1403,8 @@ function _system_settings_form_automatic_defaults($form) {
  * @see system_settings_form_submit()
  * @param $form
  *   An associative array containing the structure of the form.
+ * @param $automatic_defaults
+ *   Automatically load the saved values for each field from the system variables (defaults to TRUE).
  * @return
  *   The form structure.
  */
@@ -1513,9 +1570,9 @@ function system_get_module_admin_tasks($module) {
   if (!isset($items)) {
     $result = db_query("
        SELECT m.load_functions, m.to_arg_functions, m.access_callback, m.access_arguments, m.page_callback, m.page_arguments, m.title, m.title_callback, m.title_arguments, m.type, ml.*
-       FROM {menu_links} ml INNER JOIN {menu_router} m ON ml.router_path = m.path WHERE ml.link_path LIKE 'admin/%' AND hidden >= 0 AND module = 'system' AND m.number_parts > 2");
+       FROM {menu_links} ml INNER JOIN {menu_router} m ON ml.router_path = m.path WHERE ml.link_path LIKE 'admin/%' AND hidden >= 0 AND module = 'system' AND m.number_parts > 2", array(), array('fetch' => PDO::FETCH_ASSOC));
     $items = array();
-    while ($item = db_fetch_array($result)) {
+    foreach ($result as $item) {
       _menu_link_translate($item);
       if ($item['access']) {
         $items[$item['router_path']] = $item;
@@ -1550,14 +1607,22 @@ function system_get_module_admin_tasks($module) {
  */
 function system_cron() {
   // Cleanup the flood.
-  db_query('DELETE FROM {flood} WHERE timestamp < %d', REQUEST_TIME - 3600);
+  db_delete('flood')
+    ->condition('timestamp', REQUEST_TIME - 3600, '<')
+    ->execute();
   // Cleanup the batch table.
-  db_query('DELETE FROM {batch} WHERE timestamp < %d', REQUEST_TIME - 864000);
+  db_delete('batch')
+    ->condition('timestamp', REQUEST_TIME - 864000, '<')
+    ->execute();
 
   // Remove temporary files that are older than DRUPAL_MAXIMUM_TEMP_FILE_AGE.
   // Use separate placeholders for the status to avoid a bug in some versions
-  // of PHP. @see http://drupal.org/node/352956
-  $result = db_query('SELECT fid FROM {files} WHERE status & :permanent1 != :permanent2 AND timestamp < :timestamp', array(':permanent1' => FILE_STATUS_PERMANENT, ':permanent2' => FILE_STATUS_PERMANENT, ':timestamp' => REQUEST_TIME - DRUPAL_MAXIMUM_TEMP_FILE_AGE));
+  // of PHP. See http://drupal.org/node/352956
+  $result = db_query('SELECT fid FROM {files} WHERE status & :permanent1 <> :permanent2 AND timestamp < :timestamp', array(
+    ':permanent1' => FILE_STATUS_PERMANENT,
+    ':permanent2' => FILE_STATUS_PERMANENT,
+    ':timestamp' => REQUEST_TIME - DRUPAL_MAXIMUM_TEMP_FILE_AGE
+  ));
   foreach ($result as $row) {
     if ($file = file_load($row->fid)) {
       if (!file_delete($file)) {
@@ -1571,6 +1636,16 @@ function system_cron() {
   foreach ($cache_tables as $table) {
     cache_clear_all(NULL, $table);
   }
+
+  // Reset expired items in the default queue implementation table. If that's
+  // not used, this will simply be a no-op.
+  db_update('queue')
+    ->fields(array(
+      'consumer_id' => 0,
+      'expire' => 0,
+    ))
+    ->condition('expire', REQUEST_TIME, '<')
+    ->execute();
 }
 
 /**
@@ -1613,6 +1688,7 @@ function system_action_info() {
         'comment' => array('view', 'insert', 'update', 'delete'),
         'user' => array('view', 'insert', 'update', 'delete', 'login'),
         'taxonomy' => array('insert', 'update', 'delete'),
+        'cron' => array('run'),
       )
     ),
     'system_block_ip_action' => array(
@@ -1638,7 +1714,6 @@ function system_action_info() {
  * Menu callback. Display an overview of available and configured actions.
  */
 function system_actions_manage() {
-  $output = '';
   actions_synchronize();
   $actions = actions_list();
   $actions_map = actions_actions_map($actions);
@@ -1655,15 +1730,20 @@ function system_actions_manage() {
   }
 
   $row = array();
-  $instances_present = db_fetch_object(db_query("SELECT aid FROM {actions} WHERE parameters <> ''"));
+  $instances_present = db_query("SELECT aid FROM {actions} WHERE parameters <> ''")->fetchField();
   $header = array(
     array('data' => t('Action type'), 'field' => 'type'),
     array('data' => t('Description'), 'field' => 'description'),
     array('data' => $instances_present ? t('Operations') : '', 'colspan' => '2')
   );
-  $sql = 'SELECT * FROM {actions}';
-  $result = pager_query($sql . tablesort_sql($header), 50);
-  while ($action = db_fetch_object($result)) {
+  $query = db_select('actions')->extend('PagerDefault')->extend('TableSort');
+  $result = $query
+    ->fields('actions')
+    ->limit(50)
+    ->orderByHeader($header)
+    ->execute();
+
+  foreach ($result as $action) {
     $row[] = array(
       array('data' => $action->type),
       array('data' => $action->description),
@@ -1673,19 +1753,19 @@ function system_actions_manage() {
   }
 
   if ($row) {
-    $pager = theme('pager', NULL, 50, 0);
+    $pager = theme('pager', NULL);
     if (!empty($pager)) {
       $row[] = array(array('data' => $pager, 'colspan' => '3'));
     }
-    $output .= '<h3>' . t('Actions available to Drupal:') . '</h3>';
-    $output .= theme('table', $header, $row);
+    $build['system_actions_header'] = array('#markup' => '<h3>' . t('Actions available to Drupal:') . '</h3>');
+    $build['system_actions_table'] = array('#markup' => theme('table', $header, $row));
   }
 
   if ($actions_map) {
-    $output .= drupal_get_form('system_actions_manage_form', $options);
+    $build['system_actions_manage_form'] = drupal_get_form('system_actions_manage_form', $options);
   }
 
-  return $output;
+  return $build;
 }
 
 /**
@@ -1759,7 +1839,7 @@ function system_actions_configure($form_state, $action = NULL) {
   if (is_numeric($action)) {
     $aid = $action;
     // Load stored parameter values from database.
-    $data = db_fetch_object(db_query("SELECT * FROM {actions} WHERE aid = '%s'", $aid));
+    $data = db_query("SELECT * FROM {actions} WHERE aid = :aid", array(':aid' => $aid))->fetch();
     $edit['actions_description'] = $data->description;
     $edit['actions_type'] = $data->type;
     $function = $data->callback;
@@ -1821,7 +1901,7 @@ function system_actions_configure($form_state, $action = NULL) {
 function system_actions_configure_validate($form, $form_state) {
   $function = actions_function_lookup($form_state['values']['actions_action']) . '_validate';
   // Hand off validation to the action.
-  if (function_exists($function)) {
+  if (drupal_function_exists($function)) {
     $function($form, $form_state);
   }
 }
@@ -2182,7 +2262,9 @@ function system_goto_action($object, $context) {
  */
 function system_block_ip_action() {
   $ip = ip_address();
-  db_query("INSERT INTO {blocked_ips} (ip) VALUES ('%s')", $ip);
+  db_insert('blocked_ips')
+    ->fields(array('ip' => $ip))
+    ->execute();
   watchdog('action', 'Banned IP address %ip', array('%ip' => $ip));
 }
 
@@ -2274,7 +2356,7 @@ function theme_system_compact_link() {
  * @ingroup themeable
  */
 function theme_meta_generator_html($version = VERSION) {
-  drupal_set_html_head('<meta name="Generator" content="Drupal ' . $version . ' (http://drupal.org)" />');
+  drupal_add_html_head('<meta name="Generator" content="Drupal ' . $version . ' (http://drupal.org)" />');
 }
 
 /**
@@ -2283,7 +2365,7 @@ function theme_meta_generator_html($version = VERSION) {
  * @ingroup themeable
  */
 function theme_meta_generator_header($version = VERSION) {
-  drupal_set_header('X-Generator: Drupal ' . $version . ' (http://drupal.org)');
+  drupal_set_header('X-Generator', 'Drupal ' . $version . ' (http://drupal.org)');
 }
 
 /**

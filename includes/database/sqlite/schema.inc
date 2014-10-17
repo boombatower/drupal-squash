@@ -15,6 +15,7 @@
 class DatabaseSchema_sqlite extends DatabaseSchema {
 
   public function tableExists($table) {
+    // Don't use {} around sqlite_master table.
     return (bool) $this->connection->query("SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE '{" . $table . "}'", array(), array())->fetchField();
   }
 
@@ -66,7 +67,7 @@ class DatabaseSchema_sqlite extends DatabaseSchema {
     // Add the SQL statement for each field.
     foreach ($schema['fields'] as $name => $field) {
       if ($field['type'] == 'serial') {
-        if (isset($schema['primary key']) && ($key = array_search($name, $schema['primary key'])) !== false) {
+        if (isset($schema['primary key']) && ($key = array_search($name, $schema['primary key'])) !== FALSE) {
           unset($schema['primary key'][$key]);
         }
       }
@@ -168,7 +169,8 @@ class DatabaseSchema_sqlite extends DatabaseSchema {
     // Put :normal last so it gets preserved by array_flip. This makes
     // it much easier for modules (such as schema.module) to map
     // database types back into schema types.
-    $map = array(
+    // $map does not use drupal_static as its value never changes.
+    static $map = array(
       'varchar:normal'  => 'VARCHAR',
 
       'text:tiny'       => 'TEXT',
@@ -293,7 +295,8 @@ class DatabaseSchema_sqlite extends DatabaseSchema {
    * @param $table
    *   Name of the table.
    * @return
-   *   An array representing the schema, @see drupal_get_schema.
+   *   An array representing the schema, from drupal_get_schema().
+   * @see drupal_get_schema()
    */
   protected function introspectSchema($table) {
     $mapped_fields = array_flip($this->getFieldTypeMap());
@@ -562,6 +565,7 @@ class DatabaseSchema_sqlite extends DatabaseSchema {
    *   Array, both the keys and the values are the matching tables.
    */
   public function findTables($table_expression) {
+    // Don't use {} around sqlite_master table.
     $result = db_query("SELECT name FROM sqlite_master WHERE name LIKE :table_name", array(
       ':table_name' => $table_expression,
     ));

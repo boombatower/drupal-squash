@@ -1,24 +1,22 @@
 // $Id$
-(function($) {
+(function ($) {
 
 Drupal.behaviors.comment = {
-  attach: function(context, settings) {
-    var parts = new Array("name", "homepage", "mail");
-    var cookie = '';
-    for (i=0;i<3;i++) {
-      cookie = Drupal.comment.getCookie('comment_info_' + parts[i]);
-      if (cookie != '') {
-        $("#comment-form input[name=" + parts[i] + "]:not(.comment-processed)", context)
+  attach: function (context, settings) {
+    $.each(['name', 'homepage', 'mail'], function () {
+      var cookie = Drupal.comment.getCookie('comment_info_' + this);
+      if (cookie) {
+        $('#comment-form input[name=' + this + ']:not(.comment-processed)', context)
           .val(cookie)
           .addClass('comment-processed');
       }
-    }
+    });
   }
 };
 
 Drupal.comment = {};
 
-Drupal.comment.getCookie = function(name) {
+Drupal.comment.getCookie = function (name) {
   var search = name + '=';
   var returnValue = '';
 

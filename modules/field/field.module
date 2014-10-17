@@ -78,6 +78,15 @@ define('FIELD_LOAD_CURRENT', 'FIELD_LOAD_CURRENT');
  */
 define('FIELD_LOAD_REVISION', 'FIELD_LOAD_REVISION');
 
+
+/**
+ * Base class for all exceptions thrown by Field API functions.
+ *
+ * This class has no functionality of its own other than allowing all
+ * Field API exceptions to be caught by a single catch block.
+ */
+class FieldException extends Exception {}
+
 /**
  * Implementation of hook_flush_caches.
  */
@@ -92,7 +101,7 @@ function field_help($path, $arg) {
   switch ($path) {
     case 'admin/help#field':
       $output = '<p>' . t('The Field API allows custom data fields to be attached to Drupal objects and takes care of storing, loading, editing, and rendering field data.  Any object type (node, user, etc.) can use the Field API to make itself "fieldable" and thus allow fields to be attached to it.') . '</p>';
-      $output .= '<p>' .t('The Field API provides no user interface on its own.  Use the Content Construction Kit (CCK) contrib module to manage custom fields via a web browser.') . '</p>';
+      $output .= '<p>' . t('The Field API provides no user interface on its own.  Use the Content Construction Kit (CCK) contrib module to manage custom fields via a web browser.') . '</p>';
       return $output;
   }
 }
@@ -444,7 +453,7 @@ function field_format($obj_type, $object, $field, $item, $formatter_name = NULL,
 }
 
 /**
- * Render a single field, fully themed with label and multiple values.
+ * Return a single field, fully themed with label and multiple values.
  *
  * To be used by third-party code (Views, Panels...) that needs to output
  * an isolated field. Do *not* use inside node templates, use the
@@ -485,8 +494,8 @@ function field_view_field($obj_type, $object, $field, $instance, $teaser = FALSE
     // TODO : what about hook_field_attach_view ?
 
     // field_default_view() adds a wrapper to handle variables and 'excluded'
-    // fields for node templates. We bypass it and render the actual field.
-    $output = drupal_render($view[$field['field_name']]['field']);
+    // fields for node templates. We bypass it and return the actual field.
+    $output = $view[$field['field_name']]['field'];
   }
   return $output;
 }

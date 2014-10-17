@@ -45,7 +45,7 @@
  *     switch($key) {
  *       case 'notice':
  *         $message['subject'] = t('Notification from !site', $variables, $language->language);
- *         $message['body'] = t("Dear !username\n\nThere is new content available on the site.", $variables, $language->language);
+ *         $message['body'][] = t("Dear !username\n\nThere is new content available on the site.", $variables, $language->language);
  *         break;
  *     }
  *   }
@@ -132,7 +132,7 @@ function drupal_mail($module, $key, $to, $language, $params = array(), $from = N
     // Log errors
     if (!$message['result']) {
       watchdog('mail', 'Error sending e-mail (from %from to %to).', array('%from' => $message['from'], '%to' => $message['to']), WATCHDOG_ERROR);
-      drupal_set_message(t('Unable to send e-mail. Please contact the site admin, if the problem persists.'), 'error');
+      drupal_set_message(t('Unable to send e-mail. Please contact the site administrator if the problem persists.'), 'error');
     }
   }
 

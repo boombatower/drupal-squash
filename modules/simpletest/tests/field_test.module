@@ -83,16 +83,33 @@ function field_test_fieldable_info() {
   );
 }
 
-function field_test_create_bundle($bundle, $text) {
-  $bundles = variable_get('field_test_bundles', array('field_text_bundle' => 'Test Bundle'));
-  $bundles += array($bundle => $text);
+/**
+ * Create a new bundle for test_entity objects.
+ *
+ * @param $bundle
+ *   The machine-readable name of the bundle.
+ * @param $text
+ *   The human-readable name of the bundle. If none is provided, the machine
+ *   name will be used.
+ */
+function field_test_create_bundle($bundle, $text = NULL) {
+  $bundles = variable_get('field_test_bundles', array('test_bundle' => 'Test Bundle'));
+  $bundles += array($bundle => $text ? $text : $bundle);
   variable_set('field_test_bundles', $bundles);
 
   field_attach_create_bundle($bundle);
 }
 
+/**
+ * Rename a bundle for test_entity objects.
+ *
+ * @param $bundle_old
+ *   The machine-readable name of the bundle to rename.
+ * @param $bundle_new
+ *   The new machine-readable name of the bundle.
+ */
 function field_test_rename_bundle($bundle_old, $bundle_new) {
-  $bundles = variable_get('field_test_bundles', array('field_text_bundle' => 'Test Bundle'));
+  $bundles = variable_get('field_test_bundles', array('test_bundle' => 'Test Bundle'));
   $bundles[$bundle_new] = $bundles[$bundle_old];
   unset($bundles[$bundle_old]);
   variable_set('field_test_bundles', $bundles);
@@ -100,8 +117,14 @@ function field_test_rename_bundle($bundle_old, $bundle_new) {
   field_attach_rename_bundle($bundle_old, $bundle_new);
 }
 
+/**
+ * Delete a bundle for test_entity objects.
+ *
+ * @param $bundle
+ *   The machine-readable name of the bundle to delete.
+ */
 function field_test_delete_bundle($bundle) {
-  $bundles = variable_get('field_test_bundles', array('field_text_bundle' => 'Test Bundle'));
+  $bundles = variable_get('field_test_bundles', array('test_bundle' => 'Test Bundle'));
   unset($bundles[$bundle]);
   variable_set('field_test_bundles', $bundles);
 
@@ -129,8 +152,13 @@ function field_test_field_build_modes($obj_type) {
  */
 function field_test_create_stub_entity($id = 1, $vid = 1, $bundle = FIELD_TEST_BUNDLE) {
   $entity = new stdClass();
-  $entity->ftid = $id;
-  $entity->ftvid = $vid;
+  // Only set id and vid properties if they don't come as NULL (creation form).
+  if (isset($id)) {
+    $entity->ftid = $id;
+  }
+  if (isset($vid)) {
+    $entity->ftvid = $vid;
+  }
   $entity->fttype = $bundle;
 
   return $entity;
@@ -160,13 +188,13 @@ function field_test_entity_load($ftid, $ftvid = NULL) {
 function field_test_entity_save(&$entity) {
   field_attach_presave('test_entity', $entity);
 
-  $entity->is_new = FALSE;
-  if (empty($entity->ftid)) {
-    // Insert a new test_entity.
-    $entity->is_new = TRUE;
+  if (!isset($entity->is_new)) {
+    $entity->is_new = empty($entity->ftid);
   }
-  elseif (!empty($entity->revision)) {
+
+  if (!$entity->is_new && !empty($entity->revision)) {
     $entity->old_ftvid = $entity->ftvid;
+    unset($entity->ftvid);
   }
 
   $update_entity = TRUE;
@@ -252,8 +280,8 @@ function field_test_entity_form(&$form_state, $entity) {
  * Validate handler for field_test_set_field_values().
  */
 function field_test_entity_form_validate($form, &$form_state) {
-  $entity = (object)$form_state['values'];
-  field_attach_validate('test_entity', $entity, $form);
+  $entity = field_test_create_stub_entity($form_state['values']['ftid'], $form_state['values']['ftvid'], $form_state['values']['fttype']);
+  field_attach_form_validate('test_entity', $entity, $form, $form_state);
 }
 
 /**
@@ -306,9 +334,13 @@ function field_test_field_info() {
   return array(
     'test_field' => array(
       'label' => t('Test Field'),
-      'description' => t('Stores the value 1.'),
-      'settings' => array('test_field_setting' => 'dummy test string'),
-      'instance_settings' => array('test_instance_setting' => 'dummy test string'),
+      'settings' => array(
+        'test_field_setting' => 'dummy test string',
+      ),
+      'instance_settings' => array(
+        'test_instance_setting' => 'dummy test string',
+        'test_hook_field_load' => FALSE,
+      ),
       'default_widget' => 'test_field_widget',
       'default_formatter' => 'field_test_default',
     ),
@@ -316,39 +348,38 @@ function field_test_field_info() {
 }
 
 /**
- * Implementation of hook_field_columns().
+ * Implementation of hook_field_schema().
  */
-function field_test_field_columns($field) {
-  $columns['value'] = array(
-    'type' => 'int',
-    'size' => 'tiny',
-    'not null' => FALSE,
+function field_test_field_schema($field) {
+  return array(
+    'columns' => array(
+      'value' => array(
+        'type' => 'int',
+        'size' => 'tiny',
+        'not null' => FALSE,
+      ),
+    ),
+    'indexes' => array(
+      'value' => array('value'),
+    ),
   );
-  return $columns;
-}
-
-/**
- * Implementation of hook_instance_settings().
- */
-function field_test_field_instance_settings($field_type) {
-  return array('test_instance_setting' => 'dummy test string');
 }
 
 /**
  * Implementation of hook_field_validate().
+ *
+ * Possible error codes:
+ * - 'field_test_invalid': The value is invalid.
  */
-function field_test_field_validate(&$obj_type, $object, $field, $instance, &$items, $form) {
-  if (is_array($items)) {
-    foreach ($items as $delta => $item) {
-      $error_element = isset($item['_error_element']) ? $item['_error_element'] : '';
-      if (is_array($item) && isset($item['_error_element'])) unset($item['_error_element']);
-      if ($item['value'] == -1) {
-        form_set_error($error_element, t('%name does not accept the value -1.', array('%name' => $instance['label'])));
-      }
+function field_test_field_validate($obj_type, $object, $field, $instance, $items, &$errors) {
+  foreach ($items as $delta => $item) {
+    if ($item['value'] == -1) {
+      $errors[$field['field_name']][$delta][] = array(
+        'error' => 'field_test_invalid',
+        'message' => t('%name does not accept the value -1.', array('%name' => $instance['label'])),
+      );
     }
   }
-
-  return $items;
 }
 
 /**
@@ -448,6 +479,13 @@ function field_test_field_widget(&$form, &$form_state, $field, $instance, $items
 }
 
 /**
+ * Implementation of hook_field_widget_error().
+ */
+function field_test_field_widget_error($element, $error) {
+  form_error($element['value'], $error['message']);
+}
+
+/**
  * Implementation of hook_field_formatter_info().
  */
 function field_test_field_formatter_info() {
@@ -473,6 +511,24 @@ function field_test_field_formatter_info() {
       ),
     ),
   );
+}
+
+/**
+ * Implementation of hook_field_load().
+ */
+function field_test_field_load($obj_type, $objects, $field, $instances, &$items, $age) {
+  foreach ($items as $id => $item) {
+    // To keep the test non-intrusive, only act for instances with the
+    // test_hook_field_load setting explicitly set to TRUE.
+    if ($instances[$id]['settings']['test_hook_field_load']) {
+      foreach ($item as $delta => $value) {
+        // Don't add anything on empty values.
+        if ($value) {
+          $items[$id][$delta]['additional_key'] = 'additional_value';
+        }
+      }
+    }
+  }
 }
 
 /**
@@ -511,4 +567,11 @@ function theme_field_formatter_field_test_multiple($element) {
   }
   $output = implode('|', $items);
   return $settings['test_formatter_setting_multiple'] . '|' . $output;
+}
+
+/**
+ * Sample function to test default value assignment.
+ */
+function field_test_default_value($obj_type, $object, $field, $instance) {
+  return array(array('value' => 99));
 }

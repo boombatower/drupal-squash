@@ -19,7 +19,7 @@ class DatabaseSchema_pgsql extends DatabaseSchema {
    * This is collected by DatabaseConnection_pgsql->queryTableInformation(),
    * by introspecting the database.
    *
-   * @see DatabaseConnection_pgsql->queryTableInformation().
+   * @see DatabaseConnection_pgsql->queryTableInformation()
    * @var array
    */
   protected $tableInformation = array();
@@ -46,17 +46,18 @@ class DatabaseSchema_pgsql extends DatabaseSchema {
 
     if (!isset($this->tableInformation[$key])) {
       // Split the key into schema and table for querying.
-      list($schema,$table_name) = explode('.', $key);
+      list($schema, $table_name) = explode('.', $key);
       $table_information = (object) array(
         'blob_fields' => array(),
         'sequences' => array(),
       );
+      // Don't use {} around information_schema table.
       $result = db_query("SELECT column_name, data_type, column_default FROM information_schema.columns WHERE table_schema = :schema AND table_name = :table AND (data_type = 'bytea' OR (numeric_precision IS NOT NULL AND column_default LIKE :default))", array(':schema' => $schema, ':table' => $table_name, ':default' => '%nextval%'));
       foreach ($result as $column) {
         if ($column->data_type == 'bytea') {
           $table_information->blob_fields[$column->column_name] = TRUE;
         }
-        else if (preg_match("/nextval\('([^']+)'/", $column->column_default, $matches)) {
+        elseif (preg_match("/nextval\('([^']+)'/", $column->column_default, $matches)) {
           // We must know of any sequences in the table structure to help us
           // return the last insert id. If there is more than 1 sequences the
           // first one (index 0 of the sequences array) will be used.
@@ -213,7 +214,8 @@ class DatabaseSchema_pgsql extends DatabaseSchema {
     // Put :normal last so it gets preserved by array_flip. This makes
     // it much easier for modules (such as schema.module) to map
     // database types back into schema types.
-    $map = array(
+    // $map does not use drupal_static as its value never changes.
+    static $map = array(
       'varchar:normal' => 'varchar',
       'char:normal' => 'character',
 
@@ -240,7 +242,7 @@ class DatabaseSchema_pgsql extends DatabaseSchema {
       'blob:big' => 'bytea',
       'blob:normal' => 'bytea',
 
-      'datetime:normal' => 'timestamp',
+      'datetime:normal' => 'timestamp without time zone',
 
       'serial:tiny' => 'serial',
       'serial:small' => 'serial',
@@ -310,8 +312,10 @@ class DatabaseSchema_pgsql extends DatabaseSchema {
    *   table along with adding the field. The format is the same as a
    *   table specification but without the 'fields' element. If you are
    *   adding a type 'serial' field, you MUST specify at least one key
-   *   or index including it in this array. @see db_change_field for more
+   *   or index including it in this array. See db_change_field() for more
    *   explanation why.
+   *
+   * @see db_change_field()
    */
   public function addField(&$ret, $table, $field, $spec, $new_keys = array()) {
     $fixnull = FALSE;
@@ -547,9 +551,20 @@ class DatabaseSchema_pgsql extends DatabaseSchema {
     $not_null = isset($spec['not null']) ? $spec['not null'] : FALSE;
     unset($spec['not null']);
 
+    if (!array_key_exists('size', $spec)) {
+      $spec['size'] = 'normal';
+    }
     $this->addField($ret, $table, "$field_new", $spec);
 
-    $ret[] = update_sql("UPDATE {" . $table . "} SET $field_new = " . $field . "_old");
+    // We need to typecast the new column to best be able to transfer the data
+    // Schema_pgsql::getFieldTypeMap() will return possibilities that are not
+    // 'cast-able' such as 'serial' - so they need to be casted int instead.
+    $map = $this->getFieldTypeMap();
+    $typecast = $map[$spec['type'] . ':' . $spec['size']];
+    if (in_array($typecast, array('serial', 'bigserial', 'numeric'))) {
+      $typecast = 'int';
+    }
+    $ret[] = update_sql("UPDATE {" . $table . "} SET $field_new = CAST(" . $field . "_old as " . $typecast . ")");
 
     if ($not_null) {
       $ret[] = update_sql("ALTER TABLE {" . $table . "} ALTER $field_new SET NOT NULL");
@@ -589,6 +604,7 @@ class DatabaseSchema_pgsql extends DatabaseSchema {
    */
   public function getComment($table, $column = NULL) {
     $table = $this->connection->prefixTables('{' . $table . '}');
+    // Don't use {} around pg_class, pg_attribute tables.
     if (isset($column)) {
       return db_query('SELECT col_description(oid, attnum) FROM pg_class, pg_attribute WHERE attrelid = oid AND relname = ? AND attname = ?', array($table, $column))->fetchField();
     }

@@ -1,8 +1,8 @@
 // $Id$
-(function($) {
+(function ($) {
 
 Drupal.behaviors.color = {
-  attach: function(context, settings) {
+  attach: function (context, settings) {
     // This behavior attaches by ID, so is only valid once on a page.
     if ($('#color_scheme_form .color-form.color-processed').size()) {
       return;

@@ -33,11 +33,25 @@ class DatabaseConnection_pgsql extends DatabaseConnection {
       // Force column names to lower case.
       PDO::ATTR_CASE => PDO::CASE_LOWER,
     ));
+
+    // Force PostgreSQL to use the UTF-8 character set by default.
+    $this->exec("SET NAMES 'UTF8'");
   }
 
   public function query($query, array $args = array(), $options = array()) {
 
     $options += $this->defaultOptions();
+
+    // The PDO PostgreSQL driver has a bug which 
+    // doesn't type cast booleans correctly when
+    // parameters are bound using associative 
+    // arrays. 
+    // See http://bugs.php.net/bug.php?id=48383
+    foreach ($args as &$value) {
+      if (is_bool($value)) {
+        $value = (int) $value;
+      }
+    }
 
     try {
       if ($query instanceof DatabaseStatementInterface) {
@@ -72,7 +86,7 @@ class DatabaseConnection_pgsql extends DatabaseConnection {
         else {
           $query_string = $query;
         }
-        throw new PDOException($query_string . " - \n" . print_r($args,1) . $e->getMessage());
+        throw new PDOException($query_string . " - \n" . print_r($args, 1) . $e->getMessage());
       }
       return NULL;
     }

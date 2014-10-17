@@ -22,13 +22,13 @@ function system_main_admin_page($arg = NULL) {
     drupal_set_message(t('One or more problems were detected with your Drupal installation. Check the <a href="@status">status report</a> for more information.', array('@status' => url('admin/reports/status'))), 'error');
   }
   $blocks = array();
-  if ($admin = db_fetch_array(db_query("SELECT menu_name, mlid FROM {menu_links} WHERE link_path = 'admin' AND module = 'system'"))) {
+  if ($admin = db_query("SELECT menu_name, mlid FROM {menu_links} WHERE link_path = 'admin' AND module = 'system'")->fetchAssoc()) {
     $result = db_query("
       SELECT m.*, ml.*
       FROM {menu_links} ml
       INNER JOIN {menu_router} m ON ml.router_path = m.path
-      WHERE ml.link_path != 'admin/help' AND menu_name = '%s' AND ml.plid = %d AND hidden = 0", $admin);
-    while ($item = db_fetch_array($result)) {
+      WHERE ml.link_path != 'admin/help' AND menu_name = :menu_name AND ml.plid = :mlid AND hidden = 0", $admin, array('fetch' => PDO::FETCH_ASSOC));
+    foreach ($result as $item) {
       _menu_link_translate($item);
       if (!$item['access']) {
         continue;
@@ -179,7 +179,9 @@ function system_themes_form() {
     }
     else {
       // Ensure this theme is compatible with this version of core.
-      if (!isset($theme->info['core']) || $theme->info['core'] != DRUPAL_CORE_COMPATIBILITY) {
+      // Require the 'content' region to make sure the main page
+      // content has a common place in all themes.
+      if (!isset($theme->info['core']) || ($theme->info['core'] != DRUPAL_CORE_COMPATIBILITY) || (!isset($theme->info['regions']['content']))) {
         $incompatible_core[] = $theme->name;
       }
       if (version_compare(phpversion(), $theme->info['php']) < 0) {
@@ -246,16 +248,22 @@ function system_themes_form_submit($form, &$form_state) {
       $old_theme_list[] = $theme->name;
     }
   }
-  db_query("UPDATE {system} SET status = 0 WHERE type = 'theme'");
+  db_update('system')
+    ->fields(array('status' => 0))
+    ->condition('type', 'theme')
+    ->execute();
 
   if ($form_state['values']['op'] == t('Save configuration')) {
     if (is_array($form_state['values']['status'])) {
       foreach ($form_state['values']['status'] as $key => $choice) {
         // Always enable the default theme, despite its status checkbox being checked:
         if ($choice || $form_state['values']['theme_default'] == $key) {
-          system_initialize_theme_blocks($key);
           $new_theme_list[] = $key;
-          db_query("UPDATE {system} SET status = 1 WHERE type = 'theme' and name = '%s'", $key);
+          db_update('system')
+            ->fields(array('status' => 1))
+            ->condition('type', 'theme')
+            ->condition('name', $key)
+            ->execute();
         }
       }
     }
@@ -265,13 +273,6 @@ function system_themes_form_submit($form, &$form_state) {
         '%admin_theme' => $form_state['values']['admin_theme'],
         '%selected_theme' => $form_state['values']['theme_default'],
       )));
-    }
-    if ($form_state['values']['admin_theme'] && $form_state['values']['admin_theme'] != variable_get('admin_theme', 0)) {
-      // If we're changing themes, make sure the theme has its blocks initialized.
-      $result = db_result(db_query("SELECT COUNT(*) FROM {block} WHERE theme = '%s'", $form_state['values']['admin_theme']));
-      if (!$result) {
-        system_initialize_theme_blocks($form_state['values']['admin_theme']);
-      }
     }
 
     // Save the variables.
@@ -284,7 +285,11 @@ function system_themes_form_submit($form, &$form_state) {
     variable_del('theme_default');
     variable_del('admin_theme');
     variable_del('node_admin_theme');
-    db_query("UPDATE {system} SET status = 1 WHERE type = 'theme' AND name = 'garland'");
+    db_update('system')
+      ->fields(array('status' => 1))
+      ->condition('type', 'theme')
+      ->condition('name', 'garland')
+      ->execute();
     $new_theme_list = array('garland');
   }
 
@@ -362,16 +367,16 @@ function system_theme_settings(&$form_state, $key = '') {
 
   // Toggle settings
   $toggles = array(
-    'logo'                 => t('Logo'),
-    'name'                 => t('Site name'),
-    'slogan'               => t('Site slogan'),
-    'mission'              => t('Mission statement'),
-    'node_user_picture'    => t('User pictures in posts'),
-    'comment_user_picture' => t('User pictures in comments'),
-    'search'               => t('Search box'),
-    'favicon'              => t('Shortcut icon'),
-    'main_menu'            => t('Main menu'),
-    'secondary_menu'      => t('Secondary menu'),
+    'logo'                      => t('Logo'),
+    'name'                      => t('Site name'),
+    'slogan'                    => t('Site slogan'),
+    'node_user_picture'         => t('User pictures in posts'),
+    'comment_user_picture'      => t('User pictures in comments'),
+    'comment_user_verification' => t('User verification status in comments'),
+    'search'                    => t('Search box'),
+    'favicon'                   => t('Shortcut icon'),
+    'main_menu'                 => t('Main menu'),
+    'secondary_menu'            => t('Secondary menu'),
   );
 
   // Some features are not always available
@@ -475,7 +480,7 @@ function system_theme_settings(&$form_state, $key = '') {
     // Call engine-specific settings.
     $function = $themes[$key]->prefix . '_engine_settings';
     if (function_exists($function)) {
-      $group = $function($settings);
+      $group = $function($settings, $form);
       if (!empty($group)) {
         $form['engine_specific'] = array('#type' => 'fieldset', '#title' => t('Theme-engine-specific settings'), '#description' => t('These settings only exist for all the templates and styles based on the %engine theme engine.', array('%engine' => $themes[$key]->prefix)));
         $form['engine_specific'] = array_merge($form['engine_specific'], $group);
@@ -487,14 +492,13 @@ function system_theme_settings(&$form_state, $key = '') {
       $function = $themes[$key]->prefix . '_settings';
     }
     if (function_exists($function)) {
-      $group = $function($settings);
+      $group = $function($settings, $form);
       if (!empty($group)) {
         $form['theme_specific'] = array('#type' => 'fieldset', '#title' => t('Theme-specific settings'), '#description' => t('These settings only exist for the %theme theme and all the styles based on it.', array('%theme' => $themes[$key]->info['name'])));
         $form['theme_specific'] = array_merge($form['theme_specific'], $group);
       }
     }
   }
-  $form['#attributes'] = array('enctype' => 'multipart/form-data');
 
   $form = system_settings_form($form, FALSE);
   // We don't want to call system_settings_form_submit(), so change #submit.
@@ -970,8 +974,8 @@ function system_modules_uninstall($form_state = NULL) {
   $form = array();
 
   // Pull all disabled modules from the system table.
-  $disabled_modules = db_query("SELECT name, filename, info FROM {system} WHERE type = 'module' AND status = 0 AND schema_version > %d ORDER BY name", SCHEMA_UNINSTALLED);
-  while ($module = db_fetch_object($disabled_modules)) {
+  $disabled_modules = db_query("SELECT name, filename, info FROM {system} WHERE type = 'module' AND status = 0 AND schema_version > :schema ORDER BY name", array(':schema' => SCHEMA_UNINSTALLED));
+  foreach ($disabled_modules as $module) {
 
     // Grab the module info
     $info = unserialize($module->info);
@@ -1085,18 +1089,18 @@ function system_ip_blocking() {
   $rows = array();
   $header = array(t('IP address'), t('Operations'));
   $result = db_query('SELECT * FROM {blocked_ips}');
-  while ($ip = db_fetch_object($result)) {
+  foreach ($result as $ip) {
     $rows[] = array(
       $ip->ip,
       l(t('delete'), "admin/settings/ip-blocking/delete/$ip->iid"),
     );
   }
 
-  $output .= drupal_get_form('system_ip_blocking_form');
+  $build['system_ip_blocking_form'] = drupal_get_form('system_ip_blocking_form');
 
-  $output .= theme('table', $header, $rows);
+  $build['system_ip_blocking_table'] = array('#markup' => theme('table', $header, $rows));
 
-  return $output;
+  return $build;
 }
 
 /**
@@ -1126,7 +1130,7 @@ function system_ip_blocking_form($form_state) {
 
 function system_ip_blocking_form_validate($form, &$form_state) {
   $ip = trim($form_state['values']['ip']);
-  if (db_result(db_query("SELECT * FROM {blocked_ips} WHERE ip = '%s'", $ip))) {
+  if (db_query("SELECT * FROM {blocked_ips} WHERE ip = :ip", array(':ip' => $ip))->fetchField()) {
     form_set_error('ip', t('This IP address is already blocked.'));
   }
   elseif ($ip == ip_address()) {
@@ -1139,7 +1143,9 @@ function system_ip_blocking_form_validate($form, &$form_state) {
 
 function system_ip_blocking_form_submit($form, &$form_state) {
   $ip = trim($form_state['values']['ip']);
-  db_query("INSERT INTO {blocked_ips} (ip) VALUES ('%s')", $ip);
+  db_insert('blocked_ips')
+    ->fields(array('ip' => $ip))
+    ->execute();
   drupal_set_message(t('The IP address %ip has been blocked.', array('%ip' => $ip)));
   $form_state['redirect'] = 'admin/settings/ip-blocking';
   return;
@@ -1163,7 +1169,9 @@ function system_ip_blocking_delete(&$form_state, $iid) {
  */
 function system_ip_blocking_delete_submit($form, &$form_state) {
   $blocked_ip = $form_state['values']['blocked_ip'];
-  db_query("DELETE FROM {blocked_ips} WHERE iid = %d", $blocked_ip['iid']);
+  db_delete('blocked_ips')
+    ->condition('iid', $blocked_ip['iid'])
+    ->execute();
   watchdog('user', 'Deleted %ip', array('%ip' => $blocked_ip['ip']));
   drupal_set_message(t('The IP address %ip was deleted.', array('%ip' => $blocked_ip['ip'])));
   $form_state['redirect'] = 'admin/settings/ip-blocking';
@@ -1195,25 +1203,6 @@ function system_site_information_settings() {
     '#title' => t('Slogan'),
     '#default_value' => '',
     '#description' => t("Your site's motto, tag line, or catchphrase (often displayed alongside the title of the site).")
-  );
-  $form['site_mission'] = array(
-    '#type' => 'textarea',
-    '#title' => t('Mission'),
-    '#default_value' => '',
-    '#description' => t("Your site's mission or focus statement (often prominently displayed on the front page).")
-  );
-  $form['site_footer'] = array(
-    '#type' => 'textarea',
-    '#title' => t('Footer message'),
-    '#default_value' => '',
-    '#description' => t('This text will be displayed at the bottom of each page. Useful for adding a copyright notice to your pages.')
-  );
-  $form['anonymous'] = array(
-    '#type' => 'textfield',
-    '#title' => t('Anonymous user'),
-    '#default_value' => t('Anonymous'),
-    '#description' => t('The name used to indicate anonymous users.'),
-    '#required' => TRUE,
   );
   $form['site_frontpage'] = array(
     '#type' => 'textfield',
@@ -1274,14 +1263,13 @@ function system_site_information_settings_validate($form, &$form_state) {
 function system_logging_settings() {
   $form['error_level'] = array(
     '#type' => 'radios',
-    '#title' => t('Error reporting'),
-    '#default_value' => 2,
+    '#title' => t('Display PHP messages'),
+    '#default_value' => ERROR_REPORTING_DISPLAY_ALL,
     '#options' => array(
-      0 => t('Site in production: do not display any errors.'),
-      1 => t('Site in development: display functional errors only.'),
-      2 => t('For developers: display all errors.'),
+      ERROR_REPORTING_HIDE => t('None'),
+      ERROR_REPORTING_DISPLAY_SOME => t('Errors and warnings'),
+      ERROR_REPORTING_DISPLAY_ALL => t('All messages'),
     ),
-    '#description' => t('Display settings for error messages. Note that all error messages are always logged.'),
   );
 
   return system_settings_form($form);
@@ -1295,38 +1283,27 @@ function system_logging_settings() {
  */
 function system_performance_settings() {
 
-  $description = '<p>' . t("The normal cache mode is suitable for most sites and does not cause any side effects. The aggressive cache mode causes Drupal to skip the loading (boot) and unloading (exit) of enabled modules when serving a cached page. This results in an additional performance boost but can cause unwanted side effects.") . '</p>';
-
-  // Check if the "Who's online" block is enabled.
-  $online_block_enabled = db_select('block')
-    ->condition('module', 'user')
-    ->condition('delta', 'online')
-    ->condition('status', 1)
-    ->countQuery()
-    ->execute()
-    ->fetchField();
-  if ($online_block_enabled) {
-    $description .= '<p>' . t("When caching is enabled, anonymous user sessions are only saved to the database when needed, so the \"Who's online\" block does not display the number of anonymous users.") . '</p>';
-  }
+  $description = '<p>' . t("The normal page cache mode is suitable for most sites and does not cause any side effects. The aggressive page cache mode causes Drupal to skip the loading (boot) and unloading (exit) of enabled modules when serving a cached page. This results in an additional performance boost but can cause unwanted side effects.") . '</p>';
 
   $problem_modules = array_unique(array_merge(module_implements('boot'), module_implements('exit')));
   sort($problem_modules);
 
   if (count($problem_modules) > 0) {
-    $description .= '<p>' . t('<strong class="error">The following enabled modules are incompatible with aggressive mode caching and will not function properly: %modules</strong>', array('%modules' => implode(', ', $problem_modules))) . '.</p>';
+    $description .= '<p>' . t('<strong class="error">The following enabled modules are incompatible with aggressive page caching mode and will not function properly: %modules</strong>', array('%modules' => implode(', ', $problem_modules))) . '.</p>';
   }
   else {
-    $description .= '<p>' . t('<strong class="ok">Currently, all enabled modules are compatible with the aggressive caching policy.</strong> Please note, if you use aggressive caching and enable new modules, you will need to check this page again to ensure compatibility.') . '</p>';
+    $description .= '<p>' . t('<strong class="ok">Currently, all enabled modules are compatible with the aggressive page caching policy.</strong> Please note, if you use aggressive page caching and enable new modules, you will need to check this setting again to ensure compatibility.') . '</p>';
   }
   $form['page_cache'] = array(
     '#type' => 'fieldset',
     '#title' => t('Page cache'),
     '#description' => t('Enabling the page cache will offer a significant performance boost. Drupal can store and send compressed cached pages requested by <em>anonymous</em> users. By caching a web page, Drupal does not have to construct the page each time it is viewed.'),
+    '#weight' => -1,
   );
 
   $form['page_cache']['cache'] = array(
     '#type' => 'radios',
-    '#title' => t('Caching mode'),
+    '#title' => t('Page caching mode'),
     '#default_value' => variable_get('cache', CACHE_DISABLED),
     '#options' => array(CACHE_DISABLED => t('Disabled'), CACHE_NORMAL => t('Normal (recommended for production sites, no side effects)'), CACHE_AGGRESSIVE => t('Aggressive (experts only, possible side effects)')),
     '#description' => $description
@@ -1347,21 +1324,6 @@ function system_performance_settings() {
     '#default_value' => variable_get('page_compression', TRUE),
     '#options' => array(t('Disabled'), t('Enabled')),
     '#description' => t("By default, Drupal compresses the pages it caches in order to save bandwidth and improve download times. This option should be disabled when using a webserver that performs compression."),
-  );
-
-  $form['block_cache'] = array(
-    '#type' => 'fieldset',
-    '#title' => t('Block cache'),
-    '#description' => t('Enabling the block cache can offer a performance increase for all users by preventing blocks from being reconstructed on each page load. If the page cache is also enabled, performance increases from enabling the block cache will mainly benefit authenticated users.'),
-  );
-
-  $form['block_cache']['block_cache'] = array(
-    '#type' => 'radios',
-    '#title' => t('Block cache'),
-    '#default_value' => variable_get('block_cache', CACHE_DISABLED),
-    '#options' => array(CACHE_DISABLED => t('Disabled'), CACHE_NORMAL => t('Enabled (recommended)')),
-    '#disabled' => count(module_implements('node_grants')),
-    '#description' => t('Note that block caching is inactive when modules defining content access restrictions are enabled.'),
   );
 
   $form['bandwidth_optimizations'] = array(
@@ -1501,6 +1463,12 @@ function system_image_toolkit_settings() {
  */
 function system_rss_feeds_settings() {
 
+  $form['feed_description'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Feed description'),
+    '#default_value' => '',
+    '#description' => t('Description of your site, included in each feed.')
+  );
   $form['feed_default_items'] = array(
     '#type' => 'select',
     '#title' => t('Number of items in each feed'),
@@ -1565,7 +1533,7 @@ function system_regional_settings() {
 
   $form['locale'] = array(
     '#type' => 'fieldset',
-    '#title' => t('Locale settings'),
+    '#title' => t('Locale'),
   );
 
   $form['locale']['site_default_country'] = array(
@@ -1573,16 +1541,7 @@ function system_regional_settings() {
     '#title' => t('Default country'),
     '#default_value' => variable_get('site_default_country', ''),
     '#options' => $countries,
-    '#description' => t('Select the default country for the site.'),
     '#attributes' => array('class' => 'country-detect'),
-  );
-
-  $form['locale']['date_default_timezone'] = array(
-    '#type' => 'select',
-    '#title' => t('Default time zone'),
-    '#default_value' => variable_get('date_default_timezone', date_default_timezone_get()),
-    '#options' => $zones,
-    '#description' => t('Select the default time zone for the site.'),
   );
 
   $form['locale']['date_first_day'] = array(
@@ -1590,48 +1549,55 @@ function system_regional_settings() {
     '#title' => t('First day of week'),
     '#default_value' => variable_get('date_first_day', 0),
     '#options' => array(0 => t('Sunday'), 1 => t('Monday'), 2 => t('Tuesday'), 3 => t('Wednesday'), 4 => t('Thursday'), 5 => t('Friday'), 6 => t('Saturday')),
-    '#description' => t('The first day of the week for calendar views.')
   );
 
   $form['timezone'] = array(
     '#type' => 'fieldset',
-    '#title' => t('User time zones'),
+    '#title' => t('Time zones'),
   );
 
+  $form['timezone']['date_default_timezone'] = array(
+    '#type' => 'select',
+    '#title' => t('Default time zone'),
+    '#default_value' => variable_get('date_default_timezone', date_default_timezone_get()),
+    '#options' => $zones,
+  );
+
+  $configurable_timezones = variable_get('configurable_timezones', 1);
   $form['timezone']['configurable_timezones'] = array(
-    '#type' => 'radios',
-    '#title' => t('User-configurable time zones'),
-    '#default_value' => variable_get('configurable_timezones', 1),
-    '#options' => array(0 => t('Disabled'), 1 => t('Enabled')),
-    '#description' => t('When enabled, users can set their own time zone and dates will be displayed accordingly.')
+    '#type' => 'checkbox',
+    '#title' => t('Users may set their own time zone.'),
+    '#default_value' => $configurable_timezones,
   );
 
-  $form['timezone']['user_default_timezone'] = array(
+  $js_hide = !$configurable_timezones ? ' class="js-hide"' : '';
+  $form['timezone']['configurable_timezones_wrapper'] =  array(
+    '#prefix' => '<div id="empty-timezone-message-wrapper"' . $js_hide . '>',
+    '#suffix' => '</div>',
+  );
+
+  $form['timezone']['configurable_timezones_wrapper']['empty_timezone_message'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Remind users at login if their time zone is not set.'),
+    '#default_value' => variable_get('empty_timezone_message', 0),
+    '#description' => t('Only applied if users may set their own time zone.')
+  );
+
+  $form['timezone']['configurable_timezones_wrapper']['user_default_timezone'] = array(
     '#type' => 'radios',
-    '#title' => t('User time zone defaults'),
+    '#title' => t('Time zone for new users'),
     '#default_value' => variable_get('user_default_timezone', DRUPAL_USER_TIMEZONE_DEFAULT),
     '#options' => array(
-      DRUPAL_USER_TIMEZONE_DEFAULT => t('New users will be set to the default time zone at registration.'),
-      DRUPAL_USER_TIMEZONE_EMPTY   => t('New users will get an empty time zone at registration.'),
-      DRUPAL_USER_TIMEZONE_SELECT  => t('New users will select their own time zone at registration.'),
+      DRUPAL_USER_TIMEZONE_DEFAULT => t('Default time zone.'),
+      DRUPAL_USER_TIMEZONE_EMPTY   => t('Empty time zone.'),
+      DRUPAL_USER_TIMEZONE_SELECT  => t('Users may set their own time zone at registration.'),
     ),
-    '#description' => t('Method for setting user time zones at registration when user-configurable time zones are enabled. This only affects the initial time zone setting for a new registration. Users will be able to change their time zone any time they edit their account.')
-  );
-
-  $form['timezone']['empty_timezone_message'] = array(
-    '#type' => 'radios',
-    '#title' => t('Empty user time zones'),
-    '#default_value' => variable_get('empty_timezone_message', 0),
-    '#options' => array(
-      0 => t('Ignore empty user time zones.'),
-      1 => t('Remind users at login if their time zone is not set.'),
-    ),
-    '#description' => t('Handling for empty user time zones when user-configurable time zones are enabled. Use this option to help ensure that users set the correct time zone.')
+    '#description' => t('Only applied if users may set their own time zone.')
   );
 
   $form['date_formats'] = array(
     '#type' => 'fieldset',
-    '#title' => t('Formatting'),
+    '#title' => t('Date formats'),
   );
 
   $date_format_short = variable_get('date_format_short', $date_short[1]);
@@ -1643,7 +1609,6 @@ function system_regional_settings() {
     '#attributes' => array('class' => 'date-format'),
     '#default_value' => (isset($date_short_choices[$date_format_short]) ? $date_format_short : 'custom'),
     '#options' => $date_short_choices,
-    '#description' => t('The short format of date display.'),
   );
 
   $default_short_custom = variable_get('date_format_short_custom', (isset($date_short_choices[$date_format_short]) ? $date_format_short : ''));
@@ -1666,7 +1631,6 @@ function system_regional_settings() {
     '#attributes' => array('class' => 'date-format'),
     '#default_value' => (isset($date_medium_choices[$date_format_medium]) ? $date_format_medium : 'custom'),
     '#options' => $date_medium_choices,
-    '#description' => t('The medium sized date display.'),
   );
 
   $default_medium_custom = variable_get('date_format_medium_custom', (isset($date_medium_choices[$date_format_medium]) ? $date_format_medium : ''));
@@ -1689,7 +1653,6 @@ function system_regional_settings() {
     '#attributes' => array('class' => 'date-format'),
     '#default_value' => (isset($date_long_choices[$date_format_long]) ? $date_format_long : 'custom'),
     '#options' => $date_long_choices,
-    '#description' => t('Longer date format used for detailed display.')
   );
 
   $default_long_custom = variable_get('date_format_long_custom', (isset($date_long_choices[$date_format_long]) ? $date_format_long : ''));
@@ -1739,7 +1702,7 @@ function system_date_time_lookup() {
  * @ingroup forms
  * @see system_settings_form()
  */
-function system_site_maintenance_settings() {
+function system_site_maintenance_mode() {
 
   $form['site_offline'] = array(
     '#type' => 'radios',
@@ -1753,7 +1716,7 @@ function system_site_maintenance_settings() {
     '#type' => 'textarea',
     '#title' => t('Site offline message'),
     '#default_value' => t('@site is currently under maintenance. We should be back shortly. Thank you for your patience.', array('@site' => variable_get('site_name', 'Drupal'))),
-    '#description' => t('Message to show visitors when the site is in offline mode.')
+    '#description' => t('Message to show visitors when the site is in maintenance mode.')
   );
 
   return system_settings_form($form, TRUE);
@@ -1812,8 +1775,12 @@ function system_status($check = FALSE) {
   }
   // MySQL import might have set the uid of the anonymous user to autoincrement
   // value. Let's try fixing it. See http://drupal.org/node/204411
-  db_query("UPDATE {users} SET uid = uid - uid WHERE name = '' AND pass = '' AND status = 0");
-
+  db_update('users')
+    ->expression('uid', 'uid - uid')
+    ->condition('name', '')
+    ->condition('pass', '')
+    ->condition('status', 0)
+    ->execute();
   return theme('status_report', $requirements);
 }
 
@@ -1841,70 +1808,6 @@ function system_php() {
 }
 
 /**
- * Theme a SQL result table.
- *
- * @param $data
- *   The actual table data.
- * @param $keys
- *   Data keys and descriptions.
- * @return
- *   The output HTML.
- */
-function _system_sql($data, $keys) {
-  $rows = array();
-  foreach ($keys as $key => $explanation) {
-    if (isset($data[$key])) {
-      $rows[] = array(check_plain($key), check_plain($data[$key]), $explanation);
-    }
-  }
-
-  return theme('table', array(t('Variable'), t('Value'), t('Description')), $rows);
-}
-
-/**
- * Menu callback: return information about the database.
- */
-function system_sql() {
-
-  $result = db_query("SHOW STATUS");
-  while ($entry = db_fetch_object($result)) {
-    // 'SHOW STATUS' returns fields named 'Variable_name' and 'Value',
-    // case is important.
-    $data[$entry->Variable_name] = $entry->Value;
-  }
-
-  $output  = '<h2>' . t('Command counters') . '</h2>';
-  $output .= _system_sql($data, array(
-   'Com_select' => t('The number of !sql statements.', array('!sql' => '<code>SELECT</code>')),
-   'Com_insert' => t('The number of !sql statements.', array('!sql' => '<code>INSERT</code>')),
-   'Com_update' => t('The number of !sql statements.', array('!sql' => '<code>UPDATE</code>')),
-   'Com_delete' => t('The number of !sql statements.', array('!sql' => '<code>DELETE</code>')),
-   'Com_lock_tables' => t('The number of table locks.'),
-   'Com_unlock_tables' => t('The number of table unlocks.')
-  ));
-
-  $output .= '<h2>' . t('Query performance') . '</h2>';
-  $output .= _system_sql($data, array(
-   'Select_full_join' => t('The number of joins without an index; should be zero.'),
-   'Select_range_check' => t('The number of joins without keys that check for key usage after each row; should be zero.'),
-   'Sort_scan' => t('The number of sorts done without using an index; should be zero.'),
-   'Table_locks_immediate' => t('The number of times a lock could be acquired immediately.'),
-   'Table_locks_waited' => t('The number of times the server had to wait for a lock.')
-  ));
-
-  $output .= '<h2>' . t('Query cache information') . '</h2>';
-  $output .= '<p>' . t('The MySQL query cache can improve performance of your site by storing the result of queries. Then, if an identical query is received later, the MySQL server retrieves the result from the query cache rather than parsing and executing the statement again.') . '</p>';
-  $output .= _system_sql($data, array(
-   'Qcache_queries_in_cache' => t('The number of queries in the query cache.'),
-   'Qcache_hits' => t('The number of times MySQL found previous results in the cache.'),
-   'Qcache_inserts' => t('The number of times MySQL added a query to the cache (misses).'),
-   'Qcache_lowmem_prunes' => t('The number of times MySQL had to remove queries from the cache because it ran out of memory. Ideally should be zero.')
-  ));
-
-  return $output;
-}
-
-/**
  * Default page callback for batches.
  */
 function system_batch_page() {
@@ -1916,7 +1819,8 @@ function system_batch_page() {
   elseif (isset($output)) {
     // Force a page without blocks or messages to
     // display a list of collected messages later.
-    $page = drupal_get_page($output);
+    drupal_set_page_content($output);
+    $page = element_info('page');
     $page['#show_blocks'] = FALSE;
     $page['#show_messages'] = FALSE;
     return $page;
@@ -2135,15 +2039,15 @@ function theme_system_modules_fieldset($form) {
     // If we have help, it becomes the first part
     // of the description - with CSS, it is float: right'd.
     if (isset($module['help'])) {
-      $description = '<div class="module-help">'. drupal_render($module['help']) .'</div>';
+      $description = '<div class="module-help">' . drupal_render($module['help']) . '</div>';
     }
     // Add the description, along with any modules it requires.
     $description .= drupal_render($module['description']);
     if ($module['#requires']) {
-     $description .= '<div class="admin-requirements">' . t('Requires: !module-list', array('!module-list' => implode(', ', $module['#requires']))) . '</div>';
+      $description .= '<div class="admin-requirements">' . t('Requires: !module-list', array('!module-list' => implode(', ', $module['#requires']))) . '</div>';
     }
     if ($module['#required_by']) {
-     $description .= '<div class="admin-requirements">' . t('Required by: !module-list', array('!module-list' => implode(', ', $module['#required_by']))) . '</div>';
+      $description .= '<div class="admin-requirements">' . t('Required by: !module-list', array('!module-list' => implode(', ', $module['#required_by']))) . '</div>';
     }
     $row[] = array('data' => $description, 'class' => 'description');
     $rows[] = $row;
@@ -2162,7 +2066,7 @@ function theme_system_modules_fieldset($form) {
  *   An HTML string for the message.
  */
 function theme_system_modules_incompatible($message) {
-  return '<div class="incompatible">'. $message .'</div>';
+  return '<div class="incompatible">' . $message . '</div>';
 }
 
 /**

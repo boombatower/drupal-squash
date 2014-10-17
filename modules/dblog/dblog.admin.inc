@@ -7,21 +7,17 @@
  */
 
 /**
- * dblog module settings form.
- *
- * @ingroup forms
- * @see system_settings_form()
+ * Implementation of hook_form_FORM_ID_alter().
  */
-function dblog_admin_settings() {
+function dblog_form_system_logging_settings_alter(&$form, $form_state) {
   $form['dblog_row_limit'] = array(
     '#type' => 'select',
-    '#title' => t('Discard log entries above the following row limit'),
-    '#default_value' => 1000,
+    '#title' => t('Database log entries to keep'),
+    '#default_value' => variable_get('dblog_row_limit', 1000),
     '#options' => drupal_map_assoc(array(100, 1000, 10000, 100000, 1000000)),
-    '#description' => t('The maximum number of rows to keep in the database log. Older entries will be automatically discarded. (Requires a correctly configured <a href="@cron">cron maintenance task</a>.)', array('@cron' => url('admin/reports/status')))
+    '#description' => t('The maximum number of entries to keep in the database log. Requires a <a href="@cron">cron maintenance task</a>.', array('@cron' => url('admin/reports/status')))
   );
-
-  return system_settings_form($form, TRUE);
+  $form['buttons']['#weight'] = 1;
 }
 
 /**
@@ -51,8 +47,8 @@ function dblog_overview() {
     WATCHDOG_EMERG    => 'dblog-emerg',
   );
 
-  $output = drupal_get_form('dblog_filter_form');
-  $output .= drupal_get_form('dblog_clear_log_form');
+  $build['dblog_filter_form'] = drupal_get_form('dblog_filter_form');
+  $build['dblog_clear_log_form'] = drupal_get_form('dblog_clear_log_form');
 
   $header = array(
     ' ',
@@ -69,20 +65,18 @@ function dblog_overview() {
     ->fields('w', array('wid', 'uid', 'severity', 'type', 'timestamp', 'message', 'variables', 'link'))
     ->addField('u', 'name');
   if (!empty($filter['where'])) {
-    //setHeader may not be chainable see Line 138
     $query
       ->where($filter['where'], $filter['args'])
       ->extend('PagerDefault')->extend('TableSort')
       ->limit(50, 0)
-      ->setHeader($header);
+      ->orderByHeader($header);
     $result = $query->execute();
   }
   else {
-    //setHeader may not be chainable see Line 138
     $query
       ->extend('PagerDefault')->extend('TableSort')
       ->limit(50)
-      ->setHeader($header);
+      ->orderByHeader($header);
     $result = $query->execute();
   }
 
@@ -106,10 +100,10 @@ function dblog_overview() {
     $rows[] = array(array('data' => t('No log messages available.'), 'colspan' => 6));
   }
 
-  $output .= theme('table', $header, $rows, array('id' => 'admin-dblog'));
-  $output .= theme('pager', NULL, 50, 0);
+  $build['dblog_table'] = array('#markup' => theme('table', $header, $rows, array('id' => 'admin-dblog')));
+  $build['dblog_pager'] = array('#markup' => theme('pager', NULL));
 
-  return $output;
+  return $build;
 }
 
 /**
@@ -135,7 +129,7 @@ function dblog_top($type) {
     ->groupBy('variables')
     ->extend('PagerDefault')->extend('TableSort')
     ->limit(30);
-  $query = $query->setHeader($header);
+  $query = $query->orderByHeader($header);
   $query->setCountQuery($count_query);
   $result = $query->execute();
 
@@ -149,7 +143,7 @@ function dblog_top($type) {
   }
 
   $output  = theme('table', $header, $rows);
-  $output .= theme('pager', NULL, 30, 0);
+  $output .= theme('pager', NULL);
 
   return $output;
 }

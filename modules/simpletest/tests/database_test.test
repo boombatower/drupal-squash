@@ -171,7 +171,7 @@ class DatabaseTestCase extends DrupalWebTestCase {
  */
 class DatabaseConnectionTestCase extends DatabaseTestCase {
 
-  function getInfo() {
+  public static function getInfo() {
     return array(
       'name' => t('Connection tests'),
       'description' => t('Tests of the core database system.'),
@@ -239,7 +239,7 @@ class DatabaseConnectionTestCase extends DatabaseTestCase {
  */
 class DatabaseFetchTestCase extends DatabaseTestCase {
 
-  function getInfo() {
+  public static function getInfo() {
     return array(
       'name' => t('Fetch tests'),
       'description' => t('Test the Database system\'s various fetch capabilities.'),
@@ -320,7 +320,7 @@ class DatabaseFetchTestCase extends DatabaseTestCase {
  */
 class DatabaseFetch2TestCase extends DatabaseTestCase {
 
-  function getInfo() {
+  public static function getInfo() {
     return array(
       'name' => t('Fetch tests, part 2'),
       'description' => t('Test the Database system\'s various fetch capabilities.'),
@@ -385,7 +385,7 @@ class DatabaseFetch2TestCase extends DatabaseTestCase {
  */
 class DatabaseInsertTestCase extends DatabaseTestCase {
 
-  function getInfo() {
+  public static function getInfo() {
     return array(
       'name' => t('Insert tests'),
       'description' => t('Test the Insert query builder.'),
@@ -519,7 +519,7 @@ class DatabaseInsertTestCase extends DatabaseTestCase {
  */
 class DatabaseInsertLOBTestCase extends DatabaseTestCase {
 
-  function getInfo() {
+  public static function getInfo() {
     return array(
       'name' => t('Insert tests, LOB fields'),
       'description' => t('Test the Insert query builder with LOB fields.'),
@@ -559,7 +559,7 @@ class DatabaseInsertLOBTestCase extends DatabaseTestCase {
  */
 class DatabaseInsertDefaultsTestCase extends DatabaseTestCase {
 
-  function getInfo() {
+  public static function getInfo() {
     return array(
       'name' => t('Insert tests, default fields'),
       'description' => t('Test the Insert query builder with default values.'),
@@ -612,7 +612,7 @@ class DatabaseInsertDefaultsTestCase extends DatabaseTestCase {
  */
 class DatabaseUpdateTestCase extends DatabaseTestCase {
 
-  function getInfo() {
+  public static function getInfo() {
     return array(
       'name' => t('Update tests'),
       'description' => t('Test the Update query builder.'),
@@ -683,7 +683,7 @@ class DatabaseUpdateTestCase extends DatabaseTestCase {
  */
 class DatabaseUpdateComplexTestCase extends DatabaseTestCase {
 
-  function getInfo() {
+  public static function getInfo() {
     return array(
       'name' => t('Update tests, Complex'),
       'description' => t('Test the Update query builder, complex queries.'),
@@ -769,7 +769,7 @@ class DatabaseUpdateComplexTestCase extends DatabaseTestCase {
     $num_updated = db_update('test')
       ->condition('name', 'Ringo')
       ->fields(array('job' => 'Musician'))
-      ->expression('age', 'age + :age',array(':age' => 4))
+      ->expression('age', 'age + :age', array(':age' => 4))
       ->execute();
     $this->assertIdentical($num_updated, 1, t('Updated 1 record.'));
 
@@ -790,7 +790,7 @@ class DatabaseUpdateComplexTestCase extends DatabaseTestCase {
     $before_age = db_query("SELECT age FROM {test} WHERE name = 'Ringo'")->fetchField();
     $num_updated = db_update('test')
       ->condition('name', 'Ringo')
-      ->expression('age', 'age + :age',array(':age' => 4))
+      ->expression('age', 'age + :age', array(':age' => 4))
       ->execute();
     $this->assertIdentical($num_updated, 1, t('Updated 1 record.'));
 
@@ -804,7 +804,7 @@ class DatabaseUpdateComplexTestCase extends DatabaseTestCase {
  */
 class DatabaseUpdateLOBTestCase extends DatabaseTestCase {
 
-  function getInfo() {
+  public static function getInfo() {
     return array(
       'name' => t('Update tests, LOB'),
       'description' => t('Test the Update query builder with LOB fields.'),
@@ -847,19 +847,22 @@ class DatabaseUpdateLOBTestCase extends DatabaseTestCase {
 }
 
 /**
- * Delete tests.
+ * Delete/Truncate tests.
  *
  * The DELETE tests are not as extensive, as all of the interesting code for
  * DELETE queries is in the conditional which is identical to the UPDATE and
  * SELECT conditional handling.
  *
+ * The TRUNCATE tests are not extensive either, because the behavior of
+ * TRUNCATE queries is not consistent across database engines. We only test
+ * that a TRUNCATE query actually deletes all rows from the target table.
  */
-class DatabaseDeleteTestCase extends DatabaseTestCase {
+class DatabaseDeleteTruncateTestCase extends DatabaseTestCase {
 
-  function getInfo() {
+  public static function getInfo() {
     return array(
-      'name' => t('Delete tests'),
-      'description' => t('Test the Delete query builder.'),
+      'name' => t('Delete/Truncate tests'),
+      'description' => t('Test the Delete and Truncate query builders.'),
       'group' => t('Database'),
     );
   }
@@ -876,6 +879,19 @@ class DatabaseDeleteTestCase extends DatabaseTestCase {
     $num_records_after = db_query("SELECT COUNT(*) FROM {test}")->fetchField();
     $this->assertEqual($num_records_before, $num_records_after + $num_deleted, t('Deletion adds up.'));
   }
+
+
+  /**
+   * Confirm that we can truncate a whole table successfully.
+   */
+  function testTruncate() {
+    $num_records_before = db_query("SELECT COUNT(*) FROM {test}")->fetchField();
+
+    db_truncate('test')->execute();
+
+    $num_records_after = db_query("SELECT COUNT(*) FROM {test}")->fetchField();
+    $this->assertEqual(0, $num_records_after, t('Truncate really deletes everything.'));
+  }
 }
 
 /**
@@ -883,7 +899,7 @@ class DatabaseDeleteTestCase extends DatabaseTestCase {
  */
 class DatabaseMergeTestCase extends DatabaseTestCase {
 
-  function getInfo() {
+  public static function getInfo() {
     return array(
       'name' => t('Merge tests'),
       'description' => t('Test the Merge query builder.'),
@@ -1071,7 +1087,7 @@ class DatabaseMergeTestCase extends DatabaseTestCase {
  */
 class DatabaseSelectTestCase extends DatabaseTestCase {
 
-  function getInfo() {
+  public static function getInfo() {
     return array(
       'name' => t('Select tests'),
       'description' => t('Test the Select query builder.'),
@@ -1242,7 +1258,7 @@ class DatabaseSelectTestCase extends DatabaseTestCase {
  */
 class DatabaseSelectSubqueryTestCase extends DatabaseTestCase {
 
-  function getInfo() {
+  public static function getInfo() {
     return array(
       'name' => t('Select tests, subqueries'),
       'description' => t('Test the Select query builder.'),
@@ -1308,7 +1324,7 @@ class DatabaseSelectSubqueryTestCase extends DatabaseTestCase {
  */
 class DatabaseSelectOrderedTestCase extends DatabaseTestCase {
 
-  function getInfo() {
+  public static function getInfo() {
     return array(
       'name' => t('Select tests, ordered'),
       'description' => t('Test the Select query builder.'),
@@ -1395,7 +1411,7 @@ class DatabaseSelectOrderedTestCase extends DatabaseTestCase {
  */
 class DatabaseSelectComplexTestCase extends DatabaseTestCase {
 
-  function getInfo() {
+  public static function getInfo() {
     return array(
       'name' => t('Select tests, complex'),
       'description' => t('Test the Select query builder with more complex queries.'),
@@ -1598,7 +1614,7 @@ class DatabaseSelectComplexTestCase extends DatabaseTestCase {
 
 class DatabaseSelectPagerDefaultTestCase extends DatabaseTestCase {
 
-  function getInfo() {
+  public static function getInfo() {
     return array(
       'name' => t('Pager query tests'),
       'description' => t('Test the pager query extender.'),
@@ -1627,7 +1643,7 @@ class DatabaseSelectPagerDefaultTestCase extends DatabaseTestCase {
     if (!($num_pages * $limit < $count)) {
       $num_pages--;
     }
-    
+
     for ($page = 0; $page <= $num_pages; ++$page) {
       $this->drupalGet('database_test/pager_query_even/' . $limit, array('query' => array('page' => $page)));
       $data = json_decode($this->drupalGetContent());
@@ -1673,12 +1689,52 @@ class DatabaseSelectPagerDefaultTestCase extends DatabaseTestCase {
       $this->assertEqual(count($data->names), $correct_number, t('Correct number of records returned by pager: @number', array('@number' => $correct_number)));
     }
   }
+
+  /**
+   * Confirm that a pager query with inner pager query returns valid results.
+   *
+   * This is a regression test for #467984.
+   */
+  function testInnerPagerQuery() {
+    $query = db_select('test', 't')->extend('PagerDefault');
+    $query
+      ->fields('t', array('age'))
+      ->orderBy('age')
+      ->limit(5);
+
+    $outer_query = db_select($query);
+    $outer_query->addField('subquery', 'age');
+
+    $ages = $outer_query
+      ->execute()
+      ->fetchCol();
+    $this->assertEqual($ages, array(25, 26, 27, 28), 'Inner pager query returned the correct ages.');
+  }
+
+  /**
+   * Confirm that a paging query with a having expression returns valid results.
+   *
+   * This is a regression test for #467984.
+   */
+  function testHavingPagerQuery() {
+    $query = db_select('test', 't')->extend('PagerDefault');
+    $query
+      ->fields('t', array('age'))
+      ->orderBy('age')
+      ->having('COUNT(age) > :count', array(':count' => 1))
+      ->limit(5);
+
+    $ages = $query
+      ->execute()
+      ->fetchCol();
+    $this->assertEqual($ages, array(25), ' pager query with having expression returned the correct ages.');
+  }
 }
 
 
 class DatabaseSelectTableSortDefaultTestCase extends DatabaseTestCase {
 
-  function getInfo() {
+  public static function getInfo() {
     return array(
       'name' => t('Tablesort query tests'),
       'description' => t('Test the tablesort query extender.'),
@@ -1713,6 +1769,32 @@ class DatabaseSelectTableSortDefaultTestCase extends DatabaseTestCase {
       $this->assertEqual($last->task, $sort['last'], t('Items appear in the correct order.'));
     }
   }
+
+  /**
+   * Confirm that if a tablesort's orderByHeader is called before another orderBy, that the header happens first.
+   *
+   */
+  function testTableSortQueryFirst() {
+    $sorts = array(
+      array('field' => t('Task ID'), 'sort' => 'desc', 'first' => 'perform at superbowl', 'last' => 'eat'),
+      array('field' => t('Task ID'), 'sort' => 'asc', 'first' => 'eat', 'last' => 'perform at superbowl'),
+      array('field' => t('Task'), 'sort' => 'asc', 'first' => 'code', 'last' => 'sleep'),
+      array('field' => t('Task'), 'sort' => 'desc', 'first' => 'sleep', 'last' => 'code'),
+      // more elements here
+
+    );
+
+    foreach ($sorts as $sort) {
+      $this->drupalGet('database_test/tablesort_first/', array('query' => array('order' => $sort['field'], 'sort' => $sort['sort'])));
+      $data = json_decode($this->drupalGetContent());
+
+      $first = array_shift($data->tasks);
+      $last = array_pop($data->tasks);
+
+      $this->assertEqual($first->task, $sort['first'], t('Items appear in the correct order sorting by @field @sort.', array('@field' => $sort['field'], '@sort' => $sort['sort'])));
+      $this->assertEqual($last->task, $sort['last'], t('Items appear in the correct order sorting by @field @sort.', array('@field' => $sort['field'], '@sort' => $sort['sort'])));
+    }
+  }
 }
 
 /**
@@ -1723,7 +1805,7 @@ class DatabaseSelectTableSortDefaultTestCase extends DatabaseTestCase {
  */
 class DatabaseTaggingTestCase extends DatabaseTestCase {
 
-  function getInfo() {
+  public static function getInfo() {
     return array(
       'name' => t('Query tagging tests'),
       'description' => t('Test the tagging capabilities of the Select builder.'),
@@ -1806,7 +1888,7 @@ class DatabaseTaggingTestCase extends DatabaseTestCase {
  */
 class DatabaseAlterTestCase extends DatabaseTestCase {
 
-  function getInfo() {
+  public static function getInfo() {
     return array(
       'name' => t('Query altering tests'),
       'description' => t('Test the hook_query_alter capabilities of the Select builder.'),
@@ -1890,7 +1972,7 @@ class DatabaseAlterTestCase extends DatabaseTestCase {
  */
 class DatabaseAlter2TestCase extends DatabaseTestCase {
 
-  function getInfo() {
+  public static function getInfo() {
     return array(
       'name' => t('Query altering tests, part 2'),
       'description' => t('Test the hook_query_alter capabilities of the Select builder.'),
@@ -1952,7 +2034,7 @@ class DatabaseAlter2TestCase extends DatabaseTestCase {
  */
 class DatabaseRegressionTestCase extends DatabaseTestCase {
 
-  function getInfo() {
+  public static function getInfo() {
     return array(
       'name' => t('Regression tests'),
       'description' => t('Regression tests cases for the database layer.'),
@@ -2002,7 +2084,7 @@ class DatabaseRegressionTestCase extends DatabaseTestCase {
  */
 class DatabaseLoggingTestCase extends DatabaseTestCase {
 
-  function getInfo() {
+  public static function getInfo() {
     return array(
       'name' => t('Query logging'),
       'description' => t('Test the query logging facility.'),
@@ -2127,7 +2209,7 @@ class DatabaseLoggingTestCase extends DatabaseTestCase {
  * Range query tests.
  */
 class DatabaseRangeQueryTestCase extends DrupalWebTestCase {
-  function getInfo() {
+  public static function getInfo() {
     return array(
       'name' => t('Range query test'),
       'description' => t('Test the Range query functionality.'),
@@ -2158,7 +2240,7 @@ class DatabaseRangeQueryTestCase extends DrupalWebTestCase {
  * Temporary query tests.
  */
 class DatabaseTemporaryQueryTestCase extends DrupalWebTestCase {
-  function getInfo() {
+  public static function getInfo() {
     return array(
       'name' => t('Temporary query test'),
       'description' => t('Test the temporary query functionality.'),
@@ -2208,7 +2290,7 @@ class DatabaseTemporaryQueryTestCase extends DrupalWebTestCase {
  * database system interprets SQL syntax in an expected fashion.
  */
 class DatabaseAnsiSyntaxTestCase extends DatabaseTestCase {
-  function getInfo() {
+  public static function getInfo() {
     return array(
       'name' => t('ANSI SQL syntax tests'),
       'description' => t('Test ANSI SQL syntax interpretation.'),
@@ -2249,7 +2331,7 @@ class DatabaseAnsiSyntaxTestCase extends DatabaseTestCase {
  * Test invalid data handling.
  */
 class DatabaseInvalidDataTestCase extends DatabaseTestCase {
-  function getInfo() {
+  public static function getInfo() {
     return array(
       'name' => t('Invalid data'),
       'description' => t('Test handling of some invalid data.'),
@@ -2309,7 +2391,7 @@ class DatabaseInvalidDataTestCase extends DatabaseTestCase {
       // Ensure the other values were not inserted.
       $record = db_select('test')
         ->fields('test', array('name', 'age'))
-        ->condition('age', array(17, 75),'IN')
+        ->condition('age', array(17, 75), 'IN')
         ->execute()->fetchObject();
 
       $this->assertFalse($record, t('The rest of the insert aborted as expected.'));
@@ -2322,7 +2404,7 @@ class DatabaseInvalidDataTestCase extends DatabaseTestCase {
  * Drupal-specific SQL syntax tests.
  */
 class DatabaseQueryTestCase extends DatabaseTestCase {
-  function getInfo() {
+  public static function getInfo() {
     return array(
       'name' => t('Custom query syntax tests'),
       'description' => t('Test Drupal\'s extended prepared statement syntax..'),
@@ -2366,7 +2448,7 @@ class DatabaseQueryTestCase extends DatabaseTestCase {
  */
 class DatabaseTransactionTestCase extends DatabaseTestCase {
 
-  function getInfo() {
+  public static function getInfo() {
     return array(
       'name' => t('Transaction tests'),
       'description' => t('Test the transaction abstraction system.'),
@@ -2514,7 +2596,7 @@ class DatabaseTransactionTestCase extends DatabaseTestCase {
       $saved_age = db_query("SELECT age FROM {test} WHERE name = :name", array(':name' => 'DanielB'))->fetchField();
       $this->assertNotIdentical($saved_age, '19', t('Cannot retrieve DanielB row after commit.'));
     }
-    catch(Exception $e) {
+    catch (Exception $e) {
       $this->fail($e->getMessage());
     }
   }
@@ -2540,7 +2622,7 @@ class DatabaseTransactionTestCase extends DatabaseTestCase {
       $saved_age = db_query("SELECT age FROM {test} WHERE name = :name", array(':name' => 'DanielB'))->fetchField();
       $this->assertIdentical($saved_age, '19', t('DanielB not rolled back, since transactions are not supported.'));
     }
-    catch(Exception $e) {
+    catch (Exception $e) {
       $this->fail($e->getMessage());
     }
   }
@@ -2562,7 +2644,7 @@ class DatabaseTransactionTestCase extends DatabaseTestCase {
       $saved_age = db_query("SELECT age FROM {test} WHERE name = :name", array(':name' => 'DanielA'))->fetchField();
       $this->assertIdentical($saved_age, '19', t('Can retrieve DanielA row after commit.'));
     }
-    catch(Exception $e) {
+    catch (Exception $e) {
       $this->fail($e->getMessage());
     }
   }

@@ -64,6 +64,7 @@ function taxonomy_overview_vocabularies_submit($form, &$form_state) {
  */
 function theme_taxonomy_overview_vocabularies($form) {
   $rows = array();
+
   foreach (element_children($form) as $key) {
     if (isset($form[$key]['name'])) {
       $vocabulary = &$form[$key];
@@ -265,9 +266,29 @@ function taxonomy_overview_terms(&$form_state, $vocabulary) {
   if ($vocabulary->tags) {
     // We are not calling taxonomy_get_tree because that might fail with a big
     // number of tags in the freetagging vocabulary.
-    $results = pager_query(db_rewrite_sql('SELECT t.*, h.parent FROM {taxonomy_term_data} t INNER JOIN {taxonomy_term_hierarchy} h ON t.tid = h.tid WHERE t.vid = %d ORDER BY weight, name', 't', 'tid'), $page_increment, 0, NULL, $vocabulary->vid);
-    $total_entries = db_query(db_rewrite_sql('SELECT COUNT(*) FROM {taxonomy_term_data} t INNER JOIN {taxonomy_term_hierarchy} h ON t.tid = h.tid WHERE t.vid = :vid'), array(':vid' => $vocabulary->vid));
-    while ($term = db_fetch_object($results)) {
+    $query = db_select('taxonomy_term_data', 't')->extend('PagerDefault');
+    $query->join('taxonomy_term_hierarchy', 'h', 't.tid = h.tid');
+    $query->addTag('term_access');
+    $query->condition('t.vid', $vocabulary->vid);
+
+    // Store count in total entries and use this as count query.
+    $count_query = db_select('taxonomy_term_data', 't');
+    $count_query->join('taxonomy_term_hierarchy', 'h', 't.tid = h.tid');
+    $count_query->addTag('term_access');
+    $count_query->condition('t.vid', $vocabulary->vid);
+    $count_query->addExpression('COUNT(t.tid)');
+    $total_entries = $count_query->execute();
+    $query->setCountQuery($count_query);
+
+    $result = $query
+      ->fields('t')
+      ->fields('h', array('parent'))
+      ->orderBy('weight')
+      ->orderBy('name')
+      ->limit($page_increment)
+      ->execute();
+
+    foreach ($result as $term) {
       $key = 'tid:' . $term->tid . ':0';
       $current_page[$key] = $term;
       $page_entries++;
@@ -600,7 +621,7 @@ function theme_taxonomy_overview_terms($form) {
   $header = array(t('Name'), t('Operations'));
   $output = theme('table', $header, $rows, array('id' => 'taxonomy'));
   $output .= drupal_render_children($form);
-  $output .= theme('pager', NULL, $page_increment);
+  $output .= theme('pager', NULL);
 
   return $output;
 }
@@ -672,8 +693,8 @@ function taxonomy_form_term(&$form_state, $vocabulary, $edit = array()) {
     }
     $exclude[] = $edit['tid'];
 
-    $form['advanced']['parent'] = _taxonomy_term_select(t('Parents'), 'parent', $parent, $vocabulary->vid, t('Parent terms') . '.', 1, '<' . t('root') . '>', $exclude);
-    $form['advanced']['relations'] = _taxonomy_term_select(t('Related terms'), 'relations', array_keys(taxonomy_get_related($edit['tid'])), $vocabulary->vid, NULL, 1, '<' . t('none') . '>', array($edit['tid']));
+    $form['advanced']['parent'] = _taxonomy_term_select(t('Parents'), $parent, $vocabulary->vid, t('Parent terms') . '.', 1, '<' . t('root') . '>', $exclude);
+    $form['advanced']['relations'] = _taxonomy_term_select(t('Related terms'), array_keys(taxonomy_get_related($edit['tid'])), $vocabulary->vid, NULL, 1, '<' . t('none') . '>', array($edit['tid']));
   }
   $form['advanced']['synonyms'] = array(
     '#type' => 'textarea',
@@ -903,7 +924,10 @@ function taxonomy_vocabulary_confirm_reset_alphabetical(&$form_state, $vid) {
  * @see taxonomy_vocabulary_confirm_reset_alphabetical()
  */
 function taxonomy_vocabulary_confirm_reset_alphabetical_submit($form, &$form_state) {
-  db_query('UPDATE {taxonomy_term_data} SET weight = 0 WHERE vid = :vid', array(':vid' => $form_state['values']['vid']));
+  db_update('taxonomy_term_data')
+    ->fields(array('weight' => 0))
+    ->condition('vid', $form_state['values']['vid'])
+    ->execute();
   drupal_set_message(t('Reset vocabulary %name to alphabetical order.', array('%name' => $form_state['values']['name'])));
   watchdog('taxonomy', 'Reset vocabulary %name to alphabetical order.', array('%name' => $form_state['values']['name']), WATCHDOG_NOTICE);
   $form_state['redirect'] = 'admin/content/taxonomy/' . $form_state['values']['vid'];

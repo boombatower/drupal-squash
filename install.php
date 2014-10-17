@@ -185,7 +185,8 @@ function install_verify_settings() {
     include_once DRUPAL_ROOT . '/includes/form.inc';
 
     $database = $databases['default']['default'];
-    $settings_file = './' . conf_path(FALSE, TRUE) . '/settings.php';
+    drupal_static_reset('conf_path');
+    $settings_file = './' . conf_path(FALSE) . '/settings.php';
 
     $form_state = array();
     _install_settings_form_validate($database, $settings_file, $form_state);
@@ -202,7 +203,8 @@ function install_verify_settings() {
 function install_change_settings($profile = 'default', $install_locale = '') {
   global $databases, $db_prefix;
 
-  $conf_path = './' . conf_path(FALSE, TRUE);
+  drupal_static_reset('conf_path');
+  $conf_path = './' . conf_path(FALSE);
   $settings_file = $conf_path . '/settings.php';
   $database = isset($databases['default']['default']) ? $databases['default']['default'] : array();
 
@@ -210,7 +212,7 @@ function install_change_settings($profile = 'default', $install_locale = '') {
   include_once DRUPAL_ROOT . '/includes/form.inc';
   install_task_list('database');
 
-  $output = drupal_get_form('install_settings_form', $profile, $install_locale, $settings_file, $database);
+  $output = drupal_render(drupal_get_form('install_settings_form', $profile, $install_locale, $settings_file, $database));
   drupal_set_title(st('Database configuration'));
   print theme('install_page', $output);
   exit;
@@ -232,7 +234,6 @@ function install_settings_form(&$form_state, $profile, $install_locale, $setting
     $form['basic_options'] = array(
       '#type' => 'fieldset',
       '#title' => st('Basic options'),
-      '#description' => '<p>' . st('To set up your @drupal database, enter the following information.', array('@drupal' => drupal_install_profile_name())) . '</p>',
     );
 
     $form['basic_options']['driver'] = array(
@@ -363,7 +364,7 @@ function _install_settings_form_validate($database, $settings_file, &$form_state
     }
     $class = "DatabaseInstaller_$driver";
     $test = new $class;
-    $databases = array('default' => array('default' => $database));
+    $databases['default']['default'] = $database;
     $return = $test->test();
     if (!$return || $test->error) {
       if (!empty($test->success)) {
@@ -431,7 +432,7 @@ function install_select_profile() {
     install_task_list('profile-select');
 
     drupal_set_title(st('Select an installation profile'));
-    print theme('install_page', drupal_get_form('install_select_profile_form', $profiles));
+    print theme('install_page', drupal_render(drupal_get_form('install_select_profile_form', $profiles)));
     exit;
   }
 }
@@ -558,7 +559,8 @@ function install_select_locale($profilename) {
     install_task_list('locale-select');
 
     drupal_set_title(st('Choose language'));
-    print theme('install_page', drupal_get_form('install_select_locale_form', $locales));
+
+    print theme('install_page', drupal_render(drupal_get_form('install_select_locale_form', $locales)));
     exit;
   }
 }
@@ -663,7 +665,7 @@ function install_tasks($profile, $task) {
   // to the same address, until the batch finished callback is invoked
   // and the task advances to 'locale-initial-import'.
   if ($task == 'profile-install-batch') {
-    include_once DRUPAL_ROOT .'/includes/batch.inc';
+    include_once DRUPAL_ROOT . '/includes/batch.inc';
     $output = _batch_page();
   }
 
@@ -701,7 +703,7 @@ function install_tasks($profile, $task) {
       // got accidentally blown somewhere. Stop it now.
       install_already_done_error();
     }
-    $form = drupal_get_form('install_configure_form', $url);
+    $form = drupal_render(drupal_get_form('install_configure_form', $url));
 
     if (!variable_get('site_name', FALSE) && !variable_get('site_mail', FALSE)) {
       // Not submitted yet: Prepare to display the form.
@@ -712,7 +714,7 @@ function install_tasks($profile, $task) {
       $settings_dir = './' . conf_path();
       $settings_file = $settings_dir . '/settings.php';
       if (!drupal_verify_install_file($settings_file, FILE_EXIST|FILE_READABLE|FILE_NOT_WRITABLE) || !drupal_verify_install_file($settings_dir, FILE_NOT_WRITABLE, 'dir')) {
-        drupal_set_message(st('All necessary changes to %dir and %file have been made, so you should remove write permissions to them now in order to avoid security risks. If you are unsure how to do so, please consult the <a href="@handbook_url">online handbook</a>.', array('%dir' => $settings_dir, '%file' => $settings_file, '@handbook_url' => 'http://drupal.org/getting-started')), 'error');
+        drupal_set_message(st('All necessary changes to %dir and %file have been made, so you should remove write permissions to them now in order to avoid security risks. If you are unsure how to do so, please consult the <a href="@handbook_url">online handbook</a>.', array('%dir' => $settings_dir, '%file' => $settings_file, '@handbook_url' => 'http://drupal.org/server-permissions')), 'error');
       }
       else {
         drupal_set_message(st('All necessary changes to %dir and %file have been made. They have been set to read-only for security.', array('%dir' => $settings_dir, '%file' => $settings_file)));
@@ -725,14 +727,8 @@ function install_tasks($profile, $task) {
       drupal_add_js('misc/timezone.js');
       // We add these strings as settings because JavaScript translation does not
       // work on install time.
-      drupal_add_js(array('copyFieldValue' => array('edit-site-mail' => array('edit-account-mail')), 'cleanURL' => array('success' => st('Your server has been successfully tested to support this feature.'), 'failure' => st('Your system configuration does not currently support this feature. The <a href="http://drupal.org/node/15365">handbook page on Clean URLs</a> has additional troubleshooting information.'), 'testing' => st('Testing clean URLs...'))), 'setting');
-      drupal_add_js('
-// Global Killswitch
-if (Drupal.jsEnabled) {
-  jQuery(document).ready(function() {
-    Drupal.cleanURLsInstallCheck();
-  });
-}', 'inline');
+      drupal_add_js(array('copyFieldValue' => array('edit-site-mail' => array('edit-account-mail'))), 'setting');
+      drupal_add_js('jQuery(function () { Drupal.cleanURLsInstallCheck(); });', 'inline');
       // Build menu to allow clean URL check.
       menu_rebuild();
 
@@ -891,6 +887,64 @@ function install_reserved_tasks() {
 }
 
 /**
+ * Check installation requirements and report any errors.
+ */
+function install_check_requirements($profile, $verify) {
+  // Check the profile requirements.
+  $requirements = drupal_check_profile($profile);
+
+  // If Drupal is not set up already, we need to create a settings file.
+  if (!$verify) {
+    $writable = FALSE;
+    $conf_path = './' . conf_path(FALSE, TRUE);
+    $settings_file = $conf_path . '/settings.php';
+    $file = $conf_path;
+    $exists = FALSE;
+    // Verify that the directory exists.
+    if (drupal_verify_install_file($conf_path, FILE_EXIST, 'dir')) {
+      // Check to make sure a settings.php already exists.
+      $file = $settings_file;
+      if (drupal_verify_install_file($settings_file, FILE_EXIST)) {
+        $exists = TRUE;
+        // If it does, make sure it is writable.
+        $writable = drupal_verify_install_file($settings_file, FILE_READABLE|FILE_WRITABLE);
+        $exists = TRUE;
+      }
+    }
+
+    if (!$exists) {
+      $requirements['settings file exists'] = array(
+        'title'       => st('Settings file'),
+        'value'       => st('The settings file does not exist.'),
+        'severity'    => REQUIREMENT_ERROR,
+        'description' => st('The @drupal installer requires that you create a settings file as part of the installation process. Copy the %default_file file to %file. More details about installing Drupal are available in <a href="@install_txt">INSTALL.txt</a>.', array('@drupal' => drupal_install_profile_name(), '%file' => $file, '%default_file' => $conf_path . '/default.settings.php', '@install_txt' => base_path() . 'INSTALL.txt')),
+      );
+    }
+    else {
+      $requirements['settings file exists'] = array(
+        'title'       => st('Settings file'),
+        'value'       => st('The %file file exists.', array('%file' => $file)),
+      );
+      if (!$writable) {
+        $requirements['settings file writable'] = array(
+          'title'       => st('Settings file'),
+          'value'       => st('The settings file is not writable.'),
+          'severity'    => REQUIREMENT_ERROR,
+          'description' => st('The @drupal installer requires write permissions to %file during the installation process. If you are unsure how to grant file permissions, please consult the <a href="@handbook_url">online handbook</a>.', array('@drupal' => drupal_install_profile_name(), '%file' => $file, '@handbook_url' => 'http://drupal.org/server-permissions')),
+        );
+      }
+      else {
+        $requirements['settings file'] = array(
+          'title'       => st('Settings file'),
+          'value'       => st('Settings file is writable.'),
+        );
+      }
+    }
+  }
+  return $requirements;
+}
+
+/**
  * Add the installation task list to the current page.
  */
 function install_task_list($active = NULL) {
@@ -946,7 +1000,7 @@ function install_task_list($active = NULL) {
   if (in_array($active, array('finished', 'done'))) {
     $active = NULL;
   }
-  drupal_set_content('left', theme_task_list($tasks, $active));
+  drupal_add_region_content('left', theme_task_list($tasks, $active));
 }
 
 /**
@@ -955,10 +1009,6 @@ function install_task_list($active = NULL) {
 function install_configure_form(&$form_state, $url) {
   include_once DRUPAL_ROOT . '/includes/locale.inc';
 
-  $form['intro'] = array(
-    '#markup' => st('To configure your website, please provide the following information.'),
-    '#weight' => -10,
-  );
   $form['site_information'] = array(
     '#type' => 'fieldset',
     '#title' => st('Site information'),
@@ -974,7 +1024,7 @@ function install_configure_form(&$form_state, $url) {
     '#type' => 'textfield',
     '#title' => st('Site e-mail address'),
     '#default_value' => ini_get('sendmail_from'),
-    '#description' => st("The <em>From</em> address in automated e-mails sent during registration and new password requests, and other notifications. (Use an address ending in your site's domain to help prevent this e-mail being flagged as spam.)"),
+    '#description' => st("Automated e-mails, such as registration information, will be sent from this address. Use an address ending in your site's domain to help prevent these e-mails from being flagged as spam."),
     '#required' => TRUE,
     '#weight' => -15,
   );
@@ -983,12 +1033,8 @@ function install_configure_form(&$form_state, $url) {
     '#title' => st('Administrator account'),
     '#collapsible' => FALSE,
   );
-  $form['admin_account']['account']['#tree'] = TRUE;
-  $form['admin_account']['markup'] = array(
-    '#markup' => '<p class="description">' . st('The administrator account has complete access to the site; it will automatically be granted all permissions and can perform any administrative activity. This will be the only account that can perform certain activities, so keep its credentials safe.') . '</p>',
-    '#weight' => -10,
-  );
 
+  $form['admin_account']['account']['#tree'] = TRUE;
   $form['admin_account']['account']['name'] = array('#type' => 'textfield',
     '#title' => st('Username'),
     '#maxlength' => USERNAME_MAX_LENGTH,
@@ -1001,7 +1047,6 @@ function install_configure_form(&$form_state, $url) {
   $form['admin_account']['account']['mail'] = array('#type' => 'textfield',
     '#title' => st('E-mail address'),
     '#maxlength' => EMAIL_MAX_LENGTH,
-    '#description' => st('All e-mails from the system will be sent to this address. The e-mail address is not made public and will only be used if you wish to receive a new password or wish to receive certain news or notifications by e-mail.'),
     '#required' => TRUE,
     '#weight' => -5,
   );
@@ -1040,15 +1085,9 @@ function install_configure_form(&$form_state, $url) {
   );
 
   $form['server_settings']['clean_url'] = array(
-    '#type' => 'radios',
-    '#title' => st('Clean URLs'),
+    '#type' => 'hidden',
     '#default_value' => 0,
-    '#options' => array(0 => st('Disabled'), 1 => st('Enabled')),
-    '#description' => st('This option makes Drupal emit "clean" URLs (i.e. without <code>?q=</code> in the URL).'),
-    '#disabled' => TRUE,
-    '#prefix' => '<div id="clean-url" class="install">',
-    '#suffix' => '</div>',
-    '#weight' => 10,
+    '#attributes' => array('class' => 'install'),
   );
 
   $form['server_settings']['update_status_module'] = array(

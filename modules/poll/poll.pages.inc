@@ -68,7 +68,7 @@ function poll_votes($node) {
     ->extend('PagerDefault')
     ->limit($votes_per_page)
     ->extend('TableSort')
-    ->setHeader($header)
+    ->orderByHeader($header)
     ->execute()
     ->fetchAllAssoc('hostname');
 
@@ -81,7 +81,7 @@ function poll_votes($node) {
     );
   }
   $output .= theme('table', $header, $rows);
-  $output .= theme('pager', NULL, $votes_per_page, 0);
+  $output .= theme('pager', NULL);
   return $output;
 }
 

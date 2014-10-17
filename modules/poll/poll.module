@@ -161,7 +161,7 @@ function poll_block_view($delta = '') {
       if ($poll->nid) {
         $poll = poll_view($poll, TRUE, FALSE, TRUE);
         $block['subject'] = t('Poll');
-        $block['content'] = drupal_render($poll->content);
+        $block['content'] = $poll->content;
         return $block;
       }
     }
@@ -201,7 +201,7 @@ function poll_node_info() {
 /**
  * Implementation of hook_form().
  */
-function poll_form(&$node, $form_state) {
+function poll_form($node, $form_state) {
   global $user;
 
   $admin = user_access('administer nodes') || user_access('edit any poll content') || (user_access('edit own poll content') && $user->uid == $node->uid);
@@ -249,7 +249,7 @@ function poll_form(&$node, $form_state) {
     $delta = count($node->choice);
     $weight = -$delta;
     foreach ($node->choice as $chid => $choice) {
-      $key = 'chid:'. $chid;
+      $key = 'chid:' . $chid;
       $form['choice_wrapper']['choice'][$key] = _poll_choice_form($key, $choice['chid'], $choice['chtext'], $choice['chvotes'], $choice['weight'], $choice_count);
       $weight = ($choice['weight'] > $weight) ? $choice['weight'] : $weight;
     }
@@ -258,7 +258,7 @@ function poll_form(&$node, $form_state) {
   // Add initial or additional choices.
   $existing_delta = $delta;
   for ($delta; $delta < $choice_count; $delta++) {
-    $key = 'new:'. ($delta - $existing_delta);
+    $key = 'new:' . ($delta - $existing_delta);
     $form['choice_wrapper']['choice'][$key] = _poll_choice_form($key, NULL, '', 0, $weight, $choice_count);
   }
 
@@ -412,6 +412,15 @@ function poll_validate($node, $form) {
 }
 
 /**
+ * Implementation of hook_node_prepare_translation().
+ */
+function poll_node_prepare_translation($node) {
+  if ($node->type == 'poll') {
+    $node->choice = $node->translation_source->choice;
+  }
+}
+
+/**
  * Implementation of hook_load().
  */
 function poll_load($nodes) {
@@ -528,7 +537,7 @@ function poll_delete($node) {
     ->execute();
   db_delete('poll_vote')
     ->condition('nid', $node->nid)
-    ->execute();  
+    ->execute();
 }
 
 /**
@@ -558,14 +567,10 @@ function poll_view($node, $teaser = FALSE, $block = FALSE) {
   }
 
   if (!empty($node->allowvotes) && ($block || empty($node->show_results))) {
-    $node->content['body'] = array(
-      '#markup' => drupal_get_form('poll_view_voting', $node, $block),
-    );
+    $node->content['poll_view_voting'] = drupal_get_form('poll_view_voting', $node, $block);
   }
   else {
-    $node->content['body'] = array(
-      '#markup' => poll_view_results($node, $teaser, $block),
-    );
+    $node->content['poll_view_results'] = array('#markup' => poll_view_results($node, $teaser, $block));
   }
   return $node;
 }
@@ -685,7 +690,7 @@ function template_preprocess_poll_vote(&$variables) {
 /**
  * Generates a graphical representation of the results of a poll.
  */
-function poll_view_results(&$node, $teaser, $block) {
+function poll_view_results($node, $teaser, $block) {
   // Count the votes and find the maximum
   $total_votes = 0;
   $max_votes = 0;
@@ -742,7 +747,7 @@ function theme_poll_choices($form) {
     );
 
     // Add any additional classes set on the row.
-    $row['class'] .= isset($form[$key]['#attributes']['class']) ? ' '. $form[$key]['#attributes']['class'] : '';
+    $row['class'] .= isset($form[$key]['#attributes']['class']) ? ' ' . $form[$key]['#attributes']['class'] : '';
 
     $rows[] = $row;
   }

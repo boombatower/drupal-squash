@@ -12,8 +12,8 @@
 function user_autocomplete($string = '') {
   $matches = array();
   if ($string) {
-    $result = db_query_range("SELECT name FROM {users} WHERE LOWER(name) LIKE LOWER(:name)", array(':name' => $string .'%'), 0, 10);
-    while ($user = db_fetch_object($result)) {
+    $result = db_query_range("SELECT name FROM {users} WHERE LOWER(name) LIKE LOWER(:name)", array(':name' => $string . '%'), 0, 10);
+    foreach ($result as $user) {
       $matches[$user->name] = check_plain($user->name);
     }
   }
@@ -148,15 +148,35 @@ function user_logout() {
 
 /**
  * Menu callback; Displays a user or user profile page.
+ *
+ * The $page['content'] array for user profile pages contains:
+ *
+ * - $page['content']['Profile Category']:
+ *   Profile categories keyed by their human-readable names.
+ * - $page['content']['Profile Category']['profile_machine_name']:
+ *   Profile fields keyed by their machine-readable names.
+ * - $page['content']['user_picture']:
+ *   User's rendered picture.
+ * - $page['content']['summary']:
+ *   Contains the default "History" profile data for a user.
+ * - $page['content']['#account']:
+ *   The user account of the profile being viewed.
+ *
+ * To theme user profiles, copy modules/user/user-profile.tpl.php
+ * to your theme directory, and edit it as instructed in that file's comments.
  */
 function user_view($account) {
   drupal_set_title($account->name);
   // Retrieve all profile fields and attach to $account->content.
   user_build_content($account);
 
-  // To theme user profiles, copy modules/user/user_profile.tpl.php
-  // to your theme directory, and edit it as instructed in that file's comments.
-  return theme('user_profile', $account);
+  $build = $account->content;
+  $build += array(
+    '#theme' => 'user_profile',
+    '#account' => $account,
+  );
+
+  return $build;
 }
 
 /**
@@ -168,18 +188,20 @@ function user_view($account) {
  * @see user-picture.tpl.php
  */
 function template_preprocess_user_profile(&$variables) {
+  $account = $variables['elements']['#account'];
+
   $variables['profile'] = array();
   // Sort sections by weight
-  uasort($variables['account']->content, 'element_sort');
+  uasort($account->content, 'element_sort');
   // Provide keyed variables so themers can print each section independently.
-  foreach (element_children($variables['account']->content) as $key) {
-    $variables['profile'][$key] = drupal_render($variables['account']->content[$key]);
+  foreach (element_children($account->content) as $key) {
+    $variables['profile'][$key] = drupal_render($account->content[$key]);
   }
   // Collect all profiles to make it easier to print all items at once.
   $variables['user_profile'] = implode($variables['profile']);
 
   // Add $FIELD_NAME_rendered variables for fields.
-  $variables += field_attach_preprocess('user', $variables['account']);
+  $variables += field_attach_preprocess('user', $account);
 }
 
 /**
@@ -257,7 +279,6 @@ function user_profile_form($form_state, $account, $category = 'account') {
       '#submit' => array('user_edit_cancel_submit'),
     );
   }
-  $form['#attributes']['enctype'] = 'multipart/form-data';
 
   return $form;
 }
@@ -266,13 +287,12 @@ function user_profile_form($form_state, $account, $category = 'account') {
  * Validation function for the user account and profile editing form.
  */
 function user_profile_form_validate($form, &$form_state) {
-  // Validate field widgets.
-  $tmp_obj = (object) $form_state['values'];
-  field_attach_validate('user', $tmp_obj, $form, $form_state);
-
-  user_module_invoke('validate', $form_state['values'], $form_state['values']['_account'], $form_state['values']['_category']);
+  $edit = (object)$form_state['values'];
+  field_attach_form_validate('user', $edit, $form, $form_state);
+  $edit = (array)$edit;
+  user_module_invoke('validate', $edit, $form_state['values']['_account'], $form_state['values']['_category']);
   // Validate input to ensure that non-privileged users can't alter protected data.
-  if ((!user_access('administer users') && array_intersect(array_keys($form_state['values']), array('uid', 'init', 'session'))) || (!user_access('administer permissions') && isset($form_state['values']['roles']))) {
+  if ((!user_access('administer users') && array_intersect(array_keys($edit), array('uid', 'init', 'session'))) || (!user_access('administer permissions') && isset($form_state['values']['roles']))) {
     watchdog('security', 'Detected malicious attempt to alter protected user fields.', array(), WATCHDOG_WARNING);
     // set this to a value type field
     form_set_error('category', t('Detected malicious attempt to alter protected user fields.'));
@@ -287,9 +307,11 @@ function user_profile_form_submit($form, &$form_state) {
   $category = $form_state['values']['_category'];
   unset($form_state['values']['_account'], $form_state['values']['op'], $form_state['values']['submit'], $form_state['values']['cancel'], $form_state['values']['form_token'], $form_state['values']['form_id'], $form_state['values']['_category'], $form_state['values']['form_build_id']);
 
-  field_attach_submit('user', $account, $form, $form_state);
-  user_module_invoke('submit', $form_state['values'], $account, $category);
-  user_save($account, $form_state['values'], $category);
+  $edit = (object)$form_state['values'];
+  field_attach_submit('user', $edit, $form, $form_state);
+  $edit = (array)$edit;
+  user_module_invoke('submit', $edit, $account, $category);
+  user_save($account, $edit, $category);
 
   // Clear the page cache because pages can contain usernames and/or profile information:
   cache_clear_all();

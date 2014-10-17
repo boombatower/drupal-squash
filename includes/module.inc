@@ -157,7 +157,7 @@ function module_rebuild_cache() {
  *     without this module.
  */
 function _module_build_dependencies($files) {
-  require_once DRUPAL_ROOT .'/includes/graph.inc';
+  require_once DRUPAL_ROOT . '/includes/graph.inc';
   $roots = $files;
   foreach ($files as $filename => $file) {
     $graph[$file->name]['edges'] = array();
@@ -170,7 +170,7 @@ function _module_build_dependencies($files) {
   }
   drupal_depth_first_search($graph, array_keys($roots));
   foreach ($graph as $module => $data) {
-    $files[$module]->required_by= isset($data['reverse_paths']) ? $data['reverse_paths'] : array();
+    $files[$module]->required_by = isset($data['reverse_paths']) ? $data['reverse_paths'] : array();
     $files[$module]->requires = isset($data['paths']) ? $data['paths'] : array();
     $files[$module]->sort = $data['weight'];
   }
@@ -258,6 +258,7 @@ function module_enable($module_list) {
         ->execute();
       drupal_load('module', $module);
       $invoke_modules[] = $module;
+      watchdog('system', '%module module enabled.', array('%module' => $module), WATCHDOG_INFO);
     }
   }
 
@@ -309,6 +310,7 @@ function module_disable($module_list) {
         ->condition('name', $module)
         ->execute();
       $invoke_modules[] = $module;
+      watchdog('system', '%module module disabled.', array('%module' => $module), WATCHDOG_INFO);
     }
   }
 

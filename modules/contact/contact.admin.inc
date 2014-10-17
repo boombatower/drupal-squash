@@ -19,7 +19,7 @@ function contact_admin_categories() {
 
   // Loop through the categories and add them to the table.
   foreach ($result as $record) {
-    $row[] = array(
+    $rows[] = array(
       $record->category,
       $record->recipients,
       ($record->selected ? t('Yes') : t('No')),
@@ -164,11 +164,6 @@ function contact_admin_delete_submit($form, &$form_state) {
 }
 
 function contact_admin_settings() {
-  $form['contact_form_information'] = array('#type' => 'textarea',
-    '#title' => t('Additional information'),
-    '#default_value' => t('You can leave a message using the contact form below.'),
-    '#description' => t('Information to show on the <a href="@form">contact page</a>. Can be anything from submission guidelines to your postal address or telephone number.', array('@form' => url('contact'))),
-  );
   $form['contact_hourly_threshold'] = array('#type' => 'select',
     '#title' => t('Hourly threshold'),
     '#options' => drupal_map_assoc(array(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 20, 30, 40, 50)),

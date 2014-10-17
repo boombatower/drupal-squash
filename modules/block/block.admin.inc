@@ -85,6 +85,8 @@ function block_admin_display_form(&$form_state, $blocks, $theme = NULL) {
       );
     }
   }
+  // Do not allow disabling the main system content block.
+  unset($form['system_main']['region']['#options'][BLOCK_REGION_NONE]);
 
   $form['submit'] = array(
     '#type' => 'submit',
@@ -190,7 +192,7 @@ function block_admin_configure(&$form_state, $module = NULL, $delta = 0) {
     '#collapsed' => TRUE,
   );
 
-  $access = user_access('use PHP for block visibility');
+  $access = user_access('use PHP for settings');
   if ($edit['visibility'] == 2 && !$access) {
     $form['page_vis_settings'] = array();
     $form['page_vis_settings']['visibility'] = array('#type' => 'value', '#value' => 2);
@@ -200,7 +202,7 @@ function block_admin_configure(&$form_state, $module = NULL, $delta = 0) {
     $options = array(t('Show on every page except the listed pages.'), t('Show on only the listed pages.'));
     $description = t("Enter one page per line as Drupal paths. The '*' character is a wildcard. Example paths are %blog for the blog page and %blog-wildcard for every personal blog. %front is the front page.", array('%blog' => 'blog', '%blog-wildcard' => 'blog/*', '%front' => '<front>'));
 
-    if ($access) {
+    if (module_exists('php') && $access) {
       $options[] = t('Show if the following PHP code returns <code>TRUE</code> (PHP-mode, experts only).');
       $description .= ' ' . t('If the PHP-mode is chosen, enter PHP code between %php. Note that executing incorrect PHP-code can break your Drupal site.', array('%php' => '<?php ?>'));
     }
@@ -272,7 +274,8 @@ function block_admin_configure(&$form_state, $module = NULL, $delta = 0) {
 
 function block_admin_configure_validate($form, &$form_state) {
   if ($form_state['values']['module'] == 'block') {
-    if (empty($form_state['values']['info']) || db_result(db_query("SELECT COUNT(*) FROM {box} WHERE bid != %d AND info = '%s'", $form_state['values']['delta'], $form_state['values']['info']))) {
+    $box_exists = (bool) db_query_range('SELECT 1 FROM {box} WHERE bid <> :bid AND info = :info', array(':bid' => $form_state['values']['delta'], ':info' => $form_state['values']['info']), 0, 1)->fetchField();
+    if (empty($form_state['values']['info']) || $box_exists) {
       form_set_error('info', t('Please ensure that each block description is unique.'));
     }
   }
@@ -301,7 +304,9 @@ function block_add_block_form(&$form_state) {
 }
 
 function block_add_block_form_validate($form, &$form_state) {
-  if (empty($form_state['values']['info']) || db_result(db_query("SELECT COUNT(*) FROM {box} WHERE info = '%s'", $form_state['values']['info']))) {
+  $box_exists = (bool) db_query_range('SELECT 1 FROM {box} WHERE info = :info', array(':info' => $form_state['values']['info']), 0, 1)->fetchField();
+
+  if (empty($form_state['values']['info']) || $box_exists) {
     form_set_error('info', t('Please ensure that each block description is unique.'));
   }
 }

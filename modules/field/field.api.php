@@ -120,15 +120,25 @@ function hook_field_info() {
  * @param $field
  *   A field structure.
  * @return
- *   A Field API schema is an array of Schema API column
- *   specifications, keyed by field-independent column name. For
- *   example, a field may declare a column named 'value'. The SQL
- *   storage engine may create a table with a column named
- *   <fieldname>_value_0, but the Field API schema column name is
- *   still 'value'.
+ *   An associative array with the following keys:
+ *   - 'columns': an array of Schema API column specifications, keyed by
+ *     column name. This specifies what comprises a value for a given field.
+ *     For example, a value for a number field is simply 'value', while a
+ *     value for a formatted text field is the combination of 'value' and
+ *     'format'.
+ *     It is recommended to avoid having the columns definitions depend on
+ *     field settings when possible.
+ *     No assumptions should be made on how storage engines internally use the
+ *     original column name to structure their storage.
+ *   - 'indexes': an array of Schema API indexes definitions. Only columns that
+ *     appear in the 'columns' array are allowed.
+ *     Those indexes will be used as default indexes. Callers of
+ *     field_create_field() can specify additional indexes, or, at their own
+ *     risk, modify the default indexes specified by the field-type module.
+ *     Some storage engines might not support indexes.
  */
-function hook_field_columns($field) {
-  if ($field['type'] == 'textarea') {
+function hook_field_schema($field) {
+  if ($field['type'] == 'text_long') {
     $columns = array(
       'value' => array(
         'type' => 'text',
@@ -153,7 +163,12 @@ function hook_field_columns($field) {
       'not null' => FALSE,
     ),
   );
-  return $columns;
+  return array(
+    'columns' => $columns,
+    'indexes' => array(
+      'format' => array('format'),
+    ),
+  );
 }
 
 /**
@@ -188,18 +203,32 @@ function hook_field_formatter_info() {
 /**
  * Define custom load behavior for this module's field types.
  *
+ * Unlike other field hooks, this hook operates on multiple objects. The
+ * $objects, $instances and $items parameters are arrays keyed by object id.
+ * For performance reasons, information for all available objects should be
+ * loaded in a single query where possible.
+ *
+ * Note that the changes made to the field values get cached by the
+ * field cache for subsequent loads.
+ *
  * @param $obj_type
  *   The type of $object.
- * @param $object
- *   The object for the operation.
+ * @param $objects
+ *   Array of objects being loaded, keyed by object id.
  * @param $field
  *   The field structure for the operation.
- * @param $instance
- *   The instance structure for $field on $object's bundle.
+ * @param $instances
+ *   Array of instance structures for $field for each object, keyed by object id.
  * @param $items
- *   $object->{$field['field_name']}, or an empty array if unset.
+ *   Array of field values already loaded for the objects, keyed by object id.
+ * @param $age
+ *   FIELD_LOAD_CURRENT to load the most recent revision for all fields, or
+ *   FIELD_LOAD_REVISION to load the version indicated by each object.
+ * @return
+ *   Changes or additions to field values are done by altering the $items
+ *   parameter by reference.
  */
-function hook_field_load($obj_type, $object, $field, $instance, $items) {
+function hook_field_load($obj_type, $objects, $field, $instances, &$items, $age) {
 }
 
 /**
@@ -215,16 +244,30 @@ function hook_field_load($obj_type, $object, $field, $instance, $items) {
  *   The instance structure for $field on $object's bundle.
  * @param $items
  *   $object->{$field['field_name']}, or an empty array if unset.
- * @param $form
- *   The form structure being validated. NOTE: This parameter will
- *   become obsolete (see field_attach_validate()).
+ * @param $errors
+ *   The array of errors, keyed by field name and by value delta, that have
+ *   already been reported for the object. The function should add its errors
+ *   to this array. Each error is an associative array, with the following
+ *   keys and values:
+ *   - 'error': an error code (should be a string, prefixed with the module name)
+ *   - 'message': the human readable message to be displayed.
  */
-function hook_field_validate($obj_type, $object, $field, $instance, $items, $form) {
+function hook_field_validate($obj_type, $object, $field, $instance, $items, &$errors) {
+  foreach ($items as $delta => $item) {
+    if (!empty($item['value'])) {
+      if (!empty($field['settings']['max_length']) && drupal_strlen($item['value']) > $field['settings']['max_length']) {
+        $errors[$field['field_name']][$delta][] = array(
+          'error' => 'text_max_length',
+          'message' => t('%name: the value may not be longer than %max characters.', array('%name' => $instance['label'], '%max' => $field['settings']['max_length'])),
+        );
+      }
+    }
+  }
 }
 
 /**
  * Define custom presave behavior for this module's field types.
- * 
+ *
  * TODO: The behavior of this hook is going to change (see
  * field_attach_presave()).
  *
@@ -278,7 +321,7 @@ function hook_field_update($obj_type, $object, $field, $instance, $items) {
 
 /**
  * Define custom delete behavior for this module's field types.
- * 
+ *
  * This hook is invoked just before the data is deleted from field storage.
  *
  * @param $obj_type
@@ -297,7 +340,7 @@ function hook_field_delete($obj_type, $object, $field, $instance, $items) {
 
 /**
  * Define custom delete_revision behavior for this module's field types.
- * 
+ *
  * This hook is invoked just before the data is deleted from field storage,
  * and will only be called for fieldable types that are versioned.
  *
@@ -334,7 +377,7 @@ function hook_field_sanitize($obj_type, $object, $field, $instance, $items) {
 
 /**
  * Define custom prepare_translation behavior for this module's field types.
- * 
+ *
  * TODO: This hook may or may not survive in Field API.
  *
  * @param $obj_type
@@ -389,6 +432,24 @@ function hook_field_widget(&$form, &$form_state, $field, $instance, $items, $del
 }
 
 /**
+ * Flag a field-level validation error.
+ *
+ * @param $element
+ *   An array containing the form element for the widget. The error needs to be
+ *   flagged on the right sub-element, according to the widget's internal
+ *   structure.
+ * @param $error
+ *   An associative array with the following key-value pairs, as returned by
+ *   hook_field_validate():
+ *   - 'error': the error code. Complex widgets might need to report different
+ *     errors to different form elements inside the widget.
+ *   - 'message': the human readable message to be displayed.
+ */
+function hook_field_widget_error($element, $error) {
+  form_error($element['value'], $error['message']);
+}
+
+/**
  * @} End of "ingroup field_type"
  */
 
@@ -399,7 +460,7 @@ function hook_field_widget(&$form, &$form_state, $field, $instance, $items, $del
 
 /**
  * Act on field_attach_form.
- * 
+ *
  * This hook is invoked after the field module has performed the operation.
  *
  * See field_attach_form() for details and arguments.
@@ -408,29 +469,65 @@ function hook_field_attach_form($obj_type, $object, &$form, &$form_state) {
 }
 
 /**
+ * Act on field_attach_pre_load.
+ *
+ * This hook allows modules to load data before the Field Storage API,
+ * optionally preventing the field storage module from doing so.
+ *
+ * This lets 3rd party modules override, mirror, shard, or otherwise store a
+ * subset of fields in a different way than the current storage engine.
+ * Possible use cases include : per-bundle storage, per-combo-field storage...
+ *
+ * @param $obj_type
+ *   The type of objects for which to load fields; e.g. 'node' or 'user'.
+ * @param $objects
+ *   An array of objects for which to load fields, keyed by object id.
+ * @param $age
+ *   FIELD_LOAD_CURRENT to load the most recent revision for all fields, or
+ *   FIELD_LOAD_REVISION to load the version indicated by each object.
+ * @param $skip_fields
+ *   An array keyed by names of fields whose data has already been loaded and
+ *   therefore should not be loaded again. The values associated to these keys
+ *   are not specified.
+ * @return
+ *   - Loaded field values are added to $objects. Fields with no values should be
+ *   set as an empty array.
+ *   - Loaded field names are set as keys in $skip_fields.
+ */
+function hook_field_attach_pre_load($obj_type, &$objects, $age, &$skip_fields) {
+}
+
+/**
  * Act on field_attach_load.
- * 
+ *
  * This hook is invoked after the field module has performed the operation.
  *
+ * Unlike other field_attach hooks, this hook accounts for 'multiple loads'.
+ * It takes an array of objects indexed by object id as its first parameter.
+ * For performance reasons, information for all available objects should be
+ * loaded in a single query where possible.
+ *
+ * Note that the changes made to the objects' field values get cached by the
+ * field cache for subsequent loads.
+ *
  * See field_attach_load() for details and arguments.
- * TODO: Currently, this hook only accepts a single object a time.
  */
-function hook_field_attach_load($obj_type, $object) {
+function hook_field_attach_load($obj_type, &$objects, $age) {
 }
 
 /**
  * Act on field_attach_validate.
- * 
+ *
  * This hook is invoked after the field module has performed the operation.
  *
  * See field_attach_validate() for details and arguments.
  */
-function hook_field_attach_validate($obj_type, $object, &$form) {
+function hook_field_attach_validate($obj_type, $object, &$errors) {
 }
 
 /**
  * Act on field_attach_submit.
- * 
+ *
  * This hook is invoked after the field module has performed the operation.
  *
  * See field_attach_submit() for details and arguments.
@@ -440,7 +537,7 @@ function hook_field_attach_submit($obj_type, $object, $form, &$form_state) {
 
 /**
  * Act on field_attach_presave.
- * 
+ *
  * This hook is invoked after the field module has performed the operation.
  *
  * See field_attach_presave() for details and arguments.
@@ -450,27 +547,47 @@ function hook_field_attach_presave($obj_type, $object) {
 
 /**
  * Act on field_attach_insert.
- * 
- * This hook is invoked after the field module has performed the operation.
  *
- * See field_attach_insert() for details and arguments.
+ * This hook allows modules to store data before the Field Storage
+ * API, optionally preventing the field storage module from doing so.
+ *
+ * @param $obj_type
+ *   The type of $object; e.g. 'node' or 'user'.
+ * @param $object
+ *   The object with fields to save.
+ * @param $skip_fields
+ *   An array keyed by names of fields whose data has already been written and
+ *   therefore should not be written again. The values associated to these keys
+ *   are not specified.
+ * @return
+ *   Saved field names are set set as keys in $skip_fields.
  */
-function hook_field_attach_insert($obj_type, $object) {
+function hook_field_attach_pre_insert($obj_type, $object, &$skip_fields) {
 }
 
 /**
  * Act on field_attach_update.
- * 
- * This hook is invoked after the field module has performed the operation.
  *
- * See field_attach_update() for details and arguments.
+ * This hook allows modules to store data before the Field Storage
+ * API, optionally preventing the field storage module from doing so.
+ *
+ * @param $obj_type
+ *   The type of $object; e.g. 'node' or 'user'.
+ * @param $object
+ *   The object with fields to save.
+ * @param $skip_fields
+ *   An array keyed by names of fields whose data has already been written and
+ *   therefore should not be written again. The values associated to these keys
+ *   are not specified.
+ * @return
+ *   Saved field names are set set as keys in $skip_fields.
  */
-function hook_field_attach_update($obj_type, $object) {
+function hook_field_attach_pre_update($obj_type, $object, &$skip_fields) {
 }
 
 /**
  * Act on field_attach_delete.
- * 
+ *
  * This hook is invoked after the field module has performed the operation.
  *
  * See field_attach_delete() for details and arguments.
@@ -480,7 +597,7 @@ function hook_field_attach_delete($obj_type, $object) {
 
 /**
  * Act on field_attach_delete_revision.
- * 
+ *
  * This hook is invoked after the field module has performed the operation.
  *
  * See field_attach_delete_revision() for details and arguments.
@@ -490,7 +607,7 @@ function hook_field_attach_delete_revision($obj_type, $object) {
 
 /**
  * Act on field_attach_view.
- * 
+ *
  * This hook is invoked after the field module has performed the operation.
  *
  * @param $output
@@ -502,12 +619,12 @@ function hook_field_attach_delete_revision($obj_type, $object) {
  * @param $teaser
  *   Whether to display the teaser only, as on the main page.
  */
-function hook_field_attach_view($output, $obj_type, $object, $teaser) {
+function hook_field_attach_view_alter($output, $obj_type, $object, $teaser) {
 }
 
 /**
  * Act on field_attach_create_bundle.
- * 
+ *
  * This hook is invoked after the field module has performed the operation.
  *
  * See field_attach_create_bundle() for details and arguments.
@@ -517,7 +634,7 @@ function hook_field_attach_create_bundle($bundle) {
 
 /**
  * Act on field_attach_rename_bundle.
- * 
+ *
  * This hook is invoked after the field module has performed the operation.
  *
  * See field_attach_rename_bundle() for details and arguments.
@@ -527,12 +644,16 @@ function hook_field_rename_bundle($bundle_old, $bundle_new) {
 
 /**
  * Act on field_attach_delete_bundle.
- * 
+ *
  * This hook is invoked after the field module has performed the operation.
  *
- * See field_attach_delete_bundle() for details and arguments.
+ * @param $bundle
+ *   The bundle that was just deleted.
+ * @param $instances
+ *   An array of all instances that existed for $bundle before it was
+ *   deleted.
  */
-function hook_field_attach_delete_bundle($bundle) {
+function hook_field_attach_delete_bundle($bundle, $instances) {
 }
 
 /**
@@ -552,19 +673,22 @@ function hook_field_attach_delete_bundle($bundle) {
  * Load field data for a set of objects.
  *
  * @param $obj_type
- *   The entity type of objects being loaded, such as 'node' or
- *   'user'.
+ *   The entity type of object, such as 'node' or 'user'.
  * @param $objects
- *   The array of objects for which to load data.
+ *   The array of objects for which to load data, keyed by object id.
  * @param $age
  *   FIELD_LOAD_CURRENT to load the most recent revision for all
  *   fields, or FIELD_LOAD_REVISION to load the version indicated by
  *   each object.
+ * @param $skip_fields
+ *   An array keyed by names of fields whose data has already been loaded and
+ *   therefore should not be loaded again. The values associated to these keys
+ *   are not specified.
  * @return
- *   An array of field data for the objects, keyed by entity id, field
- *   name, and item delta number.
+ *   Loaded field values are added to $objects. Fields with no values should be
+ *   set as an empty array.
  */
-function hook_field_storage_load($obj_type, $queried_objs, $age) {
+function hook_field_storage_load($obj_type, &$objects, $age, $skip_fields) {
 }
 
 /**
@@ -577,8 +701,12 @@ function hook_field_storage_load($obj_type, $queried_objs, $age) {
  * @param $op
  *   FIELD_STORAGE_UPDATE when updating an existing object,
  *   FIELD_STORAGE_INSERT when inserting a new object.
+ * @param $skip_fields
+ *   An array keyed by names of fields whose data has already been written and
+ *   therefore should not be written again. The values associated to these keys
+ *   are not specified.
  */
-function hook_field_storage_write($obj_type, $object, $op) {
+function hook_field_storage_write($obj_type, $object, $op, $skip_fields) {
 }
 
 /**
@@ -594,6 +722,9 @@ function hook_field_storage_delete($obj_type, $object) {
 
 /**
  * Delete a single revision of field data for an object.
+ *
+ * Deleting the current (most recently written) revision is not
+ * allowed as has undefined results.
  *
  * @param $obj_type
  *   The entity type of object, such as 'node' or 'user'.
@@ -669,7 +800,7 @@ function hook_field_storage_delete_instance($field_name, $bundle) {
 
 /**
  * Act on a field being created.
- * 
+ *
  * This hook is invoked after the field is created and so it cannot modify the
  * field itself.
  *
@@ -683,7 +814,7 @@ function hook_field_create_field($field) {
 
 /**
  * Act on a field instance being created.
- * 
+ *
  * This hook is invoked after the instance record is saved and so it cannot
  * modify the instance itself.
  *
@@ -695,7 +826,7 @@ function hook_field_create_instance($instance) {
 
 /**
  * Act on a field being deleted.
- * 
+ *
  * This hook is invoked just before the field is deleted.
  *
  * TODO: Not implemented.
@@ -709,7 +840,7 @@ function hook_field_delete_field($field) {
 
 /**
  * Act on a field instance being updated.
- * 
+ *
  * This hook is invoked after the instance record is saved and so it cannot
  * modify the instance itself.
  *
@@ -723,7 +854,7 @@ function hook_field_update_instance($instance) {
 
 /**
  * Act on a field instance being deleted.
- * 
+ *
  * This hook is invoked just before the instance is deleted.
  *
  * TODO: Not implemented.

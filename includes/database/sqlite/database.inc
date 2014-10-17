@@ -25,7 +25,7 @@ class DatabaseConnection_sqlite extends DatabaseConnection {
     // This driver defaults to transaction support, except if explicitly passed FALSE.
     $this->transactionSupport = !isset($connection_options['transactions']) || $connection_options['transactions'] !== FALSE;
 
-    parent::__construct('sqlite:'. $connection_options['database'], '', '', array(
+    parent::__construct('sqlite:' . $connection_options['database'], '', '', array(
       // Force column names to lower case.
       PDO::ATTR_CASE => PDO::CASE_LOWER,
     ));
@@ -99,7 +99,7 @@ class DatabaseConnection_sqlite extends DatabaseConnection {
    * a DatabaseStatement_sqlite object, that will create a PDOStatement
    * using the semi-private PDOPrepare() method below.
    */
-  public function prepare($query, array $options = array()) {
+  public function prepare($query, $options = array()) {
     return new DatabaseStatement_sqlite($this, $query, $options);
   }
 
@@ -162,8 +162,10 @@ class DatabaseConnection_sqlite extends DatabaseConnection {
 /**
  * Specific SQLite implementation of DatabaseConnection.
  *
- * @see DatabaseConnection_sqlite::PDOPrepare for reasons why we must prefetch
+ * See DatabaseConnection_sqlite::PDOPrepare() for reasons why we must prefetch
  * the data instead of using PDOStatement.
+ *
+ * @see DatabaseConnection_sqlite::PDOPrepare()
  */
 class DatabaseStatement_sqlite extends DatabaseStatementPrefetch implements Iterator, DatabaseStatementInterface {
 
@@ -200,11 +202,20 @@ class DatabaseStatement_sqlite extends DatabaseStatementPrefetch implements Iter
         // Else, this is using named placeholders.
         foreach ($args as $placeholder => $value) {
           if (is_numeric($value)) {
+            // We will remove this placeholder from the query and PDO throws an
+            // exception if the number of placeholders in the query and the
+            // arguments does not match.
+            unset($args[$placeholder]);
+            // PDO allows placeholders to not be prefixed by a colon. See
+            // http://marc.info/?l=php-internals&m=111234321827149&w=2 for
+            // more.
+            if ($placeholder[0] != ':') {
+              $placeholder = ":$placeholder";
+            }
             // When replacing the placeholders, make sure we search for the
             // exact placeholder. For example, if searching for
             // ':db_placeholder_1', do not replace ':db_placeholder_11'.
             $query = preg_replace('/' . preg_quote($placeholder) . '\b/', $value, $query);
-            unset($args[$placeholder]);
           }
         }
       }
@@ -213,7 +224,7 @@ class DatabaseStatement_sqlite extends DatabaseStatementPrefetch implements Iter
     return $this->dbh->PDOPrepare($query);
   }
 
-  public function execute($args, $options) {
+  public function execute($args = array(), $options = array()) {
     try {
       $return = parent::execute($args, $options);
     }

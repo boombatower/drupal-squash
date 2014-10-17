@@ -62,7 +62,7 @@ function blog_help($path, $arg) {
   switch ($path) {
     case 'admin/help#blog':
       $output  = '<p>' . t('The blog module allows registered users to maintain an online journal, or <em>blog</em>. Blogs are made up of individual <em>blog entries</em>, and the blog entries are most often displayed in descending order by creation time.') . '</p>';
-      $output .= '<p>' . t('There is an (optional) <em>Blogs</em> menu item added to the Navigation menu, which displays all blogs available on your site, and a <em>My blog</em> item displaying the current user\'s blog entries. The <em>Blog entry</em> menu item under <em>Create content</em> allows new blog entries to be created.') . '</p>';
+      $output .= '<p>' . t("There is an (optional) <em>Blogs</em> menu item added to the Navigation menu, which displays all blogs available on your site, and a <em>My blog</em> item displaying the current user's blog entries. The <em>Blog entry</em> menu item under <em>Add new content</em> allows new blog entries to be created.") . '</p>';
       $output .= '<p>' . t('Each blog entry is displayed with an automatic link to other blogs created by the same user. By default, blog entries have comments enabled and are automatically promoted to the site front page. The blog module also creates a <em>Recent blog posts</em> block that may be enabled at the <a href="@blocks">blocks administration page</a>.', array('@blocks' => url('admin/build/block'))) . '</p>';
       $output .= '<p>' . t('For more information, see the online handbook entry for <a href="@blog">Blog module</a>.', array('@blog' => 'http://drupal.org/handbook/modules/blog/')) . '</p>';
       return $output;
@@ -97,8 +97,8 @@ function blog_view($node, $teaser) {
  * Implementation of hook_node_view.
  */
 function blog_node_view($node, $teaser = FALSE) {
-  if ($node->type == 'blog') {
-    if (arg(0) != 'blog' || arg(1) != $node->uid) {
+  if ($node->build_mode != NODE_BUILD_RSS) {
+    if ($node->type == 'blog' && arg(0) != 'blog' || arg(1) != $node->uid) {
       $links['blog_usernames_blog'] = array(
         'title' => t("!username's blog", array('!username' => $node->name)),
         'href' => "blog/$node->uid",
@@ -161,7 +161,15 @@ function blog_page_user_access($account) {
  * Helper function to determine if a user has blog posts already.
  */
 function _blog_post_exists($account) {
-  return (bool)db_result(db_query_range(db_rewrite_sql("SELECT 1 FROM {node} n WHERE n.type = 'blog' AND n.uid = %d AND n.status = 1"), $account->uid, 0, 1));
+  return (bool)db_select('node', 'n')
+    ->fields('n', array('nid'))
+    ->condition('type', 'blog')
+    ->condition('uid', $account->uid)
+    ->condition('status', 1)
+    ->range(0, 1)
+    ->addTag('node_access')
+    ->execute()
+    ->fetchField();
 }
 
 /**
@@ -181,7 +189,15 @@ function blog_block_view($delta = '') {
   global $user;
 
   if (user_access('access content')) {
-    $result = db_query_range(db_rewrite_sql("SELECT n.nid, n.title, n.created FROM {node} n WHERE n.type = 'blog' AND n.status = 1 ORDER BY n.created DESC"), 0, 10);
+    $result = db_select('node', 'n')
+      ->fields('n', array('nid', 'title', 'created'))
+      ->condition('type', 'blog')
+      ->condition('status', 1)
+      ->orderBy('created', 'DESC')
+      ->range(0, 10)
+      ->addTag('node_access')
+      ->execute();
+
     if ($node_title_list = node_title_list($result)) {
       $block['content'] = $node_title_list;
       $block['content'] .= theme('more_link', url('blog'), t('Read the latest blog entries.'));

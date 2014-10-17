@@ -8,7 +8,7 @@
 
 /**
  * Sets up the theming system for site installs, updates and when the site is
- * in offline mode. It also applies when the database is unavailable.
+ * in maintenance mode. It also applies when the database is unavailable.
  *
  * Minnelli is always used for the initial install and update operations. In
  * other cases, "settings.php" must have a "maintenance_theme" key set for the
@@ -108,7 +108,7 @@ function theme_task_list($items, $active = NULL) {
  *   The page content to show.
  */
 function theme_install_page($content) {
-  drupal_set_header('Content-Type: text/html; charset=utf-8');
+  drupal_set_header('Content-Type', 'text/html; charset=utf-8');
 
   // Assign content.
   $variables['content'] = $content;
@@ -162,7 +162,7 @@ function theme_install_page($content) {
  */
 function theme_update_page($content, $show_messages = TRUE) {
   // Set required headers.
-  drupal_set_header('Content-Type: text/html; charset=utf-8');
+  drupal_set_header('Content-Type', 'text/html; charset=utf-8');
 
   // Assign content and show message flag.
   $variables['content'] = $content;
@@ -206,7 +206,13 @@ function theme_update_page($content, $show_messages = TRUE) {
 function template_preprocess_maintenance_page(&$variables) {
   // Add favicon
   if (theme_get_setting('toggle_favicon')) {
-    drupal_set_html_head('<link rel="shortcut icon" href="' . check_url(theme_get_setting('favicon')) . '" type="image/x-icon" />');
+    $favicon = theme_get_setting('favicon');
+    $type = file_get_mimetype($favicon);
+    // Use the genereic MIME type for favicons if no other was found.
+    if ($type == 'application/octet-stream') {
+      $type = 'image/x-icon';
+    }
+    drupal_add_html_head('<link rel="shortcut icon" href="' . check_url($favicon) . '" type="' . check_plain($type) . '" />');
   }
 
   global $theme;
@@ -214,10 +220,10 @@ function template_preprocess_maintenance_page(&$variables) {
   $theme_data = _system_theme_data();
   $regions = $theme_data[$theme]->info['regions'];
 
-  // Get all region content set with drupal_set_content().
+  // Get all region content set with drupal_add_region_content().
   foreach (array_keys($regions) as $region) {
     // Assign region to a region variable.
-    $region_content = drupal_get_content($region);
+    $region_content = drupal_get_region_content($region);
     isset($variables[$region]) ? $variables[$region] .= $region_content : $variables[$region] = $region_content;
   }
 
@@ -245,14 +251,12 @@ function template_preprocess_maintenance_page(&$variables) {
   $variables['front_page']        = url();
   $variables['breadcrumb']        = '';
   $variables['feed_icons']        = '';
-  $variables['footer_message']    = filter_xss_admin(variable_get('site_footer', FALSE));
   $variables['head']              = drupal_get_html_head();
   $variables['help']              = '';
   $variables['language']          = $GLOBALS['language'];
   $variables['language']->dir     = $GLOBALS['language']->direction ? 'rtl' : 'ltr';
   $variables['logo']              = theme_get_setting('logo');
   $variables['messages']          = $variables['show_messages'] ? theme('status_messages') : '';
-  $variables['mission']           = '';
   $variables['main_menu']         = array();
   $variables['secondary_menu']    = array();
   $variables['search_box']        = '';

@@ -130,12 +130,11 @@ function aggregator_menu() {
     'type' => MENU_DEFAULT_LOCAL_TASK,
     'weight' => -10,
   );
-  $items['admin/content/aggregator/settings'] = array(
-    'title' => 'Settings',
+  $items['admin/settings/aggregator'] = array(
+    'title' => 'Aggregator',
+    'description' => 'Configure the behavior of the feed aggregator, including when to discard feed items and how to present feed items and categories.',
     'page callback' => 'drupal_get_form',
     'page arguments' => array('aggregator_admin_form'),
-    'type' => MENU_LOCAL_TASK,
-    'weight' => 10,
     'access arguments' => array('administer news feeds'),
   );
   $items['aggregator'] = array(
@@ -287,7 +286,7 @@ function aggregator_perm() {
  * Checks news feeds for updates once their refresh interval has elapsed.
  */
 function aggregator_cron() {
-  $result = db_query('SELECT * FROM {aggregator_feed} WHERE checked + refresh < :time', array(':time' => REQUEST_TIME));
+  $result = db_query('SELECT * FROM {aggregator_feed} WHERE checked + refresh < :time AND refresh > 0', array(':time' => REQUEST_TIME));
   foreach ($result as $feed) {
     aggregator_refresh($feed);
   }
@@ -332,9 +331,9 @@ function aggregator_block_configure($delta = '') {
 function aggregator_block_save($delta = '', $edit = array()) {
   list($type, $id) = explode('-', $delta);
   if ($type == 'category') {
-    db_merge('aggregator_category')
-      ->key(array('cid' => $id))
+    db_update('aggregator_category')
       ->fields(array('block' => $edit['block']))
+      ->condition('cid', $id)
       ->execute();
   }
 }

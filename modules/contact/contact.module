@@ -101,10 +101,10 @@ function contact_menu() {
   );
   $items['user/%user/contact'] = array(
     'title' => 'Contact',
-    'page callback' => 'contact_user_page',
+    'page callback' => 'contact_personal_page',
     'page arguments' => array(1),
     'type' => MENU_LOCAL_TASK,
-    'access callback' => '_contact_user_tab_access',
+    'access callback' => '_contact_personal_tab_access',
     'access arguments' => array(1),
     'weight' => 2,
   );
@@ -112,9 +112,9 @@ function contact_menu() {
 }
 
 /**
- * Determine if a user can access to the contact tab.
+ * Determine permission to a user's personal contact form.
  */
-function _contact_user_tab_access($account) {
+function _contact_personal_tab_access($account) {
   global $user;
   if (!isset($account->contact)) {
     $account->contact = FALSE;
@@ -149,7 +149,7 @@ function contact_user_form(&$edit, &$user, $category = NULL) {
     $form['contact']['contact'] = array('#type' => 'checkbox',
       '#title' => t('Personal contact form'),
       '#default_value' => !empty($edit['contact']) ? $edit['contact'] : FALSE,
-      '#description' => t('Allow other users to contact you by e-mail via <a href="@url">your personal contact form</a>. Note that while your e-mail address is not made public to other members of the community, privileged users such as site administrators are able to contact you even if you choose not to enable this feature.', array('@url' => url("user/$user->uid/contact"))),
+      '#description' => t('Allow other users to contact you via a <a href="@url">personal contact form</a> which keeps your e-mail address hidden. Note that some privileged users such as site administrators are still able to contact you even if you choose to disable this feature.', array('@url' => url("user/$user->uid/contact"))),
     );
     return $form;
   }

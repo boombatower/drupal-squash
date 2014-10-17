@@ -143,7 +143,7 @@ class CommentHelperCase extends DrupalWebTestCase {
    *   Comments per page value.
    */
   function setCommentsPerPage($number) {
-    $this->setCommentSettings('comment_default_per_page_article', $number, 'Number of comments per page set to ' . $number .'.');
+    $this->setCommentSettings('comment_default_per_page_article', $number, 'Number of comments per page set to ' . $number . '.');
   }
 
   /**
@@ -229,7 +229,7 @@ class CommentHelperCase extends DrupalWebTestCase {
 }
 
 class CommentInterfaceTest extends CommentHelperCase {
-  function getInfo() {
+  public static function getInfo() {
     return array(
       'name' => t('Comment interface'),
       'description' => t('Test comment user interfaces.'),
@@ -280,7 +280,7 @@ class CommentInterfaceTest extends CommentHelperCase {
     $reply_loaded = comment_load($reply->id);
     $this->assertTrue($this->commentExists($reply, TRUE), t('Reply found.'));
     $this->assertEqual($comment->id, $reply_loaded->pid, t('Pid of a reply to a comment is set correctly.'));
-    $this->assertEqual(rtrim($comment_loaded->thread,'/').'.00/', $reply_loaded->thread, t('Thread of reply grows correctly.'));
+    $this->assertEqual(rtrim($comment_loaded->thread, '/') . '.00/', $reply_loaded->thread, t('Thread of reply grows correctly.'));
 
     // Second reply to comment
     $this->drupalGet('comment/reply/' . $this->node->nid . '/' . $comment->id);
@@ -289,7 +289,7 @@ class CommentInterfaceTest extends CommentHelperCase {
     $reply = $this->postComment(NULL, $this->randomName(), $this->randomName());
     $reply_loaded = comment_load($reply->id);
     $this->assertTrue($this->commentExists($reply, TRUE), t('Second reply found.'));
-    $this->assertEqual(rtrim($comment_loaded->thread,'/').'.01/', $reply_loaded->thread, t('Thread of second reply grows correctly.'));
+    $this->assertEqual(rtrim($comment_loaded->thread, '/') . '.01/', $reply_loaded->thread, t('Thread of second reply grows correctly.'));
 
     // Edit reply.
     $this->drupalGet('comment/edit/' . $reply->id);
@@ -359,7 +359,7 @@ class CommentInterfaceTest extends CommentHelperCase {
 }
 
 class CommentAnonymous extends CommentHelperCase {
-  function getInfo() {
+  public static function getInfo() {
     return array(
       'name' => t('Anonymous comments'),
       'description' => t('Test anonymous comments.'),
@@ -455,7 +455,7 @@ class CommentAnonymous extends CommentHelperCase {
 }
 
 class CommentApprovalTest extends CommentHelperCase {
-  function getInfo() {
+  public static function getInfo() {
     return array(
       'name' => t('Comment approval'),
       'description' => t('Test comment approval functionality.'),
@@ -524,11 +524,11 @@ class CommentApprovalTest extends CommentHelperCase {
 
     // Approve comment.
     $this->drupalLogin($this->admin_user);
-    $this->drupalGet('node/'. $this->node->nid);
+    $this->drupalGet('node/' . $this->node->nid);
     $this->clickLink(t('approve'));
     $this->drupalLogout();
 
-    $this->drupalGet('node/'. $this->node->nid);
+    $this->drupalGet('node/' . $this->node->nid);
     $this->assertTrue($this->commentExists($anonymous_comment4), t('Anonymous comment visible.'));
   }
 }
@@ -537,7 +537,7 @@ class CommentApprovalTest extends CommentHelperCase {
  * Functional tests for the comment module blocks.
  */
 class CommentBlockFunctionalTest extends CommentHelperCase {
-  function getInfo() {
+  public static function getInfo() {
     return array(
       'name' => t('Comment blocks'),
       'description' => t('Test comment block functionality.'),
@@ -585,6 +585,20 @@ class CommentBlockFunctionalTest extends CommentHelperCase {
     $this->assertText($comment2->subject, t('Comment found in block.'));
     $this->assertText($comment3->comment, t('Comment found in block.'));
     $this->assertTrue(strpos($this->drupalGetContent(), $comment3->comment) < strpos($this->drupalGetContent(), $comment2->subject), t('Comments were ordered correctly in block.'));
+
+    // Set the number of recent comments to show to 10.
+    $this->drupalLogout();
+    $this->drupalLogin($this->admin_user);
+    $block = array(
+      'comment_block_count' => 10,
+    );
+    $this->drupalPost('admin/build/block/configure/comment/recent', $block, t('Save block'));
+    $this->assertText(t('The block configuration has been saved.'), t('Block saved.'));
+
+    // Test that all three comments are shown.
+    $this->assertText($comment1->subject, t('Comment found in block.'));
+    $this->assertText($comment2->subject, t('Comment found in block.'));
+    $this->assertText($comment3->comment, t('Comment found in block.'));
   }
 }
 
@@ -592,7 +606,7 @@ class CommentBlockFunctionalTest extends CommentHelperCase {
  * Unit tests for comment module integration with RSS feeds.
  */
 class CommentRSSUnitTest extends CommentHelperCase {
-  function getInfo() {
+  public static function getInfo() {
     return array(
       'name' => t('Comment RSS'),
       'description' => t('Test comments as part of an RSS feed.'),

@@ -69,7 +69,7 @@ function openid_redirect_http($url, $message) {
  */
 function openid_redirect($url, $message) {
   $output = '<html><head><title>' . t('OpenID redirect') . "</title></head>\n<body>";
-  $output .= drupal_get_form('openid_redirect_form', $url, $message);
+  $output .= drupal_render(drupal_get_form('openid_redirect_form', $url, $message));
   $output .= '<script type="text/javascript">document.getElementById("openid-redirect-form").submit();</script>';
   $output .= "</body></html>\n";
   print $output;
@@ -154,7 +154,7 @@ function _openid_create_message($data) {
 
   foreach ($data as $key => $value) {
     if ((strpos($key, ':') !== FALSE) || (strpos($key, "\n") !== FALSE) || (strpos($value, "\n") !== FALSE)) {
-      return null;
+      return NULL;
     }
     $serialized .= "$key:$value\n";
   }
@@ -267,27 +267,16 @@ function _openid_signature($association, $message_array, $keys_to_sign) {
 
 function _openid_hmac($key, $text) {
   if (strlen($key) > OPENID_SHA1_BLOCKSIZE) {
-    $key = _openid_sha1($key, TRUE);
+    $key = sha1($key, TRUE);
   }
 
   $key = str_pad($key, OPENID_SHA1_BLOCKSIZE, chr(0x00));
   $ipad = str_repeat(chr(0x36), OPENID_SHA1_BLOCKSIZE);
   $opad = str_repeat(chr(0x5c), OPENID_SHA1_BLOCKSIZE);
-  $hash1 = _openid_sha1(($key ^ $ipad) . $text, TRUE);
-  $hmac = _openid_sha1(($key ^ $opad) . $hash1, TRUE);
+  $hash1 = sha1(($key ^ $ipad) . $text, TRUE);
+  $hmac = sha1(($key ^ $opad) . $hash1, TRUE);
 
   return $hmac;
-}
-
-function _openid_sha1($text) {
-  $hex = sha1($text);
-  $raw = '';
-  for ($i = 0; $i < 40; $i += 2) {
-    $hexcode = substr($hex, $i, 2);
-    $charcode = (int)base_convert($hexcode, 16, 10);
-    $raw .= chr($charcode);
-  }
-  return $raw;
 }
 
 function _openid_dh_base64_to_long($str) {
@@ -343,7 +332,7 @@ function _openid_dh_long_to_binary($long) {
 
 function _openid_dh_xorsecret($shared, $secret) {
   $dh_shared_str = _openid_dh_long_to_binary($shared);
-  $sha1_dh_shared = _openid_sha1($dh_shared_str);
+  $sha1_dh_shared = sha1($dh_shared_str, TRUE);
   $xsecret = "";
   for ($i = 0; $i < strlen($secret); $i++) {
     $xsecret .= chr(ord($secret[$i]) ^ ord($sha1_dh_shared[$i]));
@@ -392,7 +381,7 @@ function _openid_dh_rand($stop) {
 }
 
 function _openid_get_bytes($num_bytes) {
-  static $f = null;
+  static $f = NULL;
   $bytes = '';
   if (!isset($f)) {
     $f = @fopen(OPENID_RAND_SOURCE, "r");
