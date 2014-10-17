@@ -17,8 +17,10 @@ script:
   - git clone https://github.com/boombatower/git-squash-tags.git
   - git clone --branch 8.0.x https://github.com/drupal/drupal.git
   - cd drupal
-  - ../git-squash-tags/git-squash-tags
   - git remote add boombatower https://github.com/boombatower/drupal-squash.git
+  - git fetch boombatower 8.0.x-squash
+  - git checkout 8.0.x-squash && git checkout 8.0.x
+  - ../git-squash-tags/git-squash-tags
   - git config credential.helper "store --file=.git/credentials"
   - echo "https://${GH_TOKEN}:@github.com" > .git/credentials
   - git push -f boombatower 8.0.x-squash
