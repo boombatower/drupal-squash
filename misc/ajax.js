@@ -93,7 +93,7 @@ Drupal.ajax = function (base, element, element_settings) {
     selector: '#' + base,
     effect: 'none',
     speed: 'slow',
-    method: 'replace',
+    method: 'replaceWith',
     progress: {
       type: 'bar',
       message: 'Please wait...'
@@ -132,7 +132,7 @@ Drupal.ajax = function (base, element, element_settings) {
       // Sanity check for browser support (object expected).
       // When using iFrame uploads, responses must be returned as a string.
       if (typeof response == 'string') {
-        response = $.parseJson(response);
+        response = $.parseJSON(response);
       }
       return ajax.success(response, status);
     },
