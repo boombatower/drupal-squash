@@ -12,16 +12,16 @@
 function options_theme() {
   return array(
     'options_select' => array(
-      'arguments' => array('element' => NULL),
+      'render element' => 'element',
     ),
     'options_buttons' => array(
-      'arguments' => array('element' => NULL),
+      'render element' => 'element',
     ),
     'options_onoff' => array(
-      'arguments' => array('element' => NULL),
+      'render element' => 'element',
     ),
     'options_none' => array(
-      'arguments' => array('widget_type' => NULL, 'field_name' => NULL, 'node_type' => NULL),
+      'variables' => array('instance' => NULL),
       ),
   );
 }
@@ -94,8 +94,8 @@ function options_element_info() {
 /**
  * Implement hook_field_widget().
  */
-function options_field_widget(&$form, &$form_state, $field, $instance, $langcode, $items, $delta = NULL) {
-  $element = array(
+function options_field_widget(&$form, &$form_state, $field, $instance, $langcode, $items, $delta, $element) {
+  $element += array(
     '#type' => $instance['widget']['type'],
     '#default_value' => !empty($items) ? $items : array(),
   );
@@ -129,18 +129,37 @@ function options_buttons_elements_process($element, &$form_state, $form) {
     $element['#value'] = options_data2form($element, $element['#default_value'], $field);
   }
   $options = options_options($field, $instance);
+  $required = isset($element['#required']) ? $element['#required'] : $instance['required'];
   $multiple = isset($element['#multiple']) ? $element['#multiple'] : $field['cardinality'] > 1 || $field['cardinality'] == FIELD_CARDINALITY_UNLIMITED;
 
-  $value = array();
-  foreach ($element['#value'][$field_key] as $key) {
-    // Multiple (checkboxes) need the default value in the form of an array.
+  // Incoming #value is an array (checkboxes) or integer (radios).
+  $keys = $element['#value'][$field_key];
+  if (!is_array($keys)) {
+    $keys = array($keys);
+  }
+
+  // Multiple (checkboxes) need #default_value to be an array, and
+  // non-multiple (radios) need a single default value. If #value is
+  // empty we loop won't run, so initialize $value to the right type.
+  $value = $multiple ? array() : '';
+  foreach ($keys as $key) {
     if ($multiple) {
-      $value[$key] = 1;
+      $value[] = $key;
     }
-    // Non-multiple (radios) need single default value.
     else {
       $value = $key;
       break;
+    }
+  }
+  
+  // If required and there is one option, make it the default.
+  if ($required && count($options) == 1) {
+    $keys = array_keys($options);
+    if ($multiple) {
+      $value = $keys;
+    }
+    else {
+      $value = $keys[0];
     }
   }
 
@@ -148,7 +167,7 @@ function options_buttons_elements_process($element, &$form_state, $form) {
     '#type' => $multiple ? 'checkboxes' : 'radios',
     '#title' => $element['#title'],
     '#description' => $element['#description'],
-    '#required' => isset($element['#required']) ? $element['#required'] : $instance['required'],
+    '#required' => $required,
     '#multiple' => $multiple,
     '#options' => $options,
     '#default_value' => $value,
@@ -284,8 +303,8 @@ function options_validate($element, &$form_state) {
 function options_data2form($element, $items, $field) {
   $field_key  = $element['#columns'][0];
   $field = field_info_field($element['#field_name']);
-  $instance = field_info_instance($element['#field_name'], $element['#bundle']);
-  $options    = options_options($field, $instance);
+  $instance = field_info_instance($element['#object_type'], $element['#field_name'], $element['#bundle']);
+  $options = options_options($field, $instance);
 
   $items_transposed = options_transpose_array_rows_cols($items);
   $values = (isset($items_transposed[$field_key]) && is_array($items_transposed[$field_key])) ? $items_transposed[$field_key] : array();
@@ -312,7 +331,7 @@ function options_data2form($element, $items, $field) {
 function options_form2data($element, $field) {
   $field_key = $element['#columns'][0];
   $field = field_info_field($element['#field_name']);
-  $instance = field_info_instance($element['#field_name'], $element['#bundle']);
+  $instance = field_info_instance($element['#object_type'], $element['#field_name'], $element['#bundle']);
   $items = (array) $element[$field_key]['#value'];
   $options = options_options($field, $instance);
 
@@ -375,7 +394,7 @@ function options_options($field, $instance) {
   if (!$instance['required']) {
     if ((in_array($instance['widget']['type'], array('options_buttons', 'node_reference_buttons', 'user_reference_buttons')) && !$field['cardinality'])
       || (in_array($instance['widget']['type'], array('options_select', 'node_reference_select', 'user_reference_select')))) {
-      $options = array('' => theme('options_none', $instance)) + $options;
+      $options = array('' => theme('options_none', array('instance' => $instance))) + $options;
     }
   }
   return $options;
@@ -385,7 +404,8 @@ function options_options($field, $instance) {
  *  Theme the label for the empty value for options that are not required.
  *  The default theme will display N/A for a radio list and blank for a select.
  */
-function theme_options_none($instance) {
+function theme_options_none($variables) {
+  $instance = $variables['instance'];
   switch ($instance['widget']['type']) {
     case 'options_buttons':
     case 'node_reference_buttons':
@@ -405,20 +425,23 @@ function theme_options_none($instance) {
  *
  * The select, checkboxes or radios are already rendered by the
  * select, checkboxes, or radios themes and the HTML output
- * lives in $element['#children']. Override this theme to
+ * lives in $variables['element']['#children']. Override this theme to
  * make custom changes to the output.
  *
- * $element['#field_name'] contains the field name
- * $element['#delta] is the position of this element in the group
+ * $variables['element']['#field_name'] contains the field name
+ * $variables['element']['#delta] is the position of this element in the group
  */
-function theme_options_select($element) {
+function theme_options_select($variables) {
+  $element = $variables['element'];
   return $element['#children'];
 }
 
-function theme_options_onoff($element) {
+function theme_options_onoff($variables) {
+  $element = $variables['element'];
   return $element['#children'];
 }
 
-function theme_options_buttons($element) {
+function theme_options_buttons($variables) {
+  $element = $variables['element'];
   return $element['#children'];
 }

@@ -31,7 +31,7 @@ abstract class DrupalTestCase {
   /**
    * Time limit for the test.
    */
-  protected $timeLimit = 180;
+  protected $timeLimit = 500;
 
   /**
    * Current results of this test case.
@@ -213,7 +213,7 @@ abstract class DrupalTestCase {
    *   TRUE if the assertion succeeded, FALSE otherwise.
    */
   protected function assertTrue($value, $message = '', $group = 'Other') {
-    return $this->assert((bool) $value, $message ? $message : t('Value is TRUE'), $group);
+    return $this->assert((bool) $value, $message ? $message : t('Value @value is TRUE.', array('@value' => var_export($value, TRUE))), $group);
   }
 
   /**
@@ -229,7 +229,7 @@ abstract class DrupalTestCase {
    *   TRUE if the assertion succeeded, FALSE otherwise.
    */
   protected function assertFalse($value, $message = '', $group = 'Other') {
-    return $this->assert(!$value, $message ? $message : t('Value is FALSE'), $group);
+    return $this->assert(!$value, $message ? $message : t('Value @value is FALSE.', array('@value' => var_export($value, TRUE))), $group);
   }
 
   /**
@@ -245,7 +245,7 @@ abstract class DrupalTestCase {
    *   TRUE if the assertion succeeded, FALSE otherwise.
    */
   protected function assertNull($value, $message = '', $group = 'Other') {
-    return $this->assert(!isset($value), $message ? $message : t('Value is NULL'), $group);
+    return $this->assert(!isset($value), $message ? $message : t('Value @value is NULL.', array('@value' => var_export($value, TRUE))), $group);
   }
 
   /**
@@ -261,7 +261,7 @@ abstract class DrupalTestCase {
    *   TRUE if the assertion succeeded, FALSE otherwise.
    */
   protected function assertNotNull($value, $message = '', $group = 'Other') {
-    return $this->assert(isset($value), $message ? $message : t('Value is not NULL'), $group);
+    return $this->assert(isset($value), $message ? $message : t('Value @value is not NULL.', array('@value' => var_export($value, TRUE))), $group);
   }
 
   /**
@@ -279,7 +279,7 @@ abstract class DrupalTestCase {
    *   TRUE if the assertion succeeded, FALSE otherwise.
    */
   protected function assertEqual($first, $second, $message = '', $group = 'Other') {
-    return $this->assert($first == $second, $message ? $message : t('First value is equal to second value'), $group);
+    return $this->assert($first == $second, $message ? $message : t('Value @first is equal to value @second.', array('@first' => var_export($first, TRUE), '@second' => var_export($second, TRUE))), $group);
   }
 
   /**
@@ -297,7 +297,7 @@ abstract class DrupalTestCase {
    *   TRUE if the assertion succeeded, FALSE otherwise.
    */
   protected function assertNotEqual($first, $second, $message = '', $group = 'Other') {
-    return $this->assert($first != $second, $message ? $message : t('First value is not equal to second value'), $group);
+    return $this->assert($first != $second, $message ? $message : t('Value @first is not equal to value @second.', array('@first' => var_export($first, TRUE), '@second' => var_export($second, TRUE))), $group);
   }
 
   /**
@@ -315,7 +315,7 @@ abstract class DrupalTestCase {
    *   TRUE if the assertion succeeded, FALSE otherwise.
    */
   protected function assertIdentical($first, $second, $message = '', $group = 'Other') {
-    return $this->assert($first === $second, $message ? $message : t('First value is identical to second value'), $group);
+    return $this->assert($first === $second, $message ? $message : t('Value @first is identical to value @second.', array('@first' => var_export($first, TRUE), '@second' => var_export($second, TRUE))), $group);
   }
 
   /**
@@ -333,7 +333,7 @@ abstract class DrupalTestCase {
    *   TRUE if the assertion succeeded, FALSE otherwise.
    */
   protected function assertNotIdentical($first, $second, $message = '', $group = 'Other') {
-    return $this->assert($first !== $second, $message ? $message : t('First value is not identical to second value'), $group);
+    return $this->assert($first !== $second, $message ? $message : t('Value @first is not identical to value @second.', array('@first' => var_export($first, TRUE), '@second' => var_export($second, TRUE))), $group);
   }
 
   /**
@@ -694,7 +694,7 @@ class DrupalWebTestCase extends DrupalTestCase {
     // Populate defaults array.
     $settings += array(
       'body'      => array(FIELD_LANGUAGE_NONE => array(array())),
-      'title'     => $this->randomName(8),
+      'title'     => array(FIELD_LANGUAGE_NONE => array(array('value' => $this->randomName(8)))),
       'comment'   => 2,
       'changed'   => REQUEST_TIME,
       'moderate'  => 0,
@@ -728,9 +728,10 @@ class DrupalWebTestCase extends DrupalTestCase {
     // Merge body field value and format separately.
     $body = array(
       'value' => $this->randomName(32),
-      'format' => FILTER_FORMAT_DEFAULT
+      'format' => filter_default_format(),
     );
-    $settings['body'][FIELD_LANGUAGE_NONE][0] += $body;
+    $langcode = !empty($settings['language']) ? $settings['language'] : FIELD_LANGUAGE_NONE;
+    $settings['body'][$langcode][0] += $body;
 
     $node = (object) $settings;
     node_save($node);
@@ -762,6 +763,7 @@ class DrupalWebTestCase extends DrupalTestCase {
     $defaults = array(
       'type' => $name,
       'name' => $name,
+      'base' => 'node_content',
       'description' => '',
       'help' => '',
       'title_label' => 'Title',
@@ -783,6 +785,7 @@ class DrupalWebTestCase extends DrupalTestCase {
 
     $saved_type = node_type_save($type);
     node_types_rebuild();
+    menu_rebuild();
 
     $this->assertEqual($saved_type, SAVED_NEW, t('Created content type %type.', array('%type' => $type->type)));
 
@@ -864,7 +867,7 @@ class DrupalWebTestCase extends DrupalTestCase {
     $edit['pass']   = user_password();
     $edit['status'] = 1;
 
-    $account = user_save('', $edit);
+    $account = user_save(drupal_anonymous_user(), $edit);
 
     $this->assertTrue(!empty($account->uid), t('User created with name %name and pass %pass', array('%name' => $edit['name'], '%pass' => $edit['pass'])), t('User login'));
     if (empty($account->uid)) {
@@ -901,7 +904,7 @@ class DrupalWebTestCase extends DrupalTestCase {
     $role = new stdClass();
     $role->name = $name;
     user_role_save($role);
-    user_role_set_permissions($role->name, $permissions);
+    user_role_grant_permissions($role->rid, $permissions);
 
     $this->assertTrue(isset($role->rid), t('Created role of name: @name, id: @rid', array('@name' => $name, '@rid' => (isset($role->rid) ? $role->rid : t('-n/a-')))), t('Role'));
     if ($role && !empty($role->rid)) {
@@ -1003,7 +1006,7 @@ class DrupalWebTestCase extends DrupalTestCase {
     // Make a request to the logout page, and redirect to the user page, the
     // idea being if you were properly logged out you should be seeing a login
     // screen.
-    $this->drupalGet('user/logout', array('query' => 'destination=user'));
+    $this->drupalGet('user/logout', array('query' => array('destination' => 'user')));
     $pass = $this->assertField('name', t('Username field found.'), t('Logout'));
     $pass = $pass && $this->assertField('pass', t('Password field found.'), t('Logout'));
 
@@ -1063,7 +1066,7 @@ class DrupalWebTestCase extends DrupalTestCase {
     // Install the modules specified by the default profile.
     drupal_install_modules($profile_details['dependencies'], TRUE);
 
-    node_type_clear();
+    drupal_static_reset('_node_types_build');
 
     // Install additional modules one at a time in order to make sure that the
     // list of modules is updated between each module's installation.
@@ -1104,7 +1107,7 @@ class DrupalWebTestCase extends DrupalTestCase {
     $language = language_default();
 
     // Use the test mail class instead of the default mail handler class.
-    variable_set('mail_sending_system', array('default-system' => 'TestingMailSystem'));
+    variable_set('mail_system', array('default-system' => 'TestingMailSystem'));
 
     // Use temporary files directory with the same prefix as the database.
     $public_files_directory  = $this->originalFileDirectory . '/' . $db_prefix;
@@ -1172,13 +1175,13 @@ class DrupalWebTestCase extends DrupalTestCase {
 
     if (preg_match('/simpletest\d+/', $db_prefix)) {
       // Delete temporary files directory.
-      file_unmanaged_delete_recursive(file_directory_path());
+      file_unmanaged_delete_recursive($this->originalFileDirectory . '/' . $db_prefix);
 
       // Remove all prefixed tables (all the tables in the schema).
       $schema = drupal_get_schema(NULL, TRUE);
       $ret = array();
       foreach ($schema as $name => $table) {
-        db_drop_table($ret, $name);
+        db_drop_table($name);
       }
 
       // Return the database prefix to the original.
@@ -1498,6 +1501,13 @@ class DrupalWebTestCase extends DrupalTestCase {
   }
 
   /**
+   * Runs cron in the Drupal installed by Simpletest.
+   */
+  protected function cronRun() {
+    $this->drupalGet($GLOBALS['base_url'] . '/cron.php', array('external' => TRUE, 'query' => array('cron_key' => variable_get('cron_key', 'drupal'))));
+  }
+
+  /**
    * Check for meta refresh tag and if found call drupalGet() recursively. This
    * function looks for the http-equiv attribute to be set to "Refresh"
    * and is case-sensitive.
@@ -1506,7 +1516,7 @@ class DrupalWebTestCase extends DrupalTestCase {
    *   Either the new page content or FALSE.
    */
   protected function checkForMetaRefresh() {
-    if ($this->drupalGetContent() != '' && $this->parse()) {
+    if (strpos($this->drupalGetContent(), '<meta ') && $this->parse()) {
       $refresh = $this->xpath('//meta[@http-equiv="Refresh"]');
       if (!empty($refresh)) {
         // Parse the content attribute of the meta tag for the format:
@@ -1571,6 +1581,7 @@ class DrupalWebTestCase extends DrupalTestCase {
         switch ($type) {
           case 'text':
           case 'textarea':
+          case 'hidden':
           case 'password':
             $post[$name] = $edit[$name];
             unset($edit[$name]);
@@ -1728,7 +1739,7 @@ class DrupalWebTestCase extends DrupalTestCase {
    */
   protected function assertLink($label, $index = 0, $message = '', $group = 'Other') {
     $links = $this->xpath('//a[text()="' . $label . '"]');
-    $message = ($message ?  $message : t('Link with label "!label" found.', array('!label' => $label)));
+    $message = ($message ?  $message : t('Link with label %label found.', array('%label' => $label)));
     return $this->assert(isset($links[$index]), $message, $group);
   }
 
@@ -1748,7 +1759,7 @@ class DrupalWebTestCase extends DrupalTestCase {
    */
   protected function assertNoLink($label, $message = '', $group = 'Other') {
     $links = $this->xpath('//a[text()="' . $label . '"]');
-    $message = ($message ?  $message : t('Link with label "!label" not found.', array('!label' => $label)));
+    $message = ($message ?  $message : t('Link with label %label not found.', array('%label' => $label)));
     return $this->assert(empty($links), $message, $group);
   }
 
@@ -1775,9 +1786,9 @@ class DrupalWebTestCase extends DrupalTestCase {
       $url_target = $this->getAbsoluteUrl($urls[$index]['href']);
     }
 
-    $this->assertTrue(isset($urls[$index]), t('Clicked link "!label" (!url_target) from !url_before', array('!label' => $label, '!url_target' => $url_target, '!url_before' => $url_before)), t('Browser'));
+    $this->assertTrue(isset($urls[$index]), t('Clicked link %label (@url_target) from @url_before', array('%label' => $label, '@url_target' => $url_target, '@url_before' => $url_before)), t('Browser'));
 
-    if (isset($urls[$index])) {
+    if (isset($url_target)) {
       return $this->drupalGet($url_target);
     }
     return FALSE;
@@ -1787,26 +1798,28 @@ class DrupalWebTestCase extends DrupalTestCase {
    * Takes a path and returns an absolute path.
    *
    * @param $path
-   *   The path, can be a Drupal path or a site-relative path. It might have a
-   *   query, too. Can even be an absolute path which is just passed through.
+   *   A path from the internal browser content.
    * @return
-   *   An absolute path.
+   *   The $path with $base_url prepended, if necessary.
    */
   protected function getAbsoluteUrl($path) {
-    $options = array('absolute' => TRUE);
+    global $base_url, $base_path;
+
     $parts = parse_url($path);
-    // This is more crude than the menu_is_external but enough here.
     if (empty($parts['host'])) {
-      $path = $parts['path'];
-      $base_path = base_path();
-      $n = strlen($base_path);
-      if (substr($path, 0, $n) == $base_path) {
-        $path = substr($path, $n);
+      // Ensure that we have a string (and no xpath object).
+      $path = (string) $path;
+      // Strip $base_path, if existent.
+      $length = strlen($base_path);
+      if (substr($path, 0, $length) === $base_path) {
+        $path = substr($path, $length);
       }
-      if (isset($parts['query'])) {
-        $options['query'] = $parts['query'];
+      // Ensure that we have an absolute path.
+      if ($path[0] !== '/') {
+        $path = '/' . $path;
       }
-      $path = url($path, $options);
+      // Finally, prepend the $base_url.
+      $path = $base_url . $path;
     }
     return $path;
   }
@@ -2497,7 +2510,8 @@ class DrupalWebTestCase extends DrupalTestCase {
    */
   protected function verbose($message) {
     if ($id = simpletest_verbose($message)) {
-      $this->pass(l(t('Verbose message'), $this->originalFileDirectory . '/simpletest/verbose/' . get_class($this) . '-' . $id . '.html', array('attributes' => array('target' => '_blank'))), 'Debug');
+      $url = file_create_url($this->originalFileDirectory . '/simpletest/verbose/' . get_class($this) . '-' . $id . '.html');
+      $this->error(l(t('Verbose message'), $url, array('attributes' => array('target' => '_blank'))), 'User notice');
     }
   }
 

@@ -15,7 +15,7 @@ function book_render() {
     $book_list[] = l($book['title'], $book['href'], $book['options']);
   }
 
-  return theme('item_list', $book_list);
+  return theme('item_list', array('items' => $book_list));
 }
 
 /**
@@ -79,7 +79,7 @@ function book_export_html($nid) {
       $contents = book_export_traverse($tree, 'book_node_export');
     }
 
-    return theme('book_export_html', $node->title, $contents, $node->book['depth']);
+    return theme('book_export_html', array('title' => $node->title[FIELD_LANGUAGE_NONE][0]['value'], 'contents' => $contents, 'depth' => $node->book['depth']));
   }
   else {
     drupal_access_denied();
@@ -90,7 +90,7 @@ function book_export_html($nid) {
  * Menu callback; show the outline form for a single node.
  */
 function book_outline($node) {
-  drupal_set_title($node->title);
+  drupal_set_title($node->title[FIELD_LANGUAGE_NONE][0]['value']);
   return drupal_get_form('book_outline_form', $node);
 }
 
@@ -102,7 +102,7 @@ function book_outline($node) {
  *
  * @ingroup forms
  */
-function book_outline_form(&$form_state, $node) {
+function book_outline_form($form, &$form_state, $node) {
   if (!isset($node->book)) {
     // The node is not part of any book yet - set default options.
     $node->book = _book_link_defaults($node->nid);
@@ -186,9 +186,9 @@ function book_outline_form_submit($form, &$form_state) {
  *
  * @ingroup forms
  */
-function book_remove_form(&$form_state, $node) {
+function book_remove_form($form, &$form_state, $node) {
   $form['#node'] = $node;
-  $title = array('%title' => $node->title);
+  $title = array('%title' => $node->title[FIELD_LANGUAGE_NONE][0]['value']);
 
   if ($node->book['has_children']) {
     $description = t('%title has associated child pages, which will be relocated automatically to maintain their connection to the book. To recreate the hierarchy (as it was before removing this page), %title may be added again using the Outline tab, and each of its former child pages will need to be relocated manually.', $title);
@@ -255,5 +255,8 @@ function book_form_update() {
     $commands[] = ajax_command_replace(NULL, drupal_render($form['book']['plid']));
   }
 
-  ajax_render($commands);
+  // @todo: We could and should just return $form['book']['plid'] and skip the
+  // ajax_command_replace() above. But for now, this provides a test case of
+  // returning an AJAX commands array.
+  return array('#type' => 'ajax_commands', '#ajax_commands' => $commands);
 }

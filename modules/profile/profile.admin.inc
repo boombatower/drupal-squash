@@ -12,10 +12,9 @@
  * @ingroup forms
  * @see profile_admin_overview_submit()
  */
-function profile_admin_overview() {
+function profile_admin_overview($form) {
   $result = db_query('SELECT title, name, type, category, fid, weight FROM {profile_field} ORDER BY category, weight');
 
-  $form = array();
   $categories = array();
   foreach ($result as $field) {
     // Collect all category information
@@ -27,8 +26,8 @@ function profile_admin_overview() {
     $form[$field->fid]['type'] = array('#markup' => $field->type);
     $form[$field->fid]['category'] = array('#type' => 'select', '#default_value' => $field->category, '#options' => array());
     $form[$field->fid]['weight'] = array('#type' => 'weight', '#default_value' => $field->weight);
-    $form[$field->fid]['edit'] = array('#markup' => l(t('edit'), "admin/config/people/profile/edit/$field->fid"));
-    $form[$field->fid]['delete'] = array('#markup' => l(t('delete'), "admin/config/people/profile/delete/$field->fid"));
+    $form[$field->fid]['edit'] = array('#type' => 'link', '#title' => t('edit'), '#href' => "admin/config/people/profile/edit/$field->fid");
+    $form[$field->fid]['delete'] = array('#type' => 'link', '#title' => t('delete'), '#href' => "admin/config/people/profile/delete/$field->fid");
   }
 
   // Add the category combo boxes
@@ -52,6 +51,7 @@ function profile_admin_overview() {
   }
   $form['#tree'] = TRUE;
 
+  // @todo: Any reason this isn't done using an element with #theme = 'links'?
   $addnewfields = '<h2>' . t('Add new field') . '</h2>';
   $addnewfields .= '<ul>';
   foreach (_profile_field_types() as $key => $value) {
@@ -96,7 +96,9 @@ function profile_admin_overview_submit($form, &$form_state) {
  * @ingroup themeable
  * @see profile_admin_overview()
  */
-function theme_profile_admin_overview($form) {
+function theme_profile_admin_overview($variables) {
+  $form = $variables['form'];
+
   drupal_add_css(drupal_get_path('module', 'profile') . '/profile.css');
   // Add javascript if there's more than one field.
   if (isset($form['submit'])) {
@@ -157,7 +159,7 @@ function theme_profile_admin_overview($form) {
   }
   $header[] = array('data' => t('Operations'), 'colspan' => 2);
 
-  $output = theme('table', $header, $rows, array('id' => 'profile-fields'));
+  $output = theme('table', array('header' => $header, 'rows' => $rows, 'attributes' => array('id' => 'profile-fields')));
   $output .= drupal_render_children($form);
 
   return $output;
@@ -170,7 +172,7 @@ function theme_profile_admin_overview($form) {
  * @see profile_field_form_validate()
  * @see profile_field_form_submit()
  */
-function profile_field_form(&$form_state, $arg = NULL) {
+function profile_field_form($form, &$form_state, $arg = NULL) {
   if (arg(4) == 'edit') {
     if (is_numeric($arg)) {
       $fid = $arg;
@@ -380,7 +382,7 @@ function profile_field_form_submit($form, &$form_state) {
 /**
  * Menu callback; deletes a field from all user profiles.
  */
-function profile_field_delete(&$form_state, $fid) {
+function profile_field_delete($form, &$form_state, $fid) {
   $field = db_query("SELECT title FROM {profile_field} WHERE fid = :fid", array(':fid' => $fid))->fetchObject();
   if (!$field) {
     drupal_not_found();
@@ -420,9 +422,9 @@ function profile_field_delete_submit($form, &$form_state) {
  */
 function profile_admin_settings_autocomplete($string) {
   $matches = array();
-  $result = db_query_range("SELECT category FROM {profile_field} WHERE LOWER(category) LIKE LOWER(:category)", array(':category' => $string . '%'), 0, 10);
+  $result = db_query_range("SELECT category FROM {profile_field} WHERE LOWER(category) LIKE LOWER(:category)", 0, 10, array(':category' => $string . '%'));
   foreach ($result as $data) {
     $matches[$data->category] = check_plain($data->category);
   }
-  drupal_json($matches);
+  drupal_json_output($matches);
 }

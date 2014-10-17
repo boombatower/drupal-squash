@@ -9,138 +9,24 @@
  * installation. It is included and used extensively by update.php.
  */
 
-
-/**
- * Add a column to a database using syntax appropriate for PostgreSQL.
- *
- * Saves the result of the SQL commands in the referenced $ret array.
- *
- * Note: when you add a column with NOT NULL and you are not sure if there are
- * already rows in the table, you MUST also add DEFAULT. Otherwise PostgreSQL
- * won't work when the table is not empty, and db_add_column() will fail.
- * To have an empty string as the default, you must use: 'default' => "''"
- * in the $attributes array. If NOT NULL and DEFAULT are set the PostgreSQL
- * version will set values of the added column in old rows to the
- * DEFAULT value.
- *
- * @param $ret
- *   Reference to an array to which results will be added.
- * @param $table
- *   Name of the table, without {}
- * @param $column
- *   Name of the column
- * @param $type
- *   Type of column
- * @param $attributes
- *   Additional optional attributes. Recognized attributes:
- *     not null => TRUE|FALSE
- *     default  => NULL|FALSE|value (the value must be enclosed in '' marks)
- * @return
- *   nothing, but modifies $ret parameter.
- */
-function db_add_column(&$ret, $table, $column, $type, $attributes = array()) {
-  if (array_key_exists('not null', $attributes) and $attributes['not null']) {
-    $not_null = 'NOT NULL';
-  }
-  if (array_key_exists('default', $attributes)) {
-    if (is_null($attributes['default'])) {
-      $default_val = 'NULL';
-      $default = 'default NULL';
-    }
-    elseif ($attributes['default'] === FALSE) {
-      $default = '';
-    }
-    else {
-      $default_val = "$attributes[default]";
-      $default = "default $attributes[default]";
-    }
-  }
-
-  $ret[] = update_sql("ALTER TABLE {" . $table . "} ADD $column $type");
-  if (!empty($default)) {
-    $ret[] = update_sql("ALTER TABLE {" . $table . "} ALTER $column SET $default");
-  }
-  if (!empty($not_null)) {
-    if (!empty($default)) {
-      $ret[] = update_sql("UPDATE {" . $table . "} SET $column = $default_val");
-    }
-    $ret[] = update_sql("ALTER TABLE {" . $table . "} ALTER $column SET NOT NULL");
-  }
-}
-
-/**
- * Change a column definition using syntax appropriate for PostgreSQL.
- * Save result of SQL commands in $ret array.
- *
- * Remember that changing a column definition involves adding a new column
- * and dropping an old one. This means that any indices, primary keys and
- * sequences from serial-type columns are dropped and might need to be
- * recreated.
- *
- * @param $ret
- *   Array to which results will be added.
- * @param $table
- *   Name of the table, without {}
- * @param $column
- *   Name of the column to change
- * @param $column_new
- *   New name for the column (set to the same as $column if you don't want to change the name)
- * @param $type
- *   Type of column
- * @param $attributes
- *   Additional optional attributes. Recognized attributes:
- *     not null => TRUE|FALSE
- *     default  => NULL|FALSE|value (with or without '', it won't be added)
- * @return
- *   nothing, but modifies $ret parameter.
- */
-function db_change_column(&$ret, $table, $column, $column_new, $type, $attributes = array()) {
-  if (array_key_exists('not null', $attributes) and $attributes['not null']) {
-    $not_null = 'NOT NULL';
-  }
-  if (array_key_exists('default', $attributes)) {
-    if (is_null($attributes['default'])) {
-      $default_val = 'NULL';
-      $default = 'default NULL';
-    }
-    elseif ($attributes['default'] === FALSE) {
-      $default = '';
-    }
-    else {
-      $default_val = "$attributes[default]";
-      $default = "default $attributes[default]";
-    }
-  }
-
-  $ret[] = update_sql("ALTER TABLE {" . $table . "} RENAME $column TO " . $column . "_old");
-  $ret[] = update_sql("ALTER TABLE {" . $table . "} ADD $column_new $type");
-  $ret[] = update_sql("UPDATE {" . $table . "} SET $column_new = " . $column . "_old");
-  if ($default) {
-    $ret[] = update_sql("ALTER TABLE {" . $table . "} ALTER $column_new SET $default");
-  }
-  if ($not_null) {
-    $ret[] = update_sql("ALTER TABLE {" . $table . "} ALTER $column_new SET NOT NULL");
-  }
-  $ret[] = update_sql("ALTER TABLE {" . $table . "} DROP " . $column . "_old");
-}
-
 /**
  * Disable anything in the {system} table that is not compatible with the
  * current version of Drupal core.
  */
 function update_fix_compatibility() {
-  $ret = array();
   $incompatible = array();
-  $query = db_query("SELECT name, type, status FROM {system} WHERE status = 1 AND type IN ('module','theme')");
-  while ($result = db_fetch_object($query)) {
-    if (update_check_incompatibility($result->name, $result->type)) {
-      $incompatible[] = $result->name;
+  $result = db_query("SELECT name, type, status FROM {system} WHERE status = 1 AND type IN ('module','theme')");
+  foreach ($result as $row) {
+    if (update_check_incompatibility($row->name, $row->type)) {
+      $incompatible[] = $row->name;
     }
   }
   if (!empty($incompatible)) {
-    $ret[] = update_sql("UPDATE {system} SET status = 0 WHERE name IN ('" . implode("','", $incompatible) . "')");
+  	db_update('system')
+  	  ->fields(array('status' => 0))
+  	  ->condition('name', $incompatible, 'IN')
+  	  ->execute();
   }
-  return $ret;
 }
 
 /**
@@ -151,8 +37,8 @@ function update_check_incompatibility($name, $type = 'module') {
 
   // Store values of expensive functions for future use.
   if (empty($themes) || empty($modules)) {
-    $themes = _system_get_theme_data();
-    $modules = system_get_module_data();
+    $themes = _system_rebuild_theme_data();
+    $modules = system_rebuild_module_data();
   }
 
   if ($type == 'module' && isset($modules[$name])) {
@@ -202,24 +88,19 @@ function update_prepare_d7_bootstrap() {
     );
     update_extra_requirements($requirements);
   }
+
+  // The new {blocked_ips} table is used in Drupal 7 to store a list of
+  // banned IP addresses. If this table doesn't exist then we are still
+  // running on a Drupal 6 database, so we suppress the unavoidable errors
+  // that occur by creating a static list.
+  $GLOBALS['conf']['blocked_ips'] = array();
+
   // Allow the database system to work even if the registry has not been
   // created yet.
   drupal_bootstrap(DRUPAL_BOOTSTRAP_DATABASE);
   drupal_install_initialize_database();
   spl_autoload_unregister('drupal_autoload_class');
   spl_autoload_unregister('drupal_autoload_interface');
-  // The new {blocked_ips} table is used in Drupal 7 to store a list of
-  // banned IP addresses. If this table doesn't exist then we are still
-  // running on a Drupal 6 database, so suppress the unavoidable errors
-  // that occur.
-  try {
-    drupal_bootstrap(DRUPAL_BOOTSTRAP_ACCESS);
-  }
-  catch (Exception $e) {
-    if (db_table_exists('blocked_ips')) {
-      throw $e;
-    }
-  }
 }
 
 /**
@@ -233,7 +114,6 @@ function update_prepare_d7_bootstrap() {
  */
 function update_fix_d7_requirements() {
   global $conf;
-  $ret = array();
 
   // Rewrite the settings.php file if necessary.
   // @see update_prepare_d7_bootstrap().
@@ -246,11 +126,169 @@ function update_fix_d7_requirements() {
     // Add the cache_path table.
     $schema['cache_path'] = drupal_get_schema_unprocessed('system', 'cache');
     $schema['cache_path']['description'] = 'Cache table used for path alias lookups.';
-    db_create_table($ret, 'cache_path', $schema['cache_path']);
+
+    // system_update_7042() renames columns, but these are needed to bootstrap.
+    // Add empty columns for now.
+    db_add_field('url_alias', 'source', array('type' => 'varchar', 'length' => 255, 'not null' => TRUE, 'default' => ''));
+    db_add_field('url_alias', 'alias', array('type' => 'varchar', 'length' => 255, 'not null' => TRUE, 'default' => ''));
+
+    // Add new columns to {menu_router}.
+    db_add_field('menu_router', 'delivery_callback', array('type' => 'varchar', 'length' => 255, 'not null' => TRUE, 'default' => ''));
+    db_add_field('menu_router', 'context', array(
+      'description' => 'Only for local tasks (tabs) - the context of a local task to control its placement.',
+      'type' => 'int',
+      'not null' => TRUE,
+      'default' => 0,
+    ));
+    db_drop_index('menu_router', 'tab_parent');
+    db_add_index('menu_router', 'tab_parent', array(array('tab_parent', 64), 'weight', 'title'));
+    db_add_field('menu_router', 'theme_callback', array('type' => 'varchar', 'length' => 255, 'not null' => TRUE, 'default' => ''));
+    db_add_field('menu_router', 'theme_arguments', array('type' => 'varchar', 'length' => 255, 'not null' => TRUE, 'default' => ''));
+
+    // Add the role_permisson table.
+    $schema['role_permission'] = array(
+      'fields' => array(
+        'rid' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'permission' => array(
+        'type' => 'varchar',
+        'length' => 64,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+    ),
+    'primary key' => array('rid', 'permission'),
+    'indexes' => array(
+      'permission' => array('permission'),
+      ),
+    );
+    db_create_table('role_permission', $schema['role_permission']);
+
+    // Add the {semaphore} table in case menu_rebuild() gets called during
+    // an update.
+    $schema['semaphore'] = array(
+      'description' => 'Table for holding semaphores, locks, flags, etc. that cannot be stored as Drupal variables since they must not be cached.',
+      'fields' => array(
+        'name' => array(
+          'description' => 'Primary Key: Unique name.',
+          'type' => 'varchar',
+          'length' => 255,
+          'not null' => TRUE,
+          'default' => ''
+        ),
+        'value' => array(
+          'description' => 'A value for the semaphore.',
+          'type' => 'varchar',
+          'length' => 255,
+          'not null' => TRUE,
+          'default' => ''
+        ),
+        'expire' => array(
+          'description' => 'A Unix timestamp with microseconds indicating when the semaphore should expire.',
+          'type' => 'float',
+          'size' => 'big',
+          'not null' => TRUE
+        ),
+      ),
+      'indexes' => array('value' => array('value')),
+      'primary key' => array('name'),
+    );
+    db_create_table('semaphore', $schema['semaphore']);
+
+    $schema['date_format_type'] = array(
+      'description' => 'Stores configured date format types.',
+      'fields' => array(
+        'type' => array(
+          'description' => 'The date format type, e.g. medium.',
+          'type' => 'varchar',
+          'length' => 64,
+          'not null' => TRUE,
+        ),
+        'title' => array(
+          'description' => 'The human readable name of the format type.',
+          'type' => 'varchar',
+          'length' => 255,
+          'not null' => TRUE,
+        ),
+        'locked' => array(
+          'description' => 'Whether or not this is a system provided format.',
+          'type' => 'int',
+          'size' => 'tiny',
+          'default' => 0,
+          'not null' => TRUE,
+        ),
+      ),
+      'primary key' => array('type'),
+    );
+
+    $schema['date_formats'] = array(
+      'description' => 'Stores configured date formats.',
+      'fields' => array(
+        'dfid' => array(
+          'description' => 'The date format identifier.',
+          'type' => 'serial',
+          'not null' => TRUE,
+          'unsigned' => TRUE,
+        ),
+        'format' => array(
+          'description' => 'The date format string.',
+          'type' => 'varchar',
+          'length' => 100,
+          'not null' => TRUE,
+        ),
+        'type' => array(
+          'description' => 'The date format type, e.g. medium.',
+          'type' => 'varchar',
+          'length' => 64,
+          'not null' => TRUE,
+        ),
+        'locked' => array(
+          'description' => 'Whether or not this format can be modified.',
+          'type' => 'int',
+          'size' => 'tiny',
+          'default' => 0,
+          'not null' => TRUE,
+        ),
+      ),
+      'primary key' => array('dfid'),
+      'unique keys' => array('formats' => array('format', 'type')),
+    );
+
+    $schema['date_format_locale'] = array(
+      'description' => 'Stores configured date formats for each locale.',
+      'fields' => array(
+        'format' => array(
+          'description' => 'The date format string.',
+          'type' => 'varchar',
+          'length' => 100,
+          'not null' => TRUE,
+        ),
+        'type' => array(
+          'description' => 'The date format type, e.g. medium.',
+          'type' => 'varchar',
+          'length' => 64,
+          'not null' => TRUE,
+        ),
+        'language' => array(
+          'description' => 'A {languages}.language for this format to be used with.',
+          'type' => 'varchar',
+          'length' => 12,
+          'not null' => TRUE,
+        ),
+      ),
+      'primary key' => array('type', 'language'),
+    );
+
+    db_create_table('date_format_type', $schema['date_format_type']);
+    db_create_table('date_formats', $schema['date_formats']);
+    db_create_table('date_format_locale', $schema['date_format_locale']);
 
     // Add column for locale context.
     if (db_table_exists('locales_source')) {
-      db_add_field($ret, 'locales_source', 'context', array('type' => 'varchar', 'length' => 255, 'not null' => TRUE, 'default' => '', 'description' => 'The context this string applies to.'));
+      db_add_field('locales_source', 'context', array('type' => 'varchar', 'length' => 255, 'not null' => TRUE, 'default' => '', 'description' => 'The context this string applies to.'));
     }
 
     // Rename 'site_offline_message' variable to 'maintenance_mode_message'.
@@ -264,8 +302,6 @@ function update_fix_d7_requirements() {
   }
 
   update_fix_d7_install_profile();
-
-  return $ret;
 }
 
 /**
@@ -280,7 +316,6 @@ function update_fix_d7_requirements() {
  */
 function update_fix_d7_install_profile() {
   $profile = drupal_get_profile();
-
 
   $results = db_select('system', 's')
     ->fields('s', array('name', 'schema_version'))
@@ -484,8 +519,11 @@ class DrupalUpdateException extends Exception { }
  *   scripts like update.php).
  * @param $batch
  *   Optional parameters to pass into the batch API.
+ * @param $redirect_callback
+ *   (optional) Specify a function to be called to redirect to the progressive
+ *   processing page.
  */
-function update_batch($start, $redirect = NULL, $url = NULL, $batch = array()) {
+function update_batch($start, $redirect = NULL, $url = NULL, $batch = array(), $redirect_callback = 'drupal_goto') {
   // During the update, bring the site offline so that schema changes do not
   // affect visiting users.
   $_SESSION['maintenance_mode'] = variable_get('maintenance_mode', FALSE);
@@ -516,7 +554,7 @@ function update_batch($start, $redirect = NULL, $url = NULL, $batch = array()) {
     'file' => 'includes/update.inc',
   );
   batch_set($batch);
-  batch_process($redirect, $url);
+  batch_process($redirect, $url, $redirect_callback);
 }
 
 /**

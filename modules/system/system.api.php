@@ -12,6 +12,38 @@
  */
 
 /**
+ * Defines one or more hooks that are exposed by a module.
+ *
+ * Normally hooks do not need to be explicitly defined. However, by declaring a
+ * hook explicitly, a module may define a "group" for it. Modules that implement
+ * a hook may then place their implementation in either $module.module or in
+ * $module.$group.inc. If the hook is located in $module.$group.inc, then that
+ * file will be automatically loaded when needed.
+ * In general, hooks that are rarely invoked and/or are very large should be
+ * placed in a separate include file, while hooks that are very short or very
+ * frequently called should be left in the main module file so that they are
+ * always available.
+ *
+ * @return
+ *   An associative array whose keys are hook names and whose values are an
+ *   associative array containing:
+ *   - group: A string defining the group to which the hook belongs. The module
+ *     system will determine whether a file with the name $module.$group.inc
+ *     exists, and automatically load it when required.
+ *
+ * See system_hook_info() for all hook groups defined by Drupal core.
+ */
+function hook_hook_info() {
+  $hooks['token_info'] = array(
+    'group' => 'tokens',
+  );
+  $hooks['tokens'] = array(
+    'group' => 'tokens',
+  );
+  return $hooks;
+}
+
+/**
  * Inform the base system and the Field API about one or more entity types.
  *
  * Inform the system about one or more entity types (i.e., object types that
@@ -24,20 +56,19 @@
  * @return
  *   An array whose keys are entity type names and whose values identify
  *   properties of those types that the  system needs to know about:
- *
- *   name: The human-readable name of the type.
- *   controller class: The name of the class that is used to load the objects.
+ *   - name: The human-readable name of the type.
+ *   - controller class: The name of the class that is used to load the objects.
  *     The class has to implement the DrupalEntityController interface. Leave
  *     blank to use the DefaultDrupalEntityController implementation.
- *   base table: (used by DefaultDrupalEntityController) The name of the entity
- *     type's base table.
- *   static cache: (used by DefaultDrupalEntityController) FALSE to disable
+ *   - base table: (used by DefaultDrupalEntityController) The name of the
+ *     entity type's base table.
+ *   - static cache: (used by DefaultDrupalEntityController) FALSE to disable
  *     static caching of entities during a page request. Defaults to TRUE.
- *   load hook: The name of the hook which should be invoked by
- *   DrupalDefaultEntityController:attachLoad(), for example 'node_load'.
- *   fieldable: Set to TRUE if you want your entity type to be fieldable.
+ *   - load hook: The name of the hook which should be invoked by
+ *     DrupalDefaultEntityController:attachLoad(), for example 'node_load'.
+ *   - fieldable: Set to TRUE if you want your entity type to be fieldable.
  *   - object keys: An array describing how the Field API can extract the
- *     information it needs from the objects of the type.
+ *     information it needs from the objects of the type. Elements:
  *     - id: The name of the property that contains the primary id of the
  *       object. Every object passed to the Field API must have this property
  *       and its value must be numeric.
@@ -55,7 +86,7 @@
  *     information it needs from the bundle objects for this type (e.g
  *     $vocabulary objects for terms; not applicable for nodes).
  *     This element can be omitted if this type's bundles do not exist as
- *     standalone objects.
+ *     standalone objects. Elements:
  *     - bundle: The name of the property that contains the name of the bundle
  *       object.
  *   - cacheable: A boolean indicating whether Field API should cache
@@ -63,11 +94,11 @@
  *     field_attach_load().
  *   - bundles: An array describing all bundles for this object type.
  *     Keys are bundles machine names, as found in the objects' 'bundle'
- *     property (defined in the 'object keys' entry above).
+ *     property (defined in the 'object keys' entry above). Elements:
  *     - label: The human-readable name of the bundle.
  *     - admin: An array of information that allow Field UI pages (currently
  *       implemented in a contributed module) to attach themselves to the
- *       existing administration pages for the bundle.
+ *       existing administration pages for the bundle. Elements:
  *       - path: the path of the bundle's main administration page, as defined
  *         in hook_menu(). If the path includes a placeholder for the bundle,
  *         the 'bundle argument', 'bundle helper' and 'real path' keys below
@@ -118,70 +149,97 @@ function hook_entity_info_alter(&$entity_info) {
 }
 
 /**
+ * Act on entities when loaded.
+ *
+ * This is a generic load hook called for all entity types loaded via the
+ * entity API.
+ *
+ * @param $entities
+ *   The entities keyed by entity ID.
+ * @param $type
+ *   The type of entities being loaded (i.e. node, user, comment).
+ */
+function hook_entity_load($entities, $type) {
+  foreach ($entities as $entity) {
+    $entity->foo = mymodule_add_something($entity, $entity_type);
+  }
+}
+
+/**
  * Perform periodic actions.
+ *
+ * This hook will only be called if cron.php is run (e.g. by crontab).
  *
  * Modules that require to schedule some commands to be executed at regular
  * intervals can implement hook_cron(). The engine will then call the hook
  * at the appropriate intervals defined by the administrator. This interface
  * is particularly handy to implement timers or to automate certain tasks.
- * Database maintenance, recalculation of settings or parameters, and
- * automatic mailings are good candidates for cron tasks.
+ * Database maintenance, recalculation of settings or parameters are good
+ * candidates for cron tasks.
  *
- * This hook will only be called if cron.php is run (e.g. by crontab).
+ * Short-running or not resource intensive tasks can be executed directly.
+ *
+ * Long-running tasks should use the queue API. To do this, one or more queues
+ * need to be defined via hook_cron_queue_info(). Items that need to be
+ * processed are appended to the defined queue, instead of processing them
+ * directly in hook_cron().
+ * Examples of jobs that are good candidates for
+ * hook_cron_queue_info() include automated mailing, retrieving remote data, and
+ * intensive file tasks.
+ *
+ * @return
+ *   None.
+ *
+ * @see hook_cron_queue_info()
  */
 function hook_cron() {
-  $result = db_query('SELECT * FROM {site} WHERE checked = 0 OR checked + refresh < :time', array(':time' => REQUEST_TIME));
+  // Short-running operation example, not using a queue:
+  // Delete all expired records since the last cron run.
+  $expires = variable_get('mymodule_cron_last_run', REQUEST_TIME);
+  db_delete('mymodule_table')
+    ->condition('expires', $expires, '>=')
+    ->execute();
+  variable_set('mymodule_cron_last_run', REQUEST_TIME);
 
-  foreach ($result as $site) {
-    cloud_update($site);
+  // Long-running operation example, leveraging a queue:
+  // Fetch feeds from other sites.
+  $result = db_query('SELECT * FROM {aggregator_feed} WHERE checked + refresh < :time AND refresh != :never', array(
+    ':time' => REQUEST_TIME,
+    ':never' => AGGREGATOR_CLEAR_NEVER,
+  ));
+  $queue = DrupalQueue::get('aggregator_feeds');
+  foreach ($result as $feed) {
+    $queue->createItem($feed);
   }
 }
 
 /**
- * Rewrite database queries, usually for access control.
+ * Declare queues holding items that need to be run periodically.
  *
- * Add JOIN and WHERE statements to queries and decide whether the primary_field
- * shall be made DISTINCT. For node objects, primary field is always called nid.
- * For taxonomy terms, it is tid and for vocabularies it is vid. For comments,
- * it is cid. Primary table is the table where the primary object (node, file,
- * taxonomy_term_node etc.) is.
+ * While there can be only one hook_cron() process running at the same time,
+ * there can be any number of processes defined here running. Because of
+ * this, long running tasks are much better suited for this API. Items queued
+ * in hook_cron() might be processed in the same cron run if there are not many
+ * items in the queue, otherwise it might take several requests, which can be
+ * run in parallel.
  *
- * You shall return an associative array. Possible keys are 'join', 'where' and
- * 'distinct'. The value of 'distinct' shall be 1 if you want that the
- * primary_field made DISTINCT.
- *
- * @param $query
- *   Query to be rewritten.
- * @param $primary_table
- *   Name or alias of the table which has the primary key field for this query.
- *   Typical table names would be: {block}, {comment}, {forum}, {node},
- *   {menu}, {taxonomy_term_data} or {taxonomy_vocabulary}. However, it is more common for
- *   $primary_table to contain the usual table alias: b, c, f, n, m, t or v.
- * @param $primary_field
- *   Name of the primary field.
- * @param $args
- *   Array of additional arguments.
  * @return
- *   An array of join statements, where statements, distinct decision.
+ *   An associative array where the key is the queue name and the value is
+ *   again an associative array. Possible keys are:
+ *   - 'worker callback': The name of the function to call. It will be called
+ *     with one argument, the item created via DrupalQueue::createItem() in
+ *     hook_cron().
+ *   - 'time': (optional) How much time Drupal should spend on calling this
+ *     worker in seconds. Defaults to 15.
+ *
+ * @see hook_cron()
  */
-function hook_db_rewrite_sql($query, $primary_table, $primary_field, $args) {
-  switch ($primary_field) {
-    case 'nid':
-      // this query deals with node objects
-      $return = array();
-      if ($primary_table != 'n') {
-        $return['join'] = "LEFT JOIN {node} n ON $primary_table.nid = n.nid";
-      }
-      $return['where'] = 'created >' . mktime(0, 0, 0, 1, 1, 2005);
-      return $return;
-      break;
-    case 'tid':
-      // this query deals with taxonomy objects
-      break;
-    case 'vid':
-      // this query deals with vocabulary objects
-      break;
-  }
+function hook_cron_queue_info() {
+  $queues['aggregator_feeds'] = array(
+    'worker callback' => 'aggregator_refresh',
+    'time' => 15,
+  );
+  return $queues;
 }
 
 /**
@@ -207,7 +265,8 @@ function hook_db_rewrite_sql($query, $primary_table, $primary_field, $args) {
  *  name as the key. Each sub-array has a number of possible attributes:
  *  - "#input": boolean indicating whether or not this element carries a value
  *    (even if it's hidden).
- *  - "#process": array of callback functions taking $element and $form_state.
+ *  - "#process": array of callback functions taking $element, $form_state,
+ *    and $complete_form.
  *  - "#after_build": array of callback functions taking $element and $form_state.
  *  - "#validate": array of callback functions taking $form and $form_state.
  *  - "#element_validate": array of callback functions taking $element and
@@ -248,7 +307,7 @@ function hook_element_info_alter(&$type) {
  * Perform cleanup tasks.
  *
  * This hook is run at the end of each page request. It is often used for
- * page logging and printing out debugging information.
+ * page logging and specialized cleanup. This hook MUST NOT print anything.
  *
  * Only use this hook if your code must run even for cached page views.
  * If you have code which must run once on all non cached pages, use
@@ -260,9 +319,6 @@ function hook_element_info_alter(&$type) {
  * @param $destination
  *   If this hook is invoked as part of a drupal_goto() call, then this argument
  *   will be a fully-qualified URL that is the destination of the redirect.
- *   Modules may use this to react appropriately; for example, nothing should
- *   be output in this case, because PHP will then throw a "headers cannot be
- *   modified" error when attempting the redirection.
  */
 function hook_exit($destination = NULL) {
   db_update('counter')
@@ -544,7 +600,7 @@ function hook_form_alter(&$form, &$form_state, $form_id) {
  */
 function hook_form_FORM_ID_alter(&$form, &$form_state) {
   // Modification for the form with the given form ID goes here. For example, if
-  // FORM_ID is "user_register" this code would run only on the user
+  // FORM_ID is "user_register_form" this code would run only on the user
   // registration form.
 
   // Add a checkbox to registration form about agreeing to terms of use.
@@ -556,15 +612,43 @@ function hook_form_FORM_ID_alter(&$form, &$form_state) {
 }
 
 /**
+ * Allow themes to alter the theme-specific settings form.
+ *
+ * With this hook, themes can alter the theme-specific settings form in any way
+ * allowable by Drupal's Forms API, such as adding form elements, changing
+ * default values and removing form elements. See the Forms API documentation on
+ * api.drupal.org for detailed information.
+ *
+ * Note that the base theme's form alterations will be run before any sub-theme
+ * alterations.
+ *
+ * @param $form
+ *   Nested array of form elements that comprise the form.
+ * @param $form_state
+ *   A keyed array containing the current state of the form.
+ */
+function hook_form_system_theme_settings_alter(&$form, &$form_state) {
+  // Add a checkbox to toggle the breadcrumb trail.
+  $form['toggle_breadcrumb'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Display the breadcrumb'),
+    '#default_value' => theme_get_setting('toggle_breadcrumb'),
+    '#description'   => t('Show a trail of links from the homepage to the current page.'),
+  );
+}
+
+/**
  * Map form_ids to builder functions.
  *
  * This hook allows modules to build multiple forms from a single form "factory"
  * function but each form will have a different form id for submission,
  * validation, theming or alteration by other modules.
  *
- * The callback arguments will be passed as parameters to the function. Callers
- * of drupal_get_form() are also able to pass in parameters. These will be
- * appended after those specified by hook_forms().
+ * The 'callback arguments' will be passed as parameters to the function defined
+ * in 'callback'. In case the code that calls drupal_get_form() also passes
+ * parameters, then the 'callback' function will receive the
+ * 'callback arguments' specified in hook_forms() before those that have been
+ * passed to drupal_get_form().
  *
  * See node_forms() for an actual example of how multiple forms share a common
  * building function.
@@ -573,16 +657,44 @@ function hook_form_FORM_ID_alter(&$form, &$form_state) {
  *   The unique string identifying the desired form.
  * @param $args
  *   An array containing the original arguments provided to drupal_get_form().
+ *   These are always passed to the form builder and do not have to be specified
+ *   manually in 'callback arguments'.
+ *
  * @return
- *   An array keyed by form_id with callbacks and optional, callback arguments.
+ *   An associative array whose keys define form_ids and whose values are an
+ *   associative array defining the following keys:
+ *   - callback: The name of the form builder function to invoke.
+ *   - callback arguments: (optional) Additional arguments to pass to the
+ *     function defined in 'callback', which are prepended to $args.
+ *   - wrapper_callback: (optional) The name of a form builder function to
+ *     invoke before the form builder defined in 'callback' is invoked. This
+ *     wrapper callback may prepopulate the $form array with form elements,
+ *     which will then be already contained in the $form that is passed on to
+ *     the form builder defined in 'callback'. For example, a wrapper callback
+ *     could setup wizard-alike form buttons that are the same for a variety of
+ *     forms that belong to the wizard, which all share the same wrapper
+ *     callback.
  */
 function hook_forms($form_id, $args) {
+  // Simply reroute the (non-existing) $form_id 'mymodule_first_form' to
+  // 'mymodule_main_form'.
   $forms['mymodule_first_form'] = array(
-    'callback' => 'mymodule_form_builder',
+    'callback' => 'mymodule_main_form',
+  );
+
+  // Reroute the $form_id and prepend an additional argument that gets passed to
+  // the 'mymodule_main_form' form builder function.
+  $forms['mymodule_second_form'] = array(
+    'callback' => 'mymodule_main_form',
     'callback arguments' => array('some parameter'),
   );
-  $forms['mymodule_second_form'] = array(
-    'callback' => 'mymodule_form_builder',
+
+  // Reroute the $form_id, but invoke the form builder function
+  // 'mymodule_main_form_wrapper' first, so we can prepopulate the $form array
+  // that is passed to the actual form builder 'mymodule_main_form'.
+  $forms['mymodule_wrapped_form'] = array(
+    'callback' => 'mymodule_main_form',
+    'wrapper_callback' => 'mymodule_main_form_wrapper',
   );
 
   return $forms;
@@ -666,7 +778,7 @@ function hook_image_toolkits() {
  *
  * Email messages sent using functions other than drupal_mail() will not
  * invoke hook_mail_alter(). For example, a contributed module directly
- * calling the drupal_mail_sending_system()->mail() or PHP mail() function
+ * calling the drupal_mail_system()->mail() or PHP mail() function
  * will not invoke this hook. All core modules use drupal_mail() for
  * messaging, it is best practice but not manditory in contributed modules.
  *
@@ -674,7 +786,7 @@ function hook_image_toolkits() {
  *   An array containing the message data. Keys in this array include:
  *  - 'id':
  *     The drupal_mail() id of the message. Look at module source code or
- *     drupal_mail() for possible id values. 
+ *     drupal_mail() for possible id values.
  *  - 'to':
  *     The address or addresses the message will be sent to. The
  *     formatting of this string must comply with RFC 2822.
@@ -686,7 +798,7 @@ function hook_image_toolkits() {
  *     characters, or the email may not be sent properly.
  *  - 'body':
  *     An array of strings containing the message text. The message body is
- *     created by concatenating the individual array strings into a single text 
+ *     created by concatenating the individual array strings into a single text
  *     string using "\n\n" as a separator.
  *  - 'headers':
  *     Associative array containing mail headers, such as From, Sender,
@@ -709,17 +821,21 @@ function hook_mail_alter(&$message) {
 /**
  * Alter the information parsed from module and theme .info files
  *
- * This hook is invoked in _system_get_module_data() and in _system_get_theme_data().
- * A module may implement this hook in order to add to or alter the data
- * generated by reading the .info file with drupal_parse_info_file().
+ * This hook is invoked in _system_rebuild_module_data() and in
+ * _system_rebuild_theme_data(). A module may implement this hook in order to
+ * add to or alter the data generated by reading the .info file with
+ * drupal_parse_info_file().
  *
  * @param &$info
  *   The .info file contents, passed by reference so that it can be altered.
  * @param $file
  *   Full information about the module or theme, including $file->name, and
  *   $file->filename
+ * @param $type
+ *   Either 'module' or 'theme', depending on the type of .info file that was
+ *   passed.
  */
-function hook_system_info_alter(&$info, $file) {
+function hook_system_info_alter(&$info, $file, $type) {
   // Only fill this in if the .info file does not define a 'datestamp'.
   if (empty($info['datestamp'])) {
     $info['datestamp'] = filemtime($file->filename);
@@ -762,12 +878,19 @@ function hook_permission() {
  * to each sub-array is the internal name of the hook, and the array contains
  * info about the hook. Each array may contain the following items:
  *
- * - arguments: (required) An array of arguments that this theme hook uses. This
- *   value allows the theme layer to properly utilize templates. The
- *   array keys represent the name of the variable, and the value will be
- *   used as the default value if not specified to the theme() function.
- *   These arguments must be in the same order that they will be given to
- *   the theme() function.
+ * - variables: (required if "render element" not present) An array of
+ *   variables that this theme hook uses. This value allows the theme layer to
+ *   properly utilize templates. Each array key represents the name of the
+ *   variable and the value will be used as the default value if it is not given
+ *   when theme() is called. Template implementations receive these arguments as
+ *   variables in the template file. Function implementations are passed this
+ *   array data in the $variables parameter.
+ * - render element: (required if "variables" not present) A string that is the
+ *   name of the sole renderable element to pass to the theme function. The
+ *   string represents the name of the "variable" that will hold the renderable
+ *   array inside any optional preprocess or process functions. Cannot be used
+ *   with the "variables" item; only one or the other, not both, can be present
+ *   in a hook's info array.
  * - file: The file the implementation resides in. This file will be included
  *   prior to the theme being rendered, to make sure that the function or
  *   preprocess function (as needed) is actually loaded; this makes it possible
@@ -842,16 +965,24 @@ function hook_permission() {
 function hook_theme($existing, $type, $theme, $path) {
   return array(
     'forum_display' => array(
-      'arguments' => array('forums' => NULL, 'topics' => NULL, 'parents' => NULL, 'tid' => NULL, 'sortby' => NULL, 'forum_per_page' => NULL),
+      'variables' => array('forums' => NULL, 'topics' => NULL, 'parents' => NULL, 'tid' => NULL, 'sortby' => NULL, 'forum_per_page' => NULL),
     ),
     'forum_list' => array(
-      'arguments' => array('forums' => NULL, 'parents' => NULL, 'tid' => NULL),
+      'variables' => array('forums' => NULL, 'parents' => NULL, 'tid' => NULL),
     ),
     'forum_topic_list' => array(
-      'arguments' => array('tid' => NULL, 'topics' => NULL, 'sortby' => NULL, 'forum_per_page' => NULL),
+      'variables' => array('tid' => NULL, 'topics' => NULL, 'sortby' => NULL, 'forum_per_page' => NULL),
     ),
     'forum_icon' => array(
-      'arguments' => array('new_posts' => NULL, 'num_posts' => 0, 'comment_mode' => 0, 'sticky' => 0),
+      'variables' => array('new_posts' => NULL, 'num_posts' => 0, 'comment_mode' => 0, 'sticky' => 0),
+    ),
+    'status_report' => array(
+      'render element' => 'requirements',
+      'file' => 'system.admin.inc',
+    ),
+    'system_date_time_settings' => array(
+      'render element' => 'form',
+      'file' => 'system.admin.inc',
     ),
   );
 }
@@ -873,7 +1004,7 @@ function hook_theme($existing, $type, $theme, $path) {
  * For example:
  * @code
  *  $theme_registry['user_profile'] = array(
- *    'arguments' => array(
+ *    'variables' => array(
  *      'account' => NULL,
  *    ),
  *    'template' => 'modules/user/user-profile',
@@ -1063,7 +1194,7 @@ function hook_mail($key, &$message, $params) {
   $context = $params['context'];
   $variables = array(
     '%site_name' => variable_get('site_name', 'Drupal'),
-    '%username' => $account->name,
+    '%username' => format_username($account),
   );
   if ($context['hook'] == 'taxonomy') {
     $object = $params['object'];
@@ -1085,7 +1216,7 @@ function hook_mail($key, &$message, $params) {
       '%uid' => $node->uid,
       '%node_url' => url('node/' . $node->nid, array('absolute' => TRUE)),
       '%node_type' => node_type_get_name($node),
-      '%title' => $node->title,
+      '%title' => $node->title[FIELD_LANGUAGE_NONE][0]['value'],
       '%teaser' => $node->teaser,
       '%body' => $node->body,
     );
@@ -1193,64 +1324,6 @@ function hook_modules_uninstalled($modules) {
       ->execute();
   }
   mymodule_cache_rebuild();
-}
-
-/**
- * custom_url_rewrite_outbound is not a hook, it's a function you can add to
- * settings.php to alter all links generated by Drupal. This function is called from url().
- * This function is called very frequently (100+ times per page) so performance is
- * critical.
- *
- * This function should change the value of $path and $options by reference.
- *
- * @param $path
- *   The alias of the $original_path as defined in the database.
- *   If there is no match in the database it'll be the same as $original_path
- * @param $options
- *   An array of link attributes such as querystring and fragment. See url().
- * @param $original_path
- *   The unaliased Drupal path that is being linked to.
- */
-function custom_url_rewrite_outbound(&$path, &$options, $original_path) {
-  global $user;
-
-  // Change all 'node' to 'article'.
-  if (preg_match('|^node(/.*)|', $path, $matches)) {
-    $path = 'article' . $matches[1];
-  }
-  // Create a path called 'e' which lands the user on her profile edit page.
-  if ($path == 'user/' . $user->uid . '/edit') {
-    $path = 'e';
-  }
-
-}
-
-/**
- * custom_url_rewrite_inbound is not a hook, it's a function you can add to
- * settings.php to alter incoming requests so they map to a Drupal path.
- * This function is called before modules are loaded and
- * the menu system is initialized and it changes $_GET['q'].
- *
- * This function should change the value of $result by reference.
- *
- * @param $result
- *   The Drupal path based on the database. If there is no match in the database it'll be the same as $path.
- * @param $path
- *   The path to be rewritten.
- * @param $path_language
- *   An optional language code to rewrite the path into.
- */
-function custom_url_rewrite_inbound(&$result, $path, $path_language) {
-  global $user;
-
-  // Change all article/x requests to node/x
-  if (preg_match('|^article(/.*)|', $path, $matches)) {
-    $result = 'node' . $matches[1];
-  }
-  // Redirect a path called 'e' to the user's profile edit page.
-  if ($path == 'e') {
-    $result = 'user/' . $user->uid . '/edit';
-  }
 }
 
 /**
@@ -1432,7 +1505,7 @@ function hook_file_move($file, $source) {
  */
 function hook_file_references($file) {
   // If upload.module is still using a file, do not let other modules delete it.
-  $file_used = (bool) db_query_range('SELECT 1 FROM {upload} WHERE fid = :fid', array(':fid' => $file->fid), 0, 1)->fetchField();
+  $file_used = (bool) db_query_range('SELECT 1 FROM {upload} WHERE fid = :fid', 0, 1, array(':fid' => $file->fid))->fetchField();
   if ($file_used) {
     // Return the name of the module and how many references it has to the file.
     return array('upload' => $count);
@@ -1460,8 +1533,8 @@ function hook_file_delete($file) {
  * private file download method is selected. Modules can also provide headers
  * to specify information like the file's name or MIME type.
  *
- * @param $filepath
- *   String of the file's path.
+ * @param $uri
+ *   The URI of the file.
  * @return
  *   If the user does not have permission to access the file, return -1. If the
  *   user has permission, return an array with the appropriate headers. If the
@@ -1471,12 +1544,12 @@ function hook_file_delete($file) {
  * @see file_download()
  * @see upload_file_download()
  */
-function hook_file_download($filepath) {
+function hook_file_download($uri) {
   // Check if the file is controlled by the current module.
-  if (!file_prepare_directory($filepath)) {
-    $filepath = FALSE;
+  if (!file_prepare_directory($uri)) {
+    $uri = FALSE;
   }
-  $result = db_query("SELECT f.* FROM {file} f INNER JOIN {upload} u ON f.fid = u.fid WHERE uri = :filepath", array('filepath' => $filepath));
+  $result = db_query("SELECT f.* FROM {file} f INNER JOIN {upload} u ON f.fid = u.fid WHERE uri = :uri", array('uri' => $uri));
   foreach ($result as $file) {
     if (!user_access('view uploaded files')) {
       return -1;
@@ -1884,30 +1957,28 @@ function hook_install() {
  * If your update task is potentially time-consuming, you'll need to implement a
  * multipass update to avoid PHP timeouts. Multipass updates use the $sandbox
  * parameter provided by the batch API (normally, $context['sandbox']) to store
- * information between successive calls, and the $ret['#finished'] return value
+ * information between successive calls, and the $sandbox['#finished'] value
  * to provide feedback regarding completion level.
  *
  * See the batch operations page for more information on how to use the batch API:
  * @link http://drupal.org/node/146843 http://drupal.org/node/146843 @endlink
  *
- * @return An array with the results of the calls to update_sql(). An upate
- *   function can force the current and all later updates for this
- *   module to abort by returning a $ret array with an element like:
- *   $ret['#abort'] = array('success' => FALSE, 'query' => 'What went wrong');
- *   The schema version will not be updated in this case, and all the
- *   aborted updates will continue to appear on update.php as updates that
- *   have not yet been run. Multipass update functions will also want to pass
- *   back the $ret['#finished'] variable to inform the batch API of progress.
+ * @throws DrupalUpdateException, PDOException
+ *   In case of error, update hooks should throw an instance of DrupalUpdateException
+ *   with a meaningful message for the user. If a database query fails for whatever
+ *   reason, it will throw a PDOException.
+ *
+ * @return
+ *   Optionally update hooks may return a translated string that will be displayed
+ *   to the user. If no message is returned, no message will be presented to the
+ *   user.
  */
 function hook_update_N(&$sandbox = NULL) {
   // For most updates, the following is sufficient.
-  $ret = array();
-  db_add_field($ret, 'mytable1', 'newcol', array('type' => 'int', 'not null' => TRUE, 'description' => 'My new integer column.'));
-  return $ret;
+  db_add_field('mytable1', 'newcol', array('type' => 'int', 'not null' => TRUE, 'description' => 'My new integer column.'));
 
   // However, for more complex operations that may take a long time,
   // you may hook into Batch API as in the following example.
-  $ret = array();
 
   // Update 3 users at a time to have an exclamation point after their names.
   // (They're really happy that we can do batch API in this hook!)
@@ -1925,15 +1996,23 @@ function hook_update_N(&$sandbox = NULL) {
     ->execute();
   foreach ($users as $user) {
     $user->name .= '!';
-    $ret[] = update_sql("UPDATE {users} SET name = '$user->name' WHERE uid = $user->uid");
+    db_update('users')
+      ->fields(array('name' => $user->name))
+      ->condition('uid', $user->uid)
+      ->execute();
 
     $sandbox['progress']++;
     $sandbox['current_uid'] = $user->uid;
   }
 
-  $ret['#finished'] = empty($sandbox['max']) ? 1 : ($sandbox['progress'] / $sandbox['max']);
+  $sandbox['#finished'] = empty($sandbox['max']) ? 1 : ($sandbox['progress'] / $sandbox['max']);
 
-  return $ret;
+  // To display a message to the user when the update is completed, return it.
+  // If you do not want to display a completion message, simply return nothing.
+  return t('The update did what it was supposed to do.');
+
+  // In case of an error, simply throw an exception with an error message.
+  throw new DrupalUpdateException('Something went wrong; here is what you should do.');
 }
 
 /**
@@ -2154,7 +2233,7 @@ function hook_registry_files_alter(&$files, $module_cache) {
  * @see install_state_defaults()
  * @see batch_set()
  */
-function hook_profile_tasks() {
+function hook_install_tasks() {
   // Here, we define a variable to allow tasks to indicate that a particular,
   // processor-intensive batch process needs to be triggered later on in the
   // installation.
@@ -2218,21 +2297,55 @@ function hook_profile_tasks() {
 /**
  * Change the page the user is sent to by drupal_goto().
  *
- * @param $args
- *   The array keys are the same as drupal_goto() arguments and the array can
- *   be changed.
- *   <code>
- *     $args = array(
- *       'path' => &$path,
- *       'query' => &$query,
- *       'fragment' => &$fragment,
- *       'http_response_code' => &$http_response_code,
- *     );
- *   </code>
+ * @param &$path
+ *   A Drupal path or a full URL.
+ * @param &$options
+ *   An associative array of additional URL options to pass to url().
+ * @param &$http_response_code
+ *   The HTTP status code to use for the redirection. See drupal_goto() for more
+ *   information.
  */
-function hook_drupal_goto_alter(array $args) {
+function hook_drupal_goto_alter(&$path, &$options, &$http_response_code) {
   // A good addition to misery module.
-  $args['http_response_code'] = 500;
+  $http_response_code = 500;
+}
+
+/**
+ * Alter XHTML HEAD tags before they are rendered by drupal_get_html_head().
+ *
+ * Elements available to be altered are only those added using
+ * drupal_add_html_head_link() or drupal_add_html_head(). CSS and JS files
+ * are handled using drupal_add_css() and drupal_add_js(), so the head links
+ * for those files will not appear in the $head_elements array.
+ *
+ * @param $head_elements
+ *   An array of renderable elements. Generally the values of the #attributes
+ *   array will be the most likely target for changes.
+ */
+function hook_html_head_alter(&$head_elements) {
+  foreach($head_elements as $key => $element) {
+    if (isset($element['#attributes']['rel']) && $element['#attributes']['rel'] == 'canonical') {
+      // I want a custom canonical url.
+      $head_elements[$key]['#attributes']['href'] = mymodule_canonical_url();
+    }
+  }
+}
+
+/**
+ * Alter the full list of installation tasks.
+ *
+ * @param $tasks
+ *   An array of all available installation tasks, including those provided by
+ *   Drupal core. You can modify this array to change or replace any part of
+ *   the Drupal installation process that occurs after the installation profile
+ *   is selected.
+ * @param $install_state
+ *   An array of information about the current installation state.
+ */
+function hook_install_tasks_alter(&$tasks, $install_state) {
+  // Replace the "Choose language" installation task provided by Drupal core
+  // with a custom callback function defined by this installation profile.
+  $tasks['install_select_locale']['function'] = 'myprofile_locale_selection';
 }
 
 /**
@@ -2255,6 +2368,383 @@ function hook_file_mimetype_mapping_alter(&$mapping) {
   $mapping['extensions']['info'] = 'example_info';
   // Override existing extension mapping for '.ogg' files.
   $mapping['extensions']['ogg'] = 189;
+}
+
+/**
+ * Declares information about actions.
+ *
+ * Any module can define actions, and then call actions_do() to make those
+ * actions happen in response to events. The trigger module provides a user
+ * interface for associating actions with module-defined triggers, and it makes
+ * sure the core triggers fire off actions when their events happen.
+ *
+ * An action consists of two or three parts:
+ * - an action definition (returned by this hook)
+ * - a function which performs the action (which by convention is named
+ *   MODULE_description-of-function_action)
+ * - an optional form definition function that defines a configuration form
+ *   (which has the name of the action function with '_form' appended to it.)
+ *
+ * The action function takes two to four arguments, which come from the input
+ * arguments to actions_do().
+ *
+ * @return
+ *   An associative array of action descriptions. The keys of the array
+ *   are the names of the action functions, and each corresponding value
+ *   is an associative array with the following key-value pairs:
+ *   - 'type': The type of object this action acts upon. Core actions have types
+ *     'node', 'user', 'comment', and 'system'.
+ *   - 'label': The human-readable name of the action, which should be passed
+ *     through the t() function for translation.
+ *   - 'configurable': If FALSE, then the action doesn't require any extra
+ *     configuration. If TRUE, then your module must define a form function with
+ *     the same name as the action function with '_form' appended (e.g., the
+ *     form for 'node_assign_owner_action' is 'node_assign_owner_action_form'.)
+ *     This function takes $context as its only parameter, and is paired with
+ *     the usual _submit function, and possibly a _validate function.
+ *   - 'triggers': An array of the events (that is, hooks) that can trigger this
+ *     action. For example: array('node_insert', 'user_update'). You can also
+ *     declare support for any trigger by returning array('any') for this value.
+ *   - 'behavior': (optional) A machine-readable array of behaviors of this
+ *     action, used to signal additionally required actions that may need to be
+ *     triggered. Currently recognized behaviors by Trigger module:
+ *     - 'changes_property': If an action with this behavior is assigned to a
+ *       trigger other than a "presave" hook, any save actions also assigned to
+ *       this trigger are moved later in the list. If no save action is present,
+ *       one will be added.
+ *       Modules that are processing actions (like Trigger module) should take
+ *       special care for the "presave" hook, in which case a dependent "save"
+ *       action should NOT be invoked.
+ */
+function hook_action_info() {
+  return array(
+    'comment_unpublish_action' => array(
+      'type' => 'comment',
+      'label' => t('Unpublish comment'),
+      'configurable' => FALSE,
+      'behavior' => array('changes_property'),
+      'triggers' => array('comment_presave', 'comment_insert', 'comment_update'),
+    ),
+    'comment_unpublish_by_keyword_action' => array(
+      'type' => 'comment',
+      'label' => t('Unpublish comment containing keyword(s)'),
+      'configurable' => TRUE,
+      'behavior' => array('changes_property'),
+      'triggers' => array('comment_presave', 'comment_insert', 'comment_update'),
+    ),
+    'comment_save_action' => array(
+      'type' => 'comment',
+      'label' => t('Save comment'),
+      'configurable' => FALSE,
+      'triggers' => array('comment_insert', 'comment_update'),
+    ),
+  );
+}
+
+/**
+ * Executes code after an action is deleted.
+ *
+ * @param $aid
+ *   The action ID.
+ */
+function hook_actions_delete($aid) {
+  db_delete('actions_assignments')
+    ->condition('aid', $aid)
+    ->execute();
+}
+
+/**
+ * Alters the actions declared by another module.
+ *
+ * Called by actions_list() to allow modules to alter the return values from
+ * implementations of hook_action_info().
+ *
+ * @see trigger_example_action_info_alter().
+ */
+function hook_action_info_alter(&$actions) {
+  $actions['node_unpublish_action']['label'] = t('Unpublish and remove from public view.');
+}
+
+/**
+ * Declare archivers to the system.
+ *
+ * An archiver is a class that is able to package and unpackage one or more files
+ * into a single possibly compressed file.  Common examples of such files are
+ * zip files and tar.gz files.  All archiver classes must implement
+ * ArchiverInterface.
+ *
+ * Each entry should be keyed on a unique value, and specify three
+ * additional keys:
+ * - class: The name of the PHP class for this archiver.
+ * - extensions: An array of file extensions that this archiver supports.
+ * - weight: This optional key specifies the weight of this archiver.
+ *   When mapping file extensions to archivers, the first archiver by
+ *   weight found that supports the requested extension will be used.
+ */
+function hook_archiver_info() {
+  return array(
+    'tar' => array(
+      'class' => 'ArchiverTar',
+      'extensions' => array('tar', 'tar.gz', 'tar.bz2'),
+    ),
+  );
+}
+
+
+/**
+ * Defines additional date types.
+ *
+ * Next to the 'long', 'medium' and 'short' date types defined in core, any
+ * module can define additional types that can be used when displaying dates. A
+ * date type is a key which can be passed to format_date() to return a date in
+ * the configured display format.
+ *
+ * To avoid namespace collisions with date types defined by other modules, it is
+ * recommended that each date type starts with the module name. A date type
+ * can consist of letters, numbers and underscores.
+ *
+ * @see hook_date_formats()
+ * @see format_date()
+ *
+ * @return
+ *   A list of date types in 'key' => 'label' format.
+ */
+function hook_date_format_types() {
+  return array(
+    'long' => t('Long'),
+    'medium' => t('Medium'),
+    'short' => t('Short'),
+  );
+}
+
+/**
+ * Defines additional date formats.
+ *
+ * Next to the 'long', 'medium' and 'short' date types defined in core, any
+ * module can define additional types that can be used when displaying dates. A
+ * date type is a key which can be passed to format_date() to return a date in
+ * the configured displayed format. A date format is a string defining the date
+ * and time elements to use. For example, a date type could be
+ * 'mymodule_extra_long', while a date format is like 'Y-m-d'.
+ *
+ * New date types must first be declared using hook_date_format_types(). It is
+ * then possible to define one or more date formats for each.
+ *
+ * A module may also extend the list date formats defined for a date type
+ * provided by another module.
+ *
+ * There may be more than one format for the same locale. For example d/m/Y and
+ * Y/m/d work equally well in some locales. It may also be necessary to define
+ * multiple versions of the same date format, for example, one using AM, one
+ * with PM and one without the time at all.
+ *
+ * However at the same time you may wish to define some additional date formats
+ * that aren't specific to any one locale, for example, "Y m". For these cases
+ * the locales field should be omitted.
+ *
+ * @see hook_date_format_types()
+ *
+ * @return
+ *   A list of date formats. Each date format is a keyed array
+ *   consisting of three elements:
+ *   - 'type': the date type is a key used to identify which date format to
+ *     display. It consists of letters, numbers and underscores, e.g. 'long',
+ *     'short', 'mymodule_extra_long'. It must first be declared in
+ *     hook_date_format_types() unless extending a type provided by another
+ *     module.
+ *   - 'format': a string defining the date and time elements to use. It
+ *     can contain any of the formatting options described at
+ *     http://php.net/manual/en/function.date.php
+ *   - 'locales': (optional) an array of 2 and 5 character language codes, for
+ *     example, 'en', 'en-us'. The language codes are used to determine which
+ *     date format to display for the user's current language. If more than one
+ *     date format is suggested for the same date type and locale, then the
+ *     first one will be used unless overridden via
+ *     admin/config/regional/date-time/locale. If your date format is not
+ *     language specific, leave this field empty.
+ */
+function hook_date_formats() {
+  return array(
+    array(
+      'type' => 'mymodule_extra_long',
+      'format' => 'l jS F Y H:i:s e',
+      'locales' => array('en-ie'),
+    ),
+    array(
+      'type' => 'mymodule_extra_long',
+      'format' => 'l jS F Y h:i:sa',
+      'locales' => array('en', 'en-us'),
+    ),
+    array(
+      'type' => 'short',
+      'format' => 'F Y',
+      'locales' => array(),
+    ),
+  );
+}
+
+/**
+ * Alters date types and formats declared by another module.
+ *
+ * Called by _system_date_format_types_build() to allow modules to alter the
+ * return values from implementations of hook_date_formats().
+ */
+function hook_date_formats_alter(&$formats) {
+  foreach ($formats as $id => $format) {
+    $formats[$id]['locales'][] = 'en-ca';
+  }
+}
+
+/**
+ * Alters the router item for the active menu handler.
+ *
+ * Called by menu_execute_active_handler() to allow modules to alter the
+ * information that will be used to handle the page request. Only use this
+ * hook if an alteration specific to the page request is needed. Otherwise
+ * use hook_menu_alter().
+ *
+ * @param $router_item
+ *   An array with the following keys:
+ *   - access: Boolean. Whether the user is allowed to see this page.
+ *   - file: A path to a file to include prior to invoking the page callback.
+ *   - page_callback: The function to call to build the page content.
+ *   - page_arguments: Arguments to pass to the page callback.
+ *   - delivery_callback: The function to call to deliver the result of the
+ *     page callback to the browser.
+ * @param $path
+ *   The drupal path that was used for retrieving the router item.
+ *
+ * @see menu_execute_active_handler()
+ * @see hook_menu()
+ * @see hook_menu_alter()
+ */
+function hook_menu_active_handler_alter(&$router_item, $path = NULL) {
+  // Turn off access for all pages for all users.
+  $router_item['access'] = FALSE;
+}
+
+/**
+ * Alters the delivery callback used to send the result of the page callback to the browser.
+ *
+ * Called by drupal_deliver_page() to allow modules to alter how the
+ * page is delivered to the browser.
+ *
+ * This hook is intended for altering the delivery callback based on
+ * information unrelated to the path of the page accessed. For example,
+ * it can be used to set the delivery callback based on a HTTP request
+ * header (as shown in the code sample). To specify a delivery callback
+ * based on path information, use hook_menu(), hook_menu_alter() or
+ * hook_menu_active_handler_alter().
+ *
+ * This hook can also be used as an API function that can be used to explicitly
+ * set the delivery callback from some other function. For example, for a module
+ * named MODULE:
+ * @code
+ * function MODULE_page_delivery_callback_alter(&$callback, $set = FALSE) {
+ *   static $stored_callback;
+ *   if ($set) {
+ *     $stored_callback = $callback;
+ *   }
+ *   elseif (isset($stored_callback)) {
+ *     $callback = $stored_callback;
+ *   }
+ * }
+ * function SOMEWHERE_ELSE() {
+ *   $desired_delivery_callback = 'foo';
+ *   MODULE_page_delivery_callback_alter($desired_delivery_callback, TRUE);
+ * }
+ * @endcode
+ *
+ * @param $callback
+ *   The name of a function.
+ *
+ * @see drupal_deliver_page()
+ */
+function hook_page_delivery_callback_alter(&$callback) {
+  // jQuery sets a HTTP_X_REQUESTED_WITH header of 'XMLHttpRequest'.
+  // If a page would normally be delivered as an html page, and it is called
+  // from jQuery, deliver it instead as an AJAX response.
+  if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] == 'XMLHttpRequest' && $callback == 'drupal_deliver_html_page') {
+    $callback = 'ajax_deliver';
+  }
+}
+
+/**
+ * Alters inbound URL requests.
+ *
+ * @param $path
+ *   The path being constructed, which, if a path alias, has been resolved to a
+ *   Drupal path by the database, and which also may have been altered by other
+ *   modules before this one.
+ * @param $original_path
+ *   The original path, before being checked for path aliases or altered by any
+ *   modules.
+ * @param $path_language
+ *   The language of the path.
+ *
+ * @see drupal_get_normal_path()
+ */
+function hook_url_inbound_alter(&$path, $original_path, $path_language) {
+  // Create the path user/me/edit, which allows a user to edit their account.
+  if (preg_match('|^user/me/edit(/.*)?|', $path, $matches)) {
+    global $user;
+    $path = 'user/' . $user->uid . '/edit' . $matches[1];
+  }
+}
+
+/**
+ * Alters outbound URLs.
+ *
+ * @param $path
+ *   The outbound path to alter, not adjusted for path aliases yet. It won't be
+ *   adjusted for path aliases until all modules are finished altering it, thus
+ *   being consistent with hook_url_alter_inbound(), which adjusts for all path
+ *   aliases before allowing modules to alter it. This may have been altered by
+ *   other modules before this one.
+ * @param $options
+ *   A set of URL options for the URL so elements such as a fragment or a query
+ *   string can be added to the URL.
+ * @param $original_path
+ *   The original path, before being altered by any modules.
+ *
+ * @see url()
+ */
+function hook_url_outbound_alter(&$path, &$options, $original_path) {
+  // Use an external RSS feed rather than the Drupal one.
+  if ($path == 'rss.xml') {
+    $path = 'http://example.com/rss.xml';
+    $options['external'] = TRUE;
+  }
+
+  // Instead of pointing to user/[uid]/edit, point to user/me/edit.
+  if (preg_match('|^user/([0-9]*)/edit(/.*)?|', $path, $matches)) {
+    global $user;
+    if ($user->uid == $matches[1]) {
+      $path = 'user/me/edit' . $matches[2];
+    }
+  }
+}
+
+/**
+ * Alter the username that is displayed for a user.
+ *
+ * Called by format_username() to allow modules to alter the username that's
+ * displayed. Can be used to ensure user privacy in situations where
+ * $account->name is too revealing.
+ *
+ * @param &$name
+ *   The string that format_username() will return.
+ *
+ * @param $account
+ *   The account object passed to format_username().
+ *
+ * @see format_username()
+ */
+function hook_username_alter(&$name, $account) {
+  // Display the user's uid instead of name.
+  if (isset($account->uid)) {
+    $name = t('User !uid', array('!uid' => $account->uid));
+  }
 }
 
 /**

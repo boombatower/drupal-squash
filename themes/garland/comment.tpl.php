@@ -5,7 +5,11 @@
 
   <div class="clearfix">
 
-    <span class="submitted"><?php print $date; ?> — <?php print $author; ?></span>
+  <?php if ($contextual_links): ?>
+    <?php print render($contextual_links); ?>
+  <?php endif; ?>
+
+    <span class="submitted"><?php print $created; ?> — <?php print $author; ?></span>
 
   <?php if ($new) : ?>
     <span class="new"><?php print drupal_ucfirst($new) ?></span>
@@ -15,7 +19,7 @@
 
     <h3<?php print $title_attributes; ?>><?php print $title ?></h3>
 
-    <div class="content">
+    <div class="content"<?php print $content_attributes; ?>>
       <?php hide($content['links']); print render($content); ?>
       <?php if ($signature): ?>
       <div class="clearfix">

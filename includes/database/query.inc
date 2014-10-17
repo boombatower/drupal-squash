@@ -548,6 +548,15 @@ class InsertQuery extends Query {
  * General class for an abstracted MERGE operation.
  */
 class MergeQuery extends Query {
+  /**
+   * Returned by execute() if an INSERT query has been executed.
+   */
+  const STATUS_INSERT = 1;
+
+  /**
+   * Returned by execute() if an UPDATE query has been executed.
+   */
+  const STATUS_UPDATE = 2;
 
   /**
    * The table on which to insert.
@@ -761,6 +770,14 @@ class MergeQuery extends Query {
     return TRUE;
   }
 
+  /**
+   * Run the MERGE query against the database.
+   *
+   * @return
+   *   A status indicating the executed operation:
+   *   - MergeQuery::STATUS_INSERT for an INSERT operation.
+   *   - MergeQuery::STATUS_UPDATE for an UPDATE operation.
+   */
   public function execute() {
     // If validation fails, simply return NULL.
     // Note that validation routines in preExecute() may throw exceptions instead.
@@ -813,12 +830,14 @@ class MergeQuery extends Query {
           $update->expression($field, $expression['expression'], $expression['arguments']);
         }
         $update->execute();
+        return MergeQuery::STATUS_UPDATE;
       }
     }
     else {
       // If there is no existing record, run an insert query.
       $insert_fields = $this->insertFields + $this->keyFields;
       $this->connection->insert($this->table, $this->queryOptions)->fields($insert_fields)->execute();
+      return MergeQuery::STATUS_INSERT;
     }
 
     // Transaction commits here where $transaction looses scope.
@@ -1302,12 +1321,26 @@ class DatabaseCondition implements QueryConditionInterface, Countable {
       'BETWEEN' => array('delimiter' => ' AND '),
       'IN' => array('delimiter' => ', ', 'prefix' => ' (', 'postfix' => ')'),
       'NOT IN' => array('delimiter' => ', ', 'prefix' => ' (', 'postfix' => ')'),
-      'LIKE' => array('operator' => 'LIKE'),
       'IS NULL' => array('use_value' => FALSE),
       'IS NOT NULL' => array('use_value' => FALSE),
+      // These ones are here for performance reasons.
+      '=' => array(),
+      '<' => array(),
+      '>' => array(),
+      '>=' => array(),
+      '<=' => array(),
+      'LIKE' => array(),
     );
+    if (isset($specials[$operator])) {
+      $return = $specials[$operator];
+    }
+    else {
+      // We need to upper case because PHP index matches are case sensitive but
+      // do not need the more expensive drupal_strtoupper because SQL statements are ASCII.
+      $operator = strtoupper($operator);
+      $return = isset($specials[$operator]) ? $specials[$operator] : array();
+    }
 
-    $return = isset($specials[$operator]) ? $specials[$operator] : array();
     $return += array('operator' => $operator);
 
     return $return;

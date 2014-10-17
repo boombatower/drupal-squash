@@ -24,6 +24,11 @@
  * are affected.
  */
 function field_info_cache_clear() {
+  // @todo: Remove this when field_attach_*_bundle() bundle management
+  // functions are moved to the entity API.
+  drupal_static_reset('entity_get_info');
+  cache_clear_all('entity_info', 'cache');
+
   _field_info_collate_types(TRUE);
   drupal_static_reset('field_build_modes');
   _field_info_collate_fields(TRUE);
@@ -53,12 +58,6 @@ function field_info_cache_clear() {
  * formatter_type.
  *   * label, field types, behaviors: from hook_field_formatter_info()
  *   * module: module that exposes the formatter type
-
- * fieldable types: array of hook_entity_info() results, keyed by entity_type.
- *   * name, id key, revision key, bundle key, cacheable, bundles: from
- *     hook_entity_info()
- *   * module: module that exposes the entity type
- * @TODO use entity_get_info().
  */
 function _field_info_collate_types($reset = FALSE) {
   static $info;
@@ -78,7 +77,7 @@ function _field_info_collate_types($reset = FALSE) {
         'field types' => array(),
         'widget types' => array(),
         'formatter types' => array(),
-        'fieldable types' => array(),
+        'storage types' => array(),
       );
 
       // Populate field types.
@@ -110,7 +109,7 @@ function _field_info_collate_types($reset = FALSE) {
       }
       drupal_alter('field_widget_info', $info['widget types']);
 
-      // Populate formatters.
+      // Populate formatter types.
       foreach (module_implements('field_formatter_info') as $module) {
         $formatter_types = (array) module_invoke($module, 'field_formatter_info');
         foreach ($formatter_types as $name => $formatter_info) {
@@ -124,33 +123,19 @@ function _field_info_collate_types($reset = FALSE) {
       }
       drupal_alter('field_formatter_info', $info['formatter types']);
 
-      // Populate information about 'fieldable' entities.
-      foreach (module_implements('entity_info') as $module) {
-        $entities = (array) module_invoke($module, 'entity_info');
-        foreach ($entities as $name => $entity_info) {
-          if (!empty($entity_info['fieldable'])) {
-            // Provide defaults.
-            $entity_info += array(
-              'cacheable' => TRUE,
-              'translation_handlers' => array(),
-              'bundles' => array(),
-            );
-            $entity_info['object keys'] += array(
-              'revision' => '',
-              'bundle' => '',
-            );
-            // If no bundle key provided, then we assume a single bundle, named
-            // after the type of the object. Make sure the bundle created
-            // has the human-readable name we need for bundle messages.
-            if (empty($entity_info['object keys']['bundle']) && empty($entity_info['bundles'])) {
-              $entity_info['bundles'] = array($name => array('label' => $entity_info['label']));
-            }
-            $info['fieldable types'][$name] = $entity_info;
-            $info['fieldable types'][$name]['module'] = $module;
-          }
+      // Populate storage types.
+      foreach (module_implements('field_storage_info') as $module) {
+        $storage_types = (array) module_invoke($module, 'field_storage_info');
+        foreach ($storage_types as $name => $storage_info) {
+          // Provide defaults.
+          $storage_info += array(
+            'settings' => array(),
+          );
+          $info['storage types'][$name] = $storage_info;
+          $info['storage types'][$name]['module'] = $module;
         }
       }
-      drupal_alter('entity_info', $info['fieldable types']);
+      drupal_alter('field_storage_info', $info['storage types']);
 
       cache_set('field_info_types', $info, 'cache_field');
     }
@@ -175,8 +160,8 @@ function _field_info_collate_types($reset = FALSE) {
  *   - fields_id: Array of existing fields, keyed by field id. This entry lists
  *     both deleted and non-deleted fields. The bundles element is the same as
  *     for 'fields'.
- *   - instances: Array of existing instances, keyed by bundle name and field
- *     name. This entry only lists non-deleted instances.
+ *   - instances: Array of existing instances, keyed by object type, bundle
+ *     name and field name. This entry only lists non-deleted instances.
  */
 function _field_info_collate_fields($reset = FALSE) {
   static $info;
@@ -215,19 +200,26 @@ function _field_info_collate_fields($reset = FALSE) {
 
     // Populate 'instances'. Only non-deleted instances are considered.
     $info['instances'] = array();
-    foreach (field_info_bundles() as $bundle => $bundle_info) {
-      $info['instances'][$bundle] = array();
+    foreach (field_info_bundles() as $obj_type => $bundles) {
+      foreach ($bundles as $bundle => $bundle_info) {
+        $info['instances'][$obj_type][$bundle] = array();
+      }
     }
     foreach ($definitions['instances'] as $instance) {
       $field = $info['fields'][$instance['field_name']];
       $instance = _field_info_prepare_instance($instance, $field);
-      $info['instances'][$instance['bundle']][$instance['field_name']] = $instance;
+      $info['instances'][$instance['object_type']][$instance['bundle']][$instance['field_name']] = $instance;
       // Enrich field definitions with the list of bundles where they have
       // instances. NOTE: Deleted fields in $info['field_ids'] are not
       // enriched because all of their instances are deleted, too, and
       // are thus not in $definitions['instances'].
-      $info['fields'][$instance['field_name']]['bundles'][] = $instance['bundle'];
-      $info['field_ids'][$instance['field_id']]['bundles'][] = $instance['bundle'];
+      $info['fields'][$instance['field_name']]['bundles'][$instance['object_type']][] = $instance['bundle'];
+      $info['field_ids'][$instance['field_id']]['bundles'][$instance['object_type']][] = $instance['bundle'];
+
+      // Add storage details.
+      $details = (array) module_invoke($field['storage']['module'], 'field_storage_details', $field, $instance);
+      drupal_alter('field_storage_details', $details, $field, $instance);
+      $info['instances'][$instance['object_type']][$instance['bundle']][$instance['field_name']]['storage_details'] = $details;
     }
   }
 
@@ -246,6 +238,7 @@ function _field_info_collate_fields($reset = FALSE) {
 function _field_info_prepare_field($field) {
   // Make sure all expected field settings are present.
   $field['settings'] += field_info_field_settings($field['type']);
+  $field['storage']['settings'] += field_info_storage_settings($field['storage']['type']);
 
   return $field;
 }
@@ -292,8 +285,7 @@ function _field_info_prepare_instance($instance, $field) {
   }
 
   // Fallback to 'full' display settings for unspecified build modes.
-  $obj_type = field_info_bundle_entity($instance['bundle']);
-  foreach (field_build_modes($obj_type) as $build_mode => $label) {
+  foreach (field_build_modes($instance['object_type']) as $build_mode => $label) {
     if (!isset($instance['display'][$build_mode])) {
       $instance['display'][$build_mode] = $instance['display']['full'];
     }
@@ -371,8 +363,8 @@ function field_info_field_types($field_type = NULL) {
  *   returned.
  * @return
  *   Either a widget type description, as provided by
- *   hook_field_widget_info(), or an array of all existing widget
- *   types, keyed by widget type name.
+ *   hook_field_widget_info(), or an array of all existing widget types, keyed
+ *   by widget type name.
  */
 function field_info_widget_types($widget_type = NULL) {
   $info = _field_info_collate_types();
@@ -394,8 +386,9 @@ function field_info_widget_types($widget_type = NULL) {
  *   (optional) A formatter type name. If ommitted, all formatter types will be
  *   returned.
  * @return
- *   Either a formatter type description, as provided by hook_field_formatter_info(),
- *   or an array of all existing widget types, keyed by widget type name.
+ *   Either a formatter type description, as provided by
+ *   hook_field_formatter_info(), or an array of all existing formatter types,
+ *   keyed by formatter type name.
  */
 function field_info_formatter_types($formatter_type = NULL) {
   $info = _field_info_collate_types();
@@ -411,69 +404,98 @@ function field_info_formatter_types($formatter_type = NULL) {
 }
 
 /**
- * Return hook_fieldable_info() data.
+ * Return hook_field_storage_info() data.
  *
- * @param $obj_type
- *   (optional) A fieldable type name. If ommitted, all fieldable types will be
+ * @param $storage_type
+ *   (optional) A storage type name. If ommitted, all storage types will be
  *   returned.
  * @return
- *   Either a fieldable type description, as provided by hook_fieldable_info(),
- *   or an array of all existing fieldable types, keyed by fieldable type name.
+ *   Either a storage type description, as provided by
+ *   hook_field_storage_info(), or an array of all existing storage types,
+ *   keyed by storage type name.
  */
-function field_info_fieldable_types($obj_type = NULL) {
+function field_info_storage_types($storage_type = NULL) {
   $info = _field_info_collate_types();
-  $fieldable_types = $info['fieldable types'];
-  if ($obj_type) {
-    if (isset($fieldable_types[$obj_type])) {
-      return $fieldable_types[$obj_type];
+  $storage_types = $info['storage types'];
+  if ($storage_type) {
+    if (isset($storage_types[$storage_type])) {
+      return $storage_types[$storage_type];
     }
   }
   else {
-    return $fieldable_types;
+    return $storage_types;
   }
 }
 
 /**
- * Return an array of fieldable bundle names and labels, for an individual
- * object type or for all object types.
+ * Return information about existing bundles.
+ *
+ * @param $obj_type
+ *   The type of object; e.g. 'node' or 'user'.
+ * @return
+ *   An array of bundles for the $obj_type keyed by bundle name,
+ *   or, if no $obj_type was provided, the array of all existing bundles,
+ *   keyed by object type.
  */
 function field_info_bundles($obj_type = NULL) {
-  $info = _field_info_collate_types();
+  $info = entity_get_info();
+
+  if ($obj_type) {
+    return isset($info[$obj_type]['bundles']) ? $info[$obj_type]['bundles'] : array();
+  }
+
   $bundles = array();
-  foreach ($info['fieldable types'] as $type => $fieldable_info) {
-    if (empty($obj_type) || $obj_type == $type) {
-      $bundles += $fieldable_info['bundles'];
-    }
+  foreach ($info as $type => $entity_info) {
+    $bundles[$type] = $entity_info['bundles'];
   }
   return $bundles;
 }
 
 /**
- * Identify the type of entity that created a bundle.
- * // TODO : might not be needed depending on how we solve
- * // the 'namespace bundle names' issue
- */
-function field_info_bundle_entity($bundle) {
-  $info = _field_info_collate_types();
-  foreach ($info['fieldable types'] as $type => $fieldable_info) {
-    if (isset($fieldable_info['bundles'][$bundle])) {
-      return $type;
-    }
-  }
-  return FALSE;
-}
-
-/**
  * Return array of all field data, keyed by field name.
  *
+ * @param $bundle_type
+ *   (optional) The bundle type on which to filter the list of fields. In the
+ *   case of nodes, this is the node type.
+ * @param $field
+ *   (optional) A field array or name on which to filter the list.
+ * @param $field_type
+ *   (optional) A field type on which to filter the list.
  * @return
  *   An array of Field objects. Each Field object has an additional
  *   property, bundles, which is an array of all the bundles to which
  *   this field belongs.
  */
-function field_info_fields() {
-  $info = _field_info_collate_fields();
-  return $info['fields'];
+function field_info_fields($bundle_type = NULL, $field = NULL, $field_type = NULL) {
+  // Build the list of fields to be used for retrieval.
+  if (isset($field)) {
+    if (is_string($field)) {
+      $field = field_info_field($field);
+    }
+    $fields = array($field['field_name'] => $field);
+  }
+  elseif (isset($bundle_type)) {
+    $instances = field_info_instances($bundle_type);
+    $fields = array();
+    foreach ($instances as $field_name => $instance) {
+      $fields[$field_name] = field_info_field($field_name);
+    }
+  }
+  else {
+    $info = _field_info_collate_fields();
+    $fields = $info['fields'];
+  }
+
+  // If a field type was given, filter the list down to fields of that type.
+  if (isset($field_type)) {
+    foreach ($fields as $key => $field) {
+      if ($field['type'] != $field_type) {
+        unset($fields[$key]);
+      }
+    }
+  }
+
+  return $fields;
 }
 
 /**
@@ -513,30 +535,46 @@ function field_info_field_by_id($field_id) {
 }
 
 /**
- * Return an array of instance data for a given bundle,
- * or for all known bundles, keyed by bundle name and field name.
+ * Retrieve instances.
  *
+ * @param $obj_type
+ *   The object type for which to return instances.
  * @param $bundle_name
- *   If set, return information on just this bundle.
+ *   The bundle name for which to return instances.
+ * @return
+ *   If $obj_type is not set, return all instances keyed by object type and
+ *   bundle name. If $obj_type is set, return all instances for that object
+ *   type, keyed by bundle name. If $obj_type and $bundle_name are set, return
+ *   all instances for that bundle.
  */
-function field_info_instances($bundle_name = NULL) {
+function field_info_instances($obj_type = NULL, $bundle_name = NULL) {
   $info = _field_info_collate_fields();
-  if (!isset($bundle_name)) {
+  if (!isset($obj_type)) {
     return $info['instances'];
   }
-  if (isset($info['instances'][$bundle_name])) {
-    return $info['instances'][$bundle_name];
+  if (!isset($bundle_name)) {
+    return $info['instances'][$obj_type];
+  }
+  if (isset($info['instances'][$obj_type][$bundle_name])) {
+    return $info['instances'][$obj_type][$bundle_name];
   }
   return array();
 }
 
 /**
  * Return an array of instance data for a specific field and bundle.
+ *
+ * @param $obj_type
+ *   The object type for the instance.
+ * @param $field_name
+ *   The field name for the instance.
+ * @param $bundle_name
+ *   The bundle name for the instance.
  */
-function field_info_instance($field_name, $bundle_name) {
+function field_info_instance($obj_type, $field_name, $bundle_name) {
   $info = _field_info_collate_fields();
-  if (isset($info['instances'][$bundle_name][$field_name])) {
-    return $info['instances'][$bundle_name][$field_name];
+  if (isset($info['instances'][$obj_type][$bundle_name][$field_name])) {
+    return $info['instances'][$obj_type][$bundle_name][$field_name];
   }
 }
 
@@ -574,8 +612,8 @@ function field_info_instance_settings($type) {
  * @param $type
  *   A widget type name.
  * @return
- *   The field type's default settings, as provided by hook_field_info(), or an
- *   empty array.
+ *   The widget type's default settings, as provided by
+ *   hook_field_widget_info(), or an empty array.
  */
 function field_info_widget_settings($type) {
   $info = field_info_widget_types($type);
@@ -588,11 +626,25 @@ function field_info_widget_settings($type) {
  * @param $type
  *   A field formatter type name.
  * @return
- *   The field formatter's default settings, as provided by
- *   hook_field_info(), or an empty array.
+ *   The formatter type's default settings, as provided by
+ *   hook_field_formatter_info(), or an empty array.
  */
 function field_info_formatter_settings($type) {
   $info = field_info_formatter_types($type);
+  return isset($info['settings']) ? $info['settings'] : array();
+}
+
+/**
+ * Return a field formatter's default settings.
+ *
+ * @param $type
+ *   A field storage type name.
+ * @return
+ *   The storage type's default settings, as provided by
+ *   hook_field_storage_info(), or an empty array.
+ */
+function field_info_storage_settings($type) {
+  $info = field_info_storage_types($type);
   return isset($info['settings']) ? $info['settings'] : array();
 }
 

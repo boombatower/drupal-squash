@@ -4,16 +4,19 @@
 /**
  * Override or insert variables into the page template.
  */
+function seven_process_html(&$vars) {
+  $vars['ie_styles'] = '<!--[if lt IE 7]><style type="text/css" media="screen">@import ' . path_to_theme() . '/ie6.css";</style><![endif]-->';
+}
 function seven_preprocess_page(&$vars) {
   $vars['primary_local_tasks'] = menu_primary_local_tasks();
   $vars['secondary_local_tasks'] = menu_secondary_local_tasks();
-  $vars['ie_styles'] = '<!--[if lt IE 7]><style type="text/css" media="screen">@import ' . path_to_theme() . '/ie6.css";</style><![endif]-->';
 }
 
 /**
  * Display the list of available node types for node creation.
  */
-function seven_node_add_list($content) {
+function seven_node_add_list($variables) {
+  $content = $variables['content'];
   $output = '';
   if ($content) {
     $output = '<ul class="node-type-list">';
@@ -33,7 +36,8 @@ function seven_node_add_list($content) {
  *
  * Use unordered list markup in both compact and extended move.
  */
-function seven_admin_block_content($content) {
+function seven_admin_block_content($variables) {
+  $content = $variables['content'];
   $output = '';
   if (!empty($content)) {
     $output = system_admin_compact_mode() ? '<ul class="admin-list compact">' : '<ul class="admin-list">';
@@ -55,13 +59,14 @@ function seven_admin_block_content($content) {
  *
  * Use our own image versions, so they show up as black and not gray on gray.
  */
-function seven_tablesort_indicator($style) {
+function seven_tablesort_indicator($variables) {
+  $style = $variables['style'];
   $theme_path = drupal_get_path('theme', 'seven');
   if ($style == "asc") {
-    return theme('image', $theme_path . '/images/arrow-asc.png', t('sort icon'), t('sort ascending'));
+    return theme('image', array('path' => $theme_path . '/images/arrow-asc.png', 'alt' => t('sort ascending'), 'title' => t('sort ascending')));
   }
   else {
-    return theme('image', $theme_path . '/images/arrow-desc.png', t('sort icon'), t('sort descending'));
+    return theme('image', array('path' => $theme_path . '/images/arrow-desc.png', 'alt' => t('sort descending'), 'title' => t('sort descending')));
   }
 }
 
@@ -70,20 +75,7 @@ function seven_tablesort_indicator($style) {
  *
  * Add span to legend tag, so we can style it to be inside the fieldset.
  */
-function seven_fieldset($element) {
-  if (!empty($element['#collapsible'])) {
-    drupal_add_js('misc/collapse.js');
-
-    if (!isset($element['#attributes']['class'])) {
-      $element['#attributes']['class'] = array();
-    }
-
-    $element['#attributes']['class'][] = 'collapsible';
-    if (!empty($element['#collapsed'])) {
-      $element['#attributes']['class'][] = 'collapsed';
-    }
-  }
-  $element['#attributes']['id'] = $element['#id'];
-
+function seven_fieldset($variables) {
+  $element = $variables['element'];
   return '<fieldset' . drupal_attributes($element['#attributes']) . '>' . ($element['#title'] ? '<legend><span>' . $element['#title'] . '</span></legend>' : '') . (isset($element['#description']) && $element['#description'] ? '<div class="fieldset-description">' . $element['#description'] . '</div>' : '') . (!empty($element['#children']) ? $element['#children'] : '') . (isset($element['#value']) ? $element['#value'] : '') . "</fieldset>\n";
 }

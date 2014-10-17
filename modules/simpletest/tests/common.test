@@ -2,14 +2,66 @@
 // $Id$
 
 /**
- * Tests for the l() function.
+ * @file
+ * Tests for common.inc functionality.
  */
-class CommonLUnitTest extends DrupalUnitTestCase {
 
+/**
+ * Tests for URL generation functions.
+ */
+class DrupalAlterTestCase extends DrupalWebTestCase {
+  public static function getInfo() {
+    return array(
+      'name' => 'drupal_alter() tests',
+      'description' => 'Confirm that alteration of arguments passed to drupal_alter() works correctly.',
+      'group' => 'System',
+    );
+  }
+
+  function setUp() {
+    parent::setUp('common_test');
+  }
+
+  function testDrupalAlter() {
+    $array = array('foo' => 'bar');
+    $object = new stdClass;
+    $object->foo = 'bar';
+
+    // Verify alteration of a single argument.
+    $array_copy = $array;
+    $array_expected = array('foo' => 'Drupal theme');
+    drupal_alter('drupal_alter', $array_copy);
+    $this->assertEqual($array_copy, $array_expected, t('Single array was altered.'));
+
+    $object_copy = clone $object;
+    $object_expected = clone $object;
+    $object_expected->foo = 'Drupal theme';
+    drupal_alter('drupal_alter', $object_copy);
+    $this->assertEqual($object_copy, $object_expected, t('Single object was altered.'));
+
+    // Verify alteration of multiple arguments.
+    $array_copy = $array;
+    $array_expected = array('foo' => 'Drupal theme');
+    $object_copy = clone $object;
+    $object_expected = clone $object;
+    $object_expected->foo = 'Drupal theme';
+    $array2_copy = $array;
+    $array2_expected = array('foo' => 'Drupal theme');
+    drupal_alter('drupal_alter', $array_copy, $object_copy, $array2_copy);
+    $this->assertEqual($array_copy, $array_expected, t('First argument to drupal_alter() was altered.'));
+    $this->assertEqual($object_copy, $object_expected, t('Second argument to drupal_alter() was altered.'));
+    $this->assertEqual($array2_copy, $array2_expected, t('Third argument to drupal_alter() was altered.'));
+  }
+}
+
+/**
+ * Tests for URL generation functions.
+ */
+class CommonURLUnitTest extends DrupalUnitTestCase {
   public static function getInfo() {
     return array(
       'name' => 'URL generation tests',
-      'description' => 'Confirm that url(), drupal_query_string_encode(), and l() work correctly with various input.',
+      'description' => 'Confirm that url(), drupal_get_query_parameters(), drupal_http_build_query(), and l() work correctly with various input.',
       'group' => 'System',
     );
   }
@@ -18,55 +70,280 @@ class CommonLUnitTest extends DrupalUnitTestCase {
    * Confirm that invalid text given as $path is filtered.
    */
   function testLXSS() {
+    global $conf;
     $text = $this->randomName();
     $path = "<SCRIPT>alert('XSS')</SCRIPT>";
+    // Regardless of whether there is a theme override of theme_link() or not,
+    // unless the 'theme_link' configuration variable is FALSE, l() will
+    // attempt to initialize the theme system in order to determine if
+    // the link needs to be themed. However, drupal_theme_initialize() requires
+    // a database query, which doesn't work in the context of unit tests,
+    // because simpletest sets up a table prefix, but doesn't generate the
+    // corresponding prefixed tables. We need to either circumvent theme system
+    // initialization, or make CommonURLUnitTest inherit from DrupalWebTestCase.
+    // Since our goal in this unit test is specifically to test the default
+    // implementation, we choose the former.
+    $theme_link_saved = isset($conf['theme_link']) ? $conf['theme_link'] : NULL;
+    $conf['theme_link'] = FALSE;
     $link = l($text, $path);
+    $conf['theme_link'] = $theme_link_saved;
     $sanitized_path = check_url(url($path));
     $this->assertTrue(strpos($link, $sanitized_path) !== FALSE, t('XSS attack @path was filtered', array('@path' => $path)));
   }
 
   /**
-    * Test drupal_query_string_encode().
-    */
-   function testDrupalQueryStringEncode() {
-     $this->assertEqual(drupal_query_string_encode(array('a' => ' &#//+%20@۞')), 'a=%20%26%23%2F%2F%2B%2520%40%DB%9E', t('Value was properly encoded.'));
-     $this->assertEqual(drupal_query_string_encode(array(' &#//+%20@۞' => 'a')), '%20%26%23%2F%2F%2B%2520%40%DB%9E=a', t('Key was properly encoded.'));
-     $this->assertEqual(drupal_query_string_encode(array('a' => '1', 'b' => '2', 'c' => '3'), array('b')), 'a=1&c=3', t('Value was properly excluded.'));
-     $this->assertEqual(drupal_query_string_encode(array('a' => array('b' => '2', 'c' => '3')), array('b', 'a[c]')), 'a[b]=2', t('Nested array was properly encoded.'));
-   }
-   
+   * Test drupal_get_query_parameters().
+   */
+  function testDrupalGetQueryParameters() {
+    $original = array(
+      'a' => 1,
+      'b' => array(
+        'd' => 4,
+        'e' => array(
+          'f' => 5,
+        ),
+      ),
+      'c' => 3,
+      'q' => 'foo/bar',
+    );
+
+    // Default arguments.
+    $result = $_GET;
+    unset($result['q']);
+    $this->assertEqual(drupal_get_query_parameters(), $result, t("\$_GET['q'] was removed."));
+
+    // Default exclusion.
+    $result = $original;
+    unset($result['q']);
+    $this->assertEqual(drupal_get_query_parameters($original), $result, t("'q' was removed."));
+
+    // First-level exclusion.
+    $result = $original;
+    unset($result['b']);
+    $this->assertEqual(drupal_get_query_parameters($original, array('b')), $result, t("'b' was removed."));
+
+    // Second-level exclusion.
+    $result = $original;
+    unset($result['b']['d']);
+    $this->assertEqual(drupal_get_query_parameters($original, array('b[d]')), $result, t("'b[d]' was removed."));
+
+    // Third-level exclusion.
+    $result = $original;
+    unset($result['b']['e']['f']);
+    $this->assertEqual(drupal_get_query_parameters($original, array('b[e][f]')), $result, t("'b[e][f]' was removed."));
+
+    // Multiple exclusions.
+    $result = $original;
+    unset($result['a'], $result['b']['e'], $result['c']);
+    $this->assertEqual(drupal_get_query_parameters($original, array('a', 'b[e]', 'c')), $result, t("'a', 'b[e]', 'c' were removed."));
+  }
+
+  /**
+   * Test drupal_http_build_query().
+   */
+  function testDrupalHttpBuildQuery() {
+    $this->assertEqual(drupal_http_build_query(array('a' => ' &#//+%20@۞')), 'a=%20%26%23//%2B%2520%40%DB%9E', t('Value was properly encoded.'));
+    $this->assertEqual(drupal_http_build_query(array(' &#//+%20@۞' => 'a')), '%20%26%23%2F%2F%2B%2520%40%DB%9E=a', t('Key was properly encoded.'));
+    $this->assertEqual(drupal_http_build_query(array('a' => '1', 'b' => '2', 'c' => '3')), 'a=1&b=2&c=3', t('Multiple values were properly concatenated.'));
+    $this->assertEqual(drupal_http_build_query(array('a' => array('b' => '2', 'c' => '3'), 'd' => 'foo')), 'a[b]=2&a[c]=3&d=foo', t('Nested array was properly encoded.'));
+  }
+
+  /**
+   * Test drupal_parse_url().
+   */
+  function testDrupalParseUrl() {
+    // Relative URL.
+    $url = 'foo/bar?foo=bar&bar=baz&baz#foo';
+    $result = array(
+      'path' => 'foo/bar',
+      'query' => array('foo' => 'bar', 'bar' => 'baz', 'baz' => ''),
+      'fragment' => 'foo',
+    );
+    $this->assertEqual(drupal_parse_url($url), $result, t('Relative URL parsed correctly.'));
+
+    // Relative URL that is known to confuse parse_url().
+    $url = 'foo/bar:1';
+    $result = array(
+      'path' => 'foo/bar:1',
+      'query' => array(),
+      'fragment' => '',
+    );
+    $this->assertEqual(drupal_parse_url($url), $result, t('Relative URL parsed correctly.'));
+
+    // Absolute URL.
+    $url = '/foo/bar?foo=bar&bar=baz&baz#foo';
+    $result = array(
+      'path' => '/foo/bar',
+      'query' => array('foo' => 'bar', 'bar' => 'baz', 'baz' => ''),
+      'fragment' => 'foo',
+    );
+    $this->assertEqual(drupal_parse_url($url), $result, t('Absolute URL parsed correctly.'));
+
+    // External URL.
+    $url = 'http://drupal.org/foo/bar?foo=bar&bar=baz&baz#foo';
+    $result = array(
+      'path' => 'http://drupal.org/foo/bar',
+      'query' => array('foo' => 'bar', 'bar' => 'baz', 'baz' => ''),
+      'fragment' => 'foo',
+    );
+    $this->assertEqual(drupal_parse_url($url), $result, t('External URL parsed correctly.'));
+
+    // Verify proper parsing of URLs when clean URLs are disabled.
+    $result = array(
+      'path' => 'foo/bar',
+      'query' => array('bar' => 'baz'),
+      'fragment' => 'foo',
+    );
+    // Non-clean URLs #1: Absolute URL generated by url().
+    $url = $GLOBALS['base_url'] . '/?q=foo/bar&bar=baz#foo';
+    $this->assertEqual(drupal_parse_url($url), $result, t('Absolute URL with clean URLs disabled parsed correctly.'));
+
+    // Non-clean URLs #2: Relative URL generated by url().
+    $url = '?q=foo/bar&bar=baz#foo';
+    $this->assertEqual(drupal_parse_url($url), $result, t('Relative URL with clean URLs disabled parsed correctly.'));
+
+    // Non-clean URLs #3: URL generated by url() on non-Apache webserver.
+    $url = 'index.php?q=foo/bar&bar=baz#foo';
+    $this->assertEqual(drupal_parse_url($url), $result, t('Relative URL on non-Apache webserver with clean URLs disabled parsed correctly.'));
+  }
+
   /**
    * Test url() with/without query, with/without fragment, absolute on/off and
    * assert all that works when clean URLs are on and off.
    */
   function testUrl() {
     global $base_url;
-    
+
     foreach (array(FALSE, TRUE) as $absolute) {
       // Get the expected start of the path string.
       $base = $absolute ? $base_url . '/' : base_path();
       $absolute_string = $absolute ? 'absolute' : NULL;
-      
-      // Run tests with clean urls disabled.
+
+      // Disable Clean URLs.
       $GLOBALS['conf']['clean_url'] = 0;
-      $clean_urls = 'disabled';
-      
-      $this->assertTrue(url('node', array('absolute' => $absolute)) == $base . '?q=node', t('Creation of @absolute internal url with clean urls @clean_urls.', array('@absolute' => $absolute_string, '@clean_urls' => $clean_urls)));
-      $this->assertTrue(url('node', array('fragment' => 'foo', 'absolute' => $absolute)) == $base . '?q=node#foo', t('Creation of @absolute internal url with fragment option with clean urls @clean_urls.', array('@absolute' => $absolute_string, '@clean_urls' => $clean_urls)));
-      $this->assertTrue(url('node', array('query' => 'foo', 'absolute' => $absolute)) == $base . '?q=node&foo', t('Creation of @absolute internal url with query option with clean urls @clean_urls.', array('@absolute' => $absolute_string, '@clean_urls' => $clean_urls)));
-      $this->assertTrue(url('node', array('query' => 'foo', 'fragment' => 'bar', 'absolute' => $absolute)) == $base . '?q=node&foo#bar', t('Creation of @absolute internal url with query and fragment option with clean urls @clean_urls.', array('@absolute' => $absolute_string, '@clean_urls' => $clean_urls)));
-      $this->assertTrue(url('<front>', array('absolute' => $absolute)) == $base, t('Creation of @absolute internal url using front with clean urls @clean_urls.', array('@absolute' => $absolute_string, '@clean_urls' => $clean_urls)));
-  
-      // Run tests again with clean urls enabled.
+
+      $url = $base . '?q=node/123';
+      $result = url('node/123', array('absolute' => $absolute));
+      $this->assertEqual($url, $result, "$url == $result");
+
+      $url = $base . '?q=node/123#foo';
+      $result = url('node/123', array('fragment' => 'foo', 'absolute' => $absolute));
+      $this->assertEqual($url, $result, "$url == $result");
+
+      $url = $base . '?q=node/123&foo';
+      $result = url('node/123', array('query' => array('foo' => NULL), 'absolute' => $absolute));
+      $this->assertEqual($url, $result, "$url == $result");
+
+      $url = $base . '?q=node/123&foo=bar&bar=baz';
+      $result = url('node/123', array('query' => array('foo' => 'bar', 'bar' => 'baz'), 'absolute' => $absolute));
+      $this->assertEqual($url, $result, "$url == $result");
+
+      $url = $base . '?q=node/123&foo#bar';
+      $result = url('node/123', array('query' => array('foo' => NULL), 'fragment' => 'bar', 'absolute' => $absolute));
+      $this->assertEqual($url, $result, "$url == $result");
+
+      $url = $base;
+      $result = url('<front>', array('absolute' => $absolute));
+      $this->assertEqual($url, $result, "$url == $result");
+
+      // Enable Clean URLs.
       $GLOBALS['conf']['clean_url'] = 1;
-      $clean_urls = 'enabled';
-      
-      $this->assertTrue(url('node', array('absolute' => $absolute)) == $base . 'node', t('Creation of @absolute internal url with clean urls @clean_urls.', array('@absolute' => $absolute_string, '@clean_urls' => $clean_urls)));
-      $this->assertTrue(url('node', array('fragment' => 'foo', 'absolute' => $absolute)) == $base . 'node#foo', t('Creation of @absolute internal url with fragment option with clean urls @clean_urls.', array('@absolute' => $absolute_string, '@clean_urls' => $clean_urls)));
-      $this->assertTrue(url('node', array('query' => 'foo', 'absolute' => $absolute)) == $base . 'node?foo', t('Creation of @absolute internal url with query option with clean urls @clean_urls.', array('@absolute' => $absolute_string, '@clean_urls' => $clean_urls)));
-      $this->assertTrue(url('node', array('query' => 'foo', 'fragment' => 'bar', 'absolute' => $absolute)) == $base . 'node?foo#bar', t('Creation of @absolute internal url with query and fragment option with clean urls @clean_urls.', array('@absolute' => $absolute_string, '@clean_urls' => $clean_urls)));
-      $this->assertTrue(url('<front>', array('absolute' => $absolute)) == $base, t('Creation of @absolute internal url using front with clean urls @clean_urls', array('@absolute' => $absolute_string, '@clean_urls' => $clean_urls)));
+
+      $url = $base . 'node/123';
+      $result = url('node/123', array('absolute' => $absolute));
+      $this->assertEqual($url, $result, "$url == $result");
+
+      $url = $base . 'node/123#foo';
+      $result = url('node/123', array('fragment' => 'foo', 'absolute' => $absolute));
+      $this->assertEqual($url, $result, "$url == $result");
+
+      $url = $base . 'node/123?foo';
+      $result = url('node/123', array('query' => array('foo' => NULL), 'absolute' => $absolute));
+      $this->assertEqual($url, $result, "$url == $result");
+
+      $url = $base . 'node/123?foo=bar&bar=baz';
+      $result = url('node/123', array('query' => array('foo' => 'bar', 'bar' => 'baz'), 'absolute' => $absolute));
+      $this->assertEqual($url, $result, "$url == $result");
+
+      $url = $base . 'node/123?foo#bar';
+      $result = url('node/123', array('query' => array('foo' => NULL), 'fragment' => 'bar', 'absolute' => $absolute));
+      $this->assertEqual($url, $result, "$url == $result");
+
+      $url = $base;
+      $result = url('<front>', array('absolute' => $absolute));
+      $this->assertEqual($url, $result, "$url == $result");
     }
+  }
+
+  /**
+   * Test external URL handling.
+   */
+  function testExternalUrls() {
+    $test_url = 'http://drupal.org/';
+
+    // Verify external URL can contain a fragment.
+    $url = $test_url . '#drupal';
+    $result = url($url);
+    $this->assertEqual($url, $result, t('External URL with fragment works without a fragment in $options.'));
+
+    // Verify fragment can be overidden in an external URL.
+    $url = $test_url . '#drupal';
+    $fragment = $this->randomName(10);
+    $result = url($url, array('fragment' => $fragment));
+    $this->assertEqual($test_url . '#' . $fragment, $result, t('External URL fragment is overidden with a custom fragment in $options.'));
+
+    // Verify external URL can contain a query string.
+    $url = $test_url . '?drupal=awesome';
+    $result = url($url);
+    $this->assertEqual($url, $result, t('External URL with query string works without a query string in $options.'));
+
+    // Verify external URL can be extended with a query string.
+    $url = $test_url;
+    $query = array($this->randomName(5) => $this->randomName(5));
+    $result = url($url, array('query' => $query));
+    $this->assertEqual($url . '?' . http_build_query($query, '', '&'), $result, t('External URL can be extended with a query string in $options.'));
+
+    // Verify query string can be extended in an external URL.
+    $url = $test_url . '?drupal=awesome';
+    $query = array($this->randomName(5) => $this->randomName(5));
+    $result = url($url, array('query' => $query));
+    $this->assertEqual($url . '&' . http_build_query($query, '', '&'), $result, t('External URL query string can be extended with a custom query string in $options.'));
+  }
+}
+
+/**
+ * Tests for the check_plain() and filter_xss() functions.
+ */
+class CommonXssUnitTest extends DrupalUnitTestCase {
+
+  public static function getInfo() {
+    return array(
+      'name' => 'String filtering tests',
+      'description' => 'Confirm that check_plain() and filter_xss() work correctly, including invalid multi-byte sequences.',
+      'group' => 'System',
+    );
+  }
+
+  /**
+   * Check that invalid multi-byte sequences are rejected.
+   */
+  function testInvalidMultiByte() {
+     $text = check_plain("Foo\xC0barbaz");
+     $this->assertEqual($text, '', 'check_plain() rejects invalid sequence "Foo\xC0barbaz"');
+     $text = check_plain("Fooÿñ");
+     $this->assertEqual($text, "Fooÿñ", 'check_plain() accepts valid sequence "Fooÿñ"');
+     $text = filter_xss("Foo\xC0barbaz");
+     $this->assertEqual($text, '', 'filter_xss() rejects invalid sequence "Foo\xC0barbaz"');
+     $text = filter_xss("Fooÿñ");
+     $this->assertEqual($text, "Fooÿñ", 'filter_xss() accepts valid sequence Fooÿñ');
+  }
+
+  /**
+   * Check that special characters are escaped.
+   */
+  function testEscaping() {
+     $text = check_plain("<script>");
+     $this->assertEqual($text, '&lt;script&gt;', 'check_plain() escapes &lt;script&gt;');
   }
 }
 
@@ -225,54 +502,6 @@ class DrupalTagsHandlingTestCase extends DrupalWebTestCase {
 }
 
 /**
- * Tests url().
- */
-class UrlTestCase extends DrupalWebtestCase {
-
-  public static function getInfo() {
-    return array(
-      'name' => 'Tests for the url() function',
-      'description' => 'Performs tests on the url() function.',
-      'group' => 'System',
-    );
-  }
-
-  /**
-   * Test the url() function's $options array.
-   *
-   * Assert that calling url() with an external URL
-   *   1. containing a fragment works with and without a fragment in $options.
-   *   2. containing or not containing a query works with a query in $options.
-   */
-  function testUrlOptions() {
-    // Testing the fragment handling.
-    $fragment = $this->randomName(10);
-    $test_url = 'http://www.drupal.org/#' . $fragment;
-
-    $result_url = url($test_url);
-    $this->assertEqual($test_url, $result_url, t("External URL containing a fragment works without a fragment in options. url('http://drupal.org/#frag1');"));
-
-    $result_url = url($test_url, array('fragment' => $fragment));
-    $this->assertEqual($test_url, $result_url, t("External URL containing a fragment works with a fragment in options. url('http://drupal.org/#frag1', array('fragment' => 'frag1'));"));
-
-    // Testing the query handling.
-    $query = $this->randomName(10);
-    $query2 = $this->randomName(10);
-    $test_url = 'http://www.drupal.org/?' . $query;
-
-    // The external URL contains a query.
-    $result_url = url($test_url, array('query' => $query2));
-    $this->assertEqual($test_url . '&' . $query2, $result_url, t("External URL with a query passed in the path paramater. url('http://drupal.org/?param1', array('query' => 'param2'));"));
-
-    // The external URL does not contain a query.
-    $test_url = 'http://www.drupal.org';
-    $result_url = url($test_url, array('query' => $query2));
-    $this->assertEqual($test_url . '?' . $query2, $result_url, t("External URL without a query passed in the path paramater. url('http://drupal.org', array('query' => 'param2'));"));
-  }
-
-}
-
-/**
  * Test the Drupal CSS system.
  */
 class CascadingStylesheetsTestCase extends DrupalWebTestCase {
@@ -351,7 +580,7 @@ class CascadingStylesheetsTestCase extends DrupalWebTestCase {
     $css_preprocessed = '<style type="text/css">' . drupal_load_stylesheet_content($css, TRUE) . '</style>';
     drupal_add_css($css, 'inline');
     $styles = drupal_get_css();
-    $this->assertEqual($styles, "\n" . $css_preprocessed, t('Rendering preprocessed inline CSS adds it to the page.'));
+    $this->assertEqual($styles, "\n" . $css_preprocessed . "\n", t('Rendering preprocessed inline CSS adds it to the page.'));
   }
 
   /**
@@ -374,7 +603,17 @@ class CascadingStylesheetsTestCase extends DrupalWebTestCase {
     // Create a node, using the PHP filter that tests drupal_add_css().
     $settings = array(
       'type' => 'page',
-      'body' => array(FIELD_LANGUAGE_NONE => array(array('value' => t('This tests the inline CSS!') . "<?php drupal_add_css('$css', 'inline'); ?>", 'format' => 3))), // PHP filter.
+      'body' => array(
+        FIELD_LANGUAGE_NONE => array(
+          array(
+            'value' => t('This tests the inline CSS!') . "<?php drupal_add_css('$css', 'inline'); ?>",
+            // The "PHP code" format is always the most recent one added, since
+            // the PHP module was enabled in the setUp() method of the current
+            // test.
+            'format' => db_query("SELECT MAX(format) FROM {filter_format}")->fetchField(),
+          ),
+        ),
+      ),
       'promote' => 1,
     );
     $node = $this->drupalCreateNode($settings);
@@ -455,6 +694,106 @@ class CascadingStylesheetsTestCase extends DrupalWebTestCase {
 }
 
 /**
+ * Test for cleaning HTML identifiers.
+ */
+class DrupalHTMLIdentifierTestCase extends DrupalUnitTestCase {
+  public static function getInfo() {
+    return array(
+      'name' => 'HTML identifiers',
+      'description' => 'Test the functions drupal_html_class(), drupal_html_id() and drupal_clean_css_identifier() for expected behavior',
+      'group' => 'System',
+    );
+  }
+
+  /**
+   * Tests that drupal_clean_css_identifier() cleans the identifier properly.
+   */
+  function testDrupalCleanCSSIdentifier() {
+    // Verify that no valid ASCII characters are stripped from the identifier.
+    $identifier = 'abcdefghijklmnopqrstuvwxyz_ABCDEFGHIJKLMNOPQRSTUVWXYZ-0123456789';
+    $this->assertIdentical(drupal_clean_css_identifier($identifier, array()), $identifier, t('Verify valid ASCII characters pass through.'));
+
+    // Verify that valid UTF-8 characters are not stripped from the identifier.
+    $identifier = '¡¢£¤¥';
+    $this->assertIdentical(drupal_clean_css_identifier($identifier, array()), $identifier, t('Verify valid UTF-8 characters pass through.'));
+
+    // Verify that invalid characters (including non-breaking space) are stripped from the identifier.
+    $this->assertIdentical(drupal_clean_css_identifier('invalid !"#$%&\'()*+,./:;<=>?@[\\]^`{|}~ identifier', array()), 'invalididentifier', t('Strip invalid characters.'));
+  }
+
+  /**
+   * Tests that drupal_html_class() cleans the class name properly.
+   */
+  function testDrupalHTMLClass() {
+    // Verify Drupal coding standards are enforced.
+    $this->assertIdentical(drupal_html_class('CLASS NAME_[Ü]'), 'class-name--ü', t('Enforce Drupal coding standards.'));
+  }
+
+  /**
+   * Tests that drupal_html_id() cleans the ID properly.
+   */
+  function testDrupalHTMLId() {
+    // Verify that letters, digits, and hyphens are not stripped from the ID.
+    $id = 'abcdefghijklmnopqrstuvwxyz-0123456789';
+    $this->assertIdentical(drupal_html_id($id), $id, t('Verify valid characters pass through.'));
+
+    // Verify that invalid characters are stripped from the ID.
+    $this->assertIdentical(drupal_html_id('invalid,./:@\\^`{Üidentifier'), 'invalididentifier', t('Strip invalid characters.'));
+
+    // Verify Drupal coding standards are enforced.
+    $this->assertIdentical(drupal_html_id('ID NAME_[1]'), 'id-name--1', t('Enforce Drupal coding standards.'));
+
+    // Reset the static cache so we can ensure the unique id count is at zero.
+    drupal_static_reset('drupal_html_id');
+
+    // Clean up IDs with invalid starting characters.
+    $this->assertIdentical(drupal_html_id('test-unique-id'), 'test-unique-id', t('Test the uniqueness of IDs #1.'));
+    $this->assertIdentical(drupal_html_id('test-unique-id'), 'test-unique-id-2', t('Test the uniqueness of IDs #2.'));
+    $this->assertIdentical(drupal_html_id('test-unique-id'), 'test-unique-id-3', t('Test the uniqueness of IDs #3.'));
+  }
+}
+
+/**
+ * CSS Unit Tests.
+ */
+class CascadingStylesheetsUnitTest extends DrupalUnitTestCase {
+  public static function getInfo() {
+    return array(
+      'name' => 'CSS Unit Tests',
+      'description' => 'Unit tests on CSS functions like aggregation.',
+      'group' => 'System',
+    );
+  }
+
+  /**
+   * Tests basic CSS loading with and without optimization via drupal_load_stylesheet().
+   *
+   * This can be enhanced by adding additional CSS files with variant test cases.
+   * Currently, this is specifically testing to make sure that whitespace
+   * is treated with adequate respect (not arbitrarily removing linefeeds).
+   */
+  function testLoadCssBasic() {
+    // Array of files to test living in 'simpletest/files/css_test_files/'.
+    // - Original: name.css
+    // - Unoptimized expected content: name.css.unoptimized.css
+    // - Optimized expected content: name.css.optimized.css
+    $testfiles = array(
+      'css_input_without_import.css',
+    );
+    $path = drupal_get_path('module', 'simpletest') . '/files/css_test_files';
+    foreach ($testfiles as $file) {
+      $expected = file_get_contents("$path/$file.unoptimized.css");
+      $unoptimized_output = drupal_load_stylesheet("$path/$file.unoptimized.css", FALSE);
+      $this->assertEqual($unoptimized_output, $expected, t('Unoptimized CSS file has expected contents (@file)', array('@file' => $file)));
+
+      $expected = file_get_contents("$path/$file.optimized.css");
+      $optimized_output = drupal_load_stylesheet("$path/$file", TRUE);
+      $this->assertEqual($optimized_output, $expected, t('Optimized CSS file has expected contents (@file)', array('@file' => $file)));
+    }
+  }
+}
+
+/**
  * Test drupal_http_request().
  */
 class DrupalHTTPRequestTestCase extends DrupalWebTestCase {
@@ -471,12 +810,16 @@ class DrupalHTTPRequestTestCase extends DrupalWebTestCase {
   }
 
   function testDrupalHTTPRequest() {
+    global $is_https;
+
     // Parse URL schema.
     $missing_scheme = drupal_http_request('example.com/path');
-    $this->assertEqual($missing_scheme->error, 'missing schema', t('Returned with "missing schema" error.'));
+    $this->assertEqual($missing_scheme->code, -1002, t('Returned with "-1002" error code.'));
+    $this->assertEqual($missing_scheme->error, 'missing schema', t('Returned with "missing schema" error message.'));
 
     $unable_to_parse = drupal_http_request('http:///path');
-    $this->assertEqual($unable_to_parse->error, 'unable to parse URL', t('Returned with "unable to parse URL" error.'));
+    $this->assertEqual($unable_to_parse->code, -1001, t('Returned with "-1001" error code.'));
+    $this->assertEqual($unable_to_parse->error, 'unable to parse URL', t('Returned with "unable to parse URL" error message.'));
 
     // Fetch page.
     $result = drupal_http_request(url('node', array('absolute' => TRUE)));
@@ -490,18 +833,23 @@ class DrupalHTTPRequestTestCase extends DrupalWebTestCase {
     $this->assertEqual($result->code, '404', t('Result code is 404'));
     $this->assertEqual($result->status_message, 'Not Found', t('Result status message is "Not Found"'));
 
-    // Test that timeout is respected. The test machine is expected to be able
-    // to make the connection (i.e. complete the fsockopen()) in 2 seconds and
-    // return within a total of 5 seconds. If the test machine is extremely
-    // slow, the test will fail. fsockopen() has been seen to time out in
-    // slightly less than the specified timeout, so allow a little slack on the
-    // minimum expected time (i.e. 1.8 instead of 2).
-    timer_start(__METHOD__);
-    $result = drupal_http_request(url('system-test/sleep/10', array('absolute' => TRUE)), array('timeout' => 2));
-    $time = timer_read(__METHOD__) / 1000;
-    $this->assertTrue(1.8 < $time && $time < 5, t('Request timed out (%time seconds).', array('%time' => $time)));
-    $this->assertTrue($result->error, t('An error message was returned.'));
-    $this->assertEqual($result->code, HTTP_REQUEST_TIMEOUT, t('Proper error code was returned.'));
+    // Skip the timeout tests when the testing environment is HTTPS because
+    // stream_set_timeout() does not work for SSL connections.
+    // @link http://bugs.php.net/bug.php?id=47929
+    if (!$is_https) {
+      // Test that timeout is respected. The test machine is expected to be able
+      // to make the connection (i.e. complete the fsockopen()) in 2 seconds and
+      // return within a total of 5 seconds. If the test machine is extremely
+      // slow, the test will fail. fsockopen() has been seen to time out in
+      // slightly less than the specified timeout, so allow a little slack on
+      // the minimum expected time (i.e. 1.8 instead of 2).
+      timer_start(__METHOD__);
+      $result = drupal_http_request(url('system-test/sleep/10', array('absolute' => TRUE)), array('timeout' => 2));
+      $time = timer_read(__METHOD__) / 1000;
+      $this->assertTrue(1.8 < $time && $time < 5, t('Request timed out (%time seconds).', array('%time' => $time)));
+      $this->assertTrue($result->error, t('An error message was returned.'));
+      $this->assertEqual($result->code, HTTP_REQUEST_TIMEOUT, t('Proper error code was returned.'));
+    }
   }
 
   function testDrupalHTTPRequestBasicAuth() {
@@ -509,7 +857,7 @@ class DrupalHTTPRequestTestCase extends DrupalWebTestCase {
     $password = $this->randomName();
     $url = url('system-test/auth', array('absolute' => TRUE));
 
-    $auth = str_replace('http://', 'http://' . $username . ':' . $password . '@', $url);
+    $auth = str_replace('://', '://' . $username . ':' . $password . '@', $url);
     $result = drupal_http_request($auth);
 
     $this->drupalSetContent($result->data);
@@ -525,13 +873,16 @@ class DrupalHTTPRequestTestCase extends DrupalWebTestCase {
     $this->assertFalse(isset($redirect_301->redirect_code), t('drupal_http_request does not follow 301 redirect if max_redirects = 0.'));
 
     $redirect_invalid = drupal_http_request(url('system-test/redirect-noscheme', array('absolute' => TRUE)), array('max_redirects' => 1));
-    $this->assertEqual($redirect_invalid->error, 'missing schema', t('301 redirect to invalid URL returned with error "!error".', array('!error' => $redirect_invalid->error)));
+    $this->assertEqual($redirect_invalid->code, -1002, t('301 redirect to invalid URL returned with error code !error.', array('!error' => $redirect_invalid->error)));
+    $this->assertEqual($redirect_invalid->error, 'missing schema', t('301 redirect to invalid URL returned with error message "!error".', array('!error' => $redirect_invalid->error)));
 
     $redirect_invalid = drupal_http_request(url('system-test/redirect-noparse', array('absolute' => TRUE)), array('max_redirects' => 1));
-    $this->assertEqual($redirect_invalid->error, 'unable to parse URL', t('301 redirect to invalid URL returned with error "!error".', array('!error' => $redirect_invalid->error)));
+    $this->assertEqual($redirect_invalid->code, -1001, t('301 redirect to invalid URL returned with error message code "!error".', array('!error' => $redirect_invalid->error)));
+    $this->assertEqual($redirect_invalid->error, 'unable to parse URL', t('301 redirect to invalid URL returned with error message "!error".', array('!error' => $redirect_invalid->error)));
 
     $redirect_invalid = drupal_http_request(url('system-test/redirect-invalid-scheme', array('absolute' => TRUE)), array('max_redirects' => 1));
-    $this->assertEqual($redirect_invalid->error, 'invalid schema ftp', t('301 redirect to invalid URL returned with error "!error".', array('!error' => $redirect_invalid->error)));
+    $this->assertEqual($redirect_invalid->code, -1003, t('301 redirect to invalid URL returned with error code !error.', array('!error' => $redirect_invalid->error)));
+    $this->assertEqual($redirect_invalid->error, 'invalid schema ftp', t('301 redirect to invalid URL returned with error message "!error".', array('!error' => $redirect_invalid->error)));
 
     $redirect_302 = drupal_http_request(url('system-test/redirect/302', array('absolute' => TRUE)), array('max_redirects' => 1));
     $this->assertEqual($redirect_302->redirect_code, 302, t('drupal_http_request follows the 302 redirect.'));
@@ -548,9 +899,15 @@ class DrupalHTTPRequestTestCase extends DrupalWebTestCase {
 
   function testDrupalGetDestination() {
     $query = $this->randomName(10);
-    $url = url('system-test/destination', array('absolute' => TRUE, 'query' => $query));
-    $this->drupalGet($url);
-    $this->assertText($query, t('The query passed to the page is correctly represented by drupal_get_detination().'));
+
+    // Verify that a 'destination' query string is used as destination.
+    $this->drupalGet('system-test/destination', array('query' => array('destination' => $query)));
+    $this->assertText('The destination: ' . $query, t('The given query string destination is determined as destination.'));
+
+    // Verify that the current path is used as destination.
+    $this->drupalGet('system-test/destination', array('query' => array($query => NULL)));
+    $url = 'system-test/destination?' . $query;
+    $this->assertText('The destination: ' . $url, t('The current path is determined as destination.'));
   }
 }
 
@@ -1133,14 +1490,15 @@ class DrupalDataApiTest extends DrupalWebTestCase {
     $this->assertTrue($update_result == SAVED_UPDATED, t('Correct value returned when a record updated with drupal_write_record() for table with single-field primary key.'));
 
     // Insert an object record for a table with a multi-field primary key.
-    $vocabulary_node_type = new stdClass();
-    $vocabulary_node_type->vid = $vocabulary->vid;
-    $vocabulary_node_type->type = 'page';
-    $insert_result = drupal_write_record('taxonomy_vocabulary_node_type', $vocabulary_node_type);
+    $node_access = new stdClass();
+    $node_access->nid = mt_rand();
+    $node_access->gid = mt_rand();
+    $node_access->realm = $this->randomName();
+    $insert_result = drupal_write_record('node_access', $node_access);
     $this->assertTrue($insert_result == SAVED_NEW, t('Correct value returned when a record is inserted with drupal_write_record() for a table with a multi-field primary key.'));
 
     // Update the record.
-    $update_result = drupal_write_record('taxonomy_vocabulary_node_type', $vocabulary_node_type, array('vid', 'type'));
+    $update_result = drupal_write_record('node_access', $node_access, array('nid', 'gid', 'realm'));
     $this->assertTrue($update_result == SAVED_UPDATED, t('Correct value returned when a record is updated with drupal_write_record() for a table with a multi-field primary key.'));
   }
 
@@ -1309,14 +1667,14 @@ class FormatDateUnitTest extends DrupalWebTestCase {
 class DrupalAttributesUnitTest extends DrupalUnitTestCase {
   public static function getInfo() {
     return array(
-      'name' => t('HTML Attributes'),
-      'description' => t('Perform unit tests on the drupal_attributes() function.'),
-      'group' => t('System')
+      'name' => 'HTML Attributes',
+      'description' => 'Perform unit tests on the drupal_attributes() function.',
+      'group' => 'System',
     );
   }
 
   /**
-   * Tests that drupal_css_class() cleans the class name properly.
+   * Tests that drupal_html_class() cleans the class name properly.
    */
   function testDrupalAttributes() {
     // Verify that special characters are HTML encoded.

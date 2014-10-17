@@ -48,6 +48,10 @@ function system_token_info() {
     'name' => t("URL"),
     'description' => t("The URL of the site's front page."),
   );
+  $site['url-brief'] = array(
+    'name' => t("URL (brief)"),
+    'description' => t("The URL of the site's front page without the protocol."),
+  );  
   $site['login-url'] = array(
     'name' => t("Login page"),
     'description' => t("The URL of the site's login page."),
@@ -181,6 +185,10 @@ function system_tokens($type, $tokens, array $data = array(), array $options = a
           $replacements[$original] = url('<front>', $url_options);
           break;
 
+        case 'url-brief':
+          $replacements[$original] = preg_replace('!^https?://!', '', url('<front>', $url_options)); 
+          break;
+
         case 'login-url':
           $replacements[$original] = url('user', $url_options);
           break;
@@ -275,7 +283,7 @@ function system_tokens($type, $tokens, array $data = array(), array $options = a
         case 'node':
           if ($nid = $file->nid) {
             $node = node_load($file->nid);
-            $replacements[$original] = $sanitize ? filter_xss($node->title) : $node->title;
+            $replacements[$original] = $sanitize ? filter_xss($node->title[FIELD_LANGUAGE_NONE][0]['value']) : $node->title[FIELD_LANGUAGE_NONE][0]['value'];
           }
           break;
 

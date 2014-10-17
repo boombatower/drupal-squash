@@ -71,13 +71,13 @@ function profile_browse() {
     $content = '';
     foreach ($users as $account) {
       $profile = _profile_update_user_fields($fields, $account);
-      $content .= theme('profile_listing', $account, $profile);
+      $content .= theme('profile_listing', array('account' => $account, 'fields' => $profile));
     }
-    $output = theme('profile_wrapper', $content);
-    $output .= theme('pager', NULL);
+    $output = theme('profile_wrapper', array('content' => $content));
+    $output .= theme('pager', array('tags' => NULL));
 
     if ($field->type == 'selection' || $field->type == 'list' || $field->type == 'textfield') {
-      $title = strtr(check_plain($field->page), array('%value' => theme('placeholder', $value)));
+      $title = strtr(check_plain($field->page), array('%value' => theme('placeholder', array('text' => $value))));
     }
     else {
       $title = check_plain($field->page);
@@ -108,10 +108,10 @@ function profile_browse() {
     $content = '';
     foreach ($users as $account) {
       $profile = _profile_update_user_fields($fields, $account);
-      $content .= theme('profile_listing', $account, $profile);
+      $content .= theme('profile_listing', array('account' => $account, 'fields' => $profile));
     }
-    $output = theme('profile_wrapper', $content);
-    $output .= theme('pager', NULL);
+    $output = theme('profile_wrapper', array('content' => $content));
+    $output .= theme('pager', array('tags' => NULL));
 
     drupal_set_title(t('User list'));
     return $output;
@@ -123,16 +123,16 @@ function profile_browse() {
  */
 function profile_autocomplete($field, $string) {
   $matches = array();
-  $autocomplete_field = (bool) db_query_range("SELECT 1 FROM {profile_field} WHERE fid = :fid AND autocomplete = 1", array(':fid' => $field), 0, 1)->fetchField();
+  $autocomplete_field = (bool) db_query_range("SELECT 1 FROM {profile_field} WHERE fid = :fid AND autocomplete = 1", 0, 1, array(':fid' => $field))->fetchField();
   if ($autocomplete_field) {
-    $values = db_query_range("SELECT value FROM {profile_value} WHERE fid = :fid AND LOWER(value) LIKE LOWER(:value) GROUP BY value ORDER BY value ASC", array(
+    $values = db_query_range("SELECT value FROM {profile_value} WHERE fid = :fid AND LOWER(value) LIKE LOWER(:value) GROUP BY value ORDER BY value ASC", 0, 10, array(
       ':fid' => $field,
       ':value' => $string . '%',
-    ), 0, 10)->fetchCol();
+    ))->fetchCol();
     foreach ($values as $value) {
       $matches[$value] = check_plain($value);
     }
   }
 
-  drupal_json($matches);
+  drupal_json_output($matches);
 }

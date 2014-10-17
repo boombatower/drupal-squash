@@ -57,8 +57,9 @@ class PollTestCase extends DrupalWebTestCase {
     $already_submitted_choices = array_slice($choices, 0, $index);
     $new_choices = array_values(array_slice($choices, $index, $max_new_choices));
 
+    $langcode = FIELD_LANGUAGE_NONE;
     $edit = array(
-      'title' => $title
+      "title[$langcode][0][value]" => $title
     );
     foreach ($already_submitted_choices as $k => $text) {
       $edit['choice[chid:' . $k . '][chtext]'] = $text;
@@ -259,7 +260,7 @@ class PollBlockTestCase extends PollTestCase {
 
   function testRecentBlock() {
     // Set block title to confirm that the interface is available.
-    $this->drupalPost('admin/structure/block/configure/poll/recent', array('title' => $this->randomName(8)), t('Save block'));
+    $this->drupalPost('admin/structure/block/manage/poll/recent/configure', array('title' => $this->randomName(8)), t('Save block'));
     $this->assertText(t('The block configuration has been saved.'), t('Block configuration set.'));
 
     // Set the block to a region to confirm block is available.
@@ -331,8 +332,9 @@ class PollJSAddChoice extends DrupalWebTestCase {
     $web_user = $this->drupalCreateUser(array('create poll content', 'access content'));
     $this->drupalLogin($web_user);
     $this->drupalGet('node/add/poll');
+    $langcode = FIELD_LANGUAGE_NONE;
     $edit = array(
-      'title' => $this->randomName(),
+      "title[$langcode][0][value]" => $this->randomName(),
       'choice[new:0][chtext]' => $this->randomName(),
       'choice[new:1][chtext]' => $this->randomName(),
     );
@@ -344,7 +346,7 @@ class PollJSAddChoice extends DrupalWebTestCase {
     $this->drupalPost(NULL, $edit, t('More choices'));
     unset($this->additionalCurlOptions[CURLOPT_URL]);
 
-    // The response is drupal_json, so we need to undo some escaping.
+    // The response is drupal_json_output, so we need to undo some escaping.
     $commands = json_decode(str_replace(array('\x3c', '\x3e', '\x26'), array("<", ">", "&"), $this->drupalGetContent()));
 
     // The JSON response will be two AJAX commands. The first is a settings

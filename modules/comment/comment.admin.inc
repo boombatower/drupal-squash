@@ -34,7 +34,7 @@ function comment_admin($type = 'new') {
  * @see comment_admin_overview_submit()
  * @see theme_comment_admin_overview()
  */
-function comment_admin_overview($type = 'new', $arg) {
+function comment_admin_overview($form, &$form_state, $arg) {
   // Build an 'Update options' form.
   $form['options'] = array(
     '#type' => 'fieldset',
@@ -62,7 +62,7 @@ function comment_admin_overview($type = 'new', $arg) {
     'subject' => array('data' => t('Subject'), 'field' => 'subject'),
     'author' => array('data' => t('Author'), 'field' => 'name'),
     'posted_in' => array('data' => t('Posted in'), 'field' => 'node_title'),
-    'time' => array('data' => t('Time'), 'field' => 'timestamp', 'sort' => 'desc'),
+    'changed' => array('data' => t('Updated'), 'field' => 'changed', 'sort' => 'desc'),
     'operations' => array('data' => t('Operations')),
   );
 
@@ -72,7 +72,7 @@ function comment_admin_overview($type = 'new', $arg) {
   $query->addField('u', 'name', 'registered_name');
   $query->addField('n', 'title', 'node_title');
   $result = $query
-    ->fields('c', array('subject', 'nid', 'cid', 'comment', 'timestamp', 'status', 'name', 'homepage'))
+    ->fields('c', array('subject', 'nid', 'cid', 'comment', 'changed', 'status', 'name', 'homepage'))
     ->fields('u', array('uid'))
     ->condition('c.status', $status)
     ->limit(50)
@@ -86,11 +86,31 @@ function comment_admin_overview($type = 'new', $arg) {
 
   foreach ($result as $comment) {
     $options[$comment->cid] = array(
-      'subject' => l($comment->subject, 'comment/' . $comment->cid, array('attributes' => array('title' => truncate_utf8($comment->comment, 128)), 'fragment' => 'comment-' . $comment->cid)),
-      'author' => theme('username', $comment),
-      'posted_in' => l($comment->node_title, 'node/' . $comment->nid),
-      'time' => format_date($comment->timestamp, 'short'),
-      'operations' => l(t('edit'), 'comment/edit/' . $comment->cid, array('query' => $destination)),
+      'subject' => array(
+        'data' => array(
+          '#type' => 'link',
+          '#title' => $comment->subject,
+          '#href' => 'comment/' . $comment->cid,
+          '#options' => array('attributes' => array('title' => truncate_utf8($comment->comment, 128)), 'fragment' => 'comment-' . $comment->cid),
+        ),
+      ),
+      'author' => theme('username', array('account' => $comment)),
+      'posted_in' => array(
+        'data' => array(
+          '#type' => 'link',
+          '#title' => $comment->node_title,
+          '#href' => 'node/' . $comment->nid,
+        ),
+      ),
+      'changed' => format_date($comment->changed, 'short'),
+      'operations' => array(
+        'data' => array(
+          '#type' => 'link',
+          '#title' => t('edit'),
+          '#href' => 'comment/' . $comment->cid . '/edit',
+          '#options' => array('query' => $destination),
+        ),
+      ),
     );
   }
 
@@ -159,7 +179,7 @@ function comment_admin_overview_submit($form, &$form_state) {
  * @ingroup forms
  * @see comment_multiple_delete_confirm_submit()
  */
-function comment_multiple_delete_confirm(&$form_state) {
+function comment_multiple_delete_confirm($form, &$form_state) {
   $edit = $form_state['input'];
 
   $form['comments'] = array(
@@ -206,34 +226,12 @@ function comment_multiple_delete_confirm_submit($form, &$form_state) {
 }
 
 /**
- * Menu callback; delete a comment.
- *
- * @param $cid
- *   The comment to be deleted.
- */
-function comment_delete_page($cid = NULL) {
-  $comment = db_query('SELECT c.*, u.name AS registered_name, u.uid FROM {comment} c INNER JOIN {users} u ON u.uid = c.uid WHERE c.cid = :cid', array(':cid' => $cid))->fetch();
-  $comment->name = $comment->uid ? $comment->registered_name : $comment->name;
-  $output = '';
-
-  if (is_object($comment) && is_numeric($comment->cid)) {
-    $output = drupal_get_form('comment_confirm_delete', $comment);
-  }
-  else {
-    drupal_set_message(t('The comment no longer exists.'));
-  }
-
-  return $output;
-}
-
-/**
  * Form builder; Builds the confirmation form for deleting a single comment.
  *
  * @ingroup forms
  * @see comment_confirm_delete_submit()
  */
-function comment_confirm_delete(&$form_state, $comment) {
-  $form = array();
+function comment_confirm_delete($form, &$form_state, $comment) {
   $form['#comment'] = $comment;
   return confirm_form(
     $form,

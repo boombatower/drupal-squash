@@ -24,7 +24,7 @@ function book_admin_overview() {
     $rows[] = array(array('data' => t('No books available.'), 'colspan' => 2));
   }
 
-  return theme('table', $headers, $rows);
+  return theme('table', array('header' => $headers, 'rows' => $rows));
 }
 
 /**
@@ -77,9 +77,8 @@ function book_admin_settings_validate($form, &$form_state) {
  *
  * @ingroup forms.
  */
-function book_admin_edit($form_state, $node) {
-  drupal_set_title($node->title);
-  $form = array();
+function book_admin_edit($form, $form_state, $node) {
+  drupal_set_title($node->title[FIELD_LANGUAGE_NONE][0]['value']);
   $form['#node'] = $node;
   _book_admin_table($node, $form);
   $form['save'] = array(
@@ -132,17 +131,19 @@ function book_admin_edit_submit($form, &$form_state) {
       // Update the title if changed.
       if ($row['title']['#default_value'] != $values['title']) {
         $node = node_load($values['nid'], FALSE);
-        $node->title = $values['title'];
+        $langcode = FIELD_LANGUAGE_NONE;
+        $node->title = array($langcode => array(array('value' => $values['title'])));
         $node->book['link_title'] = $values['title'];
         $node->revision = 1;
-        $node->log = t('Title changed from %original to %current.', array('%original' => $node->title, '%current' => $values['title']));
+        $node->log = t('Title changed from %original to %current.', array('%original' => $node->title[$langcode][0]['value'], '%current' => $values['title']));
+
         node_save($node);
-        watchdog('content', 'book: updated %title.', array('%title' => $node->title), WATCHDOG_NOTICE, l(t('view'), 'node/' . $node->nid));
+        watchdog('content', 'book: updated %title.', array('%title' => $node->title[$langcode][0]['value']), WATCHDOG_NOTICE, l(t('view'), 'node/' . $node->nid));
       }
     }
   }
 
-  drupal_set_message(t('Updated book %title.', array('%title' => $form['#node']->title)));
+  drupal_set_message(t('Updated book %title.', array('%title' => $form['#node']->title[$langcode][0]['value'])));
 }
 
 /**
@@ -222,7 +223,9 @@ function _book_admin_table_tree($tree, &$form) {
  * @ingroup themeable
  * @see book_admin_table()
  */
-function theme_book_admin_table($form) {
+function theme_book_admin_table($variables) {
+  $form = $variables['form'];
+
   drupal_add_tabledrag('book-outline', 'match', 'parent', 'book-plid', 'book-plid', 'book-mlid', TRUE, MENU_MAX_DEPTH - 2);
   drupal_add_tabledrag('book-outline', 'order', 'sibling', 'book-weight');
 
@@ -241,7 +244,7 @@ function theme_book_admin_table($form) {
     $form[$key]['weight']['#attributes']['class'] = array('book-weight');
 
     $data = array(
-      theme('indentation', $form[$key]['depth']['#value'] - 2) . drupal_render($form[$key]['title']),
+      theme('indentation', array('size' => $form[$key]['depth']['#value'] - 2)) . drupal_render($form[$key]['title']),
       drupal_render($form[$key]['weight']),
       drupal_render($form[$key]['plid']) . drupal_render($form[$key]['mlid']),
       l(t('view'), $href),
@@ -256,6 +259,6 @@ function theme_book_admin_table($form) {
     $rows[] = $row;
   }
 
-  return theme('table', $header, $rows, array('id' => 'book-outline'));
+  return theme('table', array('header' => $header, 'rows' => $rows, 'attributes' => array('id' => 'book-outline')));
 }
 

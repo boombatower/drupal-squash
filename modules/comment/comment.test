@@ -8,45 +8,64 @@ class CommentHelperCase extends DrupalWebTestCase {
 
   function setUp() {
     parent::setUp('comment', 'search');
-    // Create users.
-    $this->admin_user = $this->drupalCreateUser(array('administer content types', 'administer comments', 'administer permissions', 'administer blocks'));
+    // Create users and test node.
+    $this->admin_user = $this->drupalCreateUser(array('administer content types', 'administer comments', 'administer blocks'));
     $this->web_user = $this->drupalCreateUser(array('access comments', 'post comments', 'create article content'));
-
-    $this->drupalLogin($this->web_user);
-    $this->node = $this->drupalCreateNode(array('type' => 'article', 'promote' => 1));
-    $this->drupalLogout();
+    $this->node = $this->drupalCreateNode(array('type' => 'article', 'promote' => 1, 'uid' => $this->web_user->uid));
   }
 
   /**
    * Post comment.
    *
    * @param object $node Node to post comment on.
-   * @param string $subject Comment subject.
    * @param string $comment Comment body.
-   * @param boolean $preview Should preview be required.
+   * @param string $subject Comment subject.
    * @param mixed $contact Set to NULL for no contact info, TRUE to ignore success checking, and array of values to set contact info.
    */
-  function postComment($node, $subject, $comment, $preview = FALSE, $contact = NULL) {
+  function postComment($node, $comment, $subject = '', $contact = NULL) {
     $edit = array();
-    $edit['subject'] = $subject;
     $edit['comment'] = $comment;
 
-    if ($contact !== NULL && is_array($contact)) {
-      $edit += $contact;
-    }
+    $preview_mode = variable_get('comment_preview_article', DRUPAL_OPTIONAL);
+    $subject_mode = variable_get('comment_subject_field_article', 1);
 
+    // Must get the page before we test for fields.
     if ($node !== NULL) {
       $this->drupalGet('comment/reply/' . $node->nid);
     }
 
-    if ($preview) {
-      $this->assertNoFieldByName('op', t('Save'), t('Save button not found.')); // Preview required so no save button should be found.
-      $this->drupalPost(NULL, $edit, t('Preview'));
+    if ($subject_mode == TRUE) {
+      $edit['subject'] = $subject;
     }
-    $this->drupalPost(NULL, $edit, t('Save'));
+    else {
+      $this->assertNoFieldByName('subject', '', t('Subject field not found.'));
+    }
+
+    if ($contact !== NULL && is_array($contact)) {
+      $edit += $contact;
+    }
+    switch ($preview_mode) {
+      case DRUPAL_REQUIRED:
+        // Preview required so no save button should be found.
+        $this->assertNoFieldByName('op', t('Save'), t('Save button not found.'));
+        $this->drupalPost(NULL, $edit, t('Preview'));
+        // Don't break here so that we can test post-preview field presence and
+        // function below.
+      case DRUPAL_OPTIONAL:
+        $this->assertFieldByName('op', t('Preview'), t('Preview button found.'));
+        $this->assertFieldByName('op', t('Save'), t('Save button found.'));
+        $this->drupalPost(NULL, $edit, t('Save'));
+        break;
+
+      case DRUPAL_DISABLED:
+        $this->assertNoFieldByName('op', t('Preview'), t('Preview button not found.'));
+        $this->assertFieldByName('op', t('Save'), t('Save button found.'));
+        $this->drupalPost(NULL, $edit, t('Save'));
+        break;
+    }
     $match = array();
     // Get comment ID
-    preg_match('/#comment-([^"]+)/', $this->getURL(), $match);
+    preg_match('/#comment-([0-9]+)/', $this->getURL(), $match);
 
     // Get comment.
     if ($contact !== TRUE) { // If true then attempting to find error message.
@@ -92,7 +111,7 @@ class CommentHelperCase extends DrupalWebTestCase {
    *   Comment to delete.
    */
   function deleteComment($comment) {
-    $this->drupalPost('comment/delete/' . $comment->id, array(), t('Delete'));
+    $this->drupalPost('comment/' . $comment->id . '/delete', array(), t('Delete'));
     $this->assertText(t('The comment and all its replies have been deleted.'), t('Comment deleted.'));
   }
 
@@ -109,11 +128,24 @@ class CommentHelperCase extends DrupalWebTestCase {
   /**
    * Set comment preview setting.
    *
-   * @param boolean $required
+   * @param int $mode
    *   Preview value.
    */
-  function setCommentPreview($required) {
-    $this->setCommentSettings('comment_preview', ($required ? '1' : '0'), 'Comment preview ' . ($required ? 'required' : 'optional') . '.');
+  function setCommentPreview($mode) {
+    switch ($mode) {
+      case DRUPAL_DISABLED:
+        $mode_text = 'disabled';
+        break;
+
+      case DRUPAL_OPTIONAL:
+        $mode_text = 'optional';
+        break;
+
+      case DRUPAL_REQUIRED:
+        $mode_text = 'required';
+        break;
+    }
+    $this->setCommentSettings('comment_preview', $mode, 'Comment preview ' . $mode_text . '.');
   }
 
   /**
@@ -159,25 +191,6 @@ class CommentHelperCase extends DrupalWebTestCase {
   function setCommentSettings($name, $value, $message) {
     variable_set($name . '_article', $value);
     $this->assertTrue(TRUE, t($message)); // Display status message.
-  }
-
-  /**
-   * Set anonymous comment setting.
-   *
-   * @param boolean $access_comments
-   *   Allow anonymous access to comments.
-   * @param boolean $post_comments
-   *   Allow anonymous posting of comments.
-   * @param boolean $without_approval
-   *   Allow anonymous commenting without approval.
-   */
-  function setAnonymousUserComment($access_comments, $post_comments, $without_approval) {
-    $edit = array();
-    $edit['1[access comments]'] = $access_comments;
-    $edit['1[post comments]'] = $post_comments;
-    $edit['1[post comments without approval]'] = $without_approval;
-    $this->drupalPost('admin/config/people/permissions', $edit, t('Save permissions'));
-    $this->assertText(t('The changes have been saved.'), t('Anonymous user comments ' . ($access_comments ? 'access comments' : 'not access comments'). '.'));
   }
 
   /**
@@ -243,31 +256,33 @@ class CommentInterfaceTest extends CommentHelperCase {
    * Test comment interface.
    */
   function testCommentInterface() {
-    // Set comments to not have subject.
+    // Set comments to have subject and preview disabled.
     $this->drupalLogin($this->admin_user);
-    $this->setCommentPreview(TRUE);
+    $this->setCommentPreview(DRUPAL_DISABLED);
     $this->setCommentForm(TRUE);
     $this->setCommentSubject(FALSE);
     $this->setCommentSettings('comment_default_mode', COMMENT_MODE_THREADED, t('Comment paging changed.'));
     $this->drupalLogout();
 
-    // Post comment without subject.
+    // Post comment #1 without subject or preview.
     $this->drupalLogin($this->web_user);
-    $this->drupalGet('comment/reply/' . $this->node->nid);
-    $this->assertNoFieldByName('subject', '', t('Subject field not found.'));
+    $comment_text = $this->randomName();
+    $comment = $this->postComment($this->node, $comment_text);
+    $comment_loaded = comment_load($comment->id);
+    $this->assertTrue($this->commentExists($comment), t('Comment found.'));
 
     // Set comments to have subject and preview to required.
     $this->drupalLogout();
     $this->drupalLogin($this->admin_user);
     $this->setCommentSubject(TRUE);
-    $this->setCommentPreview(TRUE);
+    $this->setCommentPreview(DRUPAL_REQUIRED);
     $this->drupalLogout();
 
-    // Create comment that requires preview.
+    // Create comment #2 that allows subject and requires preview.
     $this->drupalLogin($this->web_user);
     $subject_text = $this->randomName();
     $comment_text = $this->randomName();
-    $comment = $this->postComment($this->node, $subject_text, $comment_text, TRUE);
+    $comment = $this->postComment($this->node, $comment_text, $subject_text, TRUE);
     $comment_loaded = comment_load($comment->id);
     $this->assertTrue($this->commentExists($comment), t('Comment found.'));
 
@@ -276,17 +291,26 @@ class CommentInterfaceTest extends CommentHelperCase {
     $this->assertText($subject_text, t('Individual comment subject found.'));
     $this->assertText($comment_text, t('Individual comment body found.'));
 
-    // Reply to comment without a subject.
+    // Set comments to have subject and preview to optional.
+    $this->drupalLogout();
+    $this->drupalLogin($this->admin_user);
+    $this->setCommentSubject(TRUE);
+    $this->setCommentPreview(DRUPAL_OPTIONAL);
+    $this->drupalLogout();
+
+    // Reply to comment #2 creating comment #3 with optional preview and no
+    // subject though field enabled.
+    $this->drupalLogin($this->web_user);
     $this->drupalGet('comment/reply/' . $this->node->nid . '/' . $comment->id);
     $this->assertText($subject_text, t('Individual comment-reply subject found.'));
     $this->assertText($comment_text, t('Individual comment-reply body found.'));
-    $reply = $this->postComment(NULL, '', $this->randomName(), TRUE);
+    $reply = $this->postComment(NULL, $this->randomName(), '', TRUE);
     $reply_loaded = comment_load($reply->id);
     $this->assertTrue($this->commentExists($reply, TRUE), t('Reply found.'));
     $this->assertEqual($comment->id, $reply_loaded->pid, t('Pid of a reply to a comment is set correctly.'));
     $this->assertEqual(rtrim($comment_loaded->thread, '/') . '.00/', $reply_loaded->thread, t('Thread of reply grows correctly.'));
 
-    // Second reply to comment
+    // Second reply to comment #3 creating comment #4.
     $this->drupalGet('comment/reply/' . $this->node->nid . '/' . $comment->id);
     $this->assertText($subject_text, t('Individual comment-reply subject found.'));
     $this->assertText($comment_text, t('Individual comment-reply body found.'));
@@ -296,19 +320,19 @@ class CommentInterfaceTest extends CommentHelperCase {
     $this->assertEqual(rtrim($comment_loaded->thread, '/') . '.01/', $reply_loaded->thread, t('Thread of second reply grows correctly.'));
 
     // Edit reply.
-    $this->drupalGet('comment/edit/' . $reply->id);
+    $this->drupalGet('comment/' . $reply->id . '/edit');
     $reply = $this->postComment(NULL, $this->randomName(), $this->randomName(), TRUE);
     $this->assertTrue($this->commentExists($reply, TRUE), t('Modified reply found.'));
 
     // Correct link count
     $this->drupalGet('node');
-    $this->assertRaw('3 comments', t('Link to the 3 comments exist.'));
+    $this->assertRaw('4 comments', t('Link to the 4 comments exist.'));
 
     // Confirm a new comment is posted to the correct page.
     $this->setCommentsPerPage(2);
     $comment_new_page = $this->postComment($this->node, $this->randomName(), $this->randomName(), TRUE);
     $this->assertTrue($this->commentExists($comment_new_page), t('Page one exists. %s'));
-    $this->drupalGet('node/' . $this->node->nid, array('query' => 'page=1'));
+    $this->drupalGet('node/' . $this->node->nid, array('query' => array('page' => 1)));
     $this->assertTrue($this->commentExists($reply, TRUE), t('Page two exists. %s'));
     $this->setCommentsPerPage(50);
 
@@ -401,7 +425,7 @@ class CommentPreviewTest extends CommentHelperCase {
     $this->assertFieldByName('subject', $edit['subject'], t('Subject field displayed.'));
     $this->assertFieldByName('comment', $edit['comment'], t('Comment field displayed.'));
   }
-  
+
   /**
    * Test comment edit and preview.
    */
@@ -412,7 +436,7 @@ class CommentPreviewTest extends CommentHelperCase {
     $this->setCommentForm(TRUE);
     $this->setCommentSubject(TRUE);
     $this->setCommentSettings('comment_default_mode', COMMENT_MODE_THREADED, t('Comment paging changed.'));
-    
+
     $edit = array();
     $edit['subject'] = $this->randomName(8);
     $edit['comment'] = $this->randomName(16);
@@ -420,8 +444,8 @@ class CommentPreviewTest extends CommentHelperCase {
     $edit['date'] = '2008-03-02 17:23 +0300';
     $expected_date = format_date(strtotime($edit['date']));
     $comment = $this->postComment($this->node, $edit['subject'], $edit['comment'], TRUE);
-    $this->drupalPost('comment/edit/' . $comment->id, $edit, t('Preview'));
-    
+    $this->drupalPost('comment/' . $comment->id . '/edit', $edit, t('Preview'));
+
     // Check that the preview is displaying the subject, comment, author and date correctly.
     $this->assertTitle(t('Preview comment | Drupal'), t('Page title is "Preview comment".'));
     $this->assertText($edit['subject'], t('Subject displayed.'));
@@ -453,7 +477,11 @@ class CommentAnonymous extends CommentHelperCase {
   function testAnonymous() {
     $this->drupalLogin($this->admin_user);
     // Enabled anonymous user comments.
-    $this->setAnonymousUserComment(TRUE, TRUE, TRUE);
+    user_role_change_permissions(DRUPAL_ANONYMOUS_RID, array(
+      'access comments' => TRUE,
+      'post comments' => TRUE,
+      'post comments without approval' => TRUE,
+    ));
     $this->setCommentAnonymous('0'); // Ensure that doesn't require contact info.
     $this->drupalLogout();
 
@@ -466,7 +494,7 @@ class CommentAnonymous extends CommentHelperCase {
     $this->setCommentAnonymous('1');
 
     // Attempt to edit anonymous comment.
-    $this->drupalGet('comment/edit/' . $anonymous_comment1->id);
+    $this->drupalGet('comment/' . $anonymous_comment1->id . '/edit');
     $edited_comment = $this->postComment(NULL, $this->randomName(), $this->randomName());
     $this->assertTrue($this->commentExists($edited_comment, FALSE), t('Modified reply found.'));
     $this->drupalLogout();
@@ -487,12 +515,12 @@ class CommentAnonymous extends CommentHelperCase {
     $this->drupalGet('comment/reply/' . $this->node->nid);
     $this->assertTrue($this->commentContactInfoAvailable(), t('Contact information available.'));
 
-    $anonymous_comment3 = $this->postComment($this->node, $this->randomName(), $this->randomName(), FALSE, TRUE);
+    $anonymous_comment3 = $this->postComment($this->node, $this->randomName(), $this->randomName(), TRUE);
     $this->assertText(t('E-mail field is required.'), t('E-mail required.')); // Name should have 'Anonymous' for value by default.
     $this->assertFalse($this->commentExists($anonymous_comment3), t('Anonymous comment with contact info (required) not found.'));
 
     // Post comment with contact info (required).
-    $anonymous_comment3 = $this->postComment($this->node, $this->randomName(), $this->randomName(), FALSE, array('mail' => 'tester@simpletest.org'));
+    $anonymous_comment3 = $this->postComment($this->node, $this->randomName(), $this->randomName(), array('mail' => 'tester@simpletest.org'));
     $this->assertTrue($this->commentExists($anonymous_comment3), t('Anonymous comment with contact info (required) found.'));
 
     // Unpublish comment.
@@ -513,15 +541,18 @@ class CommentAnonymous extends CommentHelperCase {
 
     $this->drupalGet('admin/content/comment');
     $this->assertNoRaw('comments[' . $anonymous_comment3->id . ']', t('Comment was deleted.'));
+    $this->drupalLogout();
 
     // Reset.
-    $this->drupalLogin($this->admin_user);
-    $this->setAnonymousUserComment(FALSE, FALSE, FALSE);
+    user_role_change_permissions(DRUPAL_ANONYMOUS_RID, array(
+      'access comments' => FALSE,
+      'post comments' => FALSE,
+      'post comments without approval' => FALSE,
+    ));
 
     // Attempt to view comments while disallowed.
     // NOTE: if authenticated user has permission to post comments, then a
     // "Login or register to post comments" type link may be shown.
-    $this->drupalLogout();
     $this->drupalGet('node/' . $this->node->nid);
     $this->assertNoPattern('/<div ([^>]*?)id="comments"([^>]*?)>/', t('Comments were not displayed.'));
     $this->assertNoLink('Add new comment', t('Link to add comment was found.'));
@@ -532,9 +563,11 @@ class CommentAnonymous extends CommentHelperCase {
     $this->assertNoFieldByName('subject', '', t('Subject field not found.'));
     $this->assertNoFieldByName('comment', '', t('Comment field not found.'));
 
-    $this->drupalLogin($this->admin_user);
-    $this->setAnonymousUserComment(TRUE, FALSE, FALSE);
-    $this->drupalLogout();
+    user_role_change_permissions(DRUPAL_ANONYMOUS_RID, array(
+      'access comments' => TRUE,
+      'post comments' => FALSE,
+      'post comments without approval' => FALSE,
+    ));
     $this->drupalGet('node/' . $this->node->nid);
     $this->assertPattern('/<div ([^>]*?)id="comments"([^>]*?)>/', t('Comments were displayed.'));
     $this->assertLink('Login', 1, t('Link to login was found.'));
@@ -569,9 +602,9 @@ class CommentPagerTest extends CommentHelperCase {
     // Create a node and three comments.
     $node = $this->drupalCreateNode(array('type' => 'article', 'promote' => 1));
     $comments = array();
-    $comments[] = $this->postComment($node, $this->randomName(), $this->randomName(), FALSE, TRUE);
-    $comments[] = $this->postComment($node, $this->randomName(), $this->randomName(), FALSE, TRUE);
-    $comments[] = $this->postComment($node, $this->randomName(), $this->randomName(), FALSE, TRUE);
+    $comments[] = $this->postComment($node, $this->randomName(), $this->randomName(), TRUE);
+    $comments[] = $this->postComment($node, $this->randomName(), $this->randomName(), TRUE);
+    $comments[] = $this->postComment($node, $this->randomName(), $this->randomName(), TRUE);
 
     $this->setCommentSettings('comment_default_mode', COMMENT_MODE_FLAT, t('Comment paging changed.'));
 
@@ -588,13 +621,13 @@ class CommentPagerTest extends CommentHelperCase {
     $this->assertFalse($this->commentExists($comments[2]), t('Comment 3 does not appear on page 1.'));
 
     // Check the second page.
-    $this->drupalGet('node/' . $node->nid, array('query' => 'page=1'));
+    $this->drupalGet('node/' . $node->nid, array('query' => array('page' => 1)));
     $this->assertTrue($this->commentExists($comments[1]), t('Comment 2 appears on page 2.'));
     $this->assertFalse($this->commentExists($comments[0]), t('Comment 1 does not appear on page 2.'));
     $this->assertFalse($this->commentExists($comments[2]), t('Comment 3 does not appear on page 2.'));
 
     // Check the third page.
-    $this->drupalGet('node/' . $node->nid, array('query' => 'page=2'));
+    $this->drupalGet('node/' . $node->nid, array('query' => array('page' => 2)));
     $this->assertTrue($this->commentExists($comments[2]), t('Comment 3 appears on page 3.'));
     $this->assertFalse($this->commentExists($comments[0]), t('Comment 1 does not appear on page 3.'));
     $this->assertFalse($this->commentExists($comments[1]), t('Comment 2 does not appear on page 3.'));
@@ -603,26 +636,26 @@ class CommentPagerTest extends CommentHelperCase {
     $replies = array();
     $oldest_comment = reset($comments);
     $this->drupalGet('comment/reply/' . $node->nid . '/' . $oldest_comment->id);
-    $reply = $this->postComment(NULL, $this->randomName(), $this->randomName(), FALSE, TRUE);
+    $reply = $this->postComment(NULL, $this->randomName(), $this->randomName(), TRUE);
 
     $this->setCommentsPerPage(2);
     // We are still in flat view - the replies should not be on the first page,
     // even though they are replies to the oldest comment.
-    $this->drupalGet('node/' . $node->nid, array('query' => 'page=0'));
+    $this->drupalGet('node/' . $node->nid, array('query' => array('page' => 0)));
     $this->assertFalse($this->commentExists($reply, TRUE), t('In flat mode, reply does not appear on page 1.'));
 
     // If we switch to threaded mode, the replies on the oldest comment
     // should be bumped to the first page and comment 6 should be bumped
     // to the second page.
     $this->setCommentSettings('comment_default_mode', COMMENT_MODE_THREADED, t('Switched to threaded mode.'));
-    $this->drupalGet('node/' . $node->nid, array('query' => 'page=0'));
+    $this->drupalGet('node/' . $node->nid, array('query' => array('page' => 0)));
     $this->assertTrue($this->commentExists($reply, TRUE), t('In threaded mode, reply appears on page 1.'));
     $this->assertFalse($this->commentExists($comments[1]), t('In threaded mode, comment 2 has been bumped off of page 1.'));
 
     // If (# replies > # comments per page) in threaded expanded view,
     // the overage should be bumped.
-    $reply2 = $this->postComment(NULL, $this->randomName(), $this->randomName(), FALSE, TRUE);
-    $this->drupalGet('node/' . $node->nid, array('query' => 'page=0'));
+    $reply2 = $this->postComment(NULL, $this->randomName(), $this->randomName(), TRUE);
+    $this->drupalGet('node/' . $node->nid, array('query' => array('page' => 0)));
     $this->assertFalse($this->commentExists($reply2, TRUE), t('In threaded mode where # replies > # comments per page, the newest reply does not appear on page 1.'));
 
     $this->drupalLogout();
@@ -642,17 +675,20 @@ class CommentApprovalTest extends CommentHelperCase {
    * Test comment approval functionality through admin/content/comment.
    */
   function testApprovalAdminInterface() {
-    $this->drupalLogin($this->admin_user);
-
     // Set anonymous comments to require approval.
-    $this->setAnonymousUserComment(TRUE, TRUE, FALSE);
+    user_role_change_permissions(DRUPAL_ANONYMOUS_RID, array(
+      'access comments' => TRUE,
+      'post comments' => TRUE,
+      'post comments without approval' => FALSE,
+    ));
+    $this->drupalLogin($this->admin_user);
     $this->setCommentAnonymous('0'); // Ensure that doesn't require contact info.
     $this->drupalLogout();
 
     // Post anonymous comment without contact info.
     $subject = $this->randomName();
     $body = $this->randomName();
-    $this->postComment($this->node, $subject, $body, FALSE, TRUE); // Set $contact to true so that it won't check for id and message.
+    $this->postComment($this->node, $body, $subject, TRUE); // Set $contact to true so that it won't check for id and message.
     $this->assertText(t('Your comment has been queued for review by site administrators and will be published after approval.'), t('Comment requires approval.'));
 
     // Get unapproved comment id.
@@ -676,17 +712,20 @@ class CommentApprovalTest extends CommentHelperCase {
    * Test comment approval functionality through node interface.
    */
   function testApprovalNodeInterface() {
-    $this->drupalLogin($this->admin_user);
-
     // Set anonymous comments to require approval.
-    $this->setAnonymousUserComment(TRUE, TRUE, FALSE);
+    user_role_change_permissions(DRUPAL_ANONYMOUS_RID, array(
+      'access comments' => TRUE,
+      'post comments' => TRUE,
+      'post comments without approval' => FALSE,
+    ));
+    $this->drupalLogin($this->admin_user);
     $this->setCommentAnonymous('0'); // Ensure that doesn't require contact info.
     $this->drupalLogout();
 
     // Post anonymous comment without contact info.
     $subject = $this->randomName();
     $body = $this->randomName();
-    $this->postComment($this->node, $subject, $body, FALSE, TRUE); // Set $contact to true so that it won't check for id and message.
+    $this->postComment($this->node, $body, $subject, TRUE); // Set $contact to true so that it won't check for id and message.
     $this->assertText(t('Your comment has been queued for review by site administrators and will be published after approval.'), t('Comment requires approval.'));
 
     // Get unapproved comment id.
@@ -738,13 +777,13 @@ class CommentBlockFunctionalTest extends CommentHelperCase {
       'title' => $this->randomName(),
       'comment_block_count' => 2,
     );
-    $this->drupalPost('admin/structure/block/configure/comment/recent', $block, t('Save block'));
+    $this->drupalPost('admin/structure/block/manage/comment/recent/configure', $block, t('Save block'));
     $this->assertText(t('The block configuration has been saved.'), t('Block saved.'));
 
     // Add some test comments, one without a subject.
     $comment1 = $this->postComment($this->node, $this->randomName(), $this->randomName());
     $comment2 = $this->postComment($this->node, $this->randomName(), $this->randomName());
-    $comment3 = $this->postComment($this->node, '', $this->randomName());
+    $comment3 = $this->postComment($this->node, $this->randomName());
 
     // Test that a user without the 'access comments' permission can not see the block.
     $this->drupalLogout();
@@ -767,7 +806,7 @@ class CommentBlockFunctionalTest extends CommentHelperCase {
     $block = array(
       'comment_block_count' => 10,
     );
-    $this->drupalPost('admin/structure/block/configure/comment/recent', $block, t('Save block'));
+    $this->drupalPost('admin/structure/block/manage/comment/recent/configure', $block, t('Save block'));
     $this->assertText(t('The block configuration has been saved.'), t('Block saved.'));
 
     // Post an additional comment.
@@ -823,5 +862,55 @@ class CommentRSSUnitTest extends CommentHelperCase {
     node_save($this->node);
     $this->drupalGet('rss.xml');
     $this->assertNoRaw($raw, t('Hidden comments is not a part of RSS feed.'));
+  }
+}
+
+/**
+ * Test RDFa markup for comments.
+ */
+class CommentRdfaTestCase extends CommentHelperCase {
+  public static function getInfo() {
+    return array(
+      'name' => 'RDFa comment markup',
+      'description' => 'Test RDFa markup in comments.',
+      'group' => 'RDF',
+    );
+  }
+
+  function setUp() {
+    parent::setUp('comment', 'rdf');
+
+    $this->admin_user = $this->drupalCreateUser(array('administer content types', 'administer comments', 'administer permissions', 'administer blocks'));
+    $this->web_user = $this->drupalCreateUser(array('access comments', 'post comments', 'create article content'));
+
+    $this->drupalLogin($this->web_user);
+    $this->node = $this->drupalCreateNode(array('type' => 'article', 'promote' => 1));
+    $this->drupalLogout();
+  }
+
+  function testAttributesInMarkup() {
+    // Set comments to not have subject.
+    $this->drupalLogin($this->admin_user);
+    $this->setCommentPreview(FALSE);
+    $this->setCommentForm(TRUE);
+    $this->setCommentSubject(TRUE);
+    $this->setCommentSettings('comment_default_mode', COMMENT_MODE_THREADED, t('Comment paging changed.'));
+    $this->drupalLogout();
+
+    // Post comment.
+    $this->drupalLogin($this->web_user);
+    $subject_text = 'foo';
+    $comment_text = 'bar';
+    $comment = $this->postComment($this->node, $comment_text, $subject_text, FALSE);
+    $this->drupalGet('node/' . $this->node->nid);
+
+    $comment_container = $this->xpath("//div[contains(@class, 'comment') and @typeof='sioct:Post']");
+    $this->assertFalse(empty($comment_container));
+    $comment_title = $this->xpath("//h3[@property='dc:title']");
+    $this->assertEqual((string)$comment_title[0]->a, 'foo');
+    $comment_date = $this->xpath("//div[@typeof='sioct:Post']//*[contains(@property, 'dc:date') and contains(@property, 'dc:created')]");
+    $this->assertFalse(empty($comment_date));
+    $comment_author = $this->xpath("//div[@typeof='sioct:Post']//*[contains(@property, 'foaf:name')]");
+    $this->assertEqual((string)$comment_author[0], $this->web_user->name);
   }
 }

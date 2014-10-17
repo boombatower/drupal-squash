@@ -56,7 +56,7 @@ function system_main_admin_page($arg = NULL) {
         }
         else {
           // Theme items below.
-          $block['content'] .= theme('admin_block_content', $content);
+          $block['content'] .= theme('admin_block_content', array('content' => $content));
         }
       }
       // Prepare for sorting as in function _menu_tree_check_access().
@@ -66,7 +66,7 @@ function system_main_admin_page($arg = NULL) {
   }
   if ($blocks) {
     ksort($blocks);
-    return theme('admin_page', $blocks);
+    return theme('admin_page', array('blocks' => $blocks));
   }
   else {
     return t('You do not have any administrative items.');
@@ -105,7 +105,7 @@ function system_admin_config_page() {
         $function = $item['block_callback'];
         $block['content'] .= $function();
       }
-      $block['content'] .= theme('admin_block_content', system_admin_menu_block($item));
+      $block['content'] .= theme('admin_block_content', array('content' => system_admin_menu_block($item)));
       // Prepare for sorting as in function _menu_tree_check_access().
       // The weight is offset so it is always positive, with a uniform 5-digits.
       $blocks[(50000 + $item['weight']) . ' ' . $item['title'] . ' ' . $item['mlid']] = $block;
@@ -113,7 +113,7 @@ function system_admin_config_page() {
   }
   if ($blocks) {
     ksort($blocks);
-    return theme('admin_page', $blocks);
+    return theme('admin_page', array('blocks' => $blocks));
   }
   else {
     return t('You do not have any administrative items.');
@@ -133,7 +133,7 @@ function system_admin_config_page() {
 function system_admin_menu_block_page() {
   $item = menu_get_item();
   if ($content = system_admin_menu_block($item)) {
-    $output = theme('admin_block_content', $content);
+    $output = theme('admin_block_content', array('content' => $content));
   }
   else {
     $output = t('You do not have any administrative items.');
@@ -146,12 +146,11 @@ function system_admin_menu_block_page() {
  */
 function system_admin_by_module() {
 
-  $modules = system_get_module_data();
+  $module_info = system_get_info('module');
   $menu_items = array();
   $help_arg = module_exists('help') ? drupal_help_arg() : FALSE;
 
-  foreach ($modules as $file) {
-    $module = $file->name;
+  foreach ($module_info as $module => $info) {
     if ($module == 'help') {
       continue;
     }
@@ -169,10 +168,10 @@ function system_admin_by_module() {
       // Sort.
       ksort($admin_tasks);
 
-      $menu_items[$file->info['name']] = array($file->info['description'], $admin_tasks);
+      $menu_items[$info['name']] = array($info['description'], $admin_tasks);
     }
   }
-  return theme('system_admin_by_module', $menu_items);
+  return theme('system_admin_by_module', array('menu_items' => $menu_items));
 }
 
 /**
@@ -187,7 +186,7 @@ function system_settings_overview() {
   $item = menu_get_item('admin/config');
   $content = system_admin_menu_block($item);
 
-  $output = theme('admin_block_content', $content);
+  $output = theme('admin_block_content', array('content' => $content));
 
   return $output;
 }
@@ -199,8 +198,16 @@ function system_settings_overview() {
  * @see system_themes_form_submit()
  */
 function system_themes_form() {
+  // Get current list of themes.
+  $themes = system_rebuild_theme_data();
 
-  $themes = system_get_theme_data();
+  // Remove hidden themes from the display list.
+  foreach ($themes as $theme_key => $theme) {
+    if (!empty($theme->info['hidden'])) {
+      unset($themes[$theme_key]);
+    }
+  }
+
   uasort($themes, 'system_sort_modules_by_info_name');
 
   $status = array();
@@ -224,7 +231,7 @@ function system_themes_form() {
         break;
       }
     }
-    $screenshot = $screenshot ? theme('image', $screenshot, t('Screenshot for %theme theme', array('%theme' => $theme->info['name'])), '', array('class' => array('screenshot')), FALSE) : t('no screenshot');
+    $screenshot = $screenshot ? theme('image', array('path' => $screenshot, 'alt' => t('Screenshot for %theme theme', array('%theme' => $theme->info['name'])), 'title' => '', 'attributes' => array('class' => array('screenshot')), 'getsize' => FALSE)) : t('no screenshot');
 
     $form[$theme->name]['screenshot'] = array('#markup' => $screenshot);
     $form[$theme->name]['info'] = array(
@@ -233,13 +240,8 @@ function system_themes_form() {
     );
     $options[$theme->name] = $theme->info['name'];
 
-    if (!empty($theme->status) || $theme->name == variable_get('admin_theme', 0)) {
-      $form[$theme->name]['operations'] = array('#markup' => l(t('configure'), 'admin/appearance/settings/' . $theme->name) );
-    }
-    else {
-      // Dummy element for drupal_render. Cleaner than adding a check in the theme function.
-      $form[$theme->name]['operations'] = array();
-    }
+    $form[$theme->name]['operations'] = drupal_theme_access($theme) ? array('#type' => 'link', '#title' => t('configure'), '#href' => 'admin/appearance/settings/' . $theme->name) : array();
+
     if (!empty($theme->status)) {
       $status[] = $theme->name;
     }
@@ -378,21 +380,19 @@ function system_themes_form_submit($form, &$form_state) {
  * @ingroup forms
  * @see system_theme_settings_submit()
  */
-function system_theme_settings(&$form_state, $key = '') {
+function system_theme_settings($form, &$form_state, $key = '') {
   $directory_path = file_directory_path();
   if (!file_prepare_directory($directory_path, FILE_CREATE_DIRECTORY)) {
     drupal_set_message(t('The directory %directory does not exist or is not writable.', array('%directory' => $directory_path)), 'warning');
   }
 
-  // Default settings are defined in theme_get_settings() in includes/theme.inc
+  // Default settings are defined in theme_get_setting() in includes/theme.inc
   if ($key) {
-    $settings = theme_get_settings($key);
-    $var = str_replace('/', '_', 'theme_' . $key . '_settings');
-    $themes = system_get_theme_data();
+    $var = 'theme_' . $key . '_settings';
+    $themes = system_rebuild_theme_data();
     $features = $themes[$key]->info['features'];
   }
   else {
-    $settings = theme_get_settings('');
     $var = 'theme_settings';
   }
 
@@ -401,7 +401,7 @@ function system_theme_settings(&$form_state, $key = '') {
   // Check for a new uploaded logo, and use that instead.
   if ($file = file_save_upload('logo_upload', array('file_validate_is_image' => array()))) {
     $parts = pathinfo($file->filename);
-    $filename = ($key) ? str_replace('/', '_', $key) . '_logo.' . $parts['extension'] : 'logo.' . $parts['extension'];
+    $filename = ($key) ? $key . '_logo.' . $parts['extension'] : 'logo.' . $parts['extension'];
 
     // The image was saved using file_save_upload() and was added to the
     // files table as a temporary file. We'll make a copy and let the garbage
@@ -416,7 +416,7 @@ function system_theme_settings(&$form_state, $key = '') {
   // Check for a new uploaded favicon, and use that instead.
   if ($file = file_save_upload('favicon_upload')) {
     $parts = pathinfo($file->filename);
-    $filename = ($key) ? str_replace('/', '_', $key) . '_favicon.' . $parts['extension'] : 'favicon.' . $parts['extension'];
+    $filename = ($key) ? $key . '_favicon.' . $parts['extension'] : 'favicon.' . $parts['extension'];
 
     // The image was saved using file_save_upload() and was added to the
     // files table as a temporary file. We'll make a copy and let the garbage
@@ -448,9 +448,6 @@ function system_theme_settings(&$form_state, $key = '') {
     $disabled['toggle_node_user_picture'] = TRUE;
     $disabled['toggle_comment_user_picture'] = TRUE;
   }
-  if (!module_exists('search')) {
-    $disabled['toggle_search'] = TRUE;
-  }
 
   $form['theme_settings'] = array(
     '#type' => 'fieldset',
@@ -459,7 +456,7 @@ function system_theme_settings(&$form_state, $key = '') {
   );
   foreach ($toggles as $name => $title) {
     if ((!$key) || in_array($name, $features)) {
-      $form['theme_settings']['toggle_' . $name] = array('#type' => 'checkbox', '#title' => $title, '#default_value' => $settings['toggle_' . $name]);
+      $form['theme_settings']['toggle_' . $name] = array('#type' => 'checkbox', '#title' => $title, '#default_value' => theme_get_setting('toggle_' . $name, $key));
       // Disable checkboxes for features not supported in the current configuration.
       if (isset($disabled['toggle_' . $name])) {
         $form['theme_settings']['toggle_' . $name]['#disabled'] = TRUE;
@@ -484,17 +481,26 @@ function system_theme_settings(&$form_state, $key = '') {
     $form['logo']['default_logo'] = array(
       '#type' => 'checkbox',
       '#title' => t('Use the default logo'),
-      '#default_value' => $settings['default_logo'],
+      '#default_value' => theme_get_setting('default_logo', $key),
       '#tree' => FALSE,
       '#description' => t('Check here if you want the theme to use the logo supplied with it.')
     );
-    $form['logo']['logo_path'] = array(
+    $form['logo']['settings'] = array(
+      '#type' => 'container',
+      '#states' => array(
+        // Hide the logo settings when using the default logo.
+        'invisible' => array(
+          'input[name="default_logo"]' => array('checked' => TRUE),
+        ),
+      ),
+    );
+    $form['logo']['settings']['logo_path'] = array(
       '#type' => 'textfield',
       '#title' => t('Path to custom logo'),
-      '#default_value' => $settings['logo_path'],
-      '#description' => t('The path to the file you would like to use as your logo file instead of the default logo.'));
-
-    $form['logo']['logo_upload'] = array(
+      '#default_value' => theme_get_setting('logo_path', $key),
+      '#description' => t('The path to the file you would like to use as your logo file instead of the default logo.'),
+    );
+    $form['logo']['settings']['logo_upload'] = array(
       '#type' => 'file',
       '#title' => t('Upload logo image'),
       '#maxlength' => 40,
@@ -511,17 +517,25 @@ function system_theme_settings(&$form_state, $key = '') {
     $form['favicon']['default_favicon'] = array(
       '#type' => 'checkbox',
       '#title' => t('Use the default shortcut icon.'),
-      '#default_value' => $settings['default_favicon'],
+      '#default_value' => theme_get_setting('default_favicon', $key),
       '#description' => t('Check here if you want the theme to use the default shortcut icon.')
     );
-    $form['favicon']['favicon_path'] = array(
+    $form['favicon']['settings'] = array(
+      '#type' => 'container',
+      '#states' => array(
+        // Hide the favicon settings when using the default favicon.
+        'invisible' => array(
+          'input[name="default_favicon"]' => array('checked' => TRUE),
+        ),
+      ),
+    );
+    $form['favicon']['settings']['favicon_path'] = array(
       '#type' => 'textfield',
       '#title' => t('Path to custom icon'),
-      '#default_value' => $settings['favicon_path'],
+      '#default_value' => theme_get_setting('favicon_path', $key),
       '#description' => t('The path to the image file you would like to use as your custom shortcut icon.')
     );
-
-    $form['favicon']['favicon_upload'] = array(
+    $form['favicon']['settings']['favicon_upload'] = array(
       '#type' => 'file',
       '#title' => t('Upload icon image'),
       '#description' => t("If you don't have direct file access to the server, use this field to upload your shortcut icon.")
@@ -529,43 +543,60 @@ function system_theme_settings(&$form_state, $key = '') {
   }
 
   if ($key) {
-    // Include the theme's theme-settings.php file
-    $filename = DRUPAL_ROOT . '/' . str_replace("/$key.info", '', $themes[$key]->filename) . '/theme-settings.php';
-    if (!file_exists($filename) and !empty($themes[$key]->info['base theme'])) {
-      // If the theme doesn't have a theme-settings.php file, use the base theme's.
-      $base = $themes[$key]->info['base theme'];
-      $filename = DRUPAL_ROOT . '/' . str_replace("/$base.info", '', $themes[$base]->filename) . '/theme-settings.php';
-    }
-    if (file_exists($filename)) {
-      require_once $filename;
-    }
-
     // Call engine-specific settings.
     $function = $themes[$key]->prefix . '_engine_settings';
     if (function_exists($function)) {
-      $group = $function($settings, $form);
-      if (!empty($group)) {
-        $form['engine_specific'] = array('#type' => 'fieldset', '#title' => t('Theme-engine-specific settings'), '#description' => t('These settings only exist for all the templates and styles based on the %engine theme engine.', array('%engine' => $themes[$key]->prefix)));
-        $form['engine_specific'] = array_merge($form['engine_specific'], $group);
+      $form['engine_specific'] = array(
+        '#type' => 'fieldset',
+        '#title' => t('Theme-engine-specific settings'),
+        '#description' => t('These settings only exist for the themes based on the %engine theme engine.', array('%engine' => $themes[$key]->prefix)),
+      );
+      $function($form, $form_state);
+    }
+
+    // Create a list which includes the current theme and all its base themes.
+    if (isset($themes[$key]->base_themes)) {
+      $theme_keys = array_keys($themes[$key]->base_themes);
+      $theme_keys[] = $key;
+    }
+    else {
+      $theme_keys = array($key);
+    }
+
+    // Save the name of the current theme (if any), so that we can temporarily
+    // override the current theme and allow theme_get_setting() to work
+    // without having to pass the theme name to it.
+    $default_theme = !empty($GLOBALS['theme_key']) ? $GLOBALS['theme_key'] : NULL;
+    $GLOBALS['theme_key'] = $key;
+
+    // Process the theme and all its base themes.
+    foreach ($theme_keys as $theme) {
+      // Include the theme-settings.php file.
+      $filename = DRUPAL_ROOT . '/' . str_replace("/$theme.info", '', $themes[$theme]->filename) . '/theme-settings.php';
+      if (file_exists($filename)) {
+        require_once $filename;
+      }
+
+      // Call theme-specific settings.
+      $function = $theme . '_form_system_theme_settings_alter';
+      if (function_exists($function)) {
+        $function($form, $form_state);
       }
     }
-    // Call theme-specific settings.
-    $function = $key . '_settings';
-    if (!function_exists($function)) {
-      $function = $themes[$key]->prefix . '_settings';
+
+    // Restore the original current theme.
+    if (!is_null($default_theme)) {
+      $GLOBALS['theme_key'] = $default_theme;
     }
-    if (function_exists($function)) {
-      $group = $function($settings, $form);
-      if (!empty($group)) {
-        $form['theme_specific'] = array('#type' => 'fieldset', '#title' => t('Theme-specific settings'), '#description' => t('These settings only exist for the %theme theme and all the styles based on it.', array('%theme' => $themes[$key]->info['name'])));
-        $form['theme_specific'] = array_merge($form['theme_specific'], $group);
-      }
+    else {
+      unset($GLOBALS['theme_key']);
     }
   }
 
   $form = system_settings_form($form, FALSE);
   // We don't want to call system_settings_form_submit(), so change #submit.
-  $form['#submit'] = array('system_theme_settings_submit');
+  array_pop($form['#submit']);
+  $form['#submit'][] = 'system_theme_settings_submit';
   return $form;
 }
 
@@ -633,9 +664,9 @@ function _system_is_incompatible(&$incompatible, $files, $file) {
  * @return
  *   The form array.
  */
-function system_modules($form_state = array()) {
+function system_modules($form, $form_state = array()) {
   // Get current list of modules.
-  $files = system_get_module_data();
+  $files = system_rebuild_module_data();
 
   // Remove hidden modules from display list.
   foreach ($files as $filename => $file) {
@@ -691,7 +722,7 @@ function system_modules($form_state = array()) {
     if ($help_arg && $module->status && in_array($filename, module_implements('help'))) {
       if (module_invoke($filename, 'help', "admin/help#$filename", $help_arg)) {
         // Module has a help page.
-        $extra['help'] = theme('more_help_link', url("admin/help/$filename"));
+        $extra['help'] = theme('more_help_link', array('url' => url("admin/help/$filename")));
       }
     }
     // Mark dependents disabled so the user cannot remove required modules.
@@ -808,9 +839,9 @@ function _system_modules_build_row($info, $extra) {
   }
   else {
     $form['enable'] = array(
-      '#markup' =>  theme('image', 'misc/watchdog-error.png', t('incompatible'), $status_short),
+      '#markup' =>  theme('image', array('path' => 'misc/watchdog-error.png', 'alt' => t('incompatible'), 'title' => $status_short)),
     );
-    $form['description']['#markup'] .= theme('system_modules_incompatible', $status_long);
+    $form['description']['#markup'] .= theme('system_modules_incompatible', array('message' => $status_long));
   }
 
   // Show a "more help" link for modules that have them.
@@ -826,7 +857,7 @@ function _system_modules_build_row($info, $extra) {
  * Display confirmation form for required modules.
  *
  * @param $modules
- *   Array of module file objects as returned from system_get_module_data().
+ *   Array of module file objects as returned from system_rebuild_module_data().
  * @param $storage
  *   The contents of $form_state['storage']; an array with two
  *   elements: the list of required modules and the list of status
@@ -834,7 +865,6 @@ function _system_modules_build_row($info, $extra) {
  * @ingroup forms
  */
 function system_modules_confirm_form($modules, $storage) {
-  $form = array();
   $items = array();
 
   $form['validation_modules'] = array('#type' => 'value', '#value' => $modules);
@@ -847,7 +877,7 @@ function system_modules_confirm_form($modules, $storage) {
     );
     $items[] = format_plural(count($info['requires']), 'You must enable the @required module to install @module.', 'You must enable the @required modules to install @module.', $t_argument);
   }
-  $form['text'] = array('#markup' => theme('item_list', $items));
+  $form['text'] = array('#markup' => theme('item_list', array('items' => $items)));
 
   if ($form) {
     // Set some default form values
@@ -884,7 +914,7 @@ function system_modules_submit($form, &$form_state) {
 
   // Get a list of all modules, it will be used to find which module requires
   // which.
-  $files = system_get_module_data();
+  $files = system_rebuild_module_data();
 
   // The modules to be enabled.
   $modules_to_be_enabled = array();
@@ -1034,7 +1064,7 @@ function system_modules_submit($form, &$form_state) {
  * @return
  *   A form array representing the currently disabled modules.
  */
-function system_modules_uninstall($form_state = NULL) {
+function system_modules_uninstall($form, $form_state = NULL) {
   // Make sure the install API is available.
   include_once DRUPAL_ROOT . '/includes/install.inc';
 
@@ -1043,12 +1073,9 @@ function system_modules_uninstall($form_state = NULL) {
     return $confirm_form;
   }
 
-  $form = array();
-
   // Pull all disabled modules from the system table.
   $disabled_modules = db_query("SELECT name, filename, info FROM {system} WHERE type = 'module' AND status = 0 AND schema_version > :schema ORDER BY name", array(':schema' => SCHEMA_UNINSTALLED));
   foreach ($disabled_modules as $module) {
-
     // Grab the module info
     $info = unserialize($module->info);
 
@@ -1109,7 +1136,7 @@ function system_modules_uninstall_confirm_form($storage) {
   if (isset($uninstall)) {
     $form['#confirmed'] = TRUE;
     $form['uninstall']['#tree'] = TRUE;
-    $form['modules'] = array('#markup' => '<p>' . t('The following modules will be completely uninstalled from your site, and <em>all data from these modules will be lost</em>!') . '</p>' . theme('item_list', $uninstall));
+    $form['modules'] = array('#markup' => '<p>' . t('The following modules will be completely uninstalled from your site, and <em>all data from these modules will be lost</em>!') . '</p>' . theme('item_list', array('items' => $uninstall)));
     $form = confirm_form(
       $form,
       t('Confirm uninstall'),
@@ -1186,7 +1213,7 @@ function system_ip_blocking() {
  * @see system_ip_blocking_form_validate()
  * @see system_ip_blocking_form_submit()
  */
-function system_ip_blocking_form($form_state) {
+function system_ip_blocking_form($form, $form_state) {
   $form['ip'] = array(
     '#title' => t('IP address'),
     '#type' => 'textfield',
@@ -1232,7 +1259,7 @@ function system_ip_blocking_form_submit($form, &$form_state) {
  *
  * @see system_ip_blocking_delete_submit()
  */
-function system_ip_blocking_delete(&$form_state, $iid) {
+function system_ip_blocking_delete($form, &$form_state, $iid) {
   $form['blocked_ip'] = array(
     '#type' => 'value',
     '#value' => $iid,
@@ -1580,7 +1607,7 @@ function system_rss_feeds_settings() {
   $form['feed_item_length'] = array(
     '#type' => 'select',
     '#title' => t('Feed content'),
-    '#default_value' => 'teaser',
+    '#default_value' => 'fulltext',
     '#options' => array('title' => t('Titles only'), 'teaser' => t('Titles plus teaser'), 'fulltext' => t('Full text')),
     '#description' => t('Global setting for the default display of content items in each feed.')
   );
@@ -1589,16 +1616,13 @@ function system_rss_feeds_settings() {
 }
 
 /**
- * Form builder; Configure the site date and time settings.
+ * Form builder; Configure the site regional settings.
  *
  * @ingroup forms
  * @see system_settings_form()
  * @see system_regional_settings_submit()
  */
 function system_regional_settings() {
-  drupal_add_js(drupal_get_path('module', 'system') . '/system.js');
-  drupal_add_js(array('dateTime' => array('lookup' => url('admin/config/regional/settings/lookup'))), 'setting');
-
   include_once DRUPAL_ROOT . '/includes/locale.inc';
   $countries = country_get_list();
   // Add a 'No default country' option to the start of the list.
@@ -1606,31 +1630,6 @@ function system_regional_settings() {
 
   // Date settings:
   $zones = system_time_zones();
-
-  // Date settings: possible date formats
-  $date_short = array('Y-m-d H:i', 'm/d/Y - H:i', 'd/m/Y - H:i', 'Y/m/d - H:i',
-           'd.m.Y - H:i', 'm/d/Y - g:ia', 'd/m/Y - g:ia', 'Y/m/d - g:ia',
-           'M j Y - H:i', 'j M Y - H:i', 'Y M j - H:i',
-           'M j Y - g:ia', 'j M Y - g:ia', 'Y M j - g:ia');
-  $date_medium = array('D, Y-m-d H:i', 'D, m/d/Y - H:i', 'D, d/m/Y - H:i',
-          'D, Y/m/d - H:i', 'F j, Y - H:i', 'j F, Y - H:i', 'Y, F j - H:i',
-          'D, m/d/Y - g:ia', 'D, d/m/Y - g:ia', 'D, Y/m/d - g:ia',
-          'F j, Y - g:ia', 'j F Y - g:ia', 'Y, F j - g:ia', 'j. F Y - G:i');
-  $date_long = array('l, F j, Y - H:i', 'l, j F, Y - H:i', 'l, Y, F j - H:i',
-        'l, F j, Y - g:ia', 'l, j F Y - g:ia', 'l, Y, F j - g:ia', 'l, j. F Y - G:i');
-
-  // Date settings: construct choices for user
-  foreach ($date_short as $f) {
-    $date_short_choices[$f] = format_date(REQUEST_TIME, 'custom', $f);
-  }
-  foreach ($date_medium as $f) {
-    $date_medium_choices[$f] = format_date(REQUEST_TIME, 'custom', $f);
-  }
-  foreach ($date_long as $f) {
-    $date_long_choices[$f] = format_date(REQUEST_TIME, 'custom', $f);
-  }
-
-  $date_long_choices['custom'] = $date_medium_choices['custom'] = $date_short_choices['custom'] = t('Custom format');
 
   $form['locale'] = array(
     '#type' => 'fieldset',
@@ -1671,12 +1670,16 @@ function system_regional_settings() {
     '#default_value' => $configurable_timezones,
   );
 
-  $js_hide = !$configurable_timezones ? ' class="js-hide"' : '';
   $form['timezone']['configurable_timezones_wrapper'] =  array(
-    '#prefix' => '<div id="empty-timezone-message-wrapper"' . $js_hide . '>',
-    '#suffix' => '</div>',
+    '#type' => 'container',
+    '#states' => array(
+      // Hide the user configured timezone settings when users are forced to use
+      // the default setting.
+      'invisible' => array(
+        'input[name="configurable_timezones"]' => array('checked' => FALSE),
+      ),
+    ),
   );
-
   $form['timezone']['configurable_timezones_wrapper']['empty_timezone_message'] = array(
     '#type' => 'checkbox',
     '#title' => t('Remind users at login if their time zone is not set.'),
@@ -1696,97 +1699,216 @@ function system_regional_settings() {
     '#description' => t('Only applied if users may set their own time zone.')
   );
 
-  $form['date_formats'] = array(
-    '#type' => 'fieldset',
-    '#title' => t('Date formats'),
+  return system_settings_form($form, FALSE);
+}
+
+/**
+ * Form builder; Configure the site date and time settings.
+ *
+ * @ingroup forms
+ * @see system_settings_form()
+ */
+function system_date_time_settings() {
+  // Get list of all available date types.
+  drupal_static_reset('system_get_date_types');
+  $format_types = system_get_date_types();
+
+  // Get list of all available date formats.
+  $all_formats = array();
+  drupal_static_reset('system_get_date_formats');
+  $date_formats = system_get_date_formats(); // Call this to rebuild the list, and to have default list.
+  foreach ($date_formats as $type => $format_info) {
+    $all_formats = array_merge($all_formats, $format_info);
+  }
+  $custom_formats = system_get_date_formats('custom');
+  if (!empty($format_types)) {
+    foreach ($format_types as $type => $type_info) {
+      // If a system type, only show the available formats for that type and
+      // custom ones.
+      if ($type_info['locked'] == 1) {
+        $formats = system_get_date_formats($type);
+        if (empty($formats)) {
+          $formats = $all_formats;
+        }
+        elseif (!empty($custom_formats)) {
+          $formats = array_merge($formats, $custom_formats);
+        }
+      }
+      // If a user configured type, show all available date formats.
+      else {
+        $formats = $all_formats;
+      }
+
+      $choices = array();
+      foreach ($formats as $f => $format) {
+        $choices[$f] = format_date(REQUEST_TIME, 'custom', $f);
+      }
+      $default = variable_get('date_format_' . $type, array_shift(array_keys($formats)));
+
+      // Get date type info for this date type.
+      $type_info = system_get_date_types($type);
+      $form['formats']['#theme'] = 'system_date_time_settings';
+
+      // Show date format select list.
+      $form['formats']['format']['date_format_' . $type] = array(
+        '#type' => 'select',
+        '#title' => check_plain($type_info['title']),
+        '#attributes' => array('class' => array('date-format')),
+        '#default_value' => (isset($choices[$default]) ? $default : 'custom'),
+        '#options' => $choices,
+      );
+
+      // If this isn't a system provided type, allow the user to remove it from
+      // the system.
+      if ($type_info['locked'] == 0) {
+        $form['formats']['delete']['date_format_' . $type . '_delete'] = array(
+          '#type' => 'link',
+          '#title' => t('delete'),
+          '#href' => 'admin/config/regional/date-time/types/' . $type . '/delete',
+        );
+      }
+    }
+  }
+
+  // Display a message if no date types configured.
+  $form['#empty_text'] = t('No date types available. <a href="@link">Add date type</a>.', array('@link' => url('admin/config/regional/date-time/types/add')));
+
+  return system_settings_form($form, FALSE);
+}
+
+/**
+ * Theme function for date settings form.
+ *
+ * @ingroup themeable
+ */
+function theme_system_date_time_settings($variables) {
+  $form = $variables['form'];
+  $header = array(
+    t('Date type'),
+    t('Format'),
+    t('Operations'),
   );
 
-  $date_format_short = variable_get('date_format_short', $date_short[1]);
-  $form['date_formats']['date_format_short'] = array(
-    '#prefix' => '<div class="date-container"><div class="select-container">',
-    '#suffix' => '</div>',
-    '#type' => 'select',
-    '#title' => t('Short date format'),
-    '#attributes' => array('class' => array('date-format')),
-    '#default_value' => (isset($date_short_choices[$date_format_short]) ? $date_format_short : 'custom'),
-    '#options' => $date_short_choices,
-  );
+  foreach (element_children($form['format']) as $key) {
+    $delete_key = $key . '_delete';
+    $row = array();
+    $row[] = $form['format'][$key]['#title'];
+    unset($form['format'][$key]['#title']);
+    $row[] = array('data' => drupal_render($form['format'][$key]));
+    $row[] = array('data' => drupal_render($form['delete'][$delete_key]));
+    $rows[] = $row;
+  }
 
-  $default_short_custom = variable_get('date_format_short_custom', (isset($date_short_choices[$date_format_short]) ? $date_format_short : ''));
-  $form['date_formats']['date_format_short_custom'] = array(
-    '#prefix' => '<div class="custom-container">',
-    '#suffix' => '</div></div>',
+  $output = theme('table', array('header' => $header, 'rows' => $rows, 'attributes' => array('id' => 'system-date-types')));
+  $output .= drupal_render_children($form);
+
+  return $output;
+}
+
+
+/**
+ * Add new date type.
+ *
+ * @ingroup forms
+ * @ingroup system_add_date_format_type_form_validate()
+ * @ingroup system_add_date_format_type_form_submit()
+ */
+function system_add_date_format_type_form($form, &$form_state) {
+  $form['date_type'] = array(
+    '#title' => t('Date type'),
     '#type' => 'textfield',
-    '#title' => t('Custom short date format'),
-    '#attributes' => array('class' => array('custom-format')),
-    '#default_value' => $default_short_custom,
-    '#description' => t('A user-defined short date format. See the <a href="@url">PHP manual</a> for available options. This format is currently set to display as <span>%date</span>.', array('@url' => 'http://php.net/manual/function.date.php', '%date' => format_date(REQUEST_TIME, 'custom', $default_short_custom))),
+    '#required' => TRUE,
+    '#field_suffix' => ' <small id="edit-date-type-suffix">&nbsp</small>',
   );
-
-  $date_format_medium = variable_get('date_format_medium', $date_medium[1]);
-  $form['date_formats']['date_format_medium'] = array(
-    '#prefix' => '<div class="date-container"><div class="select-container">',
-    '#suffix' => '</div>',
-    '#type' => 'select',
-    '#title' => t('Medium date format'),
-    '#attributes' => array('class' => array('date-format')),
-    '#default_value' => (isset($date_medium_choices[$date_format_medium]) ? $date_format_medium : 'custom'),
-    '#options' => $date_medium_choices,
+  $js_settings = array(
+    'type' => 'setting',
+    'data' => array(
+      'machineReadableValue' => array(
+        'date-type' => array(
+          'text' => t('Machine name'),
+          'target' => 'machine-name',
+          'searchPattern' => '[^a-z0-9]+',
+          'replaceToken' => '_',
+        ),
+      ),
+    ),
   );
-
-  $default_medium_custom = variable_get('date_format_medium_custom', (isset($date_medium_choices[$date_format_medium]) ? $date_format_medium : ''));
-  $form['date_formats']['date_format_medium_custom'] = array(
-    '#prefix' => '<div class="custom-container">',
-    '#suffix' => '</div></div>',
+  $form['machine_name'] = array(
+    '#title' => t('Machine readable name'),
+    '#description' => t('The unique machine readable name for this date type, can only contain lowercase letters, numbers and underscores.'),
     '#type' => 'textfield',
-    '#title' => t('Custom medium date format'),
-    '#attributes' => array('class' => array('custom-format')),
-    '#default_value' => $default_medium_custom,
-    '#description' => t('A user-defined medium date format. See the <a href="@url">PHP manual</a> for available options. This format is currently set to display as <span>%date</span>.', array('@url' => 'http://php.net/manual/function.date.php', '%date' => format_date(REQUEST_TIME, 'custom', $default_medium_custom))),
+    '#required' => TRUE,
+    '#attached' => array(
+      'js' => array(drupal_get_path('module', 'system') . '/system.js', $js_settings),
+    ),
   );
 
-  $date_format_long = variable_get('date_format_long', $date_long[0]);
-  $form['date_formats']['date_format_long'] = array(
-    '#prefix' => '<div class="date-container"><div class="select-container">',
-    '#suffix' => '</div>',
+  // Get list of all available date formats.
+  $formats = array();
+  drupal_static_reset('system_get_date_formats');
+  $date_formats = system_get_date_formats(); // Call this to rebuild the list, and to have default list.
+  foreach ($date_formats as $type => $format_info) {
+    $formats = array_merge($formats, $format_info);
+  }
+  $custom_formats = system_get_date_formats('custom');
+  if (!empty($custom_formats)) {
+    $formats = array_merge($formats, $custom_formats);
+  }
+  $choices = array();
+  foreach ($formats as $f => $format) {
+    $choices[$f] = format_date(REQUEST_TIME, 'custom', $f);
+  }
+  // Show date format select list.
+  $form['date_format'] = array(
     '#type' => 'select',
-    '#title' => t('Long date format'),
+    '#title' => t('Date format'),
     '#attributes' => array('class' => array('date-format')),
-    '#default_value' => (isset($date_long_choices[$date_format_long]) ? $date_format_long : 'custom'),
-    '#options' => $date_long_choices,
+    '#options' => $choices,
+    '#required' => TRUE,
   );
 
-  $default_long_custom = variable_get('date_format_long_custom', (isset($date_long_choices[$date_format_long]) ? $date_format_long : ''));
-  $form['date_formats']['date_format_long_custom'] = array(
-    '#prefix' => '<div class="custom-container">',
-    '#suffix' => '</div></div>',
-    '#type' => 'textfield',
-    '#title' => t('Custom long date format'),
-    '#attributes' => array('class' => array('custom-format')),
-    '#default_value' => $default_long_custom,
-    '#description' => t('A user-defined long date format. See the <a href="@url">PHP manual</a> for available options. This format is currently set to display as <span>%date</span>.', array('@url' => 'http://php.net/manual/function.date.php', '%date' => format_date(REQUEST_TIME, 'custom', $default_long_custom))),
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Add date type'),
   );
 
-  $form = system_settings_form($form, FALSE);
-  // We will call system_settings_form_submit() manually, so remove it for now.
-  unset($form['#submit']);
+  $form['#validate'][] = 'system_add_date_format_type_form_validate';
+  $form['#submit'][] = 'system_add_date_format_type_form_submit';
+
   return $form;
 }
 
 /**
- * Process system_regional_settings form submissions.
+ * Validate system_add_date_format_type form submissions.
  */
-function system_regional_settings_submit($form, &$form_state) {
-  if ($form_state['values']['date_format_short'] == 'custom') {
-    $form_state['values']['date_format_short'] = $form_state['values']['date_format_short_custom'];
+function system_add_date_format_type_form_validate($form, &$form_state) {
+  if (!empty($form_state['values']['machine_name']) && !empty($form_state['values']['date_type'])) {
+    if (!preg_match("/^[a-zA-Z0-9_]+$/", trim($form_state['values']['machine_name']))) {
+      form_set_error('machine_name', t('The date type must contain only alphanumeric characters and underscores.'));
+    }
+    $types = system_get_date_types();
+    if (in_array(trim($form_state['values']['machine_name']), array_keys($types))) {
+      form_set_error('machine_name', t('This date type already exists. Please enter a unique type.'));
+    }
   }
-  if ($form_state['values']['date_format_medium'] == 'custom') {
-    $form_state['values']['date_format_medium'] = $form_state['values']['date_format_medium_custom'];
-  }
-  if ($form_state['values']['date_format_long'] == 'custom') {
-    $form_state['values']['date_format_long'] = $form_state['values']['date_format_long_custom'];
-  }
-  return system_settings_form_submit($form, $form_state);
+}
+
+/**
+ * Process system_add_date_format_type form submissions.
+ */
+function system_add_date_format_type_form_submit($form, &$form_state) {
+  $machine_name = trim($form_state['values']['machine_name']);
+
+  $format_type = array();
+  $format_type['title'] = trim($form_state['values']['date_type']);
+  $format_type['type'] = $machine_name;
+  $format_type['locked'] = 0;
+  $format_type['is_new'] = 1;
+  system_date_format_type_save($format_type);
+  variable_set('date_format_' . $machine_name, $form_state['values']['date_format']);
+
+  drupal_set_message(t('New date type added successfully.'));
+  $form_state['redirect'] = 'admin/config/regional/date-time';
 }
 
 /**
@@ -1794,7 +1916,7 @@ function system_regional_settings_submit($form, &$form_state) {
  */
 function system_date_time_lookup() {
   $result = format_date(REQUEST_TIME, 'custom', $_GET['format']);
-  drupal_json($result);
+  drupal_json_output($result);
 }
 
 /**
@@ -1826,7 +1948,7 @@ function system_site_maintenance_mode() {
  * @ingroup forms
  * @see system_settings_form()
  */
-function system_clean_url_settings() {
+function system_clean_url_settings($form, &$form_state) {
   global $base_url;
 
   // When accessing this form using a non-clean URL, allow a re-check to make
@@ -1856,7 +1978,7 @@ function system_clean_url_settings() {
   else {
     drupal_add_js(drupal_get_path('module', 'system') . '/system.js');
 
-    $form['#redirect'] = $base_url . '/admin/config/search/clean-urls';
+    $form_state['redirect'] = $base_url . '/admin/config/search/clean-urls';
     $form['clean_url_description'] = array(
       '#type' => 'markup',
       '#markup' => '<p>' . t('Use URLs like <code>example.com/user</code> instead of <code>example.com/?q=user</code>.') . ' ' . t('If you are directed to a <em>Page not found (404)</em> error after testing for clean URLs, see the <a href="@handbook">online handbook</a>.', array('@handbook' => 'http://drupal.org/node/15365')) . '</p>',
@@ -1896,7 +2018,7 @@ function system_status($check = FALSE) {
     ->condition('pass', '')
     ->condition('status', 0)
     ->execute();
-  return theme('status_report', $requirements);
+  return theme('status_report', array('requirements' => $requirements));
 }
 
 /**
@@ -1919,7 +2041,7 @@ function system_run_cron() {
  */
 function system_php() {
   phpinfo();
-  exit();
+  drupal_exit();
 }
 
 /**
@@ -1928,10 +2050,6 @@ function system_php() {
 function system_batch_page() {
   require_once DRUPAL_ROOT . '/includes/batch.inc';
   $output = _batch_page();
-  
-  // Use the same theme that the page that started the batch.
-  $batch = &batch_get();
-  $GLOBALS['custom_theme'] = $batch['theme'];
 
   if ($output === FALSE) {
     drupal_access_denied();
@@ -1949,12 +2067,16 @@ function system_batch_page() {
 /**
  * This function formats an administrative block for display.
  *
- * @param $block
- *   An array containing information about the block. It should
- *   include a 'title', a 'description' and a formatted 'content'.
+ * @param $variables
+ *   An associative array containing:
+ *   - block: An array containing information about the block. It should
+ *     include a 'title', a 'description' and a formatted 'content'.
+ *
  * @ingroup themeable
  */
-function theme_admin_block($block) {
+function theme_admin_block($variables) {
+  $block = $variables['block'];
+
   // Don't display the block if it has no content to display.
   if (empty($block['show'])) {
     return '';
@@ -1990,12 +2112,16 @@ EOT;
 /**
  * This function formats the content of an administrative block.
  *
- * @param $content
- *   An array containing information about the block. It should
- *   include a 'title', a 'description' and a formatted 'content'.
+ * @param $variables
+ *   An associative array containing:
+ *   - content: An array containing information about the block. It should
+ *     include a 'title', a 'description' and a formatted 'content'.
+ *
  * @ingroup themeable
  */
-function theme_admin_block_content($content) {
+function theme_admin_block_content($variables) {
+  $content = $variables['content'];
+
   if (!$content) {
     return '';
   }
@@ -2021,19 +2147,23 @@ function theme_admin_block_content($content) {
 /**
  * This function formats an administrative page for viewing.
  *
- * @param $blocks
- *   An array of blocks to display. Each array should include a
- *   'title', a 'description', a formatted 'content' and a
- *   'position' which will control which container it will be
- *   in. This is usually 'left' or 'right'.
+ * @param $variables
+ *   An associative array containing:
+ *   - blocks: An array of blocks to display. Each array should include a
+ *     'title', a 'description', a formatted 'content' and a
+ *     'position' which will control which container it will be
+ *     in. This is usually 'left' or 'right'.
+ *
  * @ingroup themeable
  */
-function theme_admin_page($blocks) {
+function theme_admin_page($variables) {
+  $blocks = $variables['blocks'];
+
   $stripe = 0;
   $container = array();
 
   foreach ($blocks as $block) {
-    if ($block_output = theme('admin_block', $block)) {
+    if ($block_output = theme('admin_block', array('block' => $block))) {
       if (empty($block['position'])) {
         // perform automatic striping.
         $block['position'] = ++$stripe % 2 ? 'left' : 'right';
@@ -2060,11 +2190,15 @@ function theme_admin_page($blocks) {
 /**
  * Theme output of the dashboard page.
  *
- * @param $menu_items
- *   An array of modules to be displayed.
+ * @param $variables
+ *   An associative array containing:
+ *   - menu_items: An array of modules to be displayed.
+ *
  * @ingroup themeable
  */
-function theme_system_admin_by_module($menu_items) {
+function theme_system_admin_by_module($variables) {
+  $menu_items = $variables['menu_items'];
+
   $stripe = 0;
   $output = '';
   $container = array('left' => '', 'right' => '');
@@ -2079,11 +2213,11 @@ function theme_system_admin_by_module($menu_items) {
     if (count($items)) {
       $block = array();
       $block['title'] = $module;
-      $block['content'] = theme('item_list', $items);
+      $block['content'] = theme('item_list', array('items' => $items));
       $block['description'] = t($description);
       $block['show'] = TRUE;
 
-      if ($block_output = theme('admin_block', $block)) {
+      if ($block_output = theme('admin_block', array('block' => $block))) {
         if (!isset($block['position'])) {
           // Perform automatic striping.
           $block['position'] = $position;
@@ -2108,11 +2242,15 @@ function theme_system_admin_by_module($menu_items) {
 /**
  * Theme requirements status report.
  *
- * @param $requirements
- *   An array of requirements.
+ * @param $variables
+ *   An associative array containing:
+ *   - requirements: An array of requirements.
+ *
  * @ingroup themeable
  */
-function theme_status_report($requirements) {
+function theme_status_report($variables) {
+  $requirements = $variables['requirements'];
+
   $i = 0;
   $output = '<table class="system-status-report">';
   foreach ($requirements as $requirement) {
@@ -2145,11 +2283,15 @@ function theme_status_report($requirements) {
 /**
  * Theme callback for the modules form.
  *
- * @param $form
- *   An associative array containing the structure of the form.
+ * @param $variables
+ *   An associative array containing:
+ *   - form: An associative array containing the structure of the form.
+ *
  * @ingroup themeable
  */
-function theme_system_modules_fieldset($form) {
+function theme_system_modules_fieldset($variables) {
+  $form = $variables['form'];
+
   // Individual table headers.
   $rows = array();
   // Iterate through all the modules, which are
@@ -2184,32 +2326,40 @@ function theme_system_modules_fieldset($form) {
     $rows[] = $row;
   }
 
-  return theme('table', $form['#header'], $rows);
+  return theme('table', array('header' => $form['#header'], 'rows' => $rows));
 }
 
 /**
  * Themes an incompatible message.
  *
  * @ingroup themeable
- * @param $message
- *   The form array representing the currently disabled modules.
+ *
+ * @param $variables
+ *   An associative array containing:
+ *   - message: The form array representing the currently disabled modules.
+ *
  * @return
  *   An HTML string for the message.
  */
-function theme_system_modules_incompatible($message) {
-  return '<div class="incompatible">' . $message . '</div>';
+function theme_system_modules_incompatible($variables) {
+  return '<div class="incompatible">' . $variables['message'] . '</div>';
 }
 
 /**
  * Themes a table of currently disabled modules.
  *
  * @ingroup themeable
- * @param $form
- *   The form array representing the currently disabled modules.
+ *
+ * @param $variables
+ *   An associative array containing:
+ *   - form: The form array representing the currently disabled modules.
+ *
  * @return
  *   An HTML string representing the table.
  */
-function theme_system_modules_uninstall($form) {
+function theme_system_modules_uninstall($variables) {
+  $form = $variables['form'];
+
   // No theming for the confirm form.
   if (isset($form['confirm'])) {
     return drupal_render($form);
@@ -2236,7 +2386,7 @@ function theme_system_modules_uninstall($form) {
     $rows[] = array(array('data' => t('No modules are available to uninstall.'), 'colspan' => '3', 'align' => 'center', 'class' => array('message')));
   }
 
-  $output  = theme('table', $header, $rows);
+  $output  = theme('table', array('header' => $header, 'rows' => $rows));
   $output .= drupal_render_children($form);
 
   return $output;
@@ -2245,11 +2395,15 @@ function theme_system_modules_uninstall($form) {
 /**
  * Theme function for the system themes form.
  *
- * @param $form
- *   An associative array containing the structure of the form.
+ * @param $variables
+ *   An associative array containing:
+ *   - form: An associative array containing the structure of the form.
+ *
  * @ingroup themeable
  */
-function theme_system_themes_form($form) {
+function theme_system_themes_form($variables) {
+  $form = $variables['form'];
+
   foreach (element_children($form) as $key) {
     // Only look for themes
     if (!isset($form[$key]['info'])) {
@@ -2263,12 +2417,12 @@ function theme_system_themes_form($form) {
     // Make sure it is compatible and render the checkbox if so.
     if (isset($form['status']['#incompatible_themes_core'][$key])) {
       unset($form['status'][$key]);
-      $status = theme('image', 'misc/watchdog-error.png', t('incompatible'), t('Incompatible with this version of Drupal core'));
+      $status = theme('image', array('path' => 'misc/watchdog-error.png', 'alt' => t('incompatible'), 'title' => t('Incompatible with this version of Drupal core')));
       $description .= '<div class="incompatible">' . t('This version is incompatible with the !core_version version of Drupal core.', array('!core_version' => VERSION)) . '</div>';
     }
     elseif (isset($form['status']['#incompatible_themes_php'][$key])) {
       unset($form['status'][$key]);
-      $status = theme('image', 'misc/watchdog-error.png', t('incompatible'), t('Incompatible with this version of PHP'));
+      $status = theme('image', array('path' => 'misc/watchdog-error.png', 'alt' => t('incompatible'), 'title' => t('Incompatible with this version of PHP')));
       $php_required = $form['status']['#incompatible_themes_php'][$key];
       if (substr_count($php_required, '.') < 2) {
         $php_required .= '.*';
@@ -2296,7 +2450,459 @@ function theme_system_themes_form($form) {
   }
 
   $header = array(t('Screenshot'), t('Name'), t('Version'), t('Enabled'), t('Default'), t('Operations'));
-  $output = theme('table', $header, $rows);
+  $output = theme('table', array('header' => $header, 'rows' => $rows));
   $output .= drupal_render_children($form);
   return $output;
 }
+
+/**
+ * Menu callback; present a form for deleting a date format.
+ */
+function system_date_delete_format_form($form, &$form_state, $dfid) {
+  $form['dfid'] = array(
+    '#type' => 'value',
+    '#value' => $dfid,
+  );
+  $format = system_get_date_format($dfid);
+
+  $output = confirm_form($form,
+    t('Are you sure you want to remove the format %format?', array('%format' => format_date(REQUEST_TIME, 'custom', $format->format))),
+    'admin/config/regional/date-time/formats',
+    t('This action cannot be undone.'),
+    t('Remove'), t('Cancel'),
+    'confirm'
+  );
+
+  return $output;
+}
+
+/**
+ * Delete a configured date format.
+ */
+function system_date_delete_format_form_submit($form, &$form_state) {
+  if ($form_state['values']['confirm']) {
+    $format = system_get_date_format($form_state['values']['dfid']);
+    system_date_format_delete($form_state['values']['dfid']);
+    drupal_set_message(t('Removed date format %format.', array('%format' => format_date(REQUEST_TIME, 'custom', $format->format))));
+    $form_state['redirect'] = 'admin/config/regional/date-time/formats';
+  }
+}
+
+/**
+ * Menu callback; present a form for deleting a date type.
+ */
+function system_delete_date_format_type_form($form, &$form_state, $format_type) {
+  $form['format_type'] = array(
+    '#type' => 'value',
+    '#value' => $format_type,
+  );
+  $type_info = system_get_date_types($format_type);
+
+  $output = confirm_form($form,
+    t('Are you sure you want to remove the date type %type?', array('%type' => $type_info['title'])),
+    'admin/config/regional/date-time',
+    t('This action cannot be undone.'),
+    t('Remove'), t('Cancel'),
+    'confirm'
+  );
+
+  return $output;
+}
+
+/**
+ * Delete a configured date type.
+ */
+function system_delete_date_format_type_form_submit($form, &$form_state) {
+  if ($form_state['values']['confirm']) {
+    $type_info = system_get_date_types($form_state['values']['format_type']);
+    system_date_format_type_delete($form_state['values']['format_type']);
+    drupal_set_message(t('Removed date type %type.', array('%type' => $type_info['title'])));
+    $form_state['redirect'] = 'admin/config/regional/date-time';
+  }
+}
+
+
+/**
+ * Displays the date format strings overview page.
+ */
+function system_date_time_formats() {
+  $header = array(t('Format'), array('data' => t('Operations'), 'colspan' => '2'));
+  $rows = array();
+
+  drupal_static_reset('system_get_date_formats');
+  $formats = system_get_date_formats('custom');
+  if (!empty($formats)) {
+    foreach ($formats as $format) {
+      $row = array();
+      $row[] = array('data' => format_date(REQUEST_TIME, 'custom', $format['format']));
+      $row[] = array('data' => l(t('edit'), 'admin/config/regional/date-time/formats/' . $format['dfid'] . '/edit'));
+      $row[] = array('data' => l(t('delete'), 'admin/config/regional/date-time/formats/' . $format['dfid'] . '/delete'));
+      $rows[] = $row;
+    }
+  }
+
+  if (empty($rows)) {
+    $rows[] = array(array('data' => t('No custom date formats available. <a href="@link">Add date format</a>.', array('@link' => url('admin/config/regional/date-time/formats/add'))), 'colspan' => '5', 'class' => array('message')));
+  }
+
+  $build['date_formats_table'] = array(
+    '#theme' => 'table',
+    '#header' => $header,
+    '#rows' => $rows,
+  );
+
+  return $build;
+}
+
+/**
+ * Allow users to add additional date formats.
+ */
+function system_configure_date_formats_form($form, &$form_state, $dfid = 0) {
+  $js_settings = array(
+    'type' => 'setting',
+    'data' => array(
+      'dateTime' => array(
+        'date-format' => array(
+          'text' => t('Displayed as'),
+          'lookup' => url('admin/config/regional/date-time/formats/lookup'),
+        ),
+      ),
+    ),
+  );
+
+  if ($dfid) {
+    $form['dfid'] = array(
+      '#type' => 'value',
+      '#value' => $dfid,
+    );
+    $format = system_get_date_format($dfid);
+  }
+
+  $now = ($dfid ? t('Displayed as %date', array('%date' => format_date(REQUEST_TIME, 'custom', $format->format))) : '');
+
+  $form['date_format'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Format string'),
+    '#description' => t('A user-defined date format. See the <a href="@url">PHP manual</a> for available options.', array('@url' => 'http://php.net/manual/function.date.php')),
+    '#default_value' => ($dfid ? $format->format : ''),
+    '#field_suffix' => ' <small id="edit-date-format-suffix">' . $now . '</small>',
+    '#attached' => array(
+      'js' => array(drupal_get_path('module', 'system') . '/system.js', $js_settings),
+    ),
+  );
+
+  $form['update'] = array(
+    '#type' => 'submit',
+    '#value' => ($dfid ? t('Save format') : t('Add format')),
+  );
+
+  $form['#validate'][] = 'system_add_date_formats_form_validate';
+  $form['#submit'][] = 'system_add_date_formats_form_submit';
+
+  return $form;
+}
+
+/**
+ * Validate new date format string submission.
+ */
+function system_add_date_formats_form_validate($form, &$form_state) {
+  $formats = system_get_date_formats('custom');
+  $format = trim($form_state['values']['date_format']);
+  if (!empty($formats) && in_array($format, array_keys($formats)) && (!isset($form_state['values']['dfid']) || $form_state['values']['dfid'] != $formats[$format]['dfid'])) {
+    form_set_error('date_format', t('This format already exists. Please enter a unique format string.'));
+  }
+}
+
+/**
+ * Process new date format string submission.
+ */
+function system_add_date_formats_form_submit($form, &$form_state) {
+  $format = array();
+  $format['format'] = trim($form_state['values']['date_format']);
+  $format['type'] = 'custom';
+  $format['locked'] = 0;
+  if (!empty($form_state['values']['dfid'])) {
+    system_date_format_save($format, $form_state['values']['dfid']);
+    drupal_set_message(t('Custom date format updated.'));
+  }
+  else {
+    $format['is_new'] = 1;
+    system_date_format_save($format);
+    drupal_set_message(t('Custom date format added.'));
+  }
+
+  $form_state['redirect'] = 'admin/config/regional/date-time/formats';
+}
+
+/**
+ * Menu callback; Displays an overview of available and configured actions.
+ */
+function system_actions_manage() {
+  actions_synchronize();
+  $actions = actions_list();
+  $actions_map = actions_actions_map($actions);
+  $options = array(t('Choose an advanced action'));
+  $unconfigurable = array();
+
+  foreach ($actions_map as $key => $array) {
+    if ($array['configurable']) {
+      $options[$key] = $array['label'] . '...';
+    }
+    else {
+      $unconfigurable[] = $array;
+    }
+  }
+
+  $row = array();
+  $instances_present = db_query("SELECT aid FROM {actions} WHERE parameters <> ''")->fetchField();
+  $header = array(
+    array('data' => t('Action type'), 'field' => 'type'),
+    array('data' => t('Label'), 'field' => 'label'),
+    array('data' => $instances_present ? t('Operations') : '', 'colspan' => '2')
+  );
+  $query = db_select('actions')->extend('PagerDefault')->extend('TableSort');
+  $result = $query
+    ->fields('actions')
+    ->limit(50)
+    ->orderByHeader($header)
+    ->execute();
+
+  foreach ($result as $action) {
+    $row[] = array(
+      array('data' => $action->type),
+      array('data' => $action->label),
+      array('data' => $action->parameters ? l(t('configure'), "admin/config/system/actions/configure/$action->aid") : ''),
+      array('data' => $action->parameters ? l(t('delete'), "admin/config/system/actions/delete/$action->aid") : '')
+    );
+  }
+
+  if ($row) {
+    $pager = theme('pager', array('tags' => NULL));
+    if (!empty($pager)) {
+      $row[] = array(array('data' => $pager, 'colspan' => '3'));
+    }
+    $build['system_actions_header'] = array('#markup' => '<h3>' . t('Actions available to Drupal:') . '</h3>');
+    $build['system_actions_table'] = array('#markup' => theme('table', array('header' => $header, 'rows' => $row)));
+  }
+
+  if ($actions_map) {
+    $build['system_actions_manage_form'] = drupal_get_form('system_actions_manage_form', $options);
+  }
+
+  return $build;
+}
+
+/**
+ * Define the form for the actions overview page.
+ *
+ * @param $form_state
+ *   An associative array containing the current state of the form; not used.
+ * @param $options
+ *   An array of configurable actions.
+ * @return
+ *   Form definition.
+ *
+ * @ingroup forms
+ * @see system_actions_manage_form_submit()
+ */
+function system_actions_manage_form($form, &$form_state, $options = array()) {
+  $form['parent'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Make a new advanced action available'),
+    '#prefix' => '<div class="container-inline">',
+    '#suffix' => '</div>',
+  );
+  $form['parent']['action'] = array(
+    '#type' => 'select',
+    '#default_value' => '',
+    '#options' => $options,
+    '#description' => '',
+  );
+  $form['parent']['buttons']['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Create'),
+  );
+  return $form;
+}
+
+/**
+ * Process system_actions_manage form submissions.
+ *
+ * @see system_actions_manage_form()
+ */
+function system_actions_manage_form_submit($form, &$form_state) {
+  if ($form_state['values']['action']) {
+    $form_state['redirect'] = 'admin/config/system/actions/configure/' . $form_state['values']['action'];
+  }
+}
+
+/**
+ * Menu callback; Creates the form for configuration of a single action.
+ *
+ * We provide the "Description" field. The rest of the form is provided by the
+ * action. We then provide the Save button. Because we are combining unknown
+ * form elements with the action configuration form, we use an 'actions_' prefix
+ * on our elements.
+ *
+ * @param $action
+ *   md5 hash of an action ID or an integer. If it is an md5 hash, we are
+ *   creating a new instance. If it is an integer, we are editing an existing
+ *   instance.
+ * @return
+ *   A form definition.
+ *
+ * @see system_actions_configure_validate()
+ * @see system_actions_configure_submit()
+ */
+function system_actions_configure($form, &$form_state, $action = NULL) {
+  if ($action === NULL) {
+    drupal_goto('admin/config/system/actions');
+  }
+
+  $actions_map = actions_actions_map(actions_list());
+  $edit = array();
+
+  // Numeric action denotes saved instance of a configurable action.
+  if (is_numeric($action)) {
+    $aid = $action;
+    // Load stored parameter values from database.
+    $data = db_query("SELECT * FROM {actions} WHERE aid = :aid", array(':aid' => $aid))->fetch();
+    $edit['actions_label'] = $data->label;
+    $edit['actions_type'] = $data->type;
+    $function = $data->callback;
+    $action = md5($data->callback);
+    $params = unserialize($data->parameters);
+    if ($params) {
+      foreach ($params as $name => $val) {
+        $edit[$name] = $val;
+      }
+    }
+  }
+  // Otherwise, we are creating a new action instance.
+  else {
+    $function = $actions_map[$action]['callback'];
+    $edit['actions_label'] = $actions_map[$action]['label'];
+    $edit['actions_type'] = $actions_map[$action]['type'];
+  }
+
+  $form['actions_label'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Label'),
+    '#default_value' => $edit['actions_label'],
+    '#maxlength' => '255',
+    '#description' => t('A unique label for this advanced action. This label will be displayed in the interface of modules that integrate with actions, such as Trigger module.'),
+    '#weight' => -10
+  );
+  $action_form = $function . '_form';
+  $form = array_merge($form, $action_form($edit));
+  $form['actions_type'] = array(
+    '#type' => 'value',
+    '#value' => $edit['actions_type'],
+  );
+  $form['actions_action'] = array(
+    '#type' => 'hidden',
+    '#value' => $action,
+  );
+  // $aid is set when configuring an existing action instance.
+  if (isset($aid)) {
+    $form['actions_aid'] = array(
+      '#type' => 'hidden',
+      '#value' => $aid,
+    );
+  }
+  $form['actions_configured'] = array(
+    '#type' => 'hidden',
+    '#value' => '1',
+  );
+  $form['buttons']['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Save'),
+    '#weight' => 13
+  );
+
+  return $form;
+}
+
+/**
+ * Validate system_actions_configure() form submissions.
+ */
+function system_actions_configure_validate($form, &$form_state) {
+  $function = actions_function_lookup($form_state['values']['actions_action']) . '_validate';
+  // Hand off validation to the action.
+  if (function_exists($function)) {
+    $function($form, $form_state);
+  }
+}
+
+/**
+ * Process system_actions_configure() form submissions.
+ */
+function system_actions_configure_submit($form, &$form_state) {
+  $function = actions_function_lookup($form_state['values']['actions_action']);
+  $submit_function = $function . '_submit';
+
+  // Action will return keyed array of values to store.
+  $params = $submit_function($form, $form_state);
+  $aid = isset($form_state['values']['actions_aid']) ? $form_state['values']['actions_aid'] : NULL;
+
+  actions_save($function, $form_state['values']['actions_type'], $params, $form_state['values']['actions_label'], $aid);
+  drupal_set_message(t('The action has been successfully saved.'));
+
+  $form_state['redirect'] = 'admin/config/system/actions/manage';
+}
+
+/**
+ * Create the form for confirmation of deleting an action.
+ *
+ * @see system_actions_delete_form_submit()
+ * @ingroup forms
+ */
+function system_actions_delete_form($form, &$form_state, $action) {
+  $form['aid'] = array(
+    '#type' => 'hidden',
+    '#value' => $action->aid,
+  );
+  return confirm_form($form,
+    t('Are you sure you want to delete the action %action?', array('%action' => $action->label)),
+    'admin/config/system/actions/manage',
+    t('This cannot be undone.'),
+    t('Delete'),
+    t('Cancel')
+  );
+}
+
+/**
+ * Process system_actions_delete form submissions.
+ *
+ * Post-deletion operations for action deletion.
+ */
+function system_actions_delete_form_submit($form, &$form_state) {
+  $aid = $form_state['values']['aid'];
+  $action = actions_load($aid);
+  actions_delete($aid);
+  $label = check_plain($action->label);
+  watchdog('user', 'Deleted action %aid (%action)', array('%aid' => $aid, '%action' => $label));
+  drupal_set_message(t('Action %action was deleted', array('%action' => $label)));
+  $form_state['redirect'] = 'admin/config/system/actions/manage';
+}
+
+/**
+ * Post-deletion operations for deleting action orphans.
+ *
+ * @param $orphaned
+ *   An array of orphaned actions.
+ */
+function system_action_delete_orphans_post($orphaned) {
+  foreach ($orphaned as $callback) {
+    drupal_set_message(t("Deleted orphaned action (%action).", array('%action' => $callback)));
+  }
+}
+
+/**
+ * Remove actions that are in the database but not supported by any enabled module.
+ */
+function system_actions_remove_orphans() {
+  actions_synchronize(TRUE);
+  drupal_goto('admin/config/system/actions/manage');
+}
+

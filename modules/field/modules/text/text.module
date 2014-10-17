@@ -12,10 +12,10 @@
 function text_theme() {
   return array(
     'text_textarea' => array(
-      'arguments' => array('element' => NULL),
+      'render element' => 'element',
     ),
     'text_textfield' => array(
-      'arguments' => array('element' => NULL),
+      'render element' => 'element',
     ),
   );
 }
@@ -116,7 +116,7 @@ function text_field_schema($field) {
 /**
  * Implement hook_field_settings_form().
  */
-function text_field_settings_form($field, $instance) {
+function text_field_settings_form($field, $instance, $has_data) {
   $settings = $field['settings'];
 
   $form['max_length'] = array(
@@ -126,6 +126,9 @@ function text_field_settings_form($field, $instance) {
     '#required' => FALSE,
     '#description' => t('The maximum length of the field in characters. Leave blank for an unlimited size.'),
     '#element_validate' => array('_element_validate_integer_positive'),
+    // @todo: If $has_data, add a validate handler that only allows
+    // max_length to increase.
+    '#disabled' => $has_data,
   );
 
   return $form;
@@ -204,9 +207,9 @@ function text_field_load($obj_type, $objects, $field, $instances, $langcode, &$i
         // handled by text_field_sanitize().
         $format = $item['format'];
         if (filter_format_allowcache($format)) {
-          $items[$id][$delta]['safe'] = isset($item['value']) ? check_markup($item['value'], $format, $langcode, FALSE) : '';
+          $items[$id][$delta]['safe'] = isset($item['value']) ? check_markup($item['value'], $format, $langcode) : '';
           if ($field['type'] == 'text_with_summary') {
-            $items[$id][$delta]['safe_summary'] = isset($item['summary']) ? check_markup($item['summary'], $format, $langcode, FALSE) : '';
+            $items[$id][$delta]['safe_summary'] = isset($item['summary']) ? check_markup($item['summary'], $format, $langcode) : '';
           }
         }
       }
@@ -233,9 +236,9 @@ function text_field_sanitize($obj_type, $object, $field, $instance, $langcode, &
     if (!isset($items[$delta]['safe'])) {
       if (!empty($instance['settings']['text_processing'])) {
         $format = $item['format'];
-        $items[$delta]['safe'] = isset($item['value']) ? check_markup($item['value'], $format, $langcode) : '';
+        $items[$delta]['safe'] = isset($item['value']) ? check_markup($item['value'], $format, $langcode, TRUE) : '';
         if ($field['type'] == 'text_with_summary') {
-          $items[$delta]['safe_summary'] = isset($item['summary']) ? check_markup($item['summary'], $format, $langcode) : '';
+          $items[$delta]['safe_summary'] = isset($item['summary']) ? check_markup($item['summary'], $format, $langcode, TRUE) : '';
         }
       }
       else {
@@ -296,35 +299,39 @@ function text_field_formatter_info() {
 /**
  * Theme function for 'default' text field formatter.
  */
-function theme_field_formatter_text_default($element) {
+function theme_field_formatter_text_default($variables) {
+  $element = $variables['element'];
   return $element['#item']['safe'];
 }
 
 /**
  * Theme function for 'plain' text field formatter.
  */
-function theme_field_formatter_text_plain($element) {
+function theme_field_formatter_text_plain($variables) {
+  $element = $variables['element'];
   return strip_tags($element['#item']['safe']);
 }
 
 /**
  * Theme function for 'trimmed' text field formatter.
  */
-function theme_field_formatter_text_trimmed($element) {
+function theme_field_formatter_text_trimmed($variables) {
+  $element = $variables['element'];
   $field = field_info_field($element['#field_name']);
-  $instance = field_info_instance($element['#field_name'], $element['#bundle']);
+  $instance = field_info_instance($element['#object_type'], $element['#field_name'], $element['#bundle']);
   return text_summary($element['#item']['safe'], $instance['settings']['text_processing'] ? $element['#item']['format'] : NULL);
 }
 
 /**
  * Theme function for 'summary or trimmed' field formatter for
- * text_with_summary fields.  This formatter returns the summary
+ * text_with_summary fields. This formatter returns the summary
  * element of the field or, if the summary is empty, the trimmed
  * version of the full element of the field.
  */
-function theme_field_formatter_text_summary_or_trimmed($element) {
+function theme_field_formatter_text_summary_or_trimmed($variables) {
+  $element = $variables['element'];
   $field = field_info_field($element['#field_name']);
-  $instance = field_info_instance($element['#field_name'], $element['#bundle']);
+  $instance = field_info_instance($element['#object_type'], $element['#field_name'], $element['#bundle']);
 
   if (!empty($element['#item']['safe_summary'])) {
     return $element['#item']['safe_summary'];
@@ -541,7 +548,7 @@ function text_element_info() {
     '#delta' => 0,
     '#process' => array('text_textarea_elements_process'),
     '#theme_wrappers' => array('text_textarea'),
-    '#filter_value' => FILTER_FORMAT_DEFAULT,
+    '#filter_value' => filter_default_format(),
   );
   $types['text_textarea_with_summary'] = array(
     '#input' => TRUE,
@@ -549,47 +556,16 @@ function text_element_info() {
     '#delta' => 0,
     '#process' => array('text_textarea_with_summary_process'),
     '#theme_wrappers' => array('text_textarea'),
-    '#filter_value' => FILTER_FORMAT_DEFAULT,
+    '#filter_value' => filter_default_format(),
   );
   return $types;
 }
 
 /**
  * Implement hook_field_widget().
- *
- * Attach a single form element to the form. It will be built out and
- * validated in the callback(s) listed in hook_element_info(). We build it
- * out in the callbacks rather than here in hook_field_widget so it can be
- * plugged into any module that can provide it with valid
- * $field information.
- *
- * Field module will set the weight, field name and delta values
- * for each form element.
- *
- * If there are multiple values for this field, the field module will
- * call this function as many times as needed.
- *
- * @param $form
- *   the entire form array, $form['#node'] holds node information
- * @param $form_state
- *   the form_state, $form_state['values'][$field['field_name']]
- *   holds the field's form values.
- * @param $field
- *   The field structure.
- * @param $instance
- *   the field instance array
- * @param $langcode
- *   The language associated to $items.
- * @param $items
- *   array of default values for this field
- * @param $delta
- *   the order of this item in the array of subelements (0, 1, 2, etc)
- *
- * @return
- *   the form item for a single element for this field
  */
-function text_field_widget(&$form, &$form_state, $field, $instance, $langcode, $items, $delta = 0) {
-  $element = array(
+function text_field_widget(&$form, &$form_state, $field, $instance, $langcode, $items, $delta, $element) {
+  $element += array(
     '#type' => $instance['widget']['type'],
     '#default_value' => isset($items[$delta]) ? $items[$delta] : '',
   );
@@ -651,7 +627,7 @@ function text_textfield_elements_process($element, $form_state, $form) {
 
   if (!empty($instance['settings']['text_processing'])) {
     $filter_key  = (count($element['#columns']) == 2) ? $element['#columns'][1] : 'format';
-    $format = isset($element['#value'][$filter_key]) ? $element['#value'][$filter_key] : FILTER_FORMAT_DEFAULT;
+    $format = isset($element['#value'][$filter_key]) ? $element['#value'][$filter_key] : filter_default_format();
     $element[$field_key]['#text_format'] = $format;
   }
 
@@ -684,7 +660,7 @@ function text_textarea_elements_process($element, $form_state, $form) {
 
   if (!empty($instance['settings']['text_processing'])) {
     $filter_key = (count($element['#columns']) == 2) ? $element['#columns'][1] : 'format';
-    $format = isset($element['#value'][$filter_key]) ? $element['#value'][$filter_key] : FILTER_FORMAT_DEFAULT;
+    $format = isset($element['#value'][$filter_key]) ? $element['#value'][$filter_key] : filter_default_format();
     $element[$field_key]['#text_format'] = $format;
   }
 
@@ -714,7 +690,6 @@ function text_textarea_with_summary_process($element, $form_state, $form) {
     '#weight' => 0,
     '#title' => t('Summary'),
     '#description' => t('Leave blank to use trimmed value of full text as the summary.'),
-    '#required' => $element['#required'],
     '#display' => $display,
     '#attached' => array('js' => array(drupal_get_path('module', 'text') . '/text.js')),
     '#attributes' => array('class' => array('text-textarea-summary')),
@@ -731,7 +706,6 @@ function text_textarea_with_summary_process($element, $form_state, $form) {
     '#title' => $display ? t('Full text') : $element['#title'],
     '#description' => $element['#description'],
     '#required' => $element['#required'],
-    '#required' => $instance['required'],
     '#attributes' => array('class' => array('text-full-textarea')),
     '#prefix' => '<div class="text-full-wrapper">',
     '#suffix' => '</div>',
@@ -739,7 +713,7 @@ function text_textarea_with_summary_process($element, $form_state, $form) {
 
   if (!empty($instance['settings']['text_processing'])) {
     $filter_key  = (count($element['#columns']) == 2) ? $element['#columns'][1] : 'format';
-    $format = isset($element['#value'][$filter_key]) ? $element['#value'][$filter_key] : FILTER_FORMAT_DEFAULT;
+    $format = isset($element['#value'][$filter_key]) ? $element['#value'][$filter_key] : filter_default_format();
     $element[$field_key]['#text_format'] = $format;
   }
 
@@ -760,7 +734,7 @@ function text_field_widget_formatted_text_value($form, $edit = FALSE) {
     // The format selector uses #access = FALSE if only one format is
     // available. In this case, we don't receive its value, and need to
     // manually set it.
-    $edit['format'] = !empty($edit[$default_key]) ? $edit[$default_key] : filter_resolve_format(FILTER_FORMAT_DEFAULT);
+    $edit['format'] = !empty($edit[$default_key]) ? $edit[$default_key] : filter_default_format();
     unset($edit[$default_key]);
     return $edit;
   }
@@ -771,16 +745,18 @@ function text_field_widget_formatted_text_value($form, $edit = FALSE) {
  *
  * The textfield or textarea is already rendered by the
  * textfield or textarea themes and the html output
- * lives in $element['#children']. Override this theme to
+ * lives in $variables['element']['#children']. Override this theme to
  * make custom changes to the output.
  *
- * $element['#field_name'] contains the field name
- * $element['#delta] is the position of this element in the group
+ * $variables['element']['#field_name'] contains the field name
+ * $variables['element']['#delta] is the position of this element in the group
  */
-function theme_text_textfield($element) {
+function theme_text_textfield($variables) {
+  $element = $variables['element'];
   return $element['#children'];
 }
 
-function theme_text_textarea($element) {
+function theme_text_textarea($variables) {
+  $element = $variables['element'];
   return $element['#children'];
 }

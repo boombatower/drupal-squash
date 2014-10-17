@@ -19,11 +19,11 @@ function tracker_page($account = NULL, $set_title = FALSE) {
       // When viewed from user/%user/track, display the name of the user
       // as page title -- the tab title remains Track so this needs to be done
       // here and not in the menu definition.
-      drupal_set_title($account->name);
+      drupal_set_title(format_username($account));
     }
   }
   else {
-    $query = db_select('tracker_node', 't')->extend('PagerDefault');
+    $query = db_select('tracker_node', 't', array('target' => 'slave'))->extend('PagerDefault');
   }
 
   // This array acts as a placeholder for the data selected later
@@ -39,7 +39,7 @@ function tracker_page($account = NULL, $set_title = FALSE) {
 
   if (!empty($nodes)) {
     // Now, get the data and put into the placeholder array
-    $result = db_query('SELECT n.nid, n.title, n.type, n.changed, n.uid, u.name, l.comment_count FROM {node} n INNER JOIN {node_comment_statistics} l ON n.nid = l.nid INNER JOIN {users} u ON n.uid = u.uid WHERE n.nid IN (:nids)', array(':nids' => array_keys($nodes)));
+    $result = db_query('SELECT n.nid, n.title, n.type, n.changed, n.uid, u.name, l.comment_count FROM {node} n INNER JOIN {node_comment_statistics} l ON n.nid = l.nid INNER JOIN {users} u ON n.uid = u.uid WHERE n.nid IN (:nids)', array(':nids' => array_keys($nodes)), array('target' => 'slave'));
     foreach ($result as $node) {
       $node->last_activity = $nodes[$node->nid]->changed;
       $nodes[$node->nid] = $node;
@@ -61,8 +61,8 @@ function tracker_page($account = NULL, $set_title = FALSE) {
 
       $rows[] = array(
         check_plain(node_type_get_name($node->type)),
-        l($node->title, 'node/' . $node->nid) . ' ' . theme('mark', node_mark($node->nid, $node->changed)),
-        theme('username', $node),
+        l($node->title, 'node/' . $node->nid) . ' ' . theme('mark', array('type' => node_mark($node->nid, $node->changed))),
+        theme('username', array('account' => $node)),
         array('class' => array('replies'), 'data' => $comments),
         t('!time ago', array('!time' => format_interval(REQUEST_TIME - $node->last_activity)))
       );

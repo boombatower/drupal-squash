@@ -902,7 +902,7 @@ class SelectQuery extends Query implements SelectQueryInterface {
 
   /* Implementations of QueryConditionInterface for the WHERE clause. */
 
-  public function condition($field, $value = NULL, $operator = '=') {
+  public function condition($field, $value = NULL, $operator = NULL) {
     if (!isset($num_args)) {
       $num_args = func_num_args();
     }
@@ -1084,7 +1084,7 @@ class SelectQuery extends Query implements SelectQueryInterface {
     $args = $this->getArguments();
 
     if (!empty($this->range)) {
-      return $this->connection->queryRange((string)$this, $args, $this->range['start'], $this->range['length'], $this->queryOptions);
+      return $this->connection->queryRange((string)$this, $this->range['start'], $this->range['length'], $args, $this->queryOptions);
     }
     return $this->connection->query((string)$this, $args, $this->queryOptions);
   }
@@ -1228,7 +1228,7 @@ class SelectQuery extends Query implements SelectQueryInterface {
       case '':
         $type = 'UNION';
         break;
-      
+
       case 'ALL':
         $type = 'UNION ALL';
       default:
@@ -1285,6 +1285,11 @@ class SelectQuery extends Query implements SelectQueryInterface {
 
     // FIELDS and EXPRESSIONS
     $fields = array();
+    foreach ($this->tables as $alias => $table) {
+      if (!empty($table['all_fields'])) {
+        $fields[] = $alias . '.*';
+      }
+    }
     foreach ($this->fields as $alias => $field) {
       // Always use the AS keyword for field aliases, as some
       // databases require it (e.g., PostgreSQL).
@@ -1292,11 +1297,6 @@ class SelectQuery extends Query implements SelectQueryInterface {
     }
     foreach ($this->expressions as $alias => $expression) {
       $fields[] = $expression['expression'] . ' AS ' . $expression['alias'];
-    }
-    foreach ($this->tables as $alias => $table) {
-      if (!empty($table['all_fields'])) {
-        $fields[] = $alias . '.*';
-      }
     }
     $query .= implode(', ', $fields);
 

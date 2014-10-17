@@ -47,83 +47,85 @@ function field_ui_menu() {
     return $items;
   }
   // Create tabs for all possible bundles.
-  foreach (field_info_fieldable_types() as $obj_type => $info) {
-    foreach ($info['bundles'] as $bundle_name => $bundle_info) {
-      if (isset($bundle_info['admin'])) {
-        // Extract informations from the bundle description.
-        $path = $bundle_info['admin']['path'];
-        $bundle_arg = isset($bundle_info['admin']['bundle argument']) ? $bundle_info['admin']['bundle argument'] : $bundle_name;
-        $access = array_intersect_key($bundle_info['admin'], drupal_map_assoc(array('access callback', 'access arguments')));
+  foreach (entity_get_info() as $obj_type => $info) {
+    if ($info['fieldable']) {
+      foreach ($info['bundles'] as $bundle_name => $bundle_info) {
+        if (isset($bundle_info['admin'])) {
+          // Extract informations from the bundle description.
+          $path = $bundle_info['admin']['path'];
+          $bundle_arg = isset($bundle_info['admin']['bundle argument']) ? $bundle_info['admin']['bundle argument'] : $bundle_name;
+          $access = array_intersect_key($bundle_info['admin'], drupal_map_assoc(array('access callback', 'access arguments')));
+          $instance_position = count(explode('/', $path)) + 1;
 
-        $items["$path/fields"] = array(
-          'title' => 'Manage fields',
-          'page callback' => 'drupal_get_form',
-          'page arguments' => array('field_ui_field_overview_form', $obj_type, $bundle_arg),
-          'type' => MENU_LOCAL_TASK,
-          'weight' => 1,
-          'file' => 'field_ui.admin.inc',
-        ) + $access;
-        $instance_position = count(explode('/', $path)) + 1;
-        $items["$path/fields/%field_ui_menu"] = array(
-          'title callback' => 'field_ui_menu_label',
-          'title arguments' => array($instance_position),
-          'load arguments' => array($bundle_name),
-          'page callback' => 'drupal_get_form',
-          'page arguments' => array('field_ui_field_edit_form', $obj_type, $bundle_arg, $instance_position),
-          'type' => MENU_LOCAL_TASK,
-          'file' => 'field_ui.admin.inc',
-        ) + $access;
-        $items["$path/fields/%field_ui_menu/edit"] = array(
-          'title' => 'Edit instance settings',
-          'load arguments' => array($bundle_name),
-          'page callback' => 'drupal_get_form',
-          'page arguments' => array('field_ui_field_edit_form', $obj_type, $bundle_arg, $instance_position),
-          'type' => MENU_DEFAULT_LOCAL_TASK,
-          'file' => 'field_ui.admin.inc',
-        ) + $access;
-        $items["$path/fields/%field_ui_menu/field-settings"] = array(
-          'title' => 'Edit field settings',
-          'load arguments' => array($bundle_name),
-          'page callback' => 'drupal_get_form',
-          'page arguments' => array('field_ui_field_settings_form', $obj_type, $bundle_arg, $instance_position),
-          'type' => MENU_LOCAL_TASK,
-          'file' => 'field_ui.admin.inc',
-        ) + $access;
-        $items["$path/fields/%field_ui_menu/widget-type"] = array(
-          'title' => 'Change widget type',
-          'load arguments' => array($bundle_name),
-          'page callback' => 'drupal_get_form',
-          'page arguments' => array('field_ui_widget_type_form', $obj_type, $bundle_arg, $instance_position),
-          'type' => MENU_LOCAL_TASK,
-          'file' => 'field_ui.admin.inc',
-        ) + $access;
-        $items["$path/fields/%field_ui_menu/delete"] = array(
-          'title' => 'Delete instance',
-          'load arguments' => array($bundle_name),
-          'page callback' => 'drupal_get_form',
-          'page arguments' => array('field_ui_field_delete_form', $obj_type, $bundle_arg, $instance_position),
-          'type' => MENU_LOCAL_TASK,
-          'file' => 'field_ui.admin.inc',
-        ) + $access;
-
-        // 'Display fields' tab and context secondary tabs.
-        $items["$path/display"] = array(
-          'title' => 'Display fields',
-          'page callback' => 'drupal_get_form',
-          'page arguments' => array('field_ui_display_overview_form', $obj_type, $bundle_arg),
-          'type' => MENU_LOCAL_TASK,
-          'weight' => 2,
-          'file' => 'field_ui.admin.inc',
-        ) + $access;
-        $tabs = field_ui_build_modes_tabs($obj_type);
-        foreach ($tabs as $key => $tab) {
-          $items["$path/display/$key"] = array(
-            'title' => $tab['title'],
-            'page arguments' => array('field_ui_display_overview_form', $obj_type, $bundle_arg, $key),
-            'type' => $key == 'basic' ? MENU_DEFAULT_LOCAL_TASK : MENU_LOCAL_TASK,
-            'weight' => $key == 'basic' ? 0 : 1,
+          $items["$path/fields"] = array(
+            'title' => 'Manage fields',
+            'page callback' => 'drupal_get_form',
+            'page arguments' => array('field_ui_field_overview_form', $obj_type, $bundle_arg),
+            'type' => MENU_LOCAL_TASK,
+            'weight' => 1,
             'file' => 'field_ui.admin.inc',
           ) + $access;
+          $items["$path/fields/%field_ui_menu"] = array(
+            'title callback' => 'field_ui_menu_label',
+            'title arguments' => array($instance_position),
+            'load arguments' => array($obj_type, $bundle_arg),
+            'page callback' => 'drupal_get_form',
+            'page arguments' => array('field_ui_field_edit_form', $obj_type, $bundle_arg, $instance_position),
+            'type' => MENU_LOCAL_TASK,
+            'file' => 'field_ui.admin.inc',
+          ) + $access;
+          $items["$path/fields/%field_ui_menu/edit"] = array(
+            'title' => 'Edit instance settings',
+            'load arguments' => array($obj_type, $bundle_arg),
+            'page callback' => 'drupal_get_form',
+            'page arguments' => array('field_ui_field_edit_form', $obj_type, $bundle_arg, $instance_position),
+            'type' => MENU_DEFAULT_LOCAL_TASK,
+            'file' => 'field_ui.admin.inc',
+          ) + $access;
+          $items["$path/fields/%field_ui_menu/field-settings"] = array(
+            'title' => 'Edit field settings',
+            'load arguments' => array($obj_type, $bundle_arg),
+            'page callback' => 'drupal_get_form',
+            'page arguments' => array('field_ui_field_settings_form', $obj_type, $bundle_arg, $instance_position),
+            'type' => MENU_LOCAL_TASK,
+            'file' => 'field_ui.admin.inc',
+          ) + $access;
+          $items["$path/fields/%field_ui_menu/widget-type"] = array(
+            'title' => 'Change widget type',
+            'load arguments' => array($obj_type, $bundle_arg),
+            'page callback' => 'drupal_get_form',
+            'page arguments' => array('field_ui_widget_type_form', $obj_type, $bundle_arg, $instance_position),
+            'type' => MENU_LOCAL_TASK,
+            'file' => 'field_ui.admin.inc',
+          ) + $access;
+          $items["$path/fields/%field_ui_menu/delete"] = array(
+            'title' => 'Delete instance',
+            'load arguments' => array($obj_type, $bundle_arg),
+            'page callback' => 'drupal_get_form',
+            'page arguments' => array('field_ui_field_delete_form', $obj_type, $bundle_arg, $instance_position),
+            'type' => MENU_LOCAL_TASK,
+            'file' => 'field_ui.admin.inc',
+          ) + $access;
+
+          // 'Manage display' tab and context secondary tabs.
+          $items["$path/display"] = array(
+            'title' => 'Manage display',
+            'page callback' => 'drupal_get_form',
+            'page arguments' => array('field_ui_display_overview_form', $obj_type, $bundle_arg),
+            'type' => MENU_LOCAL_TASK,
+            'weight' => 2,
+            'file' => 'field_ui.admin.inc',
+          ) + $access;
+          $tabs = field_ui_build_modes_tabs($obj_type);
+          foreach ($tabs as $key => $tab) {
+            $items["$path/display/$key"] = array(
+              'title' => $tab['title'],
+              'page arguments' => array('field_ui_display_overview_form', $obj_type, $bundle_arg, $key),
+              'type' => $key == 'basic' ? MENU_DEFAULT_LOCAL_TASK : MENU_LOCAL_TASK,
+              'weight' => $key == 'basic' ? 0 : 1,
+              'file' => 'field_ui.admin.inc',
+            ) + $access;
+          }
         }
       }
     }
@@ -134,8 +136,9 @@ function field_ui_menu() {
 /**
  * Menu loader; Load a field instance based on its name.
  */
-function field_ui_menu_load($field_name, $bundle_name) {
-  if ($instance = field_info_instance($field_name, $bundle_name)) {
+function field_ui_menu_load($field_name, $obj_type, $bundle_name) {
+  $bundle_name = strtr($bundle_name, array('-' => '_'));
+  if ($instance = field_info_instance($obj_type, $field_name, $bundle_name)) {
     return $instance;
   }
   return FALSE;
@@ -154,12 +157,12 @@ function field_ui_menu_label($instance) {
 function field_ui_theme() {
   return array(
     'field_ui_field_overview_form' => array(
-      'arguments' => array('form' => NULL),
+      'render element' => 'form',
       'file' => 'field_ui.admin.inc',
       'template' => 'field_ui-field-overview-form',
     ),
     'field_ui_display_overview_form' => array(
-      'arguments' => array('form' => NULL),
+      'render element' => 'form',
       'file' => 'field_ui.admin.inc',
       'template' => 'field_ui-display-overview-form',
     ),
@@ -167,7 +170,7 @@ function field_ui_theme() {
 }
 
 /**
- * Group available build modes on tabs on the 'Display fields' page.
+ * Group available build modes on tabs on the 'Manage display' page.
  *
  * @todo Remove this completely and use vertical tabs?
  */
@@ -242,33 +245,6 @@ function field_ui_field_ui_build_modes_tabs() {
 }
 
 /**
- * Updates a field.
- *
- * Field API does not allow field updates, so we create a method here to
- * update a field if no data is created yet.
- *
- * @see field_create_field()
- */
-function field_ui_update_field($field) {
-  $field_types = field_info_field_types();
-  $module = $field_types[$field['type']]['module'];
-
-  // If needed, remove the 'bundles' element added by field_info_field.
-  unset($field['bundles']);
-
-  $defaults = field_info_field_settings($field['type']);
-  $field['settings'] = array_merge($defaults, (array) $field['settings']);
-  $data = $field;
-  unset($data['id'], $data['columns'], $data['field_name'], $data['type'], $data['locked'], $data['module'], $data['cardinality'], $data['active'], $data['deleted']);
-  $field['data'] = $data;
-
-  drupal_write_record('field_config', $field, array('field_name'));
-
-  // Clear caches.
-  field_cache_clear(TRUE);
-}
-
-/**
  * Implement hook_field_attach_create_bundle().
  */
 function field_ui_field_attach_create_bundle($bundle) {
@@ -297,8 +273,8 @@ function field_ui_field_attach_delete_bundle($bundle) {
 /**
  * Helper function to create the right administration path for a bundle.
  */
-function _field_ui_bundle_admin_path($bundle_name) {
-  $bundles = field_info_bundles();
+function _field_ui_bundle_admin_path($obj_type, $bundle_name) {
+  $bundles = field_info_bundles($obj_type);
   $bundle_info = $bundles[$bundle_name];
   return isset($bundle_info['admin']['real path']) ? $bundle_info['admin']['real path'] : $bundle_info['admin']['path'];
 }
@@ -306,7 +282,7 @@ function _field_ui_bundle_admin_path($bundle_name) {
 /**
  * Helper function to identify inactive fields within a bundle.
  */
-function field_ui_inactive_instances($bundle_name = NULL) {
+function field_ui_inactive_instances($obj_type, $bundle_name = NULL) {
   if (!empty($bundle_name)) {
     $inactive = array($bundle_name => array());
     $params = array('bundle' => $bundle_name);
@@ -315,7 +291,9 @@ function field_ui_inactive_instances($bundle_name = NULL) {
     $inactive = array();
     $params = array();
   }
-  $active_instances = field_info_instances();
+  $params['object_type'] = $obj_type;
+
+  $active_instances = field_info_instances($obj_type);
   $all_instances = field_read_instances($params, array('include_inactive' => TRUE));
   foreach ($all_instances as $instance) {
     if (!isset($active_instances[$instance['bundle']][$instance['field_name']])) {

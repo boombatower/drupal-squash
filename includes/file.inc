@@ -19,19 +19,19 @@ require_once DRUPAL_ROOT . '/includes/stream_wrappers.inc';
  * Common file handling functions.
  *
  * Fields on the file object:
- * - fid - File ID
- * - uid - The {users}.uid of the user who is associated with the file.
- * - filename - Name of the file with no path components. This may differ from
+ * - fid: File ID
+ * - uid: The {users}.uid of the user who is associated with the file.
+ * - filename: Name of the file with no path components. This may differ from
  *   the basename of the filepath if the file is renamed to avoid overwriting
  *   an existing file.
- * - uri - URI of the file.
- * - filemime - The file's MIME type.
- * - filesize - The size of the file in bytes.
- * - status - A bitmapped field indicating the status of the file. The first 8
+ * - uri: URI of the file.
+ * - filemime: The file's MIME type.
+ * - filesize: The size of the file in bytes.
+ * - status: A bitmapped field indicating the status of the file. The first 8
  *   bits are reserved for Drupal core. The least sigifigant bit indicates
  *   temporary (0) or permanent (1). Temporary files older than
  *   DRUPAL_MAXIMUM_TEMP_FILE_AGE will be removed during cron runs.
- * - timestamp - UNIX timestamp for the date the file was added to the database.
+ * - timestamp: UNIX timestamp for the date the file was added to the database.
  */
 
 /**
@@ -312,7 +312,7 @@ function file_create_url($uri) {
   // Allow the URI to be altered, e.g. to serve a file from a CDN or static
   // file server.
   drupal_alter('file_url', $uri);
-  
+
   $scheme = file_uri_scheme($uri);
 
   if (!$scheme) {
@@ -436,6 +436,7 @@ function file_create_htaccess($directory, $private = TRUE) {
  * @param $conditions
  *   An array of conditions to match against the {files} table. These
  *   should be supplied in the form array('field_name' => 'field_value').
+ *
  * @return
  *  An array of file objects, indexed by fid.
  *
@@ -656,7 +657,7 @@ function file_unmanaged_copy($source, $destination = NULL, $replace = FILE_EXIST
  * Given a relative path, construct a URI into Drupal's default files location.
  */
 function file_build_uri($path) {
-  $uri = variable_get('file_scheme_default', 'public') . '://' . $path;
+  $uri = variable_get('file_default_scheme', 'public') . '://' . $path;
   return file_stream_wrapper_uri_normalize($uri);
 }
 
@@ -796,18 +797,24 @@ function file_unmanaged_move($source, $destination = NULL, $replace = FILE_EXIST
 }
 
 /**
- * Munge the filename as needed for security purposes.
+ * Modify a filename as needed for security purposes.
  *
- * For instance the file name "exploit.php.pps" would become "exploit.php_.pps".
+ * Dangerous file names will be altered; for instance, the file name
+ * "exploit.php.pps" will become "exploit.php_.pps". All extensions that are
+ * between 2 and 5 characters in length, internal to the file name, and not
+ * included in $extensions will be altered by adding an underscore. If variable
+ * 'allow_insecure_uploads' evaluates to TRUE, no alterations will be made.
  *
  * @param $filename
- *   The name of a file to modify.
+ *   File name to modify.
  * @param $extensions
- *   A space separated list of extensions that should not be altered.
+ *   A space-separated list of extensions that should not be altered.
  * @param $alerts
- *   Whether alerts (watchdog, drupal_set_message()) should be displayed.
+ *   If TRUE, drupal_set_message() will be called to display a message if the
+ *   file name was changed.
+ *
  * @return
- *   $filename The potentially modified $filename.
+ *   The potentially modified $filename.
  */
 function file_munge_filename($filename, $extensions, $alerts = TRUE) {
   $original = $filename;
@@ -948,7 +955,7 @@ function file_delete(stdClass $file, $force = FALSE) {
  * entry recorded in the files table.
  *
  * @param $path
- *   A string containing a filepath or URI.
+ *   A string containing a file path or (streamwrapper) URI.
  * @return
  *   TRUE for success or path does not exist, or FALSE in the event of an
  *   error.
@@ -957,6 +964,8 @@ function file_delete(stdClass $file, $force = FALSE) {
  * @see file_unmanaged_delete_recursive()
  */
 function file_unmanaged_delete($path) {
+  // Resolve streamwrapper URI to local path.
+  $path = drupal_realpath($path);
   if (is_dir($path)) {
     watchdog('file', '%path is a directory and cannot be removed using file_unmanaged_delete().', array('%path' => $path), WATCHDOG_ERROR);
     return FALSE;
@@ -989,14 +998,16 @@ function file_unmanaged_delete($path) {
  * Note that this only deletes visible files with write permission.
  *
  * @param $path
- *   A string containing a URI, filepath. or directory path.
+ *   A string containing eiher an URI or a file or directory path.
  * @return
- *   TRUE for success or path does not exist, or FALSE in the event of an
+ *   TRUE for success or if path does not exist, FALSE in the event of an
  *   error.
  *
  * @see file_unmanaged_delete()
  */
 function file_unmanaged_delete_recursive($path) {
+  // Resolve streamwrapper URI to local path.
+  $path = drupal_realpath($path);
   if (is_dir($path)) {
     $dir = dir($path);
     while (($entry = $dir->read()) !== FALSE) {
@@ -1059,7 +1070,13 @@ function file_space_used($uid = NULL, $status = FILE_STATUS_PERMANENT) {
  *   - FILE_EXISTS_ERROR: Do nothing and return FALSE.
  * @return
  *   An object containing the file information if the upload succeeded, FALSE
- *   in the event of an error, or NULL if no file was uploaded.
+ *   in the event of an error, or NULL if no file was uploaded. The
+ *   documentation for the "File interface" group, which you can find under
+ *   Related topics, or the header at the top of this file, documents the
+ *   components of a file object. In addition to the standard components,
+ *   this function adds:
+ *   - source: Path to the file before it is moved.
+ *   - destination: Path to the file after it is moved (same as 'uri').
  */
 function file_save_upload($source, $validators = array(), $destination = FALSE, $replace = FILE_EXISTS_RENAME) {
   global $user;
@@ -1162,7 +1179,7 @@ function file_save_upload($source, $validators = array(), $destination = FALSE, 
   if (!empty($errors)) {
     $message = t('The specified file %name could not be uploaded.', array('%name' => $file->filename));
     if (count($errors) > 1) {
-      $message .= theme('item_list', $errors);
+      $message .= theme('item_list', array('items' => $errors));
     }
     else {
       $message .= ' ' . array_pop($errors);
@@ -1502,7 +1519,7 @@ function file_transfer($uri, $headers) {
   }
 
   foreach ($headers as $name => $value) {
-    drupal_set_header($name, $value);
+    drupal_add_http_header($name, $value);
   }
   drupal_send_headers();
   $scheme = file_uri_scheme($uri);
@@ -1516,7 +1533,7 @@ function file_transfer($uri, $headers) {
   else {
     drupal_not_found();
   }
-  exit();
+  drupal_exit();
 }
 
 /**
@@ -1559,34 +1576,30 @@ function file_download() {
  * from being scanned.
  *
  * @param $dir
- *   The base directory or URI for the scan, without trailing slash.
+ *   The base directory or URI to scan, without trailing slash.
  * @param $mask
  *   The preg_match() regular expression of the files to find.
  * @param $options
- *   An associative array of additional options, with the following keys:
- *   - 'nomask'
- *     The preg_match() regular expression of the files to ignore. Defaults to
- *     '/(\.\.?|CVS)$/'.
- *   - 'callback'
- *     The callback function to call for each match. There is no default
- *     callback.
- *   - 'recurse'
- *     When TRUE, the directory scan will recurse the entire tree starting at
- *     the provided directory. Defaults to TRUE.
- *   - 'key'
- *     The key to be used for the returned array of files. Possible values are
- *     'filepath', for the path starting with $dir, 'filename', for the
- *     basename of the file, and 'name' for the name of the file without an
- *     extension. Defaults to 'filepath'.
- *   - 'min_depth'
- *     Minimum depth of directories to return files from. Defaults to 0.
+ *   An associative array of additional options, with the following elements:
+ *   - 'nomask': The preg_match() regular expression of the files to ignore.
+ *     Defaults to '/(\.\.?|CVS)$/'.
+ *   - 'callback': The callback function to call for each match. There is no
+ *     default callback.
+ *   - 'recurse': When TRUE, the directory scan will recurse the entire tree
+ *     starting at the provided directory. Defaults to TRUE.
+ *   - 'key': The key to be used for the returned associative array of files.
+ *     Possible values are 'uri', for the file's URI; 'filename', for the
+ *     basename of the file; and 'name' for the name of the file without the
+ *     extension. Defaults to 'uri'.
+ *   - 'min_depth': Minimum depth of directories to return files from. Defaults
+ *     to 0.
  * @param $depth
  *   Current depth of recursion. This parameter is only used internally and
- *   should not be passed.
+ *   should not be passed in.
+ *
  * @return
- *   An associative array (keyed on the provided key) of objects with
- *   'uri', 'filename', and 'name' members corresponding to the
- *   matching files.
+ *   An associative array (keyed on the chosen key) of objects with 'uri',
+ *   'filename', and 'name' members corresponding to the matching files.
  */
 function file_scan_directory($dir, $mask, $options = array(), $depth = 0) {
   // Merge in defaults.
@@ -1725,6 +1738,8 @@ function file_get_mimetype($uri, $mapping = NULL) {
  *   more information.
  * @return
  *   TRUE for success, FALSE in the event of an error.
+ *
+ * @ingroup php_wrappers
  */
 function drupal_chmod($uri, $mode = NULL) {
   if (!isset($mode)) {
@@ -1775,6 +1790,7 @@ function drupal_chmod($uri, $mode = NULL) {
  *   The absolute pathname, or FALSE on failure.
  *
  * @see realpath()
+ * @ingroup php_wrappers
  */
 function drupal_realpath($uri) {
   // If this URI is a stream, pass it off to the appropriate stream wrapper.
@@ -1804,6 +1820,7 @@ function drupal_realpath($uri) {
  *   A string containing the directory name.
  *
  * @see dirname()
+ * @ingroup php_wrappers
  */
 function drupal_dirname($uri) {
 	$scheme = file_uri_scheme($uri);
@@ -1844,6 +1861,7 @@ function drupal_dirname($uri) {
  *   Boolean TRUE on success, or FALSE on failure.
  *
  * @see mkdir()
+ * @ingroup php_wrappers
  */
 function drupal_mkdir($uri, $mode = NULL, $recursive = FALSE, $context = NULL) {
 
@@ -1878,6 +1896,7 @@ function drupal_mkdir($uri, $mode = NULL, $recursive = FALSE, $context = NULL) {
  *   The new temporary fillename, or FALSE on failure.
  *
  * @see tempnam()
+ * @ingroup php_wrappers
  */
 function drupal_tempnam($directory, $prefix) {
  	$scheme = file_uri_scheme($directory);

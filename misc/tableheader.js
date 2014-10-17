@@ -10,7 +10,7 @@ Drupal.tableHeaderDoScroll = function () {
 Drupal.behaviors.tableHeader = {
   attach: function (context, settings) {
     // This breaks in anything less than IE 7. Prevent it from running.
-    if ($.browser.msie && parseInt($.browser.version) < 7) {
+    if ($.browser.msie && parseInt($.browser.version, 10) < 7) {
       return;
     }
 
@@ -18,8 +18,9 @@ Drupal.behaviors.tableHeader = {
     var headers = [];
 
     $('table.sticky-enabled thead', context).once('tableheader', function () {
-      // Clone thead so it inherits original jQuery properties.
-      var headerClone = $(this).clone(true).insertBefore(this.parentNode).wrap('<table class="sticky-header"></table>').parent().css({
+      // Clone the table header so it inherits original jQuery properties. Hide
+      // the table to avoid a flash of the header clone upon page load.
+      var headerClone = $(this).clone(true).hide().insertBefore(this.parentNode).wrap('<table class="sticky-header"></table>').parent().css({
         position: 'fixed',
         top: '0px'
       });
@@ -32,6 +33,9 @@ Drupal.behaviors.tableHeader = {
       headerClone.table = table;
       // Finish initializing header positioning.
       tracker(headerClone);
+      // We hid the header to avoid it showing up erroneously on page load;
+      // we need to unhide it now so that it will show up when expected.
+      $(headerClone).children('thead').show();
 
       $(table).addClass('sticky-table');
     });
@@ -41,11 +45,14 @@ Drupal.behaviors.tableHeader = {
 
     // Track positioning and visibility.
     function tracker(e) {
+      // Reset top position of sticky table headers to the current top offset.
+      var topOffset = Drupal.settings.tableHeaderOffset ? eval(Drupal.settings.tableHeaderOffset + '()') : 0;
+      $('.sticky-header').css('top', topOffset + 'px');
       // Save positioning data.
       var viewHeight = document.documentElement.scrollHeight || document.body.scrollHeight;
       if (e.viewHeight != viewHeight) {
         e.viewHeight = viewHeight;
-        e.vPosition = $(e.table).offset().top - 4;
+        e.vPosition = $(e.table).offset().top - 4 - topOffset;
         e.hPosition = $(e.table).offset().left;
         e.vLength = e.table.clientHeight - 100;
         // Resize header and its cell widths.

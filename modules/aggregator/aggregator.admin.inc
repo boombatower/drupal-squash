@@ -30,9 +30,9 @@ function aggregator_view() {
     $rows[] = array(l($feed->title, "aggregator/sources/$feed->fid"), format_plural($feed->items, '1 item', '@count items'), ($feed->checked ? t('@time ago', array('@time' => format_interval(REQUEST_TIME - $feed->checked))) : t('never')), ($feed->checked && $feed->refresh ? t('%time left', array('%time' => format_interval($feed->checked + $feed->refresh - REQUEST_TIME))) : t('never')), l(t('edit'), "admin/config/services/aggregator/edit/feed/$feed->fid"), l(t('remove items'), "admin/config/services/aggregator/remove/$feed->fid"), l(t('update items'), "admin/config/services/aggregator/update/$feed->fid"));
   }
   if (empty($rows)) {
-    $rows[] = array(array('data' => t('No feeds available. <a href="@link">Add feed</a>.', array('@link' => url('admin/content/aggregator/add/feed'))), 'colspan' => '5', 'class' => array('message')));
+    $rows[] = array(array('data' => t('No feeds available. <a href="@link">Add feed</a>.', array('@link' => url('admin/config/services/aggregator/add/feed'))), 'colspan' => '5', 'class' => array('message')));
   }
-  $output .= theme('table', $header, $rows);
+  $output .= theme('table', array('header' => $header, 'rows' => $rows));
 
   $result = db_query('SELECT c.cid, c.title, COUNT(ci.iid) as items FROM {aggregator_category} c LEFT JOIN {aggregator_category_item} ci ON c.cid = ci.cid GROUP BY c.cid, c.title ORDER BY title');
 
@@ -46,7 +46,7 @@ function aggregator_view() {
   if (empty($rows)) {
     $rows[] = array(array('data' => t('No categories available. <a href="@link">Add category</a>.', array('@link' => url('admin/config/services/aggregator/add/category'))), 'colspan' => '5', 'class' => array('message')));
   }
-  $output .= theme('table', $header, $rows);
+  $output .= theme('table', array('header' => $header, 'rows' => $rows));
 
   return $output;
 }
@@ -58,7 +58,7 @@ function aggregator_view() {
  * @see aggregator_form_feed_validate()
  * @see aggregator_form_feed_submit()
  */
-function aggregator_form_feed(&$form_state, stdClass $feed = NULL) {
+function aggregator_form_feed($form, &$form_state, stdClass $feed = NULL) {
   $period = drupal_map_assoc(array(900, 1800, 3600, 7200, 10800, 21600, 32400, 43200, 64800, 86400, 172800, 259200, 604800, 1209600, 2419200), 'format_interval');
   $period[AGGREGATOR_CLEAR_NEVER] = t('Never');
 
@@ -196,7 +196,7 @@ function aggregator_form_feed_submit($form, &$form_state) {
   }
 }
 
-function aggregator_admin_remove_feed($form_state, $feed) {
+function aggregator_admin_remove_feed($form, $form_state, $feed) {
   return confirm_form(
     array(
       'feed' => array(
@@ -230,7 +230,7 @@ function aggregator_admin_remove_feed_submit($form, &$form_state) {
  * @see aggregator_form_opml_validate()
  * @see aggregator_form_opml_submit()
  */
-function aggregator_form_opml(&$form_state) {
+function aggregator_form_opml($form, &$form_state) {
   $period = drupal_map_assoc(array(900, 1800, 3600, 7200, 10800, 21600, 32400, 43200, 64800, 86400, 172800, 259200, 604800, 1209600, 2419200), 'format_interval');
 
   $form['upload'] = array(
@@ -390,7 +390,7 @@ function aggregator_admin_refresh_feed($feed) {
  *
  * @ingroup forms
  */
-function aggregator_admin_form($form_state) {
+function aggregator_admin_form($form, $form_state) {
   // Make sure configuration is sane.
   aggregator_sanitize_configuration();
 
@@ -496,7 +496,7 @@ function aggregator_admin_form_submit($form, &$form_state) {
  * @see aggregator_form_category_validate()
  * @see aggregator_form_category_submit()
  */
-function aggregator_form_category(&$form_state, $edit = array('title' => '', 'description' => '', 'cid' => NULL)) {
+function aggregator_form_category($form, &$form_state, $edit = array('title' => '', 'description' => '', 'cid' => NULL)) {
   $form['title'] = array('#type' => 'textfield',
     '#title' => t('Title'),
     '#default_value' => $edit['title'],

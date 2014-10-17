@@ -10,12 +10,12 @@
  * mechanism for auto-loading core APIs, so we have to load them on
  * every page request.
  */
-require(DRUPAL_ROOT . '/modules/field/field.crud.inc');
-require(DRUPAL_ROOT . '/modules/field/field.default.inc');
-require(DRUPAL_ROOT . '/modules/field/field.info.inc');
-require(DRUPAL_ROOT . '/modules/field/field.multilingual.inc');
-require(DRUPAL_ROOT . '/modules/field/field.attach.inc');
-require(DRUPAL_ROOT . '/modules/field/field.form.inc');
+module_load_include('inc', 'field', 'field.crud');
+module_load_include('inc', 'field', 'field.default');
+module_load_include('inc', 'field', 'field.info');
+module_load_include('inc', 'field', 'field.multilingual');
+module_load_include('inc', 'field', 'field.attach');
+module_load_include('inc', 'field', 'field.form');
 
 /**
  * @defgroup field Field API
@@ -44,7 +44,7 @@ require(DRUPAL_ROOT . '/modules/field/field.form.inc');
  *
  * - @link field_attach Field Attach API @endlink. Connects object
  *   types to the Field API. Field Attach API functions load, store,
- *   generate Form API structures, display, and perform a vareity of
+ *   generate Form API structures, display, and perform a variety of
  *   other functions for field data connected to individual objects.
  *   Fieldable object types like node and user use this API to make
  *   themselves fieldable.
@@ -131,6 +131,11 @@ define('FIELD_QUERY_COMPLETE', 'FIELD_QUERY_COMPLETE');
 class FieldException extends Exception {}
 
 /**
+ * Exception class thrown by hook_field_update_forbid().
+ */
+class FieldUpdateForbiddenException extends FieldException {}
+
+/**
  * Implement hook_flush_caches.
  */
 function field_flush_caches() {
@@ -156,18 +161,21 @@ function field_theme() {
   $items = array(
     'field' => array(
       'template' => 'field',
-      'arguments' => array('element' => NULL),
+      'render element' => 'element',
       'path' => $path,
     ),
     'field_multiple_value_form' => array(
-      'arguments' => array('element' => NULL),
+      'render element' => 'element',
     ),
   );
   $field_formatters = field_info_formatter_types(NULL);
   foreach ($field_formatters as $key => $field_formatter) {
-	$items["field_formatter_$key"] = array(
-      'arguments' => array('element' => NULL),
+    $items['field_formatter_' . $key] = array(
+      'render element' => 'element',
     );
+    if (isset($field_formatter['theme'])) {
+      $items['field_formatter_' . $key] += $field_formatter['theme'];
+    }
   }
   return $items;
 }
@@ -219,9 +227,9 @@ function field_modules_disabled($modules) {
       ->fields(array('active' => 0))
       ->condition('module', $module)
       ->execute();
-    db_update('field_config_instance')
-      ->fields(array('widget_active' => 0))
-      ->condition('widget_module', $module)
+    db_update('field_config')
+      ->fields(array('storage_active' => 0))
+      ->condition('storage_module', $module)
       ->execute();
     field_cache_clear(TRUE);
   }
@@ -234,25 +242,23 @@ function field_modules_disabled($modules) {
  *   The name of the module to update on.
  */
 function field_associate_fields($module) {
-  $module_fields = module_invoke($module, 'field_info');
-  if ($module_fields) {
-    foreach ($module_fields as $name => $field_info) {
-      watchdog('field', 'Updating field type %type with module %module.', array('%type' => $name, '%module' => $module));
-      db_update('field_config')
-        ->fields(array('module' => $module, 'active' => 1))
-        ->condition('type', $name)
-        ->execute();
-    }
+  // Associate field types.
+  $field_types =(array) module_invoke($module, 'field_info');
+  foreach ($field_types as $name => $field_info) {
+    watchdog('field', 'Updating field type %type with module %module.', array('%type' => $name, '%module' => $module));
+    db_update('field_config')
+      ->fields(array('module' => $module, 'active' => 1))
+      ->condition('type', $name)
+      ->execute();
   }
-  $module_widgets = module_invoke($module, 'widget_info');
-  if ($module_widgets) {
-    foreach ($module_widgets as $name => $widget_info) {
-      watchdog('field', 'Updating widget type %type with module %module.', array('%type' => $name, '%module' => $module));
-      db_update('field_config_instance')
-        ->fields(array('widget_module' => $module, 'widget_active' => 1))
-        ->condition('widget_type', $name)
-        ->execute();
-    }
+  // Associate storage backends.
+  $storage_types = (array) module_invoke($module, 'field_storage_info');
+  foreach ($storage_types as $name => $storage_info) {
+    watchdog('field', 'Updating field storage %type with module %module.', array('%type' => $name, '%module' => $module));
+    db_update('field_config')
+      ->fields(array('storage_module' => $module, 'storage_active' => 1))
+      ->condition('storage_type', $name)
+      ->execute();
   }
 }
 
@@ -420,21 +426,11 @@ function _field_extra_weights_pre_render($elements) {
 }
 
 /**
- * Clear the cached information; called in several places when field
- * information is changed.
+ * Clear the field info and field date caches.
  */
-function field_cache_clear($rebuild_schema = FALSE) {
+function field_cache_clear() {
   cache_clear_all('*', 'cache_field', TRUE);
-
-  module_load_include('inc', 'field', 'field.info');
   field_info_cache_clear();
-
-  // Refresh the schema to pick up new information.
-  // TODO : if db storage gets abstracted out, we'll need to revisit how and when
-  // we refresh the schema...
-  if ($rebuild_schema) {
-    $schema = drupal_get_schema(NULL, TRUE);
-  }
 }
 
 /**
@@ -472,7 +468,7 @@ function _field_filter_xss_display_allowed_tags() {
  *
  * Used to display a field's values outside the context of the $node, as
  * when fields are displayed in Views, or to display a field in a template
- * using a different formatter than the one set up on the Display Fields tab
+ * using a different formatter than the one set up on the 'Manage display' tab
  * for the node's context.
  *
  * @param $field
@@ -496,12 +492,12 @@ function field_format($obj_type, $object, $field, $item, $formatter_type = NULL,
     $field = field_info_field($field);
   }
 
-  if (field_access('view', $field)) {
+  if (field_access('view', $field, $obj_type, $object)) {
     $field_type = field_info_field_types($field['type']);
 
     // We need $field, $instance, $obj_type, $object to be able to display a value...
-    list(, , $bundle) = field_extract_ids($obj_type, $object);
-    $instance = field_info_instance($field['field_name'], $bundle);
+    list(, , $bundle) = entity_extract_ids($obj_type, $object);
+    $instance = field_info_instance($obj_type, $field['field_name'], $bundle);
 
     $display = array(
       'type' => $formatter_type ? $formatter_type : $field_type['default_formatter'],
@@ -515,6 +511,7 @@ function field_format($obj_type, $object, $field, $item, $formatter_type = NULL,
       $element = array(
         '#theme' => $theme,
         '#field_name' => $field['field_name'],
+        '#object_type' => $obj_type,
         '#bundle' => $bundle,
         '#formatter' => $display['type'],
         '#settings' => $display['settings'],
@@ -600,6 +597,19 @@ function field_view_field($obj_type, $object, $field, $instance, $build_mode = '
 }
 
 /**
+ * Determine whether a field has any data.
+ *
+ * @param $field
+ *   A field structure.
+ * @return
+ *   TRUE if the field has data for any object; FALSE otherwise.
+ */
+function field_has_data($field) {
+  $results = field_attach_query($field['id'], array(), array('limit' => 1));
+  return !empty($results);
+}
+
+/**
  * Determine whether the user has access to a given field.
  *
  * @param $op
@@ -608,20 +618,24 @@ function field_view_field($obj_type, $object, $field, $instance, $build_mode = '
  *   - "view"
  * @param $field
  *   The field on which the operation is to be performed.
+ * @param $obj_type
+ *   The type of $object; e.g. 'node' or 'user'.
+ * @param $object
+ *   (optional) The object for the operation.
  * @param $account
  *   (optional) The account to check, if not given use currently logged in user.
  * @return
  *   TRUE if the operation is allowed;
  *   FALSE if the operation is denied.
  */
-function field_access($op, $field, $account = NULL) {
+function field_access($op, $field, $obj_type, $object = NULL, $account = NULL) {
   global $user;
 
   if (is_null($account)) {
     $account = $user;
   }
 
-  $field_access = module_invoke_all('field_access', $op, $field, $account);
+  $field_access = module_invoke_all('field_access', $op, $field, $obj_type, $object, $account);
   foreach ($field_access as $value) {
     if ($value === FALSE) {
       return FALSE;
@@ -631,36 +645,7 @@ function field_access($op, $field, $account = NULL) {
 }
 
 /**
- * Helper function to extract id, vid, and bundle name from an object.
- *
- * @param $obj_type
- *   The type of $object; e.g. 'node' or 'user'.
- * @param $object
- *   The object from which to extract values.
- * @return
- *   A numerically indexed array (not a hash table) containing these
- *   elements:
- *
- *   0: primary id of the object
- *   1: revision id of the object, or NULL if $obj_type is not versioned
- *   2: bundle name of the object
- *   3: whether $obj_type's fields should be cached (TRUE/FALSE)
- */
-function field_extract_ids($obj_type, $object) {
-  // TODO D7 : prevent against broken 3rd party $node without 'type'.
-  $info = field_info_fieldable_types($obj_type);
-  // Objects being created might not have id/vid yet.
-  $id = isset($object->{$info['object keys']['id']}) ? $object->{$info['object keys']['id']} : NULL;
-  $vid = ($info['object keys']['revision'] && isset($object->{$info['object keys']['revision']})) ? $object->{$info['object keys']['revision']} : NULL;
-  // If no bundle key provided, then we assume a single bundle, named after the
-  // type of the object.
-  $bundle = $info['object keys']['bundle'] ? $object->{$info['object keys']['bundle']} : $obj_type;
-  $cacheable = $info['cacheable'];
-  return array($id, $vid, $bundle, $cacheable);
-}
-
-/**
- * Helper function to extract id, vid, and bundle name from an object.
+ * Helper function to extract the bundle name of from a bundle object.
  *
  * @param $obj_type
  *   The type of $object; e.g. 'node' or 'user'.
@@ -675,39 +660,10 @@ function field_extract_bundle($obj_type, $bundle) {
     return $bundle;
   }
 
-  $info = field_info_fieldable_types($obj_type);
+  $info = entity_get_info($obj_type);
   if (is_object($bundle) && isset($info['bundle keys']['bundle']) && isset($bundle->{$info['bundle keys']['bundle']})) {
     return $bundle->{$info['bundle keys']['bundle']};
   }
-}
-
-/**
- * Helper function to assemble an object structure with initial ids.
- *
- * This function can be seen as reciprocal to field_extract_ids().
- *
- * @param $obj_type
- *   The type of $object; e.g. 'node' or 'user'.
- * @param $ids
- *   A numerically indexed array, as returned by field_extract_ids(),
- *   containing these elements:
- *   0: primary id of the object
- *   1: revision id of the object, or NULL if $obj_type is not versioned
- *   2: bundle name of the object
- * @return
- *   An $object structure, initialized with the ids provided.
- */
-function field_create_stub_entity($obj_type, $ids) {
-  $object = new stdClass();
-  $info = field_info_fieldable_types($obj_type);
-  $object->{$info['object keys']['id']} = $ids[0];
-  if (isset($info['object keys']['revision']) && !is_null($ids[1])) {
-    $object->{$info['object keys']['revision']} = $ids[1];
-  }
-  if ($info['object keys']['bundle']) {
-    $object->{$info['object keys']['bundle']} = $ids[2];
-  }
-  return $object;
 }
 
 /**
@@ -717,8 +673,8 @@ function field_create_stub_entity($obj_type, $ids) {
  */
 function template_preprocess_field(&$variables) {
   $element = $variables['element'];
-  list(, , $bundle) = field_extract_ids($element['#object_type'], $element['#object']);
-  $instance = field_info_instance($element['#field_name'], $bundle);
+  list(, , $bundle) = entity_extract_ids($element['#object_type'], $element['#object']);
+  $instance = field_info_instance($element['#object_type'], $element['#field_name'], $bundle);
   $field = field_info_field($element['#field_name']);
 
   $field_type_css = strtr($field['type'], '_', '-');

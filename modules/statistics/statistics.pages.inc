@@ -15,7 +15,7 @@ function statistics_node_tracker() {
         array('data' => t('User'), 'field' => 'u.name'),
         array('data' => t('Operations')));
 
-    $query = db_select('accesslog', 'a')->extend('PagerDefault')->extend('TableSort');
+    $query = db_select('accesslog', 'a', array('target' => 'slave'))->extend('PagerDefault')->extend('TableSort');
     $query->join('users', 'u', 'a.uid = u.uid');
 
     $query
@@ -33,7 +33,7 @@ function statistics_node_tracker() {
       $rows[] = array(
         array('data' => format_date($log->timestamp, 'short'), 'class' => array('nowrap')),
         _statistics_link($log->url),
-        theme('username', $log),
+        theme('username', array('account' => $log)),
         l(t('details'), "admin/reports/access/$log->aid"),
       );
     }
@@ -42,10 +42,10 @@ function statistics_node_tracker() {
       $rows[] = array(array('data' => t('No statistics available.'), 'colspan' => 4));
     }
 
-    drupal_set_title($node->title);
+    drupal_set_title($node->title[FIELD_LANGUAGE_NONE][0]['value']);
     $build['statistics_table'] = array(
-      '#theme' => 'table', 
-      '#header' => $header, 
+      '#theme' => 'table',
+      '#header' => $header,
       '#rows' => $rows
     );
     $build['statistics_pager'] = array('#theme' => 'pager');
@@ -63,7 +63,7 @@ function statistics_user_tracker() {
         array('data' => t('Timestamp'), 'field' => 'timestamp', 'sort' => 'desc'),
         array('data' => t('Page'), 'field' => 'path'),
         array('data' => t('Operations')));
-    $query = db_select('accesslog', 'a')->extend('PagerDefault')->extend('TableSort');
+    $query = db_select('accesslog', 'a', array('target' => 'slave'))->extend('PagerDefault')->extend('TableSort');
     $query
       ->fields('a', array('aid', 'timestamp', 'path', 'title'))
       ->condition('uid', $account->uid)
@@ -83,10 +83,10 @@ function statistics_user_tracker() {
       $rows[] = array(array('data' => t('No statistics available.'), 'colspan' => 3));
     }
 
-    drupal_set_title($account->name);
+    drupal_set_title(format_username($account));
     $build['statistics_table'] = array(
-      '#theme' => 'table', 
-      '#header' => $header, 
+      '#theme' => 'table',
+      '#header' => $header,
       '#rows' => $rows
     );
     $build['statistics_pager'] = array('#theme' => 'pager');

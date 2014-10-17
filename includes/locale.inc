@@ -24,6 +24,18 @@ define('LOCALE_IMPORT_OVERWRITE', 0);
 define('LOCALE_IMPORT_KEEP', 1);
 
 /**
+ * URL language negotiation: use the path prefix as URL language
+ * indicator.
+ */
+define('LOCALE_LANGUAGE_NEGOTIATION_URL_PREFIX', 0);
+
+/**
+ * URL language negotiation: use the domain as URL language
+ * indicator.
+ */
+define('LOCALE_LANGUAGE_NEGOTIATION_URL_DOMAIN', 1);
+
+/**
  * @defgroup locale-language-overview Language overview functionality
  * @{
  */
@@ -69,9 +81,17 @@ function locale_languages_overview_form() {
 /**
  * Theme the language overview form.
  *
+ * @param $variables
+ *   An associative array containing:
+ *   - form: @todo: document
+ *
+ * @return
+ *   A themed HTML string representing the form.
+ *
  * @ingroup themeable
  */
-function theme_locale_languages_overview_form($form) {
+function theme_locale_languages_overview_form($variables) {
+  $form = $variables['form'];
   $default = language_default();
   foreach ($form['name'] as $key => $element) {
     // Do not take form control structures.
@@ -96,7 +116,7 @@ function theme_locale_languages_overview_form($form) {
     }
   }
   $header = array(array('data' => t('English name')), array('data' => t('Native name')), array('data' => t('Code')), array('data' => t('Direction')), array('data' => t('Enabled')), array('data' => t('Default')), array('data' => t('Weight')), array('data' => t('Operations')));
-  $output = theme('table', $header, $rows, array('id' => 'language-order'));
+  $output = theme('table', array('header' => $header, 'rows' => $rows, 'attributes' => array('id' => 'language-order')));
   $output .= drupal_render_children($form);
 
   drupal_add_tabledrag('language-order', 'order', 'sibling', 'language-order-weight');
@@ -141,6 +161,7 @@ function locale_languages_overview_form_submit($form, &$form_state) {
 
   // Changing the language settings impacts the interface.
   cache_clear_all('*', 'cache_page', TRUE);
+  module_invoke_all('multilingual_settings_changed');
 
   $form_state['redirect'] = 'admin/config/regional/language';
   return;
@@ -166,9 +187,8 @@ function locale_languages_add_screen() {
 /**
  * Predefined language setup form.
  */
-function locale_languages_predefined_form() {
+function locale_languages_predefined_form($form) {
   $predefined = _locale_prepare_predefined_list();
-  $form = array();
   $form['language list'] = array('#type' => 'fieldset',
     '#title' => t('Predefined language'),
     '#collapsible' => TRUE,
@@ -186,8 +206,7 @@ function locale_languages_predefined_form() {
 /**
  * Custom language addition form.
  */
-function locale_languages_custom_form() {
-  $form = array();
+function locale_languages_custom_form($form) {
   $form['custom language'] = array('#type' => 'fieldset',
     '#title' => t('Custom language'),
     '#collapsible' => TRUE,
@@ -210,9 +229,8 @@ function locale_languages_custom_form() {
  * @param $langcode
  *   Language code of the language to edit.
  */
-function locale_languages_edit_form(&$form_state, $langcode) {
+function locale_languages_edit_form($form, &$form_state, $langcode) {
   if ($language = db_query("SELECT * FROM {languages} WHERE language = :language", array(':language' => $langcode))->fetchObject()) {
-    $form = array();
     _locale_languages_common_controls($form, $language);
     $form['submit'] = array(
       '#type' => 'submit',
@@ -345,6 +363,8 @@ function locale_languages_predefined_form_submit($form, &$form_state) {
     batch_set($batch);
   }
 
+  module_invoke_all('multilingual_settings_changed');
+
   $form_state['redirect'] = 'admin/config/regional/language';
   return;
 }
@@ -406,7 +426,7 @@ function locale_languages_edit_form_submit($form, &$form_state) {
 /**
  * User interface for the language deletion confirmation screen.
  */
-function locale_languages_delete_form(&$form_state, $langcode) {
+function locale_languages_delete_form($form, &$form_state, $langcode) {
 
   // Do not allow deletion of English locale.
   if ($langcode == 'en') {
@@ -452,7 +472,8 @@ function locale_languages_delete_form_submit($form, &$form_state) {
       ->fields(array('language' => ''))
       ->condition('language', $form_state['values']['langcode'])
       ->execute();
-    $variables = array('%locale' => $languages[$form_state['values']['langcode']]->name);
+    module_invoke_all('multilingual_settings_changed');
+    $variables = array('%locale' => $languages[$form_state['values']['langcode']]->name);    
     drupal_set_message(t('The language %locale has been removed.', $variables));
     watchdog('locale', 'The language %locale has been removed.', $variables);
   }
@@ -468,7 +489,7 @@ function locale_languages_delete_form_submit($form, &$form_state) {
  */
 
 /**
- * @defgroup locale-languages-negotiation Language negotiation options screen
+ * @defgroup locale-languages-negotiation Language negotiation options
  * @{
  */
 
@@ -476,33 +497,507 @@ function locale_languages_delete_form_submit($form, &$form_state) {
  * Setting for language negotiation options
  */
 function locale_languages_configure_form() {
-  $form['language_negotiation'] = array(
-    '#title' => t('Language negotiation'),
-    '#type' => 'radios',
-    '#options' => array(
-      LANGUAGE_NEGOTIATION_NONE => t('None.'),
-      LANGUAGE_NEGOTIATION_PATH_DEFAULT => t('Path prefix only.'),
-      LANGUAGE_NEGOTIATION_PATH => t('Path prefix with language fallback.'),
-      LANGUAGE_NEGOTIATION_DOMAIN => t('Domain name only.')),
-    '#default_value' => variable_get('language_negotiation', LANGUAGE_NEGOTIATION_NONE),
-    '#description' => t("Select the mechanism used to determine your site's presentation language. <strong>Modifying this setting may break all incoming URLs and should be used with caution in a production environment.</strong>")
+  include_once DRUPAL_ROOT . '/includes/language.inc';
+
+  $form = array(
+    '#submit' => array('locale_languages_configure_form_submit'),
+    '#theme' => 'locale_languages_configure_form',
+    '#language_types' => language_types_configurable(),
+    '#language_types_info' => language_types_info(),
+    '#language_providers' => language_negotiation_info(),
   );
+
+  foreach ($form['#language_types'] as $type) {
+    _locale_languages_configure_form_language_table($form, $type);
+  }
+
   $form['submit'] = array(
     '#type' => 'submit',
-    '#value' => t('Save settings')
+    '#value' => t('Save settings'),
   );
+
   return $form;
 }
 
 /**
- * Submit function for language negotiation settings.
+ * Helper function to build a language provider table.
+ */
+function _locale_languages_configure_form_language_table(&$form, $type) {
+  $info = $form['#language_types_info'][$type];
+
+  $table_form = array(
+    '#title' => t('@type language', array('@type' => $info['name'])),
+    '#tree' => TRUE,
+    '#description' => $info['description'],
+    '#language_providers' => array(),
+    '#show_operations' => FALSE,
+    'weight' => array('#tree' => TRUE),
+    'enabled' => array('#tree' => TRUE),
+  );
+
+  $language_providers = $form['#language_providers'];
+  $enabled_providers = variable_get("locale_language_providers_enabled_$type", array());
+  $providers_weight = variable_get("locale_language_providers_weight_$type", array());
+
+  // Add missing data to the providers lists.
+  foreach ($language_providers as $id => $provider) {
+    if (!isset($providers_weight[$id])) {
+      $providers_weight[$id] = language_provider_weight($provider);
+    }
+    if (!isset($enabled_providers[$id])) {
+      $enabled_providers[$id] = FALSE;
+    }
+  }
+
+  // Order providers list by weight.
+  asort($providers_weight);
+
+  foreach ($providers_weight as $id => $weight) {
+    $enabled = $enabled_providers[$id];
+    $provider = $language_providers[$id];
+
+    // List the provider only if the current type is defined in its 'types' key.
+    // If it is not defined default to all the configurabe language types.
+    $types = array_flip(isset($provider['types']) ? $provider['types'] : $form['#language_types']);
+
+    if (isset($types[$type])) {
+      $table_form['#language_providers'][$id] = $provider;
+
+      $table_form['weight'][$id] = array(
+        '#type' => 'weight',
+        '#default_value' => $weight,
+        '#attributes' => array('class' => array("language-provider-weight-$type")),
+      );
+
+      $table_form['title'][$id] = array('#markup' => check_plain($provider['name']));
+
+      $table_form['enabled'][$id] = array('#type' => 'checkbox', '#default_value' => $enabled);
+      if ($id === LANGUAGE_NEGOTIATION_DEFAULT) {
+        $table_form['enabled'][$id]['#default_value'] = TRUE;
+        $table_form['enabled'][$id]['#attributes'] = array('disabled' => 'disabled');
+      }
+
+      $table_form['description'][$id] = array('#markup' => filter_xss_admin($provider['description']));
+
+      $config_op = array();
+      if (isset($provider['config'])) {
+        $config_op = array('#type' => 'link', '#title' => t('Configure'), '#href' => $provider['config']);
+        // If there is at least one operation enabled show the operation column.
+        $table_form['#show_operations'] = TRUE;
+      }
+      $table_form['operation'][$id] = $config_op;
+    }
+  }
+
+  $form[$type] = $table_form;
+}
+
+/**
+ * Theme the language configure form.
+ *
+ * @ingroup themeable
+ */
+function theme_locale_languages_configure_form($variables) {
+  $form = $variables['form'];
+  $output = '';
+
+  foreach ($form['#language_types'] as $type) {
+    $rows = array();
+    $info = $form['#language_types_info'][$type];
+    $title = '<label>' . $form[$type]['#title'] . '</label>';
+    $description = '<div class="description">' . $form[$type]['#description'] . '</div>';
+
+    foreach ($form[$type]['title'] as $id => $element) {
+      // Do not take form control structures.
+      if (is_array($element) && element_child($id)) {
+        $row = array(
+          'data' => array(
+            '<strong>' . drupal_render($form[$type]['title'][$id]) . '</strong>',
+            drupal_render($form[$type]['description'][$id]),
+            drupal_render($form[$type]['enabled'][$id]),
+            drupal_render($form[$type]['weight'][$id]),
+          ),
+          'class' => array('draggable'),
+        );
+        if ($form[$type]['#show_operations']) {
+          $row['data'][] = drupal_render($form[$type]['operation'][$id]);
+        }
+        $rows[] = $row;
+      }
+    }
+
+    $header = array(
+      array('data' => t('Detection method')),
+      array('data' => t('Description')),
+      array('data' => t('Enabled')),
+      array('data' => t('Weight')),
+    );
+
+    // If there is at least one operation enabled show the operation column.
+    if ($form[$type]['#show_operations']) {
+      $header[] = array('data' => t('Operations'));
+    }
+
+    $variables = array(
+      'header' => $header,
+      'rows' => $rows,
+      'attributes' => array('id' => "language-negotiation-providers-$type"),
+    );
+    $table  = theme('table', $variables);
+    $table .= drupal_render_children($form[$type]);
+
+    drupal_add_tabledrag("language-negotiation-providers-$type", 'order', 'sibling', "language-provider-weight-$type");
+
+    $output .= '<div class="form-item">' . $title . $description . $table . '</div>';
+  }
+
+  $output .= drupal_render_children($form);
+  return $output;
+}
+
+/**
+ * Submit handler for language negotiation settings.
  */
 function locale_languages_configure_form_submit($form, &$form_state) {
-  variable_set('language_negotiation', $form_state['values']['language_negotiation']);
-  drupal_set_message(t('Language negotiation configuration saved.'));
+  $language_types = array();
+  $configurable_types = $form['#language_types'];
+
+  foreach ($configurable_types as $type) {
+    $negotiation = array();
+    $enabled_providers = $form_state['values'][$type]['enabled'];
+    $enabled_providers[LANGUAGE_NEGOTIATION_DEFAULT] = TRUE;
+    $providers_weight = $form_state['values'][$type]['weight'];
+    $language_types[$type] = TRUE;
+
+    foreach ($providers_weight as $id => $weight) {
+      if ($enabled_providers[$id]) {
+        $provider = $form[$type]['#language_providers'][$id];
+        $provider['weight'] = $weight;
+        $negotiation[$id] = $provider;
+      }
+    }
+
+    language_negotiation_set($type, $negotiation);
+    variable_set("locale_language_providers_enabled_$type", $enabled_providers);
+    variable_set("locale_language_providers_weight_$type", $providers_weight);
+  }
+
+  // Save non-configurable language types negotiation.
+  $language_types_info = language_types_info();
+  $defined_providers = $form['#language_providers'];
+  foreach ($language_types_info as $type => $info) {
+    if (isset($info['fixed'])) {
+      $language_types[$type] = FALSE;
+      $negotiation = array();
+      foreach ($info['fixed'] as $id) {
+        if (isset($defined_providers[$id])) {
+          $negotiation[$id] = $defined_providers[$id];
+        }
+      }
+      language_negotiation_set($type, $negotiation);
+    }
+  }
+
+  // Save language types.
+  variable_set('language_types', $language_types);
+
   $form_state['redirect'] = 'admin/config/regional/language';
-  return;
+  drupal_set_message(t('Language negotiation configuration saved.'));
 }
+
+/**
+ * The URL language provider configuration form.
+ */
+function locale_language_providers_url_form() {
+  $form = array();
+
+  $form['locale_language_negotiation_url_part'] = array(
+    '#title' => t('URL language indicator'),
+    '#type' => 'radios',
+    '#options' => array(
+      LOCALE_LANGUAGE_NEGOTIATION_URL_PREFIX => t('Path prefix'),
+      LOCALE_LANGUAGE_NEGOTIATION_URL_DOMAIN => t('Domain'),
+    ),
+    '#default_value' => variable_get('locale_language_negotiation_url_part', LOCALE_LANGUAGE_NEGOTIATION_URL_PREFIX),
+    '#description' => t('Select which part of the URL will determine the language.'),
+  );
+
+  $form['#redirect'] = 'admin/config/regional/language/configure';
+
+  return system_settings_form($form);
+}
+
+/**
+ * The URL language provider configuration form.
+ */
+function locale_language_providers_session_form() {
+  $form = array();
+
+  $form['locale_language_negotiation_session_param'] = array(
+    '#title' => t('Request/session parameter'),
+    '#type' => 'textfield',
+    '#default_value' => variable_get('locale_language_negotiation_session_param', 'language'),
+    '#description' => t('This value will be the name of the request/session parameter which will be used to determine the desired language.'),
+  );
+
+  $form['#redirect'] = 'admin/config/regional/language/configure';
+
+  return system_settings_form($form);
+}
+
+/**
+ * Identify the language from the current content language.
+ *
+ * @return
+ *   The current content language code.
+ */
+function locale_language_from_content() {
+  global $language;
+  return isset($language->language) ? $language->language : FALSE;
+}
+
+/**
+ * Identify language from the Accept-language HTTP header we got.
+ *
+ * We perform browser accept-language parsing only if page cache is disabled,
+ * otherwise we would cache a user-specific preference.
+ *
+ * @param $languages
+ *   An array of valid language objects.
+ *
+ * @return
+ *   A valid language code on success, FALSE otherwise.
+ */
+function locale_language_from_browser($languages) {
+  // Specified by the user via the browser's Accept Language setting
+  // Samples: "hu, en-us;q=0.66, en;q=0.33", "hu,en-us;q=0.5"
+  $browser_langs = array();
+
+  if (isset($_SERVER['HTTP_ACCEPT_LANGUAGE'])) {
+    $browser_accept = explode(",", $_SERVER['HTTP_ACCEPT_LANGUAGE']);
+    foreach ($browser_accept as $langpart) {
+      // The language part is either a code or a code with a quality.
+      // We cannot do anything with a * code, so it is skipped.
+      // If the quality is missing, it is assumed to be 1 according to the RFC.
+      if (preg_match("!([a-z-]+)(;q=([0-9\\.]+))?!", trim($langpart), $found)) {
+        $browser_langs[$found[1]] = (isset($found[3]) ? (float) $found[3] : 1.0);
+      }
+    }
+  }
+
+  // Order the codes by quality
+  arsort($browser_langs);
+
+  // Try to find the first preferred language we have
+  foreach ($browser_langs as $langcode => $q) {
+    if (isset($languages[$langcode])) {
+      return $langcode;
+    }
+  }
+
+  return FALSE;
+}
+
+/**
+ * Identify language from the user preferences.
+ *
+ * @param $languages
+ *   An array of valid language objects.
+ *
+ * @return
+ *   A valid language code on succes, FALSE otherwise.
+ */
+function locale_language_from_user($languages) {
+  // User preference (only for logged users).
+  global $user;
+
+  if ($user->uid) {
+    return $user->language;
+  }
+
+  // No language preference from the user.
+  return FALSE;
+}
+
+/**
+ * Identify language from a request/session parameter.
+ *
+ * @param $languages
+ *   An array of valid language objects.
+ *
+ * @return
+ *   A valid language code on succes, FALSE otherwise.
+ */
+function locale_language_from_session($languages) {
+  $param = variable_get('locale_language_negotiation_session_param', 'language');
+
+  // Request parameter.
+  if (isset($_GET[$param]) && isset($languages[$langcode = $_GET[$param]])) {
+    return $_SESSION[$param] = $langcode;
+  }
+
+  // Session parameter.
+  if (isset($_SESSION[$param])) {
+    return $_SESSION[$param];
+  }
+
+  return FALSE;
+}
+
+/**
+ * Identify language via URL prefix or domain.
+ *
+ * @param $languages
+ *   An array of valid language objects.
+ *
+ * @return
+ *   A valid language code on succes, FALSE otherwise.
+ */
+function locale_language_from_url($languages) {
+  $language_url = FALSE;
+
+  switch (variable_get('locale_language_negotiation_url_part', LOCALE_LANGUAGE_NEGOTIATION_URL_PREFIX)) {
+    case LOCALE_LANGUAGE_NEGOTIATION_URL_PREFIX:
+      // $_GET['q'] might not be available at this time, because
+      // path initialization runs after the language bootstrap phase.
+      list($language, $_GET['q']) = language_url_split_prefix(isset($_GET['q']) ? $_GET['q'] : NULL, $languages);
+      if ($language !== FALSE) {
+        $language_url = $language->language;
+      }
+      break;
+
+    case LOCALE_LANGUAGE_NEGOTIATION_URL_DOMAIN:
+      foreach ($languages as $language) {
+        $host = parse_url($language->domain, PHP_URL_HOST);
+        if ($host && ($_SERVER['HTTP_HOST'] == $host)) {
+          $language_url = $language->language;
+          break;
+        }
+      }
+      break;
+  }
+
+  return $language_url;
+}
+
+/**
+ * Return the URL language switcher block. Translation links may be provided by
+ * other modules.
+ */
+function locale_language_switcher_url($type, $path) {
+  $languages = language_list('enabled');
+  $links = array();
+
+  foreach ($languages[1] as $language) {
+    $links[$language->language] = array(
+      'href'       => $path,
+      'title'      => $language->native,
+      'language'   => $language,
+      'attributes' => array('class' => array('language-link')),
+    );
+  }
+
+  return $links;
+}
+
+/**
+ * Return the session language switcher block.
+ */
+function locale_language_switcher_session($type, $path) {
+  drupal_add_css(drupal_get_path('module', 'locale') . '/locale.css');
+
+  $param = variable_get('locale_language_negotiation_session_param', 'language');
+  $language_query = isset($_SESSION[$param]) ? $_SESSION[$param] : $GLOBALS[$type]->language;
+
+  $languages = language_list('enabled');
+  $links = array();
+
+  $query = $_GET;
+  unset($query['q']);
+
+  foreach ($languages[1] as $language) {
+    $langcode = $language->language;
+    $links[$langcode] = array(
+      'href'       => $path,
+      'title'      => $language->native,
+      'attributes' => array('class' => array('language-link')),
+      'query'      => $query,
+    );
+    if ($language_query != $langcode) {
+      $links[$langcode]['query'][$param] = $langcode;
+    }
+    else {
+      $links[$langcode]['attributes']['class'][] = ' session-active';
+    }
+  }
+
+  return $links;
+}
+
+/**
+ * Rewrite URLs for the URL language provider.
+ */
+function locale_language_url_rewrite_url(&$path, &$options) {
+  // Language can be passed as an option, or we go for current URL language.
+  if (!isset($options['language'])) {
+    global $language_url;
+    $options['language'] = $language_url;
+  }
+
+  if (isset($options['language'])) {
+    switch (variable_get('locale_language_negotiation_url_part', LOCALE_LANGUAGE_NEGOTIATION_URL_PREFIX)) {
+      case LOCALE_LANGUAGE_NEGOTIATION_URL_DOMAIN:
+        if ($options['language']->domain) {
+          // Ask for an absolute URL with our modified base_url.
+          $options['absolute'] = TRUE;
+          $options['base_url'] = $options['language']->domain;
+        }
+        break;
+
+      case LOCALE_LANGUAGE_NEGOTIATION_URL_PREFIX:
+        if (!empty($options['language']->prefix)) {
+          $options['prefix'] = $options['language']->prefix . '/';
+        }
+        break;
+    }
+  }
+}
+
+/**
+ * Rewrite URLs for the Session language provider.
+ */
+function locale_language_url_rewrite_session(&$path, &$options) {
+  static $query_rewrite, $query_param, $query_value;
+
+  // The following values are not supposed to change during a single page
+  // request processing.
+  if (!isset($query_rewrite)) {
+    global $user;
+    if (!$user->uid) {
+      $languages = language_list('enabled');
+      $languages = $languages[1];
+      $query_param = check_plain(variable_get('locale_language_negotiation_session_param', 'language'));
+      $query_value = isset($_GET[$query_param]) ? check_plain($_GET[$query_param]) : NULL;
+      $query_rewrite = isset($languages[$query_value]) && language_negotiation_get_any(LOCALE_LANGUAGE_NEGOTIATION_SESSION);
+    }
+    else {
+      $query_rewrite = FALSE;
+    }
+  }
+
+  // If the user is anonymous, the user language provider is enabled, and the
+  // corresponding option has been set, we must preserve any explicit user
+  // language preference even with cookies disabled.
+  if ($query_rewrite) {
+    if (is_string($options['query'])) {
+      $options['query'] = drupal_get_query_array($options['query']);
+    }
+    if (!isset($options['query'][$query_param])) {
+      $options['query'][$query_param] = $query_value;
+    }
+  }
+}
+
 /**
  * @} End of "locale-languages-negotiation"
  */
@@ -546,7 +1041,7 @@ function locale_translate_overview_screen() {
     $rows[$data->language][$data->textgroup] = $data->translation . '/' . $groupsums[$data->textgroup] . " ($ratio%)";
   }
 
-  return theme('table', $headers, $rows);
+  return theme('table', array('header' => $headers, 'rows' => $rows));
 }
 /**
  * @} End of "locale-translate-overview"
@@ -698,7 +1193,7 @@ function locale_translation_filter_form_submit($form, &$form_state) {
 /**
  * User interface for the translation import screen.
  */
-function locale_translate_import_form() {
+function locale_translate_import_form($form) {
   // Get all languages, except English
   drupal_static_reset('language_list');
   $names = locale_language_list('name');
@@ -716,7 +1211,6 @@ function locale_translate_import_form() {
     $default = key($names);
   }
 
-  $form = array();
   $form['import'] = array('#type' => 'fieldset',
     '#title' => t('Import translation'),
   );
@@ -769,7 +1263,7 @@ function locale_translate_import_form_submit($form, &$form_state) {
     }
 
     // Now import strings into the language
-    if ($ret = _locale_import_po($file, $langcode, $form_state['values']['mode'], $form_state['values']['group']) == FALSE) {
+    if ($return = _locale_import_po($file, $langcode, $form_state['values']['mode'], $form_state['values']['group']) == FALSE) {
       $variables = array('%filename' => $file->filename);
       drupal_set_message(t('The translation import of %filename failed.', $variables), 'error');
       watchdog('locale', 'The translation import of %filename failed.', $variables, WATCHDOG_ERROR);
@@ -816,7 +1310,7 @@ function locale_translate_export_screen() {
  * @param $names
  *   An associate array with localized language names
  */
-function locale_translate_export_po_form(&$form_state, $names) {
+function locale_translate_export_po_form($form, &$form_state, $names) {
   $form['export'] = array('#type' => 'fieldset',
     '#title' => t('Export translation'),
     '#collapsible' => TRUE,
@@ -881,7 +1375,7 @@ function locale_translate_export_po_form_submit($form, &$form_state) {
 /**
  * User interface for string editing.
  */
-function locale_translate_edit_form(&$form_state, $lid) {
+function locale_translate_edit_form($form, &$form_state, $lid) {
   // Fetch source string, if possible.
   $source = db_query('SELECT source, context, textgroup, location FROM {locales_source} WHERE lid = :lid', array(':lid' => $lid))->fetchObject();
   if (!$source) {
@@ -1051,7 +1545,7 @@ function locale_translate_delete_page($lid) {
 /**
  * User interface for the string deletion confirmation screen.
  */
-function locale_translate_delete_form(&$form_state, $source) {
+function locale_translate_delete_form($form, &$form_state, $source) {
   $form['lid'] = array('#type' => 'value', '#value' => $source->lid);
   return confirm_form($form, t('Are you sure you want to delete the string "%source"?', array('%source' => $source->source)), 'admin/config/regional/translate/translate', t('Deleting the string will remove all translations of this string in all languages. This action cannot be undone.'), t('Delete'), t('Cancel'));
 }
@@ -2179,7 +2673,7 @@ function _locale_export_string($str) {
  */
 function _locale_export_wrap($str, $len) {
   $words = explode(' ', $str);
-  $ret = array();
+  $return = array();
 
   $cur = "";
   $nstr = 1;
@@ -2190,16 +2684,16 @@ function _locale_export_wrap($str, $len) {
       $nstr = 0;
     }
     elseif (strlen("$cur $word") > $len) {
-      $ret[] = $cur . " ";
+      $return[] = $cur . " ";
       $cur = $word;
     }
     else {
       $cur = "$cur $word";
     }
   }
-  $ret[] = $cur;
+  $return[] = $cur;
 
-  return implode("\n", $ret);
+  return implode("\n", $return);
 }
 
 /**
@@ -2309,8 +2803,8 @@ function _locale_translate_seek() {
   }
 
   if (count($rows)) {
-    $output .= theme('table', $header, $rows);
-    if ($pager = theme('pager', NULL)) {
+    $output .= theme('table', array('header' => $header, 'rows' => $rows));
+    if ($pager = theme('pager', array('tags' => NULL))) {
       $output .= $pager;
     }
   }
@@ -2429,7 +2923,7 @@ function _locale_rebuild_js($langcode = NULL) {
       $data .= "'pluralFormula': function (\$n) { return Number({$language->formula}); }, ";
     }
 
-    $data .= "'strings': " . drupal_to_js($translations) . " };";
+    $data .= "'strings': " . drupal_json_encode($translations) . " };";
     $data_hash = md5($data);
   }
 
@@ -2724,5 +3218,89 @@ function country_get_list() {
   // Allow other modules to modify the country list.
   drupal_alter('countries', $countries);
   return $countries;
+}
+
+/**
+ * Save locale specific date formats to the database.
+ *
+ * @param $langcode
+ *   Language code, can be 2 characters, e.g. 'en' or 5 characters, e.g.
+ *   'en-CA'.
+ * @param $type
+ *   Date format type, e.g. 'short', 'medium'.
+ * @param $format
+ *   The date format string.
+ */
+function locale_date_format_save($langcode, $type, $format) {
+  $locale_format = array();
+  $locale_format['language'] = $langcode;
+  $locale_format['type'] = $type;
+  $locale_format['format'] = $format;
+
+  $is_existing = (bool) db_query_range('SELECT 1 FROM {date_format_locale} WHERE language = :langcode AND type = :type', 0, 1, array(':langcode' => $langcode, ':type' => $type))->fetchField();
+  if ($is_existing) {
+    $keys = array('type', 'language');
+    drupal_write_record('date_format_locale', $locale_format, $keys);
+  }
+  else {
+    drupal_write_record('date_format_locale', $locale_format);
+  }
+}
+
+/**
+ * Select locale date format details from database.
+ *
+ * @param $languages
+ *   An array of language codes.
+ * @return
+ *   An array of date formats.
+ */
+function locale_get_localized_date_format($languages) {
+  $formats = array();
+
+  // Get list of different format types.
+  $format_types = system_get_date_types();
+  $short_default = variable_get('date_format_short', 'm/d/Y - H:i');
+
+  // Loop through each language until we find one with some date formats
+  // configured.
+  foreach ($languages as $language) {
+    $date_formats = system_date_format_locale($language);
+    if (!empty($date_formats)) {
+      // We have locale-specific date formats, so check for their types. If
+      // we're missing a type, use the default setting instead.
+      foreach ($format_types as $type => $type_info) {
+        // If format exists for this language, use it.
+        if (!empty($date_formats[$type])) {
+          $formats['date_format_' . $type] = $date_formats[$type];
+        }
+        // Otherwise get default variable setting. If this is not set, default
+        // to the short format.
+        else {
+          $formats['date_format_' . $type] = variable_get('date_format_' . $type, $short_default);
+        }
+      }
+
+      // Return on the first match.
+      return $formats;
+    }
+  }
+
+  // No locale specific formats found, so use defaults.
+  $system_types = array('short', 'medium', 'long');
+  // Handle system types separately as they have defaults if no variable exists.
+  $formats['date_format_short'] = $short_default;
+  $formats['date_format_medium'] = variable_get('date_format_medium', 'D, m/d/Y - H:i');
+  $formats['date_format_long'] = variable_get('date_format_long', 'l, F j, Y - H:i');
+
+  // For non-system types, get the default setting, otherwise use the short
+  // format.
+  foreach ($format_types as $type => $type_info) {
+    if (!in_array($type, $system_types)) {
+      $formats['date_format_' . $type] = variable_get('date_format_' . $type, $short_default);
+    }
+  }
+
+  return $formats;
 }
 

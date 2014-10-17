@@ -17,7 +17,7 @@ function statistics_recent_hits() {
     array('data' => t('Operations'))
   );
 
-  $query = db_select('accesslog', 'a')->extend('PagerDefault')->extend('TableSort');
+  $query = db_select('accesslog', 'a', array('target' => 'slave'))->extend('PagerDefault')->extend('TableSort');
   $query->join('users', 'u', 'a.uid = u.uid');
   $query
     ->fields('a', array('aid', 'timestamp', 'path', 'title', 'uid'))
@@ -31,7 +31,7 @@ function statistics_recent_hits() {
     $rows[] = array(
       array('data' => format_date($log->timestamp, 'short'), 'class' => array('nowrap')),
       _statistics_format_item($log->title, $log->path),
-      theme('username', $log),
+      theme('username', array('account' => $log)),
       l(t('details'), "admin/reports/access/$log->aid"));
   }
 
@@ -40,8 +40,8 @@ function statistics_recent_hits() {
   }
 
   $build['statistics_table'] = array(
-    '#theme' => 'table', 
-    '#header' => $header, 
+    '#theme' => 'table',
+    '#header' => $header,
     '#rows' => $rows,
   );
   $build['statistics_pager'] = array('#theme' => 'pager');
@@ -59,7 +59,7 @@ function statistics_top_pages() {
     array('data' => t('Total page generation time'), 'field' => 'total_time')
   );
 
-  $query = db_select('accesslog')->extend('PagerDefault')->extend('TableSort');
+  $query = db_select('accesslog', array('target' => 'slave'))->extend('PagerDefault')->extend('TableSort');
   $query->addExpression('COUNT(path)', 'hits');
   // MAX(title) avoids having empty node titles which otherwise causes duplicates in the top pages list
   $query->addExpression('MAX(title)', 'title');
@@ -72,7 +72,7 @@ function statistics_top_pages() {
     ->limit(30)
     ->orderByHeader($header);
 
-  $count_query = db_select('accesslog');
+  $count_query = db_select('accesslog', array('target' => 'slave'));
   $count_query->addExpression('COUNT(DISTINCT path)');
   $query->setCountQuery($count_query);
 
@@ -88,8 +88,8 @@ function statistics_top_pages() {
 
   drupal_set_title(t('Top pages in the past %interval', array('%interval' => format_interval(variable_get('statistics_flush_accesslog_timer', 259200)))), PASS_THROUGH);
   $build['statistics_top_pages_table'] = array(
-    '#theme' => 'table', 
-    '#header' => $header, 
+    '#theme' => 'table',
+    '#header' => $header,
     '#rows' => $rows,
   );
   $build['statistics_top_pages_pager'] = array('#theme' => 'pager');
@@ -107,7 +107,7 @@ function statistics_top_visitors() {
     array('data' => t('Total page generation time'), 'field' => 'total'),
     array('data' => user_access('block IP addresses') ? t('Operations') : '', 'colspan' => 2),
   );
-  $query = db_select('accesslog', 'a')->extend('PagerDefault')->extend('TableSort');
+  $query = db_select('accesslog', 'a', array('target' => 'slave'))->extend('PagerDefault')->extend('TableSort');
   $query->leftJoin('blocked_ips', 'bl', 'a.hostname = bl.ip');
   $query->leftJoin('users', 'u', 'a.uid = u.uid');
 
@@ -130,10 +130,10 @@ function statistics_top_visitors() {
 
   $result = $query->execute();
   $rows = array();
+  $destination = drupal_get_destination();
   foreach ($result as $account) {
-    $qs = drupal_get_destination();
-    $ban_link =  $account->iid ? l(t('unblock IP address'), "admin/config/people/ip-blocking/delete/$account->iid", array('query' => $qs)) : l(t('block IP address'), "admin/config/people/ip-blocking/$account->hostname", array('query' => $qs));
-    $rows[] = array($account->hits, ($account->uid ? theme('username', $account) : $account->hostname), format_interval(round($account->total / 1000)), (user_access('block IP addresses') && !$account->uid) ? $ban_link : '');
+    $ban_link = $account->iid ? l(t('unblock IP address'), "admin/config/people/ip-blocking/delete/$account->iid", array('query' => $destination)) : l(t('block IP address'), "admin/config/people/ip-blocking/$account->hostname", array('query' => $destination));
+    $rows[] = array($account->hits, ($account->uid ? theme('username', array('account' => $account)) : $account->hostname), format_interval(round($account->total / 1000)), (user_access('block IP addresses') && !$account->uid) ? $ban_link : '');
   }
 
   if (empty($rows)) {
@@ -142,8 +142,8 @@ function statistics_top_visitors() {
 
   drupal_set_title(t('Top visitors in the past %interval', array('%interval' => format_interval(variable_get('statistics_flush_accesslog_timer', 259200)))), PASS_THROUGH);
   $build['statistics_top_visitors_table'] = array(
-    '#theme' => 'table', 
-    '#header' => $header, 
+    '#theme' => 'table',
+    '#header' => $header,
     '#rows' => $rows,
   );
   $build['statistics_top_visitors_pager'] = array('#theme' => 'pager');
@@ -173,7 +173,7 @@ function statistics_top_referrers() {
     ->limit(30)
     ->orderByHeader($header);
 
-  $count_query = db_select('accesslog');
+  $count_query = db_select('accesslog', array('target' => 'slave'));
   $count_query->addExpression('COUNT(DISTINCT url)');
   $count_query
     ->where('LOWER(url) NOT LIKE :host', array(':host' => '%' . $_SERVER['HTTP_HOST'] . '%'))
@@ -191,8 +191,8 @@ function statistics_top_referrers() {
   }
 
   $build['statistics_top_referrers_table'] = array(
-    '#theme' => 'table', 
-    '#header' => $header, 
+    '#theme' => 'table',
+    '#header' => $header,
     '#rows' => $rows,
   );
   $build['statistics_top_referrers_pager'] = array('#theme' => 'pager');
@@ -225,7 +225,7 @@ function statistics_access_log($aid) {
     );
     $rows[] = array(
       array('data' => t('User'), 'header' => TRUE),
-      theme('username', $access)
+      theme('username', array('account' => $access))
     );
     $rows[] = array(
       array('data' => t('Hostname'), 'header' => TRUE),
@@ -233,7 +233,7 @@ function statistics_access_log($aid) {
     );
 
     $build['statistics_table'] = array(
-      '#theme' => 'table', 
+      '#theme' => 'table',
       '#rows' => $rows,
     );
     return $build;

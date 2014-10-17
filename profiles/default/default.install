@@ -21,6 +21,16 @@ function default_install() {
       'cache' => -1,
     ),
     array(
+      'module' => 'search',
+      'delta' => 'form',
+      'theme' => 'garland',
+      'status' => 1,
+      'weight' => -1,
+      'region' => 'sidebar_first',
+      'pages' => '',
+      'cache' => -1,
+    ),
+    array(
       'module' => 'user',
       'delta' => 'login',
       'theme' => 'garland',
@@ -100,12 +110,32 @@ function default_install() {
       'pages' => '',
       'cache' => -1,
     ),
+    array(
+      'module' => 'system',
+      'delta' => 'management',
+      'theme' => 'seven',
+      'status' => 1,
+      'weight' => 0,
+      'region' => 'dashboard_main',
+      'pages' => '',
+      'cache' => -1,
+    ),
+    array(
+      'module' => 'user',
+      'delta' => 'new',
+      'theme' => 'seven',
+      'status' => 1,
+      'weight' => 0,
+      'region' => 'dashboard_sidebar',
+      'pages' => '',
+      'cache' => -1,
+    ),
   );
   $query = db_insert('block')->fields(array('module', 'delta', 'theme', 'status', 'weight', 'region', 'pages', 'cache'));
   foreach ($values as $record) {
     $query->values($record);
   }
-  $query->execute();  
+  $query->execute();
 
   // Insert default user-defined node types into the database. For a complete
   // list of available node type attributes, refer to the node type API
@@ -136,6 +166,27 @@ function default_install() {
     node_type_save($type);
   }
 
+  // Insert default user-defined RDF mapping into the database.
+  $rdf_mappings = array(
+    array(
+      'type' => 'node',
+      'bundle' => 'page',
+      'mapping' => array(
+        'rdftype' => array('foaf:Document'),
+      ),
+    ),
+    array(
+      'type' => 'node',
+      'bundle' => 'article',
+      'mapping' => array(
+        'rdftype' => array('sioc:Item', 'foaf:Document'),
+      ),
+    ),
+  );
+  foreach ($rdf_mappings as $rdf_mapping) {
+    rdf_mapping_save($rdf_mapping);
+  }
+
   // Default page to not be promoted and have comments disabled.
   variable_set('node_options_page', array('status'));
   variable_set('comment_page', COMMENT_NODE_HIDDEN);
@@ -143,65 +194,138 @@ function default_install() {
   // Don't display date and author information for page nodes by default.
   variable_set('node_submitted_page', FALSE);
 
-  // Create an image style.
-  $style = array('name' => 'thumbnail');
-  $style = image_style_save($style);
-  $effect = array(
-    'isid' => $style['isid'],
-    'name' => 'image_scale_and_crop',
-    'data' => array('width' => '85', 'height' => '85'),
-  );
-  image_effect_save($effect);
-
   // Enable user picture support and set the default to a square thumbnail option.
   variable_set('user_pictures', '1');
   variable_set('user_picture_dimensions', '1024x1024');
   variable_set('user_picture_file_size', '800');
   variable_set('user_picture_style', 'thumbnail');
 
-  $theme_settings = theme_get_settings();
-  $theme_settings['toggle_node_user_picture'] = '1';
-  $theme_settings['toggle_comment_user_picture'] = '1';
-  variable_set('theme_settings', $theme_settings);
-
   // Create a default vocabulary named "Tags", enabled for the 'article' content type.
   $description = st('Use tags to group articles on similar topics into categories.');
   $help = st('Enter a comma-separated list of words to describe your content.');
-
-  $vid = db_insert('taxonomy_vocabulary')->fields(array(
+  $vocabulary = (object) array(
     'name' => 'Tags',
     'description' => $description,
     'machine_name' => 'tags',
     'help' => $help,
-    'relations' => 0,
-    'hierarchy' => 0,
-    'multiple' => 0,
-    'required' => 0,
-    'tags' => 1,
-    'module' => 'taxonomy',
-    'weight' => 0,
-  ))->execute();
-  db_insert('taxonomy_vocabulary_node_type')->fields(array('vid' => $vid, 'type' => 'article'))->execute();
+
+  );  
+  taxonomy_vocabulary_save($vocabulary);
+  $instance = array(
+    'field_name' => 'taxonomy_' . $vocabulary->machine_name,
+    'object_type' => 'node',
+    'label' => $vocabulary->name,
+    'bundle' => 'article',
+    'description' => $vocabulary->help,
+    'widget' => array(
+      'type' => 'taxonomy_autocomplete',
+      'weight' => 4,
+    ),
+  );
+  field_create_instance($instance);
+
+
+  // Create an image field named "Image", enabled for the 'article' content type.
+  // Many of the following values will be defaulted, they're included here as an illustrative examples.
+  // @see: http://api.drupal.org/api/function/field_create_field/7
+
+  $field = array(
+    'field_name' => 'field_image',
+    'type' => 'image',
+    'cardinality' => 1,
+    'translatable' => TRUE,
+    'locked' => FALSE,
+    'indexes' => array('fid' => array('fid')),
+    'settings' => array(
+      'uri_scheme' => 'public',
+      'default_image' => FALSE,
+    ),
+    'storage' => array(
+      'type' => 'field_sql_storage',
+      'settings' => array(),
+    ),
+  );
+  field_create_field($field);
+
+
+  // Many of the following values will be defaulted, they're included here as an illustrative examples.
+  // @see: http://api.drupal.org/api/function/field_create_instance/7
+  $instance = array(
+    'field_name' => 'field_image',
+    'object_type' => 'node',
+    'label' => 'Image',
+    'bundle' => 'article',
+    'description' => 'Upload an image to go with this article.',
+    'required' => FALSE,
+
+    'settings' => array(
+      'file_directory' => 'field/image',
+      'file_extensions' => 'png gif jpg jpeg',
+      'max_filesize' => '',
+      'max_resolution' => '',
+      'min_resolution' => '',
+      'alt_field' => TRUE,
+      'title_field' => '',
+    ),
+
+    'widget' => array(
+      'type' => 'image_image',
+      'settings' => array(
+        'progress_indicator' => 'throbber',
+        'preview_image_style' => 'thumbnail',
+      ),
+      'weight' => -1,
+    ),
+
+    'display' => array(
+      'full' => array(
+        'label' => 'hidden',
+        'type' => 'image__large',
+        'settings' => array(),
+        'weight' => -1,
+      ),
+      'teaser' => array(
+        'label' => 'hidden',
+        'type' => 'image_link_content__medium',
+        'settings' => array(),
+        'weight' => -1,
+      ),
+      'rss' => array(
+        'label' => 'hidden',
+        'type' => 'image__large',
+        'settings' => array(),
+        'weight' => -1,
+      ),
+      'search_index' => array(
+        'label' => 'hidden',
+        'type' => 'image__large',
+        'settings' => array(),
+        'weight' => -1,
+      ),
+      'search_results' => array(
+        'label' => 'hidden',
+        'type' => 'image__large',
+        'settings' => array(),
+        'weight' => -1,
+      ),
+    ),
+  );
+  field_create_instance($instance);
 
   // Enable default permissions for system roles.
-  user_role_set_permissions(DRUPAL_ANONYMOUS_RID, array('access content'));
-  user_role_set_permissions(DRUPAL_AUTHENTICATED_RID, array('access content', 'access comments', 'post comments', 'post comments without approval'));
-
+  user_role_grant_permissions(DRUPAL_ANONYMOUS_RID, array('access content', 'use text format 1'));
+  user_role_grant_permissions(DRUPAL_AUTHENTICATED_RID, array('access content', 'access comments', 'post comments', 'post comments without approval', 'use text format 1'));
 
   // Create a default role for site administrators, with all available permissions assigned.
   $admin_role = new stdClass();
   $admin_role->name = 'administrator';
   user_role_save($admin_role);
-  user_role_set_permissions($admin_role->name, array_keys(module_invoke_all('permission')));
+  user_role_grant_permissions($admin_role->rid, array_keys(module_invoke_all('permission')));
   // Set this as the administrator role.
   variable_set('user_admin_role', $admin_role->rid);
 
   // Update the menu router information.
   menu_rebuild();
-
-  // Save some default links.
-  $link = array('link_path' => 'admin/structure/menu-customize/main-menu/add', 'link_title' => 'Add a main menu link', 'menu_name' => 'main-menu');
-  menu_link_save($link);
 
   // Enable the admin theme.
   db_update('system')

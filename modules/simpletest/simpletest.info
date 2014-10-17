@@ -1,6 +1,6 @@
 ; $Id$
-name = "SimpleTest"
-description = "Provides a framework for unit and functional testing."
+name = Testing
+description = Provides a framework for unit and functional testing.
 package = Core
 version = VERSION
 core = 7.x
@@ -12,9 +12,9 @@ files[] = drupal_web_test_case.php
 
 ; Tests in tests directory.
 files[] = tests/actions.test
+files[] = tests/ajax.test
 files[] = tests/batch.test
 files[] = tests/bootstrap.test
-files[] = tests/browser.test
 files[] = tests/cache.test
 files[] = tests/common.test
 files[] = tests/database_test.test

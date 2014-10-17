@@ -85,8 +85,14 @@ function list_field_schema($field) {
 
 /**
  * Implement hook_field_settings_form().
+ *
+ * @todo: If $has_data, add a form validate function to verify that the
+ * new allowed values do not exclude any keys for which data already
+ * exists in the databae (use field_attach_query()) to find out.
+ * Implement the validate function via hook_field_update_forbid() so
+ * list.module does not depend on form submission.
  */
-function list_field_settings_form($field, $instance) {
+function list_field_settings_form($field, $instance, $has_data) {
   $settings = $field['settings'];
 
   $form['allowed_values'] = array(
@@ -125,9 +131,35 @@ function list_field_settings_form($field, $instance) {
 }
 
 /**
+ * Implement hook_field_create_field().
+ */
+function list_field_create_field($field) {
+  if (array_key_exists($field['type'], list_field_info())) {
+    // Clear the static cache of allowed values for $field.
+    $allowed_values = &drupal_static('list_allowed_values', array());
+    unset($allowed_values[$field['field_name']]);
+  }
+}
+
+/**
+ * Implement hook_field_update_field().
+ */
+function list_field_update_field($field, $prior_field, $has_data) {
+  if (array_key_exists($field['type'], list_field_info())) {
+    // Clear the static cache of allowed values for $field.
+    $allowed_values = &drupal_static('list_allowed_values', array());
+    unset($allowed_values[$field['field_name']]);
+  }
+}
+
+/**
  * Create an array of allowed values for this field.
  */
 function list_allowed_values($field) {
+  // This static cache must be cleared whenever $field['field_name']
+  // changes. This includes when it is created because a different
+  // field with the same name may have previously existed, as well
+  // as when it is updated.
   $allowed_values = &drupal_static(__FUNCTION__, array());
 
   if (isset($allowed_values[$field['field_name']])) {
@@ -257,7 +289,8 @@ function list_field_formatter_info() {
 /**
  * Theme function for 'default' list field formatter.
  */
-function theme_field_formatter_list_default($element) {
+function theme_field_formatter_list_default($variables) {
+  $element = $variables['element'];
   $field = field_info_field($element['#field_name']);
   if (($allowed_values = list_allowed_values($field)) && isset($allowed_values[$element['#item']['value']])) {
     return $allowed_values[$element['#item']['value']];
@@ -269,6 +302,7 @@ function theme_field_formatter_list_default($element) {
 /**
  * Theme function for 'key' list field formatter.
  */
-function theme_field_formatter_list_key($element) {
+function theme_field_formatter_list_key($variables) {
+  $element = $variables['element'];
   return $element['#item']['safe'];
 }

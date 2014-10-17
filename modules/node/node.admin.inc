@@ -73,6 +73,7 @@ function node_filters() {
   $filters['status'] = array(
     'title' => t('status'),
     'options' => array(
+      '[any]' => t('any'),
       'status-1' => t('published'),
       'status-0' => t('not published'),
       'promote-1' => t('promoted'),
@@ -89,16 +90,31 @@ function node_filters() {
     );
   }
 
-  $filters['type'] = array('title' => t('type'), 'options' => node_type_get_names());
+  $filters['type'] = array(
+    'title' => t('type'),
+    'options' => array(
+      '[any]' => t('any'),
+    ) + node_type_get_names(),
+  );
 
   // The taxonomy filter
   if ($taxonomy = module_invoke('taxonomy', 'form_all', 1)) {
-    $filters['term'] = array('title' => t('term'), 'options' => $taxonomy);
+    $filters['term'] = array(
+      'title' => t('term'),
+      'options' => array(
+        '[any]' => t('any'),
+      ) + $taxonomy,
+    );
   }
   // Language filter if there is a list of languages
   if ($languages = module_invoke('locale', 'language_list')) {
     $languages = array('' => t('Language neutral')) + $languages;
-    $filters['language'] = array('title' => t('language'), 'options' => $languages);
+    $filters['language'] = array(
+      'title' => t('language'),
+      'options' => array(
+        '[any]' => t('any'),
+      ) + $languages,
+    );
   }
   return $filters;
 }
@@ -172,10 +188,14 @@ function node_filter_form() {
 
   foreach ($filters as $key => $filter) {
     $names[$key] = $filter['title'];
-    $form['filters']['status'][$key] = array('#type' => 'select', '#options' => $filter['options']);
+    $form['filters']['status'][$key] = array(
+      '#type' => 'select',
+      '#options' => $filter['options'],
+      '#title' => $filter['title'],
+      '#default_value' => '[any]',
+    );
   }
 
-  $form['filters']['filter'] = array('#type' => 'radios', '#options' => $names, '#default_value' => 'status');
   $form['filters']['buttons']['submit'] = array('#type' => 'submit', '#value' => (count($session) ? t('Refine') : t('Filter')));
   if (count($session)) {
     $form['filters']['buttons']['undo'] = array('#type' => 'submit', '#value' => t('Undo'));
@@ -192,8 +212,10 @@ function node_filter_form() {
  *
  * @ingroup themeable
  */
-function theme_node_filter_form($form) {
+function theme_node_filter_form($variables) {
+  $form = $variables['form'];
   $output = '';
+
   $output .= '<div id="node-admin-filter">';
   $output .= drupal_render($form['filters']);
   $output .= '</div>';
@@ -206,22 +228,21 @@ function theme_node_filter_form($form) {
  *
  * @ingroup themeable
  */
-function theme_node_filters($form) {
+function theme_node_filters($variables) {
+  $form = $variables['form'];
   $output = '';
+
   $output .= '<ul class="clearfix">';
   if (!empty($form['current'])) {
     foreach (element_children($form['current']) as $key) {
       $output .= '<li>' . drupal_render($form['current'][$key]) . '</li>';
     }
   }
+  $output .= '</ul>';
 
-  $output .= '<li><dl class="multiselect">' . (!empty($form['current']) ? '<dt><em>' . t('and') . '</em> ' . t('where') . '</dt>' : '') . '<dd class="a">';
-  foreach (element_children($form['filter']) as $key) {
-    $output .= drupal_render($form['filter'][$key]);
-  }
-  $output .= '</dd>';
+  $output .= '<dl class="multiselect">' . (!empty($form['current']) ? '<dt><em>' . t('and') . '</em> ' . t('where') . '</dt>' : '');
 
-  $output .= '<dt>' . t('is') . '</dt><dd class="b">';
+  $output .= '<dd class="b">';
 
   foreach (element_children($form['status']) as $key) {
     $output .= drupal_render($form['status'][$key]);
@@ -230,7 +251,6 @@ function theme_node_filters($form) {
 
   $output .= '</dl>';
   $output .= '<div class="container-inline" id="node-admin-buttons">' . drupal_render($form['buttons']) . '</div>';
-  $output .= '</li></ul>';
 
   return $output;
 }
@@ -243,14 +263,15 @@ function node_filter_form_submit($form, &$form_state) {
   switch ($form_state['values']['op']) {
     case t('Filter'):
     case t('Refine'):
-      if (isset($form_state['values']['filter'])) {
-        $filter = $form_state['values']['filter'];
-
-        // Flatten the options array to accommodate hierarchical/nested options.
-        $flat_options = form_options_flatten($filters[$filter]['options']);
-
-        if (isset($flat_options[$form_state['values'][$filter]])) {
-          $_SESSION['node_overview_filter'][] = array($filter, $form_state['values'][$filter]);
+      // Apply every filter that has a choice selected other than 'any'.
+      foreach ($filters as $filter => $options) {
+        if (isset($form_state['values'][$filter]) && $form_state['values'][$filter] != '[any]') {
+          // Flatten the options array to accommodate hierarchical/nested options.
+          $flat_options = form_options_flatten($filters[$filter]['options']);
+          // Only accept valid selections offered on the dropdown, block bad input.
+          if (isset($flat_options[$form_state['values'][$filter]])) {
+            $_SESSION['node_overview_filter'][] = array($filter, $form_state['values'][$filter]);
+          }
         }
       }
       break;
@@ -335,7 +356,7 @@ function _node_mass_update_batch_process($nodes, $updates, &$context) {
     $node = _node_mass_update_helper($nid, $updates);
 
     // Store result for post-processing in the finished callback.
-    $context['results'][] = l($node->title, 'node/' . $node->nid);
+    $context['results'][] = l($node->title[FIELD_LANGUAGE_NONE][0]['value'], 'node/' . $node->nid);
 
     // Update our progress information.
     $context['sandbox']['progress']++;
@@ -358,7 +379,7 @@ function _node_mass_update_batch_finished($success, $results, $operations) {
   else {
     drupal_set_message(t('An error occurred and processing did not complete.'), 'error');
     $message = format_plural(count($results), '1 item successfully processed:', '@count items successfully processed:');
-    $message .= theme('item_list', $results);
+    $message .= theme('item_list', array('items' => $results));
     drupal_set_message($message);
   }
 }
@@ -366,14 +387,14 @@ function _node_mass_update_batch_finished($success, $results, $operations) {
 /**
  * Menu callback: content administration.
  */
-function node_admin_content($form_state) {
+function node_admin_content($form, $form_state) {
   if (isset($form_state['values']['operation']) && $form_state['values']['operation'] == 'delete') {
-    return node_multiple_delete_confirm($form_state, array_filter($form_state['values']['nodes']));
+    return node_multiple_delete_confirm($form, $form_state, array_filter($form_state['values']['nodes']));
   }
   // Show the 'add new content' link.
   $form['add_content'] = array(
     '#access' => _node_add_access(),
-    '#markup' => theme('links', array(array('title' => t('Add new content'), 'href' => 'node/add')), array('class' => array('action-links'))),
+    '#markup' => theme('links', array('links' => array(array('title' => t('Add new content'), 'href' => 'node/add')), 'attributes' => array('class' => array('action-links')))),
   );
   $form[] = node_filter_form();
   $form['#submit'][] = 'node_filter_form_submit';
@@ -392,23 +413,18 @@ function node_admin_nodes() {
   $multilanguage = (module_exists('translation') || db_query("SELECT COUNT(*) FROM {node} WHERE language <> ''")->fetchField());
 
   // Build the sortable table header.
-  $header = array();
-  $header[] = theme('table_select_header_cell');
-  $header[] = array('data' => t('Title'), 'field' => 'n.title');
-  $header[] = array('data' => t('Type'), 'field' => 'n.type');
-  $header[] = array('data' => t('Author'), 'field' => 'u.name');
-  $header[] = array('data' => t('Status'), 'field' => 'n.status');
-  $header[] = array('data' => t('Updated'), 'field' => 'n.changed', 'sort' => 'desc');
-  if ($multilanguage) {
-    $header[] = array('data' => t('Language'), 'field' => 'n.language');
-  }
-  $header[] = array('data' => t('Operations'));
-
-  $form['header'] = array(
-   '#type' => 'value',
-   '#value' => $header,
+  $header = array(
+    'title' => array('data' => t('Title'), 'field' => 'n.title'),
+    'type' => array('data' => t('Type'), 'field' => 'n.type'),
+    'author' => array('data' => t('Author'), 'field' => 'u.name'),
+    'status' => array('data' => t('Status'), 'field' => 'n.status'),
+    'changed' => array('data' => t('Updated'), 'field' => 'n.changed', 'sort' => 'desc')
   );
-
+  if ($multilanguage) {
+    $header['language'] = array('data' => t('Language'), 'field' => 'n.language');
+  }
+  $header['operations'] = array('data' => t('Operations'));
+  
   $query = db_select('node', 'n')->extend('PagerDefault')->extend('TableSort');
   $query->join('users', 'u', 'n.uid = u.uid');
   node_build_filter_query($query);
@@ -417,6 +433,7 @@ function node_admin_nodes() {
     ->fields('n')
     ->fields('u', array('name'))
     ->limit(50)
+    ->orderByHeader($header)
     ->execute();
 
   // Build the 'Update options' form.
@@ -435,34 +452,53 @@ function node_admin_nodes() {
     '#options' => $options,
     '#default_value' => 'approve',
   );
+  $options = array();
   $form['options']['submit'] = array(
     '#type' => 'submit',
     '#value' => t('Update'),
     '#submit' => array('node_admin_nodes_submit'),
+    '#validate' => array('node_admin_nodes_validate'),
   );
 
   $languages = language_list();
   $destination = drupal_get_destination();
   $nodes = array();
   foreach ($result as $node) {
-    $nodes[$node->nid] = '';
-    $options = empty($node->language) ? array() : array('language' => $languages[$node->language]);
-    $form['title'][$node->nid] = array('#markup' => l($node->title, 'node/' . $node->nid, $options) . ' ' . theme('mark', node_mark($node->nid, $node->changed)));
-    $form['name'][$node->nid] =  array('#markup' => check_plain(node_type_get_name($node)));
-    $form['username'][$node->nid] = array('#markup' => theme('username', $node));
-    $form['status'][$node->nid] =  array('#markup' => ($node->status ? t('published') : t('not published')));
-    $form['changed'][$node->nid] = array('#markup' => format_date($node->changed, 'short'));
+    $l_options = empty($node->language) ? array() : array('language' => $languages[$node->language]);
+    $options[$node->nid] = array(
+      'title' => array(
+        'data' => array(
+          '#type' => 'link',
+          '#title' => $node->title,
+          '#href' => 'node/' . $node->nid,
+          '#options' => $l_options,
+          '#suffix' => ' ' . theme('mark', array('type' => node_mark($node->nid, $node->changed))),
+        ),
+      ),
+      'type' =>  check_plain(node_type_get_name($node)),
+      'author' => theme('username', array('account' => $node)),
+      'status' =>  $node->status ? t('published') : t('not published'),
+      'changed' => format_date($node->changed, 'short'),
+    );
     if ($multilanguage) {
-      $form['language'][$node->nid] = array('#markup' => empty($node->language) ? t('Language neutral') : t($languages[$node->language]->name));
+      $options[$node->nid]['language'] = empty($node->language) ? t('Language neutral') : t($languages[$node->language]->name);
     }
-    $form['operations'][$node->nid] = array('#markup' => l(t('edit'), 'node/' . $node->nid . '/edit', array('query' => $destination)));
+    $options[$node->nid]['operations'] = array(
+      'data' => array(
+        '#type' => 'link',
+        '#title' => t('edit'),
+        '#href' => 'node/' . $node->nid . '/edit',
+        '#options' => array('query' => $destination),
+      ),
+    );
   }
   $form['nodes'] = array(
-    '#type' => 'checkboxes',
-    '#options' => $nodes,
+    '#type' => 'tableselect',
+    '#header' => $header,
+    '#options' => $options,
+    '#empty' => t('No content available.'),
   );
-  $form['pager'] = array('#markup' => theme('pager', NULL));
-  $form['#theme'] = 'node_admin_nodes';
+  $form['pager'] = array('#markup' => theme('pager', array('tags' => NULL)));
   return $form;
 }
 
@@ -473,8 +509,8 @@ function node_admin_nodes() {
  * 'Update option' on.
  */
 function node_admin_nodes_validate($form, &$form_state) {
-  $nodes = array_filter($form_state['values']['nodes']);
-  if (count($nodes) == 0) {
+  // Error if there are no items to select.
+  if (!is_array($form_state['values']['nodes']) || !count(array_filter($form_state['values']['nodes']))) {
     form_set_error('', t('No items selected.'));
   }
 }
@@ -508,54 +544,7 @@ function node_admin_nodes_submit($form, &$form_state) {
   }
 }
 
-
-/**
- * Theme node administration overview.
- *
- * @ingroup themeable
- */
-function theme_node_admin_nodes($form) {
-  $output = '';
-  $output .= drupal_render($form['options']);
-
-  $header = $form['header']['#value'];
-
-  $has_posts = isset($form['title']) && is_array($form['title']);
-  if ($has_posts) {
-    $rows = array();
-    foreach (element_children($form['title']) as $key) {
-      $row = array();
-      $row[] = drupal_render($form['nodes'][$key]);
-      $row[] = drupal_render($form['title'][$key]);
-      $row[] = drupal_render($form['name'][$key]);
-      $row[] = drupal_render($form['username'][$key]);
-      $row[] = drupal_render($form['status'][$key]);
-      $row[] = drupal_render($form['changed'][$key]);
-      if (isset($form['language'])) {
-        $row[] = drupal_render($form['language'][$key]);
-      }
-      $row[] = drupal_render($form['operations'][$key]);
-      $rows[] = $row;
-    }
-  }
-  else {
-    $rows[] = array(
-      array('data' => t('No content available.'), 'colspan' => count($header)),
-    );
-  }
-
-  $output .= theme('table', $header, $rows);
-
-  if ($form['pager']['#markup']) {
-    $output .= drupal_render($form['pager']);
-  }
-
-  $output .= drupal_render_children($form);
-
-  return $output;
-}
-
-function node_multiple_delete_confirm(&$form_state, $nodes) {
+function node_multiple_delete_confirm($form, &$form_state, $nodes) {
   $form['nodes'] = array('#prefix' => '<ul>', '#suffix' => '</ul>', '#tree' => TRUE);
   // array_filter returns only elements with TRUE values
   foreach ($nodes as $nid => $value) {
@@ -586,7 +575,6 @@ function node_multiple_delete_confirm_submit($form, &$form_state) {
     drupal_set_message(t('Deleted @count posts.', array('@count' => $count)));
   }
   $form_state['redirect'] = 'admin/content';
-  return;
 }
 
 /**
@@ -594,5 +582,5 @@ function node_multiple_delete_confirm_submit($form, &$form_state) {
  */
 function node_modules_installed($modules) {
   // Clear node type cache for node permissions.
-  node_type_clear();
+  drupal_static_reset('_node_types_build');
 }

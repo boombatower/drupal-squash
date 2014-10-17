@@ -57,6 +57,7 @@ class FileFieldTestCase extends DrupalWebTestCase {
 
     $instance = array(
       'field_name' => $field['field_name'],
+      'object_type' => 'node',
       'label' => $name,
       'bundle' => $type_name,
       'required' => !empty($instance_settings['required']),
@@ -76,7 +77,7 @@ class FileFieldTestCase extends DrupalWebTestCase {
    */
   function updateFileField($name, $type_name, $instance_settings = array(), $widget_settings = array()) {
     $field = field_info_field($name);
-    $instance = field_info_instance($name, $type_name);
+    $instance = field_info_instance('node', $name, $type_name);
     $instance['settings'] = array_merge($instance['settings'], $instance_settings);
     $instance['widget']['settings'] = array_merge($instance['widget']['settings'], $widget_settings);
 
@@ -87,8 +88,9 @@ class FileFieldTestCase extends DrupalWebTestCase {
    * Upload a file to a node.
    */
   function uploadNodeFile($file, $field_name, $nid_or_type, $new_revision = TRUE) {
+    $langcode = FIELD_LANGUAGE_NONE;
     $edit = array(
-      'title' => $this->randomName(),
+      "title[$langcode][0][value]" => $this->randomName(),
       'revision' => (string) (int) $new_revision,
     );
 
@@ -176,11 +178,11 @@ class FileFieldTestCase extends DrupalWebTestCase {
  * Test class to test file handling with node revisions.
  */
 class FileFieldRevisionTestCase extends FileFieldTestCase {
-  public function getInfo() {
+  public static function getInfo() {
     return array(
-      'name' => t('File field revision test'),
-      'description' => t('Test creating and deleting revisions with files attached.'),
-      'group' => t('File'),
+      'name' => 'File field revision test',
+      'description' => 'Test creating and deleting revisions with files attached.',
+      'group' => 'File',
     );
   }
 
@@ -200,7 +202,7 @@ class FileFieldRevisionTestCase extends FileFieldTestCase {
     $field_name = 'field_' . strtolower($this->randomName());
     $this->createFileField($field_name, $type_name);
     $field = field_info_field($field_name);
-    $instance = field_info_instance($field_name, $type_name);
+    $instance = field_info_instance('node', $field_name, $type_name);
 
     $test_file = $this->getTestFile('text');
 
@@ -269,11 +271,11 @@ class FileFieldRevisionTestCase extends FileFieldTestCase {
  * Test class to check that formatters are working properly.
  */
 class FileFieldDisplayTestCase extends FileFieldTestCase {
-  public function getInfo() {
+  public static function getInfo() {
     return array(
-      'name' => t('File field display tests'),
-      'description' => t('Test the display of file fields in node and views.'),
-      'group' => t('File'),
+      'name' => 'File field display tests',
+      'description' => 'Test the display of file fields in node and views.',
+      'group' => 'File',
     );
   }
 
@@ -287,13 +289,13 @@ class FileFieldDisplayTestCase extends FileFieldTestCase {
       'display_field' => '1',
       'display_default' => '1',
     );
-    $instance_settings = array();
-    $widget_settings = array(
+    $instance_settings = array(
       'description_field' => '1',
     );
+    $widget_settings = array();
     $this->createFileField($field_name, $type_name, $field_settings, $instance_settings, $widget_settings);
     $field = field_info_field($field_name);
-    $instance = field_info_instance($field_name, $type_name);
+    $instance = field_info_instance('node', $field_name, $type_name);
 
     $test_file = $this->getTestFile('text');
 
@@ -304,7 +306,7 @@ class FileFieldDisplayTestCase extends FileFieldTestCase {
     // Check that the default formatter is displaying with the file name.
     $node = node_load($nid, NULL, TRUE);
     $node_file = (object) $node->{$field_name}[FIELD_LANGUAGE_NONE][0];
-    $default_output = theme('file_link', $node_file);
+    $default_output = theme('file_link', array('file' => $node_file));
     $this->assertRaw($default_output, t('Default formatter displaying correctly on full node view.'));
 
     // Turn the "display" option off and check that the file is no longer displayed.
@@ -323,11 +325,11 @@ class FileFieldValidateTestCase extends FileFieldTestCase {
   protected $field;
   protected $node_type;
 
-  public function getInfo() {
+  public static function getInfo() {
     return array(
-      'name' => t('File field validation tests'),
-      'description' => t('Tests validation functions such as file type, max file size, max size per node, and required.'),
-      'group' => t('File'),
+      'name' => 'File field validation tests',
+      'description' => 'Tests validation functions such as file type, max file size, max size per node, and required.',
+      'group' => 'File',
     );
   }
 
@@ -339,12 +341,13 @@ class FileFieldValidateTestCase extends FileFieldTestCase {
     $field_name = 'field_' . strtolower($this->randomName());
     $this->createFileField($field_name, $type_name, array(), array('required' => '1'));
     $field = field_info_field($field_name);
-    $instance = field_info_instance($field_name, $type_name);
+    $instance = field_info_instance('node', $field_name, $type_name);
 
     $test_file = $this->getTestFile('text');
 
     // Try to post a new node without uploading a file.
-    $edit = array('title' => $this->randomName());
+    $langcode = FIELD_LANGUAGE_NONE;
+    $edit = array("title[$langcode][0][value]" => $this->randomName());
     $this->drupalPost('node/add/' . $type_name, $edit, t('Save'));
     $this->assertRaw(t('!title field is required.', array('!title' => $instance['label'])), t('Node save failed when required file field was empty.'));
 
@@ -361,7 +364,7 @@ class FileFieldValidateTestCase extends FileFieldTestCase {
     $this->createFileField($field_name, $type_name, array('cardinality' => FIELD_CARDINALITY_UNLIMITED), array('required' => '1'));
 
     // Try to post a new node without uploading a file in the multivalue field.
-    $edit = array('title' => $this->randomName());
+    $edit = array("title[$langcode][0][value]" => $this->randomName());
     $this->drupalPost('node/add/' . $type_name, $edit, t('Save'));
     $this->assertRaw(t('!title field is required.', array('!title' => $instance['label'])), t('Node save failed when required multiple value file field was empty.'));
 
@@ -384,7 +387,7 @@ class FileFieldValidateTestCase extends FileFieldTestCase {
     $field_name = 'field_' . strtolower($this->randomName());
     $this->createFileField($field_name, $type_name, array(), array('required' => '1'));
     $field = field_info_field($field_name);
-    $instance = field_info_instance($field_name, $type_name);
+    $instance = field_info_instance('node', $field_name, $type_name);
 
     $small_file = $this->getTestFile('text', 131072); // 128KB.
     $large_file = $this->getTestFile('text', 1310720); // 1.2MB
@@ -399,7 +402,7 @@ class FileFieldValidateTestCase extends FileFieldTestCase {
     foreach ($sizes as $max_filesize => $file_limit) {
       // Set the max file upload size.
       $this->updateFileField($field_name, $type_name, array('max_filesize' => $max_filesize));
-      $instance = field_info_instance($field_name, $type_name);
+      $instance = field_info_instance('node', $field_name, $type_name);
 
       // Create a new node with the small file, which should pass.
       $nid = $this->uploadNodeFile($small_file, $field_name, $type_name);
@@ -436,7 +439,7 @@ class FileFieldValidateTestCase extends FileFieldTestCase {
     $field_name = 'field_' . strtolower($this->randomName());
     $this->createFileField($field_name, $type_name);
     $field = field_info_field($field_name);
-    $instance = field_info_instance($field_name, $type_name);
+    $instance = field_info_instance('node', $field_name, $type_name);
 
     // Get the test file (a GIF image).
     $test_file = $this->getTestFile('image');
@@ -478,11 +481,11 @@ class FileFieldValidateTestCase extends FileFieldTestCase {
  * Test class to check that files are uploaded to proper locations.
  */
 class FileFieldPathTestCase extends FileFieldTestCase {
-  function getInfo() {
+  public static function getInfo() {
     return array(
-      'name' => t('File field file path tests'),
-      'description' => t('Test that files are uploaded to the proper location with token support.'),
-      'group' => t('File'),
+      'name' => 'File field file path tests',
+      'description' => 'Test that files are uploaded to the proper location with token support.',
+      'group' => 'File',
     );
   }
 

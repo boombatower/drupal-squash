@@ -12,7 +12,7 @@
 function blog_page_user($account) {
   global $user;
 
-  drupal_set_title($title = t("@name's blog", array('@name' => $account->name)), PASS_THROUGH);
+  drupal_set_title($title = t("@name's blog", array('@name' => format_username($account))), PASS_THROUGH);
 
   $items = array();
 
@@ -55,7 +55,7 @@ function blog_page_user($account) {
       drupal_set_message(t('You have not created any blog entries.'));
     }
     else {
-      drupal_set_message(t('!author has not created any blog entries.', array('!author' => theme('username', $account))));
+      drupal_set_message(t('!author has not created any blog entries.', array('!author' => theme('username', array('account' => $account)))));
     }
   }
   drupal_add_feed(url('blog/' . $account->uid . '/feed'), t('RSS - !title', array('!title' => $title)));
@@ -123,7 +123,7 @@ function blog_feed_user($account) {
     ->execute()
     ->fetchCol();
 
-  $channel['title'] = t("!name's blog", array('!name' => $account->name));
+  $channel['title'] = t("!name's blog", array('!name' => format_username($account)));
   $channel['link'] = url('blog/' . $account->uid, array('absolute' => TRUE));
 
   node_feed($nids, $channel);

@@ -15,14 +15,16 @@ function field_ui_fields_list() {
   $bundles = field_info_bundles();
   $header = array(t('Field name'), t('Field type'), t('Used in'));
   $rows = array();
-  foreach ($instances as $bundle => $info) {
-    foreach ($info as $field_name => $instance) {
-      $field = field_info_field($field_name);
-      $admin_path = _field_ui_bundle_admin_path($bundle);
-      $rows[$field_name]['data'][0] = $field['locked'] ? t('@field_name (Locked)', array('@field_name' => $field_name)) : $field_name;
-      $rows[$field_name]['data'][1] = t($field_types[$field['type']]['label']);
-      $rows[$field_name]['data'][2][] = l($bundles[$bundle]['label'], $admin_path . '/fields');
-      $rows[$field_name]['class'] = $field['locked'] ? array('menu-disabled') : array('');
+  foreach ($instances as $obj_type => $type_bundles) {
+    foreach ($type_bundles as $bundle => $bundle_instances) {
+      foreach ($bundle_instances as $field_name => $instance) {
+        $field = field_info_field($field_name);
+        $admin_path = _field_ui_bundle_admin_path($obj_type, $bundle);
+        $rows[$field_name]['data'][0] = $field['locked'] ? t('@field_name (Locked)', array('@field_name' => $field_name)) : $field_name;
+        $rows[$field_name]['data'][1] = t($field_types[$field['type']]['label']);
+        $rows[$field_name]['data'][2][] = l($bundles[$obj_type][$bundle]['label'], $admin_path . '/fields');
+        $rows[$field_name]['class'] = $field['locked'] ? array('menu-disabled') : array('');
+      }
     }
   }
   foreach ($rows as $field_name => $cell) {
@@ -34,7 +36,7 @@ function field_ui_fields_list() {
   else {
     // Sort rows by field name.
     ksort($rows);
-    $output = theme('table', $header, $rows);
+    $output = theme('table', array('header' => $header, 'rows' => $rows));
   }
   return $output;
 }
@@ -42,8 +44,8 @@ function field_ui_fields_list() {
 /**
  * Helper function to display a message about inactive fields.
  */
-function field_ui_inactive_message($bundle) {
-  $inactive_instances = field_ui_inactive_instances($bundle);
+function field_ui_inactive_message($obj_type, $bundle) {
+  $inactive_instances = field_ui_inactive_instances($obj_type, $bundle);
   if (!empty($inactive_instances)) {
     $field_types = field_info_field_types();
     $widget_types = field_info_widget_types();
@@ -56,7 +58,7 @@ function field_ui_inactive_message($bundle) {
       '%widget_module' => $instance['widget']['module'],
       ));
     }
-    drupal_set_message(t('Inactive fields are not shown unless their providing modules are enabled. The following fields are not enabled: !list', array('!list' => theme('item_list', $list))), 'error');
+    drupal_set_message(t('Inactive fields are not shown unless their providing modules are enabled. The following fields are not enabled: !list', array('!list' => theme('item_list', array('items' => $list)))), 'error');
   }
 }
 
@@ -65,11 +67,11 @@ function field_ui_inactive_message($bundle) {
  *
  * Allows fields and pseudo-fields to be re-ordered.
  */
-function field_ui_field_overview_form(&$form_state, $obj_type, $bundle) {
+function field_ui_field_overview_form($form, &$form_state, $obj_type, $bundle) {
   $bundle = field_extract_bundle($obj_type, $bundle);
 
-  field_ui_inactive_message($bundle);
-  $admin_path = _field_ui_bundle_admin_path($bundle);
+  field_ui_inactive_message($obj_type, $bundle);
+  $admin_path = _field_ui_bundle_admin_path($obj_type, $bundle);
 
   // When displaying the form, make sure the list of fields is up-to-date.
   if (empty($form_state['post'])) {
@@ -77,7 +79,7 @@ function field_ui_field_overview_form(&$form_state, $obj_type, $bundle) {
   }
 
   // Gather bundle information.
-  $instances = field_info_instances($bundle);
+  $instances = field_info_instances($obj_type, $bundle);
   $field_types = field_info_field_types();
   $widget_types = field_info_widget_types();
 
@@ -86,8 +88,9 @@ function field_ui_field_overview_form(&$form_state, $obj_type, $bundle) {
   // Store each default weight so that we can add the 'add new' rows after them.
   $weights = array();
 
-  $form = array(
+  $form += array(
     '#tree' => TRUE,
+    '#object_type' => $obj_type,
     '#bundle' => $bundle,
     '#fields' => array_keys($instances),
     '#extra' => array_keys($extra),
@@ -107,17 +110,29 @@ function field_ui_field_overview_form(&$form_state, $obj_type, $bundle) {
         '#markup' => $instance['field_name'],
       ),
       'type' => array(
-        '#markup' => l(t($field_types[$field['type']]['label']), $admin_field_path . '/field-settings', array('attributes' => array('title' => t('Edit field settings.')))),
+        '#type' => 'link',
+        '#title' => t($field_types[$field['type']]['label']),
+        '#href' => $admin_field_path . '/field-settings',
+        '#options' => array('attributes' => array('title' => t('Edit field settings.'))),
       ),
       'widget_type' => array(
-        '#markup' => l(t($widget_types[$instance['widget']['type']]['label']), $admin_field_path . '/widget-type', array('attributes' => array('title' => t('Change widget type.')))),
+        '#type' => 'link',
+        '#title' => t($widget_types[$instance['widget']['type']]['label']),
+        '#href' => $admin_field_path . '/widget-type',
+        '#options' => array('attributes' => array('title' => t('Change widget type.'))),
       ),
       'edit' => array(
-        '#markup' => l(t('edit'), $admin_field_path, array('attributes' => array('title' => t('Edit instance settings.')))),
+        '#type' => 'link',
+        '#title' => t('edit'),
+        '#href' => $admin_field_path,
+        '#options' => array('attributes' => array('title' => t('Edit instance settings.'))),
       ),
       'delete' => array(
-        '#markup' => l(t('delete'), $admin_field_path . '/delete', array('attributes' => array('title' => t('Delete instance.')))),
-       ),
+        '#type' => 'link',
+        '#title' => t('delete'),
+        '#href' => $admin_field_path . '/delete',
+        '#options' => array('attributes' => array('title' => t('Delete instance.'))),
+      ),
       'weight' => array(
         '#type' => 'textfield',
         '#default_value' => $weight,
@@ -223,7 +238,7 @@ function field_ui_field_overview_form(&$form_state, $obj_type, $bundle) {
   }
 
   // Additional row: add existing field.
-  $existing_field_options = field_ui_existing_field_options($bundle);
+  $existing_field_options = field_ui_existing_field_options($obj_type, $bundle);
   if ($existing_field_options && $widget_type_options) {
     $weight++;
     array_unshift($existing_field_options, t('- Select an existing field -'));
@@ -274,9 +289,9 @@ function template_preprocess_field_ui_field_overview_form(&$vars) {
   drupal_add_js(drupal_get_path('module', 'field_ui') . '/field_ui.js');
   // Add settings for the update selects behavior.
   $js_fields = array();
-  foreach (field_ui_existing_field_options($form['#bundle']) as $field_name => $fields) {
+  foreach (field_ui_existing_field_options($form['#object_type'], $form['#bundle']) as $field_name => $fields) {
     $field = field_info_field($field_name);
-    $instance = field_info_instance($field_name, $form['#bundle']);
+    $instance = field_info_instance($form['#object_type'], $field_name, $form['#bundle']);
     $js_fields[$field_name] = array('label' => $instance['label'], 'type' => $field['type'], 'widget' => $instance['widget']['type']);
   }
   drupal_add_js(array('fieldWidgetTypes' => field_ui_widget_type_options(), 'fields' => $js_fields), 'setting');
@@ -444,14 +459,15 @@ function _field_ui_field_overview_form_validate_add_existing($form, &$form_state
  */
 function field_ui_field_overview_form_submit($form, &$form_state) {
   $form_values = $form_state['values'];
+  $obj_type = $form['#object_type'];
   $bundle = $form['#bundle'];
-  $admin_path = _field_ui_bundle_admin_path($bundle);
+  $admin_path = _field_ui_bundle_admin_path($obj_type, $bundle);
 
   // Update field weights.
   $extra = array();
   foreach ($form_values as $key => $values) {
     if (in_array($key, $form['#fields'])) {
-      $instance = field_read_instance($key, $bundle);
+      $instance = field_read_instance($obj_type, $key, $bundle);
       $instance['widget']['weight'] = $values['weight'];
       foreach($instance['display'] as $build_mode => $display) {
         $instance['display'][$build_mode]['weight'] = $values['weight'];
@@ -480,9 +496,11 @@ function field_ui_field_overview_form_submit($form, &$form_state) {
     $field = array(
       'field_name' => $values['field_name'],
       'type' => $values['type'],
+      'translatable' => TRUE,
     );
     $instance = array(
       'field_name' => $field['field_name'],
+      'object_type' => $obj_type,
       'bundle' => $bundle,
       'label' => $values['label'],
       'widget' => array(
@@ -517,6 +535,7 @@ function field_ui_field_overview_form_submit($form, &$form_state) {
     else {
       $instance = array(
         'field_name' => $field['field_name'],
+        'object_type' => $obj_type,
         'bundle' => $bundle,
         'label' => $values['label'],
         'widget' => array(
@@ -538,8 +557,9 @@ function field_ui_field_overview_form_submit($form, &$form_state) {
   }
 
   if ($destinations) {
-    $destinations[] = urldecode(substr(drupal_get_destination(), 12));
-    unset($_REQUEST['destination']);
+    $destination = drupal_get_destination();
+    $destinations[] = $destination['destination'];
+    unset($_GET['destination']);
     $form_state['redirect'] = field_ui_get_destinations($destinations);
   }
 }
@@ -550,20 +570,20 @@ function field_ui_field_overview_form_submit($form, &$form_state) {
  * This form includes form widgets to select which fields appear in teaser and
  * full build modes, and how the field labels should be rendered.
  */
-function field_ui_display_overview_form(&$form_state, $obj_type, $bundle, $build_modes_selector = 'basic') {
+function field_ui_display_overview_form($form, &$form_state, $obj_type, $bundle, $build_modes_selector = 'basic') {
   $bundle = field_extract_bundle($obj_type, $bundle);
 
-  field_ui_inactive_message($bundle);
-  $admin_path = _field_ui_bundle_admin_path($bundle);
+  field_ui_inactive_message($obj_type, $bundle);
+  $admin_path = _field_ui_bundle_admin_path($obj_type, $bundle);
 
   // Gather type information.
-  $entity = field_info_bundle_entity($bundle);
-  $instances = field_info_instances($bundle);
+  $instances = field_info_instances($obj_type, $bundle);
   $field_types = field_info_field_types();
-  $build_modes = field_ui_build_modes_tabs($entity, $build_modes_selector);
+  $build_modes = field_ui_build_modes_tabs($obj_type, $build_modes_selector);
 
-  $form = array(
+  $form += array(
     '#tree' => TRUE,
+    '#object_type' => $obj_type,
     '#bundle' => $bundle,
     '#fields' => array_keys($instances),
     '#contexts' => $build_modes_selector,
@@ -619,7 +639,7 @@ function template_preprocess_field_ui_display_overview_form(&$vars) {
   $form = &$vars['form'];
 
   $contexts_selector = $form['#contexts'];
-  $vars['contexts'] = field_ui_build_modes_tabs(field_info_bundle_entity($form['#bundle']), $contexts_selector);
+  $vars['contexts'] = field_ui_build_modes_tabs($form['#object_type'], $contexts_selector);
 
   $order = _field_ui_overview_order($form, $form['#fields']);
   if (empty($order)) {
@@ -655,7 +675,7 @@ function field_ui_display_overview_form_submit($form, &$form_state) {
   $form_values = $form_state['values'];
   foreach ($form_values as $key => $values) {
     if (in_array($key, $form['#fields'])) {
-      $instance = field_info_instance($key, $form['#bundle']);
+      $instance = field_info_instance($form['#object_type'], $key, $form['#bundle']);
       foreach ($instance['display'] as $build_mode => $display) {
         if (isset($values[$build_mode])) {
           $instance['display'][$build_mode] = array_merge($instance['display'][$build_mode], $values[$build_mode]);
@@ -755,16 +775,16 @@ function field_ui_formatter_options($field_type = NULL) {
 /**
  * Return an array of existing field to be added to a bundle.
  */
-function field_ui_existing_field_options($bundle) {
+function field_ui_existing_field_options($obj_type, $bundle) {
   $options = array();
   $field_types = field_info_field_types();
-  foreach (field_info_instances() as $bundle_name => $instances) {
+  foreach (field_info_instances($obj_type) as $bundle_name => $instances) {
     // No need to look in the current bundle.
     if ($bundle_name != $bundle) {
       foreach ($instances as $instance) {
         $field = field_info_field($instance['field_name']);
         // Don't show locked fields or fields already in the current bundle.
-        if (empty($field['locked']) && !field_info_instance($field['field_name'], $bundle)) {
+        if (empty($field['locked']) && !field_info_instance($obj_type, $field['field_name'], $bundle)) {
           $text = t('@type: @field (@label)', array(
             '@type' => $field_types[$field['type']]['label'],
             '@label' => t($instance['label']), '@field' => $instance['field_name'],
@@ -780,17 +800,9 @@ function field_ui_existing_field_options($bundle) {
 }
 
 /**
- * Helper function to determine if a field has data in the database.
- */
-function field_ui_field_has_data($field) {
-  $results = field_attach_query($field['id'], array(), 1);
-  return !empty($results);
-}
-
-/**
  * Menu callback; presents the field settings edit page.
  */
-function field_ui_field_settings_form(&$form_state, $obj_type, $bundle, $instance) {
+function field_ui_field_settings_form($form, &$form_state, $obj_type, $bundle, $instance) {
   $bundle = field_extract_bundle($obj_type, $bundle);
   $field = field_info_field($instance['field_name']);
 
@@ -800,27 +812,21 @@ function field_ui_field_settings_form(&$form_state, $obj_type, $bundle, $instanc
     $field = field_read_field($field['field_name']);
   }
 
-  $field_type = field_info_field_types($field['type']);
-
-  $info_function = $field['module'] . '_field_info';
-  $info = $info_function();
-  $description = '<p><strong>' . $info[$field['type']]['label'] . ':</strong> ';
-  $description .= $info[$field['type']]['description'] . '</p>';
-  $form['#prefix'] = '<div class="description">' . $description . '</div>';
+  drupal_set_title($instance['label']);
 
   $description = '<p>' . t('These settings apply to the %field field everywhere it is used. These settings impact the way that data is stored in the database and cannot be changed once data has been created.', array('%field' => $instance['label'])) . '</p>';
 
   // Create a form structure for the field values.
   $form['field'] = array(
     '#type' => 'fieldset',
-    '#title' => t('%field field settings', array('%field' => $instance['label'])),
+    '#title' => t('Field settings'),
     '#description' => $description,
     '#tree' => TRUE,
   );
 
   // See if data already exists for this field.
   // If so, prevent changes to the field settings.
-  $has_data = field_ui_field_has_data($field);
+  $has_data = field_has_data($field);
   if ($has_data) {
     $form['field']['#description'] = '<div class=error>' . t('There is data for this field in the database. The field settings can no longer be changed.' . '</div>') . $form['field']['#description'];
   }
@@ -831,27 +837,29 @@ function field_ui_field_settings_form(&$form_state, $obj_type, $bundle, $instanc
   $form['field']['module'] = array('#type' => 'value', '#value' => $field['module']);
   $form['field']['active'] = array('#type' => 'value', '#value' => $field['active']);
 
-  // Add settings provided by the field module.
+  // Set translatability.
+  $form['field']['translatable'] = array(
+    '#type' => 'radios',
+    '#title' => t('Multilingual settings'),
+    '#options' => array(TRUE => t('Translatable field'), FALSE => t('Language neutral field')),
+    '#default_value' => $field['translatable'],
+    '#description' => t("Translatable fields can have a different value for each available language. An example of a translatable field is an article's <em>body</em>. Language neutral fields will retain the same value across all translations. An example of a language neutral field is a user profile's <em>first name</em>."),
+  );
+
+  // Add settings provided by the field module. The field module is
+  // responsible for not returning settings that cannot be changed if
+  // the field already has data.
   $form['field']['settings'] = array();
-  $additions = module_invoke($field_type['module'], 'field_settings_form', $field, $instance);
+  $additions = module_invoke($field['module'], 'field_settings_form', $field, $instance, $has_data);
   if (is_array($additions)) {
     $form['field']['settings'] = $additions;
-    // @todo Filter this so only the settings that cannot be changed are shown
-    //   in this form. For now, treating all settings as changeable, which means
-    //   they show up here and in edit form.
   }
   if (empty($form['field']['settings'])) {
     $form['field']['settings'] = array(
       '#markup' => t('%field has no field settings.', array('%field' => $instance['label'])),
     );
   }
-  else {
-    foreach ($form['field']['settings'] as $key => $setting) {
-      if (substr($key, 0, 1) != '#') {
-        $form['field']['settings'][$key]['#disabled'] = $has_data;
-      }
-    }
-  }
+  $form['#object_type'] = $obj_type;
   $form['#bundle'] = $bundle;
 
   $form['submit'] = array('#type' => 'submit', '#value' => t('Save field settings'));
@@ -868,33 +876,36 @@ function field_ui_field_settings_form_submit($form, &$form_state) {
   // Merge incoming form values into the existing field.
   $field = field_info_field($field_values['field_name']);
 
-  // Do not allow changes to fields with data.
-  if (field_ui_field_has_data($field)) {
-    return;
-  }
-
+  $obj_type = $form['#object_type'];
   $bundle = $form['#bundle'];
-  $instance = field_info_instance($field['field_name'], $bundle);
+  $instance = field_info_instance($obj_type, $field['field_name'], $bundle);
 
   // Update the field.
   $field = array_merge($field, $field_values);
-  field_ui_update_field($field);
 
-  drupal_set_message(t('Updated field %label field settings.', array('%label' => $instance['label'])));
-  $form_state['redirect'] = field_ui_next_destination($bundle);
+  try {
+    field_update_field($field);
+    drupal_set_message(t('Updated field %label field settings.', array('%label' => $instance['label'])));
+    $form_state['redirect'] = field_ui_next_destination($obj_type, $bundle);
+  }
+  catch (FieldException $e) {
+    drupal_set_message(t('Attempt to update field %label failed: %message.', array('%label' => $instance['label'], '%message' => $e->getMessage())), 'error');
+    // TODO: Where do we go from here?
+    $form_state['redirect'] = field_ui_next_destination($obj_type, $bundle);
+  }
 }
 
 /**
  * Menu callback; select a widget for the field.
  */
-function field_ui_widget_type_form(&$form_state, $obj_type, $bundle, $instance) {
+function field_ui_widget_type_form($form, &$form_state, $obj_type, $bundle, $instance) {
   $bundle = field_extract_bundle($obj_type, $bundle);
   $field = field_read_field($instance['field_name']);
 
   $field_type = field_info_field_types($field['type']);
   $widget_type = field_info_widget_types($instance['widget']['type']);
   $bundles = field_info_bundles();
-  $bundle_label = $bundles[$bundle]['label'];
+  $bundle_label = $bundles[$obj_type][$bundle]['label'];
 
   $form['basic'] = array(
     '#type' => 'fieldset',
@@ -925,6 +936,7 @@ function field_ui_widget_type_form_submit($form, &$form_state) {
   $form_values = $form_state['values'];
   $instance = $form['#instance'];
   $bundle = $instance['bundle'];
+  $obj_type = $instance['object_type'];
 
   // Set the right module information.
   $widget_type = field_info_widget_types($form_values['widget_type']);
@@ -940,17 +952,18 @@ function field_ui_widget_type_form_submit($form, &$form_state) {
     drupal_set_message(t('There was a problem changing the widget for field %label.', array('%label' => $instance['label'])));
   }
 
-  $form_state['redirect'] = field_ui_next_destination($bundle);
+  $form_state['redirect'] = field_ui_next_destination($obj_type, $bundle);
 }
 
 /**
  * Menu callback; present a form for removing a field from a content type.
  */
-function field_ui_field_delete_form(&$form_state, $obj_type, $bundle, $instance) {
+function field_ui_field_delete_form($form, &$form_state, $obj_type, $bundle, $instance) {
   $bundle = field_extract_bundle($obj_type, $bundle);
   $field = field_info_field($instance['field_name']);
-  $admin_path = _field_ui_bundle_admin_path($bundle);
+  $admin_path = _field_ui_bundle_admin_path($obj_type, $bundle);
 
+  $form['object_type'] = array('#type' => 'value', '#value' => $obj_type);
   $form['bundle'] = array('#type' => 'value', '#value' => $bundle);
   $form['field_name'] = array('#type' => 'value', '#value' => $field['field_name']);
 
@@ -975,14 +988,16 @@ function field_ui_field_delete_form(&$form_state, $obj_type, $bundle, $instance)
  */
 function field_ui_field_delete_form_submit($form, &$form_state) {
   $form_values = $form_state['values'];
-  $field = field_info_field($form_values['field_name']);
-  $instance = field_info_instance($form_values['field_name'], $form_values['bundle']);
-  $bundles = field_info_bundles();
+  $field_name = $form_values['field_name'];
   $bundle = $form_values['bundle'];
-  $bundle_label = $bundles[$bundle]['label'];
+  $obj_type = $form_values['object_type'];
+  $field = field_info_field($form_values['field_name']);
+  $instance = field_info_instance($obj_type, $field_name, $bundle);
+  $bundles = field_info_bundles();
+  $bundle_label = $bundles[$obj_type][$bundle]['label'];
 
   if (!empty($bundle) && $field && !$field['locked'] && $form_values['confirm']) {
-    field_delete_instance($field['field_name'], $bundle);
+    field_delete_instance($instance);
     // Delete the field if that was the last instance.
     if (count($field['bundles'] == 1)) {
       field_delete_field($field['field_name']);
@@ -993,14 +1008,14 @@ function field_ui_field_delete_form_submit($form, &$form_state) {
     drupal_set_message(t('There was a problem removing the %field from the %type content type.', array('%field' => $instance['label'], '%type' => $bundle_label)));
   }
 
-  $admin_path = _field_ui_bundle_admin_path($bundle);
+  $admin_path = _field_ui_bundle_admin_path($obj_type, $bundle);
   $form_state['redirect'] = field_ui_get_destinations(array($admin_path . '/fields'));
 }
 
 /**
  * Menu callback; presents the field instance edit page.
  */
-function field_ui_field_edit_form(&$form_state, $obj_type, $bundle, $instance) {
+function field_ui_field_edit_form($form, &$form_state, $obj_type, $bundle, $instance) {
   $bundle = field_extract_bundle($obj_type, $bundle);
 
   $field = field_info_field($instance['field_name']);
@@ -1024,8 +1039,8 @@ function field_ui_field_edit_form(&$form_state, $obj_type, $bundle, $instance) {
   $form['instance'] = array(
     '#tree' => TRUE,
     '#type' => 'fieldset',
-    '#title' => t('%type settings', array('%type' => $bundles[$bundle]['label'])),
-    '#description' => t('These settings apply only to the %field field when used in the %type type.', array('%field' => $instance['label'], '%type' => $bundles[$bundle]['label'])),
+    '#title' => t('%type settings', array('%type' => $bundles[$obj_type][$bundle]['label'])),
+    '#description' => t('These settings apply only to the %field field when used in the %type type.', array('%field' => $instance['label'], '%type' => $bundles[$obj_type][$bundle]['label'])),
     '#pre_render' => array('field_ui_field_edit_instance_pre_render'),
   );
 
@@ -1033,6 +1048,10 @@ function field_ui_field_edit_form(&$form_state, $obj_type, $bundle, $instance) {
   $form['instance']['field_name'] = array(
     '#type' => 'value',
     '#value' => $instance['field_name'],
+  );
+  $form['instance']['object_type'] = array(
+    '#type' => 'value',
+    '#value' => $obj_type,
   );
   $form['instance']['bundle'] = array(
     '#type' => 'value',
@@ -1113,12 +1132,13 @@ function field_ui_field_edit_form(&$form_state, $obj_type, $bundle, $instance) {
     field_ui_default_value_widget($field, $instance, $form, $form_state);
   }
 
-  $info = field_info_field_types($field['type']);
-  $description = '<p><strong>' . $info['label'] . ':</strong> ';
-  $description .= $info['description'] . '</p>';
-  $form['#prefix'] = '<div class="description">' . $description . '</div>';
-
-  $description = '<p>' . t('These settings apply to the %field field everywhere it is used.', array('%field' => $instance['label'])) . '</p>';
+  $has_data = field_has_data($field);
+  if ($has_data) {
+    $description = '<p>' . t('These settings apply to the %field field everywhere it is used. Because the field already has data, some settings can no longer be changed.', array('%field' => $instance['label'])) . '</p>';
+  }
+  else {
+    $description = '<p>' . t('These settings apply to the %field field everywhere it is used.', array('%field' => $instance['label'])) . '</p>';
+  }
 
   // Create a form structure for the field values.
   $form['field'] = array(
@@ -1141,10 +1161,11 @@ function field_ui_field_edit_form(&$form_state, $obj_type, $bundle, $instance) {
     '#description' => $description,
   );
 
-  // Add additional field settings from the field module.
-  $additions = module_invoke($field['module'], 'field_settings_form', $field, $instance);
+  // Add additional field type settings. The field type module is
+  // responsible for not returning settings that cannot be changed if
+  // the field already has data.
+  $additions = module_invoke($field['module'], 'field_settings_form', $field, $instance, $has_data);
   if (is_array($additions)) {
-    // @todo Filter additional settings by whether they can be changed.
     $form['field']['settings'] = $additions;
   }
 
@@ -1279,7 +1300,7 @@ function field_ui_field_edit_form_submit($form, &$form_state) {
   // Update any field settings that have changed.
   $field = field_info_field($instance_values['field_name']);
   $field = array_merge($field, $field_values);
-  field_ui_update_field($field);
+  field_update_field($field);
 
   // Move the default value from the sample widget to the default value field.
   if (isset($instance_values['default_value_widget'])) {
@@ -1289,13 +1310,13 @@ function field_ui_field_edit_form_submit($form, &$form_state) {
   }
 
   // Update the instance settings.
-  $instance = field_info_instance($instance_values['field_name'], $instance_values['bundle']);
+  $instance = field_info_instance($instance_values['object_type'], $instance_values['field_name'], $instance_values['bundle']);
   $instance = array_merge($instance, $instance_values);
   field_update_instance($instance);
 
   drupal_set_message(t('Saved %label configuration.', array('%label' => $instance['label'])));
 
-  $form_state['redirect'] = field_ui_next_destination($instance['bundle']);
+  $form_state['redirect'] = field_ui_next_destination($instance['object_type'], $instance['bundle']);
 }
 
 /**
@@ -1307,19 +1328,19 @@ function field_ui_get_destinations($destinations) {
   if ($destinations) {
     $query['destinations'] = $destinations;
   }
-  return array($path, $query);
+  return array($path, array('query' => $query));
 }
 
 /**
  * Return the next redirect path in a multipage sequence.
  */
-function field_ui_next_destination($bundle) {
+function field_ui_next_destination($obj_type, $bundle) {
   $destinations = !empty($_REQUEST['destinations']) ? $_REQUEST['destinations'] : array();
   if (!empty($destinations)) {
     unset($_REQUEST['destinations']);
     return field_ui_get_destinations($destinations);
   }
-  $admin_path = _field_ui_bundle_admin_path($bundle);
+  $admin_path = _field_ui_bundle_admin_path($obj_type, $bundle);
   return $admin_path . '/fields';
 }
 

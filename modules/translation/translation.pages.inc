@@ -33,7 +33,7 @@ function translation_node_overview($node) {
       // Existing translation in the translation set: display status.
       // We load the full node to check whether the user can edit it.
       $translation_node = node_load($translations[$language->language]->nid);
-      $title = l($translation_node->title, 'node/' . $translation_node->nid);
+      $title = l($translation_node->title[FIELD_LANGUAGE_NONE][0]['value'], 'node/' . $translation_node->nid);
       if (node_access('update', $translation_node)) {
         $options[] = l(t('edit'), "node/$translation_node->nid/edit");
       }
@@ -47,14 +47,14 @@ function translation_node_overview($node) {
       // No such translation in the set yet: help user to create it.
       $title = t('n/a');
       if (node_access('create', $node)) {
-        $options[] = l(t('add translation'), 'node/add/' . str_replace('_', '-', $node->type), array('query' => "translation=$node->nid&language=$language->language"));
+        $options[] = l(t('add translation'), 'node/add/' . str_replace('_', '-', $node->type), array('query' => array('translation' => $node->nid, 'language' => $language->language)));
       }
       $status = t('Not translated');
     }
     $rows[] = array($language_name, $title, $status, implode(" | ", $options));
   }
 
-  drupal_set_title(t('Translations of %title', array('%title' => $node->title)), PASS_THROUGH);
+  drupal_set_title(t('Translations of %title', array('%title' => $node->title[FIELD_LANGUAGE_NONE][0]['value'])), PASS_THROUGH);
   
   $build['translation_node_overview'] = array(
     '#theme' => 'table', 

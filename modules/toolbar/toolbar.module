@@ -23,7 +23,7 @@ function toolbar_permission() {
  */
 function toolbar_theme($existing, $type, $theme, $path) {
   $items['toolbar'] = array(
-    'arguments' => array('toolbar' => array()),
+    'render element' => 'toolbar',
     'template' => 'toolbar',
     'path' => drupal_get_path('module', 'toolbar'),
   );
@@ -36,19 +36,32 @@ function toolbar_theme($existing, $type, $theme, $path) {
  * Add admin toolbar to the page_top region automatically.
  */
 function toolbar_page_build(&$page) {
-  if (user_access('access toolbar')) {
-    $page['page_top']['toolbar'] = toolbar_build();
-  }
+  $page['page_top']['toolbar'] = array(
+    '#pre_render' => array('toolbar_pre_render'),
+    '#access' => user_access('access toolbar'),
+    'toolbar_drawer' => isset($page['toolbar_drawer']) ? $page['toolbar_drawer'] : array(),
+  );
 }
 
 /**
- * Implement hook_preprocess_page().
+ * Prerender function for the toolbar.
+ *
+ * Since building the toolbar takes some time, it is done just prior to
+ * rendering to ensure that it is built only if it will be displayed.
+ */
+function toolbar_pre_render($toolbar) {
+  $toolbar = array_merge($toolbar, toolbar_build());
+  return $toolbar;
+}
+
+/**
+ * Implement hook_preprocess_html().
  *
  * Add some page classes, so global page theming can adjust to the toolbar.
  */
-function toolbar_preprocess_page(&$vars) {
+function toolbar_preprocess_html(&$vars) {
   if (user_access('access toolbar')) {
-    $vars['classes_array'][] = 'toolbar toolbar-shortcuts';
+    $vars['classes_array'][] = 'toolbar toolbar-drawer';
   }
 }
 
@@ -65,6 +78,10 @@ function toolbar_build() {
       'js' => array(
         $module_path . '/toolbar.js',
         array('data' => 'misc/jquery.cookie.js', 'weight' => JS_LIBRARY + 2),
+        array(
+          'data' => array('tableHeaderOffset' => 'Drupal.admin.toolbar.height'),
+          'type' => 'setting'
+        ),
       ),
       'css' => array(
         $module_path . '/toolbar.css',
@@ -80,12 +97,11 @@ function toolbar_build() {
     '#attributes' => array('id' => 'toolbar-menu'),
   );
 
-  // Add logout & user account links
-  $build['toolbar_user'] = array(
-    '#theme' => 'links',
-    '#links' => array(
+  // Add logout & user account links or login link
+  if ($user->uid) {
+    $links = array(
       'account' => array(
-        'title' => t('Hello <strong>@username</strong>', array('@username' => $user->name)),
+        'title' => t('Hello <strong>@username</strong>', array('@username' => format_username($user))),
         'href' => 'user',
         'html' => TRUE,
       ),
@@ -93,19 +109,21 @@ function toolbar_build() {
         'title' => t('Log out'),
         'href' => 'user/logout',
       ),
-    ),
+    );
+  }
+  else {
+     $links = array(
+      'login' => array(
+        'title' => t('Log in'),
+        'href' => 'user',
+      ),
+    );
+  }
+  $build['toolbar_user'] = array(
+    '#theme' => 'links',
+    '#links' => $links,
     '#attributes' => array('id' => 'toolbar-user'),
   );
-
-  // Add convenience shortcut links.
-  $shortcuts = menu_tree_all_data('admin_shortcuts');
-  $shortcuts = toolbar_menu_navigation_links($shortcuts);
-  $build['toolbar_shortcuts'] = array(
-    '#theme' => 'links',
-    '#links' => $shortcuts,
-    '#attributes' => array('id' => 'toolbar-shortcuts'),
-  );
-
   return $build;
 }
 
@@ -116,14 +134,12 @@ function toolbar_get_menu_tree() {
   $tree = array();
   $admin_link = db_query("SELECT * FROM {menu_links} WHERE menu_name = 'management' AND module = 'system' AND link_path = 'admin'")->fetchAssoc();
   if ($admin_link) {
-    $tree = menu_tree_all_data('management', $admin_link);
+    // @todo Use a function like book_menu_subtree_data().
+    $tree = menu_tree_all_data('management', $admin_link, $admin_link['depth'] + 1);
     // The tree will be a sub-tree with the admin link as a single root item.
+    // @todo It is wrong to assume it's the last.
     $admin_link = array_pop($tree);
     $tree = $admin_link['below'] ? $admin_link['below'] : array();
-    foreach ($tree as $key => $item) {
-      // Get rid of subitems to have a leaner data structure.
-      unset($tree[$key]['below']);
-    }
   }
   return $tree;
 }

@@ -252,7 +252,7 @@ class ModuleVersionTestCase extends ModuleTestCase {
     $n = count($dependencies);
     for ($i = 0; $i < $n; $i++) {
       $this->drupalGet('admin/config/modules');
-      $checkbox = $this->xpath('//input[@id="edit-modules-Testing-module-test-enable"]');
+      $checkbox = $this->xpath('//input[@id="edit-modules-testing-module-test-enable"]');
       $this->assertEqual(!empty($checkbox[0]['disabled']), $i % 2, $dependencies[$i]);
     }
   }
@@ -379,16 +379,13 @@ class CronRunTestCase extends DrupalWebTestCase {
 
     // Run cron anonymously with a random cron key.
     $key = $this->randomName(16);
-    $this->drupalGet($base_url . '/cron.php', array('external' => TRUE, 'query' => 'cron_key=' . $key));
+    $this->drupalGet($base_url . '/cron.php', array('external' => TRUE, 'query' => array('cron_key' => $key)));
     $this->assertResponse(403);
 
     // Run cron anonymously with the valid cron key.
     $key = variable_get('cron_key', 'drupal');
-    $this->drupalGet($base_url . '/cron.php', array('external' => TRUE, 'query' => 'cron_key=' . $key));
+    $this->drupalGet($base_url . '/cron.php', array('external' => TRUE, 'query' => array('cron_key' => $key)));
     $this->assertResponse(200);
-
-    // Execute cron directly.
-    $this->assertTrue(drupal_cron_run(), t('Cron ran successfully.'));
   }
 
   /**
@@ -475,7 +472,7 @@ class CronRunTestCase extends DrupalWebTestCase {
     $this->assertTrue(file_exists($perm_new->uri), t('New permanent file was created correctly.'));
 
     // Run cron and then ensure that only the old, temp file was deleted.
-    $this->assertTrue(drupal_cron_run(), t('Cron ran successfully.'));
+    $this->cronRun();
     $this->assertFalse(file_exists($temp_old->uri), t('Old temp file was correctly removed.'));
     $this->assertTrue(file_exists($temp_new->uri), t('New temp file was correctly ignored.'));
     $this->assertTrue(file_exists($perm_old->uri), t('Old permanent file was correctly ignored.'));
@@ -512,20 +509,14 @@ class AdminMetaTagTestCase extends DrupalWebTestCase {
 class AccessDeniedTestCase extends DrupalWebTestCase {
   protected $admin_user;
 
-  /**
-   * Implement getInfo().
-   */
   public static function getInfo() {
     return array(
       'name' => '403 functionality',
-      'description' => "Tests page access denied functionality, including custom 403 pages.",
+      'description' => 'Tests page access denied functionality, including custom 403 pages.',
       'group' => 'System'
     );
   }
 
-  /**
-   * Implement setUp().
-   */
   function setUp() {
     parent::setUp();
 
@@ -539,7 +530,7 @@ class AccessDeniedTestCase extends DrupalWebTestCase {
     $this->assertText(t('Access denied'), t('Found the default 403 page'));
 
     $edit = array(
-      'title' => $this->randomName(10),
+      'title' => array(FIELD_LANGUAGE_NONE => array(array('value' => $this->randomName(10)))),
       'body' => array(FIELD_LANGUAGE_NONE => array(array('value' => $this->randomName(100)))),
     );
     $node = $this->drupalCreateNode($edit);
@@ -548,13 +539,13 @@ class AccessDeniedTestCase extends DrupalWebTestCase {
     $this->drupalPost('admin/config/system/site-information', array('site_403' => 'node/' . $node->nid), t('Save configuration'));
 
     $this->drupalGet('admin');
-    $this->assertText($node->title, t('Found the custom 403 page'));
+    $this->assertText($node->title[FIELD_LANGUAGE_NONE][0]['value'], t('Found the custom 403 page'));
 
     // Logout and check that the user login block is shown on custom 403 pages.
     $this->drupalLogout();
 
     $this->drupalGet('admin');
-    $this->assertText($node->title, t('Found the custom 403 page'));
+    $this->assertText($node->title[FIELD_LANGUAGE_NONE][0]['value'], t('Found the custom 403 page'));
     $this->assertText(t('User login'), t('Blocks are shown on the custom 403 page'));
 
     // Log back in and remove the custom 403 page.
@@ -616,7 +607,7 @@ class PageNotFoundTestCase extends DrupalWebTestCase {
     $this->assertText(t('Page not found'), t('Found the default 404 page'));
 
     $edit = array(
-      'title' => $this->randomName(10),
+      'title' => array(FIELD_LANGUAGE_NONE => array(array('value' => $this->randomName(10)))),
       'body' => array(FIELD_LANGUAGE_NONE => array(array('value' => $this->randomName(100)))),
     );
     $node = $this->drupalCreateNode($edit);
@@ -625,7 +616,7 @@ class PageNotFoundTestCase extends DrupalWebTestCase {
     $this->drupalPost('admin/config/system/site-information', array('site_404' => 'node/' . $node->nid), t('Save configuration'));
 
     $this->drupalGet($this->randomName(10));
-    $this->assertText($node->title, t('Found the custom 404 page'));
+    $this->assertText($node->title[FIELD_LANGUAGE_NONE][0]['value'], t('Found the custom 404 page'));
   }
 }
 
@@ -727,6 +718,15 @@ class DateTimeFunctionalTest extends DrupalWebTestCase {
     );
   }
 
+  function setUp() {
+    parent::setUp();
+
+    // Create admin user and log in admin user.
+    $this->admin_user = $this->drupalCreateUser(array('administer site configuration'));
+    $this->drupalLogin($this->admin_user);
+  }
+
+
   /**
    * Test time zones and DST handling.
    */
@@ -756,6 +756,77 @@ class DateTimeFunctionalTest extends DrupalWebTestCase {
     $this->assertText('2007-01-31 23:00:00 -0800', t('Date should be two hours ahead, with GMT offset of -8 hours.'));
     $this->drupalGet("node/$node2->nid");
     $this->assertText('2007-08-01 00:00:00 -0700', t('Date should be three hours ahead, with GMT offset of -7 hours.'));
+  }
+
+  /**
+   * Test date type configuration.
+   */
+  function testDateTypeConfiguration() {
+    // Confirm system date types appear.
+    $this->drupalGet('admin/config/regional/date-time');
+    $this->assertText(t('Medium'), 'System date types appear in date type list.');
+    $this->assertNoRaw('href="/admin/config/regional/date-time/types/medium/delete"', 'No delete link appear for system date types.');
+
+    // Add custom date type.
+    $this->clickLink(t('Add date type'));
+    $date_type = $this->randomName(8);
+    $machine_name = 'machine_' . $date_type;
+    $date_format = 'd.m.Y - H:i';
+    $edit = array(
+      'date_type' => $date_type,
+      'machine_name' => $machine_name,
+      'date_format' => $date_format,
+    );
+    $this->drupalPost('admin/config/regional/date-time/types/add', $edit, t('Add date type'));
+    $this->assertEqual($this->getUrl(), url('admin/config/regional/date-time', array('absolute' => TRUE)), t('Correct page redirection.'));
+    $this->assertText(t('New date type added successfully.'), 'Date type added confirmation message appears.');
+    $this->assertText($date_type, 'Custom date type appears in the date type list.');
+    $this->assertText(t('delete'), 'Delete link for custom date type appears.');
+
+    // Delete custom date type.
+    $this->clickLink(t('delete'));
+    $this->drupalPost('admin/config/regional/date-time/types/' . $machine_name . '/delete', array(), t('Remove'));
+    $this->assertEqual($this->getUrl(), url('admin/config/regional/date-time', array('absolute' => TRUE)), t('Correct page redirection.'));
+    $this->assertText(t('Removed date type ' . $date_type), 'Custom date type removed.');
+  }
+
+  /**
+   * Test date format configuration.
+   */
+  function testDateFormatConfiguration() {
+    // Confirm 'no custom date formats available' message appears.
+    $this->drupalGet('admin/config/regional/date-time/formats');
+    $this->assertText(t('No custom date formats available.'), 'No custom date formats message appears.');
+
+    // Add custom date format.
+    $this->clickLink(t('Add format'));
+    $edit = array(
+      'date_format' => 'Y',
+    );
+    $this->drupalPost('admin/config/regional/date-time/formats/add', $edit, t('Add format'));
+    $this->assertEqual($this->getUrl(), url('admin/config/regional/date-time/formats', array('absolute' => TRUE)), t('Correct page redirection.'));
+    $this->assertNoText(t('No custom date formats available.'), 'No custom date formats message does not appear.');
+    $this->assertText(t('Custom date format added.'), 'Custom date format added.');
+
+    // Ensure custom date format appears in date type configuration options.
+    $this->drupalGet('admin/config/regional/date-time');
+    $this->assertRaw('<option value="Y">', 'Custom date format appears in options.');
+
+    // Edit custom date format.
+    $this->drupalGet('admin/config/regional/date-time/formats');
+    $this->clickLink(t('edit'));
+    $edit = array(
+      'date_format' => 'Y m',
+    );
+    $this->drupalPost($this->getUrl(), $edit, t('Save format'));
+    $this->assertEqual($this->getUrl(), url('admin/config/regional/date-time/formats', array('absolute' => TRUE)), t('Correct page redirection.'));
+    $this->assertText(t('Custom date format updated.'), 'Custom date format successfully updated.');
+
+    // Delete custom date format.
+    $this->clickLink(t('delete'));
+    $this->drupalPost($this->getUrl(), array(), t('Remove'));
+    $this->assertEqual($this->getUrl(), url('admin/config/regional/date-time/formats', array('absolute' => TRUE)), t('Correct page redirection.'));
+    $this->assertText(t('Removed date format'), 'Custom date format removed successfully.');
   }
 }
 
@@ -811,16 +882,16 @@ class PageTitleFiltering extends DrupalWebTestCase {
     // Generate node content.
     $langcode = FIELD_LANGUAGE_NONE;
     $edit = array(
-     'title' => '!SimpleTest! ' . $title . $this->randomName(20),
+     "title[$langcode][0][value]" => '!SimpleTest! ' . $title . $this->randomName(20),
      "body[$langcode][0][value]" => '!SimpleTest! test body' . $this->randomName(200),
     );
     // Create the node with HTML in the title.
     $this->drupalPost('node/add/page', $edit, t('Save'));
 
-    $node = $this->drupalGetNodeByTitle($edit['title']);
+    $node = $this->drupalGetNodeByTitle($edit["title[$langcode][0][value]"]);
     $this->assertNotNull($node, 'Node created and found in database');
     $this->drupalGet("node/" . $node->nid);
-    $this->assertText(check_plain($edit['title']), 'Check to make sure tags in the node title are converted.');
+    $this->assertText(check_plain($edit["title[$langcode][0][value]"]), 'Check to make sure tags in the node title are converted.');
   }
 }
 
@@ -901,16 +972,17 @@ class SystemBlockTestCase extends DrupalWebTestCase {
    */
   function testPoweredByBlock() {
     // Set block title and some settings to confirm that the interface is availble.
-    $this->drupalPost('admin/structure/block/configure/system/powered-by', array('title' => $this->randomName(8), 'color' => 'powered-black', 'size' => '135x42'), t('Save block'));
+    $this->drupalPost('admin/structure/block/manage/system/powered-by/configure', array('title' => $this->randomName(8)), t('Save block'));
     $this->assertText(t('The block configuration has been saved.'), t('Block configuration set.'));
 
     // Set the powered-by block to the footer region.
     $edit = array();
     $edit['system_powered-by[region]'] = 'footer';
     $this->drupalPost('admin/structure/block', $edit, t('Save blocks'));
-    $this->assertText(t('The block settings have been updated.'), t('Block successfully move to footer region.'));
+    $this->assertText(t('The block settings have been updated.'), t('Block successfully moved to footer region.'));
 
     // Confirm that the block is being displayed.
+    $this->drupalGet('node');
     $this->assertRaw('id="block-system-powered-by"', t('Block successfully being displayed on the page.'));
 
     // Set the block to the disabled region.
@@ -925,9 +997,91 @@ class SystemBlockTestCase extends DrupalWebTestCase {
     $edit = array();
     $edit['system_powered-by[region]'] = 'footer';
     $this->drupalPost('admin/structure/block', $edit, t('Save blocks'));
-    $this->drupalPost('admin/structure/block/configure/system/powered-by', array('title' => '', 'color' => 'powered-blue', 'size' => '80x15'), t('Save block'));
+    $this->drupalPost('admin/structure/block/manage/system/powered-by/configure', array('title' => ''), t('Save block'));
+  }
+}
+
+/**
+ * Test main content rendering fallback provided by system module.
+ */
+class SystemMainContentFallback extends DrupalWebTestCase {
+  protected $admin_user;
+  protected $web_user;
+
+  public static function getInfo() {
+    return array(
+      'name' => 'Main content rendering fallback',
+      'description' => ' Test system module main content rendering fallback.',
+      'group' => 'System',
+    );
   }
 
+  function setUp() {
+    parent::setUp('system_test');
+
+    // Create and login admin user.
+    $this->admin_user = $this->drupalCreateUser(array(
+      'access administration pages',
+      'administer site configuration',
+      'administer blocks',
+      'administer nodes',
+    ));
+    $this->drupalLogin($this->admin_user);
+
+    // Create a web user.
+    $this->web_user = $this->drupalCreateUser(array('access user profiles', 'access content'));
+  }
+
+  /**
+   * Test availability of main content.
+   */
+  function testMainContentFallback() {
+    $edit = array();
+    // Disable the dashboard module, which depends on the block module.
+    $edit['modules[Core][dashboard][enable]'] = FALSE;
+    $this->drupalPost('admin/config/modules', $edit, t('Save configuration'));
+    $this->assertText(t('The configuration options have been saved.'), t('Modules status has been updated.'));
+    // Disable the block module.
+    $edit['modules[Core][block][enable]'] = FALSE;
+    $this->drupalPost('admin/config/modules', $edit, t('Save configuration'));
+    $this->assertText(t('The configuration options have been saved.'), t('Modules status has been updated.'));
+    module_list(TRUE);
+    $this->assertFalse(module_exists('block'), t('Block module disabled.'));
+
+    // At this point, no region is filled and fallback should be triggered.
+    $this->drupalGet('admin/config/system/site-information');
+    $this->assertField('site_name', t('Admin interface still availble.'));
+
+    // Fallback should not trigger when another module is handling content.
+    $this->drupalGet('system-test/main-content-handling');
+    $this->assertRaw('id="system-test-content"', t('Content handled by another module'));
+    $this->assertText(t('Content to test main content fallback'), t('Main content still displayed.'));
+
+    // Fallback should trigger when another module
+    // indicates that it is not handling the content.
+    $this->drupalGet('system-test/main-content-fallback');
+    $this->assertText(t('Content to test main content fallback'), t('Main content fallback properly triggers.'));
+
+    // Fallback should not trigger when another module is handling content.
+    // Note that this test ensures that no duplicate
+    // content gets created by the fallback.
+    $this->drupalGet('system-test/main-content-duplication');
+    $this->assertNoText(t('Content to test main content fallback'), t('Main content not duplicated.'));
+
+    // Request a user* page and see if it is displayed.
+    $this->drupalLogin($this->web_user);
+    $this->drupalGet('user/' . $this->web_user->uid . '/edit');
+    $this->assertField('mail', t('User interface still availble.'));
+
+    // Enable the block module again.
+    $this->drupalLogin($this->admin_user);
+    $edit = array();
+    $edit['modules[Core][block][enable]'] = 'block';
+    $this->drupalPost('admin/config/modules', $edit, t('Save configuration'));
+    $this->assertText(t('The configuration options have been saved.'), t('Modules status has been updated.'));
+    module_list(TRUE);
+    $this->assertTrue(module_exists('block'), t('Block module re-enabled.'));
+  }
 }
 
 class SystemSettingsForm extends DrupalWebTestCase {
@@ -966,8 +1120,6 @@ class SystemSettingsForm extends DrupalWebTestCase {
    * Tests the handling of automatic defaults in systems_settings_form().
    */
   function testAutomaticDefaults() {
-    $form = array();
-
     $form['system_settings_form_test'] = array(
       '#type' => 'checkbox',
       '#default_value' => FALSE,
@@ -1192,8 +1344,8 @@ class TokenReplaceTestCase extends DrupalWebTestCase {
     // Create the initial objects.
     $account = $this->drupalCreateUser();
     $node = $this->drupalCreateNode(array('uid' => $account->uid));
-    $node->title = '<blink>Blinking Text</blink>';
-    global $user;
+    $node->title = array(FIELD_LANGUAGE_NONE => array(array('value' => '<blink>Blinking Text</blink>')));
+    global $user, $language;
 
     $source  = '[node:title]';         // Title of the node we passed in
     $source .= '[node:author:name]';   // Node author's name
@@ -1203,27 +1355,189 @@ class TokenReplaceTestCase extends DrupalWebTestCase {
     $source .= '[date:short]';         // Short date format of REQUEST_TIME
     $source .= '[bogus:token]';        // Nonexistent token, should be untouched
 
-    $target  = check_plain($node->title);
+    $target  = check_plain($node->title[FIELD_LANGUAGE_NONE][0]['value']);
     $target .= check_plain($account->name);
-    $target .= format_interval(REQUEST_TIME - $node->created, 2);
+    $target .= format_interval(REQUEST_TIME - $node->created, 2, $language->language);
     $target .= check_plain($user->name);
     $target .= '[user:name]';
-    $target .= format_date(REQUEST_TIME, 'short');
+    $target .= format_date(REQUEST_TIME, 'short', '', NULL, $language->language);
     $target .= '[bogus:token]';
 
-    $result = token_replace($source, array('node' => $node));
+    $result = token_replace($source, array('node' => $node), array('language' => $language));
 
     // Check that the results of token_generate are sanitized properly. This does NOT
     // test the cleanliness of every token -- just that the $sanitize flag is being
     // passed properly through the call stack and being handled correctly by a 'known'
     // token, [node:title].
     $this->assertFalse(strcmp($target, $result), t('Basic placeholder tokens replaced.'));
-    
+
     $raw_tokens = array('title' => '[node:title]');
     $generated = token_generate('node', $raw_tokens, array('node' => $node));
-    $this->assertFalse(strcmp($generated['[node:title]'], check_plain($node->title)), t('Token sanitized.'));
+    $this->assertFalse(strcmp($generated['[node:title]'], check_plain($node->title[FIELD_LANGUAGE_NONE][0]['value'])), t('Token sanitized.'));
 
     $generated = token_generate('node', $raw_tokens, array('node' => $node), array('sanitize' => FALSE));
-    $this->assertFalse(strcmp($generated['[node:title]'], $node->title), t('Unsanitized token generated properly.'));
+    $this->assertFalse(strcmp($generated['[node:title]'], $node->title[FIELD_LANGUAGE_NONE][0]['value']), t('Unsanitized token generated properly.'));
+  }
+}
+
+class InfoFileParserTestCase extends DrupalUnitTestCase {
+  public static function getInfo() {
+    return array(
+      'name' => 'Info file format parser',
+      'description' => 'Tests proper parsing of a .info file formatted string.',
+      'group' => 'System',
+    );
+  }
+
+  /**
+   * Test drupal_parse_info_format().
+   */
+  function testDrupalParseInfoFormat() {
+    $config = '
+simple = Value
+quoted = " Value"
+multiline = "Value
+  Value"
+array[] = Value1
+array[] = Value2
+array_assoc[a] = Value1
+array_assoc[b] = Value2
+array_deep[][][] = Value
+array_deep_assoc[a][b][c] = Value
+array_space[a b] = Value';
+
+    $expected = array(
+      'simple' => 'Value',
+      'quoted' => ' Value',
+      'multiline' => "Value\n  Value",
+      'array' => array(
+        0 => 'Value1',
+        1 => 'Value2',
+      ),
+      'array_assoc' => array(
+        'a' => 'Value1',
+        'b' => 'Value2',
+      ),
+      'array_deep' => array(
+        0 => array(
+          0 => array(
+            0 => 'Value',
+          ),
+        ),
+      ),
+      'array_deep_assoc' => array(
+        'a' => array(
+          'b' => array(
+            'c' => 'Value',
+          ),
+        ),
+      ),
+      'array_space' => array(
+        'a b' => 'Value',
+      ),
+    );
+
+    $parsed = drupal_parse_info_format($config);
+
+    $this->assertEqual($parsed['simple'], $expected['simple'], t('Set a simple value.'));
+    $this->assertEqual($parsed['quoted'], $expected['quoted'], t('Set a simple value in quotes.'));
+    $this->assertEqual($parsed['multiline'], $expected['multiline'], t('Set a multiline value.'));
+    $this->assertEqual($parsed['array'], $expected['array'], t('Set a simple array.'));
+    $this->assertEqual($parsed['array_assoc'], $expected['array_assoc'], t('Set an associative array.'));
+    $this->assertEqual($parsed['array_deep'], $expected['array_deep'], t('Set a nested array.'));
+    $this->assertEqual($parsed['array_deep_assoc'], $expected['array_deep_assoc'], t('Set a nested associative array.'));
+    $this->assertEqual($parsed['array_space'], $expected['array_space'], t('Set an array with a whitespace in the key.'));
+    $this->assertEqual($parsed, $expected, t('Entire parsed .info string and expected array are identical.'));
+  }
+}
+
+/**
+ * Tests for the update system functionality.
+ */
+class UpdateScriptFunctionalTest extends DrupalWebTestCase {
+  private $update_url;
+  private $update_user;
+
+  public static function getInfo() {
+    return array(
+      'name' => 'Update functionality',
+      'description' => 'Tests the update script access and functionality.',
+      'group' => 'System',
+    );
+  }
+
+  function setUp() {
+    parent::setUp();
+    $this->update_url = $GLOBALS['base_url'] . '/update.php';
+    $this->update_user = $this->drupalCreateUser(array('administer software updates'));
+  }
+
+  /**
+   * Tests access to the update script.
+   */
+  function testUpdateAccess() {
+    // Try accessing update.php without the proper permission.
+    $regular_user = $this->drupalCreateUser();
+    $this->drupalLogin($regular_user);
+    $this->drupalGet($this->update_url, array('external' => TRUE));
+    $this->assertResponse(403);
+
+    // Try accessing update.php as an anonymous user.
+    $this->drupalLogout();
+    $this->drupalGet($this->update_url, array('external' => TRUE));
+    $this->assertResponse(403);
+
+    // Access the update page with the proper permission.
+    $this->drupalLogin($this->update_user);
+    $this->drupalGet($this->update_url, array('external' => TRUE));
+    $this->assertResponse(200);
+
+    // Access the update page as user 1.
+    $user1 = user_load(1);
+    $user1->pass_raw = user_password();
+    require_once DRUPAL_ROOT . '/' . variable_get('password_inc', 'includes/password.inc');
+    $user1->pass = user_hash_password(trim($user1->pass_raw));
+    db_query("UPDATE {users} SET pass = :pass WHERE uid = :uid", array(':pass' => $user1->pass, ':uid' => $user1->uid));
+    $this->drupalLogin($user1);
+    $this->drupalGet($this->update_url, array('external' => TRUE));
+    $this->assertResponse(200);
+  }
+}
+
+/**
+ * Functional tests for the flood control mechanism.
+ */
+class FloodFunctionalTest extends DrupalWebTestCase {
+  public static function getInfo() {
+    return array(
+      'name' => 'Flood control mechanism',
+      'description' => 'Functional tests for the flood control mechanism.',
+      'group' => 'System',
+    );
+  }
+
+  /**
+   * Test flood control mechanism clean-up.
+   */
+  function testCleanUp() {
+    $threshold = 1;
+    $window_expired = -1;
+    $name = 'flood_test_cleanup';
+
+    // Register expired event.
+    flood_register_event($name, $window_expired);
+    // Verify event is not allowed.
+    $this->assertFalse(flood_is_allowed($name, $threshold));
+    // Run cron and verify event is now allowed.
+    $this->cronRun();
+    $this->assertTrue(flood_is_allowed($name, $threshold));
+
+    // Register unexpired event.
+    flood_register_event($name);
+    // Verify event is not allowed.
+    $this->assertFalse(flood_is_allowed($name, $threshold));
+    // Run cron and verify event is still not allowed.
+    $this->cronRun();
+    $this->assertFalse(flood_is_allowed($name, $threshold));
   }
 }

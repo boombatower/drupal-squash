@@ -242,12 +242,13 @@ function install_begin_request(&$install_state) {
   require_once DRUPAL_ROOT . '/includes/file.inc';
   require_once DRUPAL_ROOT . '/includes/path.inc';
 
-  // Set up $language, so t() caller functions will still work.
-  drupal_language_initialize();
-
   // Load module basics (needed for hook invokes).
   include_once DRUPAL_ROOT . '/includes/module.inc';
   include_once DRUPAL_ROOT . '/includes/session.inc';
+
+  // Set up $language, so t() caller functions will still work.
+  drupal_language_initialize();
+
   include_once DRUPAL_ROOT . '/includes/entity.inc';
   $module_list['system']['filename'] = 'modules/system/system.module';
   $module_list['filter']['filename'] = 'modules/filter/filter.module';
@@ -257,13 +258,20 @@ function install_begin_request(&$install_state) {
   drupal_load('module', 'filter');
   drupal_load('module', 'user');
 
-  // Load the cache infrastructure with the Fake Cache. Switch to the database cache
-  // later if possible.
+  // Load the cache infrastructure using a "fake" cache implementation that
+  // does not attempt to write to the database. We need this during the initial
+  // part of the installer because the database is not available yet. We
+  // continue to use it even when the database does become available, in order
+  // to preserve consistency between interactive and command-line installations
+  // (the latter complete in one page request and therefore are forced to
+  // continue using the cache implementation they started with) and also
+  // because any data put in the cache during the installer is inherently
+  // suspect, due to the fact that Drupal is not fully set up yet.
   require_once DRUPAL_ROOT . '/includes/cache.inc';
   require_once DRUPAL_ROOT . '/includes/cache-install.inc';
   $conf['cache_inc'] = 'includes/cache.inc';
   $conf['cache_default_class'] = 'DrupalFakeCache';
-   
+
   // Prepare for themed output, if necessary. We need to run this at the
   // beginning of the page request to avoid a different theme accidentally
   // getting set.
@@ -275,11 +283,6 @@ function install_begin_request(&$install_state) {
   $install_state['settings_verified'] = install_verify_settings();
 
   if ($install_state['settings_verified']) {
-    // Since we have a database connection, we use the normal cache system.
-    // This is important, as the installer calls into the Drupal system for
-    // the clean URL checks, so we should maintain the cache properly.
-    unset($conf['cache_default_class']);
-
     // Initialize the database system. Note that the connection
     // won't be initialized until it is actually requested.
     require_once DRUPAL_ROOT . '/includes/database/database.inc';
@@ -391,7 +394,7 @@ function install_run_task($task, &$install_state) {
         // We need to pass $install_state by reference in order for forms to
         // modify it, since the form API will use it in call_user_func_array(),
         // which requires that referenced variables be passed explicitly.
-        'args' => array(&$install_state),
+        'build_info' => array('args' => array(&$install_state)),
         'no_redirect' => TRUE,
       );
       $form = drupal_build_form($function, $form_state);
@@ -567,7 +570,7 @@ function install_tasks($install_state) {
 
   // Now add any tasks defined by the installation profile.
   if (!empty($install_state['parameters']['profile'])) {
-    $function = $install_state['parameters']['profile'] . '_profile_tasks';
+    $function = $install_state['parameters']['profile'] . '_install_tasks';
     if (function_exists($function)) {
       $result = $function($install_state);
       if (is_array($result)) {
@@ -588,6 +591,18 @@ function install_tasks($install_state) {
       'display_name' => st('Finished'),
     ),
   );
+
+  // Allow the installation profile to modify the full list of tasks.
+  if (!empty($install_state['parameters']['profile'])) {
+    $profile_file = DRUPAL_ROOT . '/profiles/' . $install_state['parameters']['profile'] . '/' . $install_state['parameters']['profile'] . '.profile';
+    if (is_file($profile_file)) {
+      include_once $profile_file;
+      $function = $install_state['parameters']['profile'] . '_install_tasks_alter';
+      if (function_exists($function)) {
+        $function($tasks, $install_state);
+      }
+    }
+  }
 
   // Fill in default parameters for each task before returning the list.
   foreach ($tasks as $task_name => &$task) {
@@ -639,7 +654,7 @@ function install_tasks_to_display($install_state) {
  * @see install_full_redirect_url()
  */
 function install_redirect_url($install_state) {
-  return 'install.php?' . drupal_query_string_encode($install_state['parameters']);
+  return 'install.php?' . drupal_http_build_query($install_state['parameters']);
 }
 
 /**
@@ -679,9 +694,9 @@ function install_display_output($output, $install_state) {
     // Let the theming function know when every step of the installation has
     // been completed.
     $active_task = $install_state['installation_finished'] ? NULL : $install_state['active_task'];
-    drupal_add_region_content('sidebar_first', theme_task_list(install_tasks_to_display($install_state), $active_task));
+    drupal_add_region_content('sidebar_first', theme('task_list', array('items' => install_tasks_to_display($install_state), 'active' => $active_task)));
   }
-  print theme($install_state['database_tables_exist'] ? 'maintenance_page' : 'install_page', $output);
+  print theme($install_state['database_tables_exist'] ? 'maintenance_page' : 'install_page', array('content' => $output));
   exit;
 }
 
@@ -708,7 +723,7 @@ function install_verify_requirements(&$install_state) {
   if ($severity == REQUIREMENT_ERROR) {
     if ($install_state['interactive']) {
       drupal_set_title(st('Requirements problem'));
-      $status_report = theme('status_report', $requirements);
+      $status_report = theme('status_report', array('requirements' => $requirements));
       $status_report .= st('Check the error messages and <a href="!url">proceed with the installation</a>.', array('!url' => request_uri()));
       return $status_report;
     }
@@ -756,8 +771,8 @@ function install_system_module(&$install_state) {
  */
 function install_verify_completed_task() {
   try {
-    if ($result = db_query("SELECT value FROM {variable} WHERE name = '%s'", 'install_task')) {
-      $task = unserialize(db_result($result));
+    if ($result = db_query("SELECT value FROM {variable} WHERE name = :name", array('name' => 'install_task'))) {
+      $task = unserialize($result->fetchField());
     }
   }
   // Do not trigger an error if the database query fails, since the database
@@ -801,7 +816,7 @@ function install_verify_settings() {
  * @return
  *   The form API definition for the database configuration form.
  */
-function install_settings_form(&$form_state, &$install_state) {
+function install_settings_form($form, &$form_state, &$install_state) {
   global $databases, $db_prefix;
   $profile = $install_state['parameters']['profile'];
   $install_locale = $install_state['parameters']['locale'];
@@ -954,6 +969,10 @@ function install_database_errors($database, $settings_file) {
     // Run tasks associated with the database type. Any errors are caught in the
     // calling function
     $databases['default']['default'] = $database;
+    // Just changing the global doesn't get the new information processed.
+    // We tell tell the Database class to re-parse $databases.
+    Database::parseConnectionInfo();
+
     try {
       db_run_tasks($database['driver']);
     } 
@@ -1025,7 +1044,8 @@ function install_select_profile(&$install_state) {
       if ($install_state['interactive']) {
         include_once DRUPAL_ROOT . '/includes/form.inc';
         drupal_set_title(st('Select an installation profile'));
-        return drupal_render(drupal_get_form('install_select_profile_form', $install_state['profiles']));
+        $form = drupal_get_form('install_select_profile_form', $install_state['profiles']);
+        return drupal_render($form);
       }
       else {
         throw new Exception(install_no_profile_error());
@@ -1069,7 +1089,7 @@ function _install_select_profile($profiles) {
  * @param $profile_files
  *   Array of .profile files, as returned from file_scan_directory().
  */
-function install_select_profile_form(&$form_state, $profile_files) {
+function install_select_profile_form($form, &$form_state, $profile_files) {
   $profiles = array();
   $names = array();
 
@@ -1205,7 +1225,7 @@ function install_select_locale(&$install_state) {
 /**
  * Form API array definition for language selection.
  */
-function install_select_locale_form(&$form_state, $locales) {
+function install_select_locale_form($form, &$form_state, $locales) {
   include_once DRUPAL_ROOT . '/includes/iso.inc';
   $languages = _locale_get_predefined_list();
   foreach ($locales as $locale) {
@@ -1291,7 +1311,7 @@ function install_bootstrap_full(&$install_state) {
  */
 function install_profile_modules(&$install_state) {
   $modules = variable_get('install_profile_modules', array());
-  $files = system_get_module_data();
+  $files = system_rebuild_module_data();
   variable_del('install_profile_modules');
   $operations = array();
   foreach ($modules as $module) {
@@ -1337,7 +1357,7 @@ function install_import_locales(&$install_state) {
  * @return
  *   The form API definition for the site configuration form.
  */
-function install_configure_form(&$form_state, &$install_state) {
+function install_configure_form($form, &$form_state, &$install_state) {
   if (variable_get('site_name', FALSE) || variable_get('site_mail', FALSE)) {
     // Site already configured: This should never happen, means re-running the
     // installer, possibly by an attacker after the 'install_task' variable got
@@ -1382,7 +1402,7 @@ function install_configure_form(&$form_state, &$install_state) {
   drupal_get_schema(NULL, TRUE);
 
   // Return the form.
-  return _install_configure_form($form_state, $install_state);
+  return _install_configure_form($form, $form_state, $install_state);
 }
 
 /**
@@ -1397,6 +1417,7 @@ function install_import_locales_remaining(&$install_state) {
   include_once DRUPAL_ROOT . '/includes/locale.inc';
   // Collect files to import for this language. Skip components already covered
   // in the initial batch set.
+  $install_locale = $install_state['parameters']['locale'];
   $batch = locale_batch_by_language($install_locale, NULL, variable_get('install_locale_batch_components', array()));
   // Remove temporary variable.
   variable_del('install_locale_batch_components');
@@ -1420,16 +1441,21 @@ function install_finished(&$install_state) {
     $output .= '<p>' . st('For more information on configuring Drupal, refer to the <a href="@help">help section</a>.', array('@help' => url('admin/help'))) . '</p>';
   }
 
-  // Rebuild menu and registry to get content type links registered by the
-  // profile, and possibly any other menu items created through the tasks.
-  menu_rebuild();
+  // Rebuild the module and theme data, in case any newly-installed modules
+  // need to modify it via hook_system_info_alter(). We need to clear the
+  // theme static cache first, to make sure that the theme data is actually
+  // rebuilt.
+  drupal_static_reset('_system_rebuild_theme_data');
+  system_rebuild_module_data();
+  system_rebuild_theme_data();
+
+  // Flush all caches to ensure that any full bootstraps during the installer
+  // do not leave stale cached data, and that any content types or other items
+  // registered by the install profile are registered correctly.
+  drupal_flush_all_caches();
 
   // Register actions declared by any modules.
   actions_synchronize();
-
-  // Randomize query-strings on css/js files, to hide the fact that this is a
-  // new install, not upgraded yet.
-  _drupal_flush_css_js();
 
   // Remember the profile which was used.
   variable_set('install_profile', drupal_get_profile());
@@ -1529,7 +1555,7 @@ function install_check_requirements($install_state) {
 /**
  * Form API array definition for site configuration.
  */
-function _install_configure_form(&$form_state, &$install_state) {
+function _install_configure_form($form, &$form_state, &$install_state) {
   include_once DRUPAL_ROOT . '/includes/locale.inc';
 
   $form['site_information'] = array(

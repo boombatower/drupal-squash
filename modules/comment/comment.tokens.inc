@@ -113,8 +113,8 @@ function comment_token_info() {
 function comment_tokens($type, $tokens, array $data = array(), array $options = array()) {
   $url_options = array('absolute' => TRUE);
   if (isset($options['language'])) {
-    $url_options['language'] = $language;
-    $language_code = $language->language;
+    $url_options['language'] = $options['language'];
+    $language_code = $options['language']->language;
   }
   else {
     $language_code = NULL;
@@ -175,7 +175,7 @@ function comment_tokens($type, $tokens, array $data = array(), array $options = 
           break;
 
         case 'body':
-          $replacements[$original] = $sanitize ? check_markup($comment->comment, $comment->format) : $replacements[$original] = $comment->comment;
+          $replacements[$original] = $sanitize ? check_markup($comment->comment, $comment->format, '', TRUE) : $comment->comment;
           break;
 
         // Comment related URLs.
@@ -184,7 +184,7 @@ function comment_tokens($type, $tokens, array $data = array(), array $options = 
           break;
 
         case 'edit-url':
-          $replacements[$original] = url('comment/edit/' . $comment->cid, array('absolute' => TRUE));
+          $replacements[$original] = url('comment/' . $comment->cid . '/edit', array('absolute' => TRUE));
           break;
 
         // Default values for the chained tokens handled below.
@@ -200,12 +200,17 @@ function comment_tokens($type, $tokens, array $data = array(), array $options = 
           break;
 
         case 'created':
-          $replacements[$original] = format_date($comment->timestamp, 'medium', '', NULL, $language_code);
+          $replacements[$original] = format_date($comment->created, 'medium', '', NULL, $language_code);
+          break;
+
+        case 'changed':
+          $replacements[$original] = format_date($comment->changed, 'medium', '', NULL, $language_code);
           break;
 
         case 'node':
           $node = node_load($comment->nid);
-          $replacements[$original] = $sanitize ? filter_xss($node->title) : $node->title;
+          $title = $node->title[FIELD_LANGUAGE_NONE][0]['value'];
+          $replacements[$original] = $sanitize ? filter_xss($title) : $title;
           break;
       }
     }
@@ -217,7 +222,7 @@ function comment_tokens($type, $tokens, array $data = array(), array $options = 
     }
 
     if ($date_tokens = token_find_with_prefix($tokens, 'created')) {
-      $replacements += token_generate('date', $date_tokens, array('date' => $comment->timestamp), $options);
+      $replacements += token_generate('date', $date_tokens, array('date' => $comment->created), $options);
     }
 
     if (($parent_tokens = token_find_with_prefix($tokens, 'parent')) && $parent = comment_load($comment->pid)) {

@@ -6,8 +6,8 @@
  * Functions to handle paths in Drupal, including path aliasing.
  *
  * These functions are not loaded for cached pages, but modules that need
- * to use them in hook_init() or hook exit() can make them available, by
- * executing "drupal_bootstrap(DRUPAL_BOOTSTRAP_PATH);".
+ * to use them in hook_boot() or hook exit() can make them available, by
+ * executing "drupal_bootstrap(DRUPAL_BOOTSTRAP_FULL);".
  */
 
 /**
@@ -47,7 +47,7 @@ function drupal_lookup_path($action, $path = '', $path_language = '') {
   global $language;
   $cache = &drupal_static(__FUNCTION__, array(
     'map' => array(),
-    'no_src' => array(),
+    'no_source' => array(),
     'whitelist' => NULL,
     'system_paths' => array(),
     'no_aliases' => array(),
@@ -83,7 +83,7 @@ function drupal_lookup_path($action, $path = '', $path_language = '') {
           // Now fetch the aliases corresponding to these system paths.
           // We order by ASC and overwrite array keys to ensure the correct
           // alias is used when there are multiple aliases per path.
-          $cache['map'][$path_language] = db_query("SELECT src, dst FROM {url_alias} WHERE src IN (:system) AND language IN (:language, '') ORDER BY language ASC, pid ASC", array(
+          $cache['map'][$path_language] = db_query("SELECT source, alias FROM {url_alias} WHERE source IN (:system) AND language IN (:language, '') ORDER BY language ASC, pid ASC", array(
             ':system' => $cache['system_paths'],
             ':language' => $path_language
           ))->fetchAllKeyed();
@@ -104,35 +104,35 @@ function drupal_lookup_path($action, $path = '', $path_language = '') {
       // For system paths which were not cached, query aliases individually.
       else if (!isset($cache['no_aliases'][$path_language][$path])) {
         // Get the most fitting result falling back with alias without language
-        $alias = db_query("SELECT dst FROM {url_alias} WHERE src = :src AND language IN (:language, '') ORDER BY language DESC, pid DESC", array(
-          ':src' => $path,
+        $alias = db_query("SELECT alias FROM {url_alias} WHERE source = :source AND language IN (:language, '') ORDER BY language DESC, pid DESC", array(
+          ':source' => $path,
           ':language' => $path_language
         ))->fetchField();
         $cache['map'][$path_language][$path] = $alias;
         return $alias;
       }
     }
-    // Check $no_src for this $path in case we've already determined that there
+    // Check $no_source for this $path in case we've already determined that there
     // isn't a path that has this alias
-    elseif ($action == 'source' && !isset($cache['no_src'][$path_language][$path])) {
+    elseif ($action == 'source' && !isset($cache['no_source'][$path_language][$path])) {
       // Look for the value $path within the cached $map
-      $src = '';
-      if (!isset($cache['map'][$path_language]) || !($src = array_search($path, $cache['map'][$path_language]))) {
+      $source = '';
+      if (!isset($cache['map'][$path_language]) || !($source = array_search($path, $cache['map'][$path_language]))) {
         // Get the most fitting result falling back with alias without language
-        if ($src = db_query("SELECT src FROM {url_alias} WHERE dst = :dst AND language IN (:language, '') ORDER BY language DESC, pid DESC", array(
-                     ':dst' => $path,
+        if ($source = db_query("SELECT source FROM {url_alias} WHERE alias = :alias AND language IN (:language, '') ORDER BY language DESC, pid DESC", array(
+                     ':alias' => $path,
                      ':language' => $path_language))
             ->fetchField()) {
-          $cache['map'][$path_language][$src] = $path;
+          $cache['map'][$path_language][$source] = $path;
         }
         else {
           // We can't record anything into $map because we do not have a valid
           // index and there is no need because we have not learned anything
-          // about any Drupal path. Thus cache to $no_src.
-          $cache['no_src'][$path_language][$path] = TRUE;
+          // about any Drupal path. Thus cache to $no_source.
+          $cache['no_source'][$path_language][$path] = TRUE;
         }
       }
-      return $src;
+      return $source;
     }
   }
 
@@ -204,15 +204,22 @@ function drupal_get_path_alias($path = NULL, $path_language = '') {
  *   internal path was found.
  */
 function drupal_get_normal_path($path, $path_language = '') {
-  $result = $path;
-  if ($src = drupal_lookup_path('source', $path, $path_language)) {
-    $result = $src;
+  $original_path = $path;
+
+  // Lookup the path alias first.
+  if ($source = drupal_lookup_path('source', $path, $path_language)) {
+    $path = $source;
   }
-  if (function_exists('custom_url_rewrite_inbound')) {
-    // Modules may alter the inbound request path by reference.
-    custom_url_rewrite_inbound($result, $path, $path_language);
+
+  // Allow other modules to alter the inbound URL. We cannot use drupal_alter()
+  // here because we need to run hook_url_inbound_alter() in the reverse order
+  // of hook_url_outbound_alter().
+  foreach (array_reverse(module_implements('url_inbound_alter')) as $module) {
+    $function = $module . '_url_inbound_alter';
+    $function($path, $original_path, $path_language);
   }
-  return $result;
+
+  return $path;
 }
 
 /**
@@ -347,7 +354,7 @@ function drupal_match_path($path, $patterns) {
  * This function is not available in hook_boot() so use $_GET['q'] instead.
  * However, be careful when doing that because in the case of Example #3
  * $_GET['q'] will contain "path/alias". If "node/306" is needed, calling
- * drupal_bootstrap(DRUPAL_BOOTSTRAP_PATH) makes this function available.
+ * drupal_bootstrap(DRUPAL_BOOTSTRAP_FULL) makes this function available.
  *
  * @return
  *   The current Drupal URL path.
@@ -367,10 +374,94 @@ function drupal_path_alias_whitelist_rebuild() {
   // path it corresponds to. This is the portion of the path before the first /
   // if present, otherwise the whole path itself.
   $whitelist = array();
-  $result = db_query("SELECT SUBSTRING_INDEX(src, '/', 1) AS path FROM {url_alias} GROUP BY path");
+  $result = db_query("SELECT SUBSTRING_INDEX(source, '/', 1) AS path FROM {url_alias} GROUP BY path");
   foreach ($result as $row) {
     $whitelist[$row->path] = TRUE;
   }
   variable_set('path_alias_whitelist', $whitelist);
   return $whitelist;
 }
+
+/**
+ * Fetch a specific URL alias from the database.
+ *
+ * @param $conditions
+ *   A string representing the source, a number representing the pid, or an
+ *   array of query conditions.
+ *
+ * @return
+ *   FALSE if no alias was found or an associative array containing the
+ *   following keys:
+ *   - source: The internal system path.
+ *   - alias: The URL alias.
+ *   - pid: Unique path alias identifier.
+ *   - language: The language of the alias.
+ */
+function path_load($conditions) {
+  if (is_numeric($conditions)) {
+    $conditions = array('pid' => $conditions);
+  }
+  elseif (is_string($conditions)) {
+    $conditions = array('source' => $conditions);
+  }
+  elseif (!is_array($conditions)) {
+    return FALSE;
+  }
+  $select = db_select('url_alias');
+  foreach ($conditions as $field => $value) {
+    $select->condition($field, $value);
+  }
+  return $select
+    ->fields('url_alias')
+    ->execute()
+    ->fetchAssoc();
+}
+
+/**
+ * Save a path alias to the database.
+ *
+ * @param $path
+ *   An associative array containing the following keys:
+ *   - source: The internal system path.
+ *   - alias: The URL alias.
+ *   - pid: (optional) Unique path alias identifier.
+ *   - language: (optional) The language of the alias.
+ */
+function path_save(&$path) {
+  $path += array('pid' => NULL, 'language' => '');
+
+  // Insert or update the alias.
+  $status = drupal_write_record('url_alias', $path, (!empty($path['pid']) ? 'pid' : NULL));
+
+  // Verify that a record was written.
+  if (isset($status) && $status) {
+    if ($status === SAVED_NEW) {
+      module_invoke_all('path_insert', $path);
+    }
+    else {
+      module_invoke_all('path_update', $path);
+    }
+    drupal_clear_path_cache();
+  }
+}
+
+/**
+ * Delete a URL alias.
+ *
+ * @param $criteria
+ *   A number representing the pid or an array of criteria.
+ */
+function path_delete($criteria) {
+  if (!is_array($criteria)) {
+    $criteria = array('pid' => $criteria);
+  }
+  $path = path_load($criteria);
+  $query = db_delete('url_alias');
+  foreach ($criteria as $field => $value) {
+    $query->condition($field, $value);
+  }
+  $query->execute();
+  module_invoke_all('path_delete', $path);
+  drupal_clear_path_cache();
+}
+

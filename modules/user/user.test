@@ -525,7 +525,7 @@ class UserCancelTestCase extends DrupalWebTestCase {
 
     // Create comment.
     module_load_include('test', 'comment');
-    $comment = CommentHelperCase::postComment($node, '', $this->randomName(32), FALSE, TRUE);
+    $comment = CommentHelperCase::postComment($node, $this->randomName(32), '', TRUE);
     $this->assertTrue(comment_load($comment->id), t('Comment found.'));
 
     // Create a node with two revisions, the initial one belonging to the
@@ -701,7 +701,7 @@ class UserPictureTestCase extends DrupalWebTestCase {
         // user's profile page.
         $text = t('The image was resized to fit within the maximum allowed dimensions of %dimensions pixels.', array('%dimensions' => $test_dim));
         $this->assertRaw($text, t('Image was resized.'));
-        $alt = t("@user's picture", array('@user' => $this->user->name));
+        $alt = t("@user's picture", array('@user' => format_username($this->user)));
         $style = variable_get('user_picture_style', '');
         $this->assertRaw(image_style_url($style, $pic_path), t("Image is displayed in user's edit page"));
 
@@ -928,6 +928,31 @@ class UserPermissionsTestCase extends DrupalWebTestCase {
     $this->drupalPost('admin/config/modules', $edit, t('Save configuration'));
     $this->assertTrue(user_access('administer news feeds', $this->admin_user), t('The permission was automatically assigned to the administrator role'));
   }
+
+  /**
+   * Verify proper permission changes by user_role_change_permissions().
+   */
+  function testUserRoleChangePermissions() {
+    $rid = $this->rid;
+    $account = $this->admin_user;
+
+    // Verify current permissions.
+    $this->assertFalse(user_access('administer nodes', $account), t('User does not have "administer nodes" permission.'));
+    $this->assertTrue(user_access('access user profiles', $account), t('User has "access user profiles" permission.'));
+    $this->assertTrue(user_access('administer site configuration', $account), t('User has "administer site configuration" permission.'));
+
+    // Change permissions.
+    $permissions = array(
+      'administer nodes' => 1,
+      'access user profiles' => 0,
+    );
+    user_role_change_permissions($rid, $permissions);
+
+    // Verify proper permission changes.
+    $this->assertTrue(user_access('administer nodes', $account), t('User now has "administer nodes" permission.'));
+    $this->assertFalse(user_access('access user profiles', $account), t('User no longer has "access user profiles" permission.'));
+    $this->assertTrue(user_access('administer site configuration', $account), t('User still has "administer site configuration" permission.'));
+  }
 }
 
 class UserAdminTestCase extends DrupalWebTestCase {
@@ -1144,7 +1169,7 @@ class UserBlocksUnitTests extends DrupalWebTestCase {
     // Test block output.
     $block = user_block_view('online');
     $this->drupalSetContent($block['content']);
-    $this->assertRaw(t('%members and %visitors', array('%members' => '2 users', '%visitors' => '2 guests')), t('Correct number of online users (2 users and 2 guests).'));
+    $this->assertRaw(t('2 users'), t('Correct number of online users (2 users).'));
     $this->assertText($user1->name, t('Active user 1 found in online list.'));
     $this->assertText($user2->name, t('Active user 2 found in online list.'));
     $this->assertNoText($user3->name, t("Inactive user not found in online list."));
@@ -1199,7 +1224,7 @@ class UserSaveTestCase extends DrupalWebTestCase {
       'pass' => user_password(),
       'status' => 1,
     );
-    $user_by_return = user_save('', $user);
+    $user_by_return = user_save(drupal_anonymous_user(), $user);
     $this->assertTrue($user_by_return, t('Loading user by return of user_save().'));
 
     // Test if created user exists.

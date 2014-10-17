@@ -54,12 +54,36 @@ function field_default_insert($obj_type, $object, $field, $instance, $langcode, 
 }
 
 /**
+ * Invoke hook_field_formatter_prepare_view() on the relavant formatters.
+ */
+function field_default_prepare_view($obj_type, $objects, $field, $instances, $langcode, &$items, $options, $build_mode) {
+  // Group objects, instances and items by formatter module.
+  $modules = array();
+  foreach ($instances as $id => $instance) {
+    $module = $instance['display'][$build_mode]['module'];
+    $modules[$module] = $module;
+    $grouped_objects[$module][$id] = $objects[$id];
+    $grouped_instances[$module][$id] = $instance;
+    // hook_field_formatter_prepare_view() alters $items by reference.
+    $grouped_items[$module][$id] = &$items[$id];
+  }
+
+  foreach ($modules as $module) {
+    // Invoke hook_field_formatter_prepare_view().
+    $function = $module . '_field_formatter_prepare_view';
+    if (function_exists($function)) {
+      $function($obj_type, $grouped_objects[$module], $field, $grouped_instances[$module], $langcode, $grouped_items[$module], $build_mode);
+    }
+  }
+}
+
+/**
  * Default field 'view' operation.
  *
  * @see field_attach_view()
  */
 function field_default_view($obj_type, $object, $field, $instance, $langcode, $items, $build_mode) {
-  list($id, $vid, $bundle) = field_extract_ids($obj_type, $object);
+  list($id, $vid, $bundle) = entity_extract_ids($obj_type, $object);
 
   $addition = array();
   $display = $instance['display'][$build_mode];
@@ -75,16 +99,16 @@ function field_default_view($obj_type, $object, $field, $instance, $langcode, $i
 
     $info = array(
       '#field_name' => $field['field_name'],
+      '#object_type' => $obj_type,
       '#bundle' => $bundle,
       '#object' => $object,
-      '#object_type' => $obj_type,
     );
 
     $element = $info + array(
       '#theme' => 'field',
       '#weight' => $display['weight'],
       '#title' => check_plain(t($instance['label'])),
-      '#access' => field_access('view', $field),
+      '#access' => field_access('view', $field, $obj_type, $object),
       '#label_display' => $label_display,
       '#build_mode' => $build_mode,
       '#language' => $langcode,

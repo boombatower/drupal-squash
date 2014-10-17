@@ -97,8 +97,8 @@ function node_token_info() {
 function node_tokens($type, $tokens, array $data = array(), array $options = array()) {
   $url_options = array('absolute' => TRUE);
   if (isset($options['language'])) {
-    $url_options['language'] = $language;
-    $language_code = $language->language;
+    $url_options['language'] = $options['language'];
+    $language_code = $options['language']->language;
   }
   else {
     $language_code = NULL;
@@ -134,18 +134,18 @@ function node_tokens($type, $tokens, array $data = array(), array $options = arr
           break;
 
         case 'title':
-          $replacements[$original] = $sanitize ? check_plain($node->title) : $node->title;
+          $replacements[$original] = $sanitize ? check_plain($node->title[FIELD_LANGUAGE_NONE][0]['value']) : $node->title[FIELD_LANGUAGE_NONE][0]['value'];
           break;
 
         case 'body':
           if (!empty($node->body)) {
-            $replacements[$original] = $sanitize ? $node->body[0]['safe'] : $node->body[0]['value'];
+            $replacements[$original] = $sanitize ? $node->body[FIELD_LANGUAGE_NONE][0]['safe'] : $node->body[FIELD_LANGUAGE_NONE][0]['value'];
           }
           break;
 
         case 'summary':
           if (!empty($node->body)) {
-            $replacements[$original] = $sanitize ? $node->body[0]['safe_summary'] : $node->body[0]['summary'];
+            $replacements[$original] = $sanitize ? $node->body[FIELD_LANGUAGE_NONE][0]['safe_summary'] : $node->body[FIELD_LANGUAGE_NONE][0]['summary'];
           }
           break;
 
@@ -154,7 +154,7 @@ function node_tokens($type, $tokens, array $data = array(), array $options = arr
           break;
 
         case 'type-name':
-          $type_name = node_get_types('name', $node->type);
+          $type_name = node_type_get_name($node);
           $replacements[$original] = $sanitize ? check_plain($type_name) : $type_name;
           break;
 
