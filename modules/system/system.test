@@ -1,0 +1,383 @@
+<?php
+// $Id$
+
+class EnableDisableCoreTestCase extends DrupalWebTestCase {
+  protected $admin_user;
+
+  /**
+   * Implementation of getInfo().
+   */
+  function getInfo() {
+    return array(
+      'name' => t('Module list functionality'),
+      'description' => t('Enable/disable core module and confirm table creation/deletion. Enable module without dependency enabled.'),
+      'group' => t('System')
+    );
+  }
+
+  /**
+   * Implementation of setUp().
+   */
+  function setUp() {
+    parent::setUp();
+
+    $this->admin_user = $this->drupalCreateUser(array('access administration pages', 'administer site configuration'));
+    $this->drupalLogin($this->admin_user);
+  }
+
+  /**
+   * Enable a module, check the database for related tables, disable module,
+   * check for related tables, unistall module, check for related tables.
+   */
+  function testEnableDisable() {
+    // Enable aggregator, and check tables.
+    $this->assertModules(array('aggregator'), FALSE);
+    $this->assertTableCount('aggregator', FALSE);
+
+    $edit = array();
+    $edit['modules[Core - optional][aggregator][enable]'] = 'aggregator';
+    $this->drupalPost('admin/build/modules', $edit, t('Save configuration'));
+    $this->assertText(t('The configuration options have been saved.'), t('Modules status has been updated.'));
+
+    $this->assertModules(array('aggregator'), TRUE);
+    $this->assertTableCount('aggregator', TRUE);
+
+    // Disable aggregator, check tables, uninstall aggregator, check tables.
+    $edit = array();
+    $edit['modules[Core - optional][aggregator][enable]'] = FALSE;
+    $this->drupalPost('admin/build/modules', $edit, t('Save configuration'));
+    $this->assertText(t('The configuration options have been saved.'), t('Modules status has been updated.'));
+
+    $this->assertModules(array('aggregator'), FALSE);
+    $this->assertTableCount('aggregator', TRUE);
+
+    $edit = array();
+    $edit['uninstall[aggregator]'] = 'aggregator';
+    $this->drupalPost('admin/build/modules/uninstall', $edit, t('Uninstall'));
+
+    $this->drupalPost(NULL, NULL, t('Uninstall'));
+    $this->assertText(t('The selected modules have been uninstalled.'), t('Modules status has been updated.'));
+
+    $this->assertModules(array('aggregator'), FALSE);
+    $this->assertTableCount('aggregator', FALSE);
+  }
+
+  /**
+   * Attempt to enable translation module without locale enabled.
+   */
+  function testEnableWithoutDependency () {
+    // Attempt to enable content translation without locale enabled.
+    $edit = array();
+    $edit['modules[Core - optional][translation][enable]'] = 'translation';
+    $this->drupalPost('admin/build/modules', $edit, t('Save configuration'));
+    $this->assertText(t('Some required modules must be enabled'), t('Dependecy required.'));
+
+    $this->assertModules(array('translation', 'locale'), FALSE);
+
+    // Assert that the locale tables weren't enabled.
+    $this->assertTableCount('languages', FALSE);
+    $this->assertTableCount('locale', FALSE);
+
+    $this->drupalPost(NULL, NULL, t('Continue'));
+    $this->assertText(t('The configuration options have been saved.'), t('Modules status has been updated.'));
+
+    $this->assertModules(array('translation', 'locale'), TRUE);
+
+    // Assert that the locale tables were enabled.
+    $this->assertTableCount('languages', TRUE);
+    $this->assertTableCount('locale', TRUE);
+  }
+
+  /**
+   * Assert tables that begin with the specified base table name.
+   *
+   * @param string $base_table Begginning of table name to look for.
+   * @param boolean $count Assert tables that match specified base table.
+   * @return boolean Tables with specified base table.
+   */
+  function assertTableCount($base_table, $count) {
+    $match_count = simpletest_get_like_tables($base_table, TRUE);
+
+    if ($count) {
+      return $this->assertTrue($match_count, t('Tables matching "@base_table" found.', array('@base_table' => $base_table)));
+    }
+    return $this->assertFalse($match_count, t('Tables matching "@base_table" not found.', array('@base_table' => $base_table)));
+  }
+
+  /**
+   * Assert the list of modules are enabled or disabled.
+   *
+   * @param array $modules Modules to check.
+   * @param boolean $enabled Module state.
+   */
+  function assertModules(Array $modules, $enabled) {
+    module_list(TRUE, FALSE);
+    foreach ($modules as $module) {
+      if ($enabled) {
+        $message = 'Module "@module" is enabled.';
+      }
+      else {
+        $message = 'Module "@module" is not enabled.';
+      }
+      $this->assertEqual(module_exists($module), $enabled, t($message, array('@module' => $module)));
+    }
+  }
+}
+
+class IPAddressBlockingTestCase extends DrupalWebTestCase {
+  protected $blocking_user;
+
+  /**
+   * Implementation of getInfo().
+   */
+  function getInfo() {
+    return array(
+      'name' => t('IP address blocking'),
+      'description' => t('Test IP address blocking.'),
+      'group' => t('System')
+    );
+  }
+
+  /**
+   * Implementation of setUp().
+   */
+  function setUp() {
+    parent::setUp();
+
+    // Create user.
+    $this->blocking_user = $this->drupalCreateUser(array('block IP addresses'));
+    $this->drupalLogin($this->blocking_user);
+  }
+
+  /**
+   * Test a variety of user input to confirm correct validation and saving of data.
+   */
+  function testIPAddressValidation() {
+    $this->drupalGet('admin/settings/ip-blocking');
+
+    // Block a valid IP address.
+    $edit = array();
+    $edit['ip'] = '192.168.1.1';
+    $this->drupalPost('admin/settings/ip-blocking', $edit, t('Save'));
+    $ip = db_result(db_query("SELECT iid from {blocked_ips} WHERE ip = '%s'", $edit['ip']));
+    $this->assertNotNull($ip, t('IP address found in database'));
+    $this->assertRaw(t('The IP address %ip has been blocked.', array('%ip' => $edit['ip'])), t('IP address was blocked.'));
+
+    // Try to block an IP address that's already blocked.
+    $edit = array();
+    $edit['ip'] = '192.168.1.1';
+    $this->drupalPost('admin/settings/ip-blocking', $edit, t('Save'));
+    $this->assertText(t('This IP address is already blocked.'));
+
+    // Try to block a reserved IP address.
+    $edit = array();
+    $edit['ip'] = '255.255.255.255';
+    $this->drupalPost('admin/settings/ip-blocking', $edit, t('Save'));
+    $this->assertText(t('Please enter a valid IP address.'));
+
+    // Try to block a reserved IP address.
+    $edit = array();
+    $edit['ip'] = 'test.example.com';
+    $this->drupalPost('admin/settings/ip-blocking', $edit, t('Save'));
+    $this->assertText(t('Please enter a valid IP address.'));
+
+    // Submit an empty form.
+    $edit = array();
+    $edit['ip'] = '';
+    $this->drupalPost('admin/settings/ip-blocking', $edit, t('Save'));
+    $this->assertText(t('Please enter a valid IP address.'));
+
+    // Submit your own IP address. This fails, although it works when testing manually.
+     // TODO: on some systems this test fails due to a bug or inconsistency in cURL.
+     // $edit = array();
+     // $edit['ip'] = ip_address();
+     // $this->drupalPost('admin/settings/ip-blocking', $edit, t('Save'));
+     // $this->assertText(t('You may not block your own IP address.'));
+  }
+}
+
+class CronRunTestCase extends DrupalWebTestCase {
+  /**
+   * Implementation of getInfo().
+   */
+  function getInfo() {
+    return array(
+      'name' => t('Cron run'),
+      'description' => t('Test cron run.'),
+      'group' => t('System')
+    );
+  }
+
+  /**
+   * Test cron runs.
+   */
+  function testCronRun() {
+    // Run cron anonymously without any cron key.
+    $this->drupalGet('cron.php');
+    $this->assertResponse(403);
+
+    // Run cron anonymously with a random cron key.
+    $key = $this->randomName(16);
+    $this->drupalGet('cron.php', array('query' => 'cron_key=' . $key));
+    $this->assertResponse(403);
+
+    // Run cron anonymously with the valid cron key.
+    $key = variable_get('cron_key', 'drupal');
+    $this->drupalGet('cron.php', array('query' => 'cron_key=' . $key));
+    $this->assertResponse(200);
+
+    // Execute cron directly.
+    $this->assertTrue(drupal_cron_run(), t('Cron ran successfully.'));
+  }
+}
+
+class AdminOverviewTestCase extends DrupalWebTestCase {
+  /**
+   * Implementation of getInfo().
+   */
+  function getInfo() {
+    return array(
+      'name' => t('Admin overview'),
+      'description' => t('Confirm that the admin overview page appears as expected.'),
+      'group' => t('System')
+    );
+  }
+
+  /**
+   * Test the overview page by task.
+   */
+  function testAdminOverview() {
+    $admin_user1 = $this->drupalCreateUser(array('access administration pages'));
+    $this->drupalLogin($admin_user1);
+
+    $this->drupalGet('admin');
+    $this->checkOverview();
+
+    $this->drupalGet('admin/by-module');
+    $this->checkOverview();
+
+    // Comments on permissions follow the format: [task], [module] that the permission relates to.
+    $permissions = array();
+    $permissions[] = 'access administration pages';
+    $permissions[] = 'administer comments'; // Content management, Comment.
+    $permissions[] = 'administer blocks'; // Site building, Block.
+    $permissions[] = 'administer filters'; // Site configuration, Filter.
+    $permissions[] = 'administer users'; // User management, User.
+    $permissions[] = 'access site reports'; // Reports, Database logging.
+    $admin_user2 = $this->drupalCreateUser($permissions);
+    $this->drupalLogin($admin_user2);
+
+    $this->drupalGet('admin');
+    $this->checkOverview(array(t('Content management'), t('User management'), t('Reports'), t('Site building'), t('Site configuration')));
+
+    $this->drupalGet('admin/by-module');
+    $this->checkOverview(array(t('Comment'), t('Block'), t('Filter'), t('User'), t('Database logging')));
+  }
+
+  /**
+   * Check the overview page panels.
+   *
+   * @param array $panels List of panels to be found.
+   */
+  function checkOverview(array $panels = array()) {
+    if ($this->parse()) {
+      $found = 0;
+      $extra = 0;
+      $divs = $this->xpath("//div[@class='admin-panel']");
+      foreach ($divs as $panel) {
+        if (in_array(trim($panel->h3), $panels)) {
+          $found++;
+        }
+        else {
+          $extra++;
+        }
+      }
+      $this->assertTrue(count($panels) == $found, t('Required panels found.'));
+      $this->assertFalse($extra, t('No extra panels found.'));
+    }
+  }
+}
+
+class AdminMetaTagTestCase extends DrupalWebTestCase {
+  /**
+   * Implementation of getInfo().
+   */
+  function getInfo() {
+    return array(
+      'name' => t('Fingerprinting meta tag'),
+      'description' => t('Confirm that the fingerprinting meta tag appears as expected.'),
+      'group' => t('System')
+    );
+  }
+
+  /**
+   * Verify that the meta tag HTML is generated correctly.
+   */
+  public function testMetaTag() {
+    list($version,) = explode('.', VERSION);
+    $string = '<meta name="Generator" content="Drupal ' . $version. ' (http://drupal.org)" />';
+    $this->drupalGet('node');
+    $this->assertRaw($string, t('Fingerprinting meta tag generated correctly.'), t('System'));
+  }
+}
+
+class PageNotFoundTestCase extends DrupalWebTestCase {
+  protected $admin_user;
+
+  /**
+   * Implementation of getInfo().
+   */
+  function getInfo() {
+    return array(
+      'name' => t('404 functionality'),
+      'description' => t("Tests page not found functionality, including custom 404 pages."),
+      'group' => t('System')
+    );
+  }
+
+  /**
+   * Implementation of setUp().
+   */
+  function setUp() {
+    parent::setUp();
+
+    // Create an administrative user.
+    $this->admin_user = $this->drupalCreateUser(array('administer site configuration'));
+    $this->drupalLogin($this->admin_user);
+  }
+
+  function testPageNotFound() {
+    $this->drupalGet($this->randomName(10));
+    $this->assertText(t('Page not found'), t('Found the default 404 page'));
+
+    $edit = array(
+      'title' => $this->randomName(10),
+      'body' => $this->randomName(100)
+    );
+    $node = $this->drupalCreateNode($edit);
+
+    // Use a custom 404 page.
+    $this->drupalPost('admin/settings/error-reporting', array('site_404' => 'node/' . $node->nid), t('Save configuration'));
+
+    $this->drupalGet($this->randomName(10));
+    $this->assertText($node->title, t('Found the custom 404 page'));
+
+    // Logout and check that the user login block is not shown on custom 404 pages.
+    $this->drupalLogout();
+
+    $this->drupalGet($this->randomName(10));
+    $this->assertText($node->title, t('Found the custom 404 page'));
+    $this->assertNoText(t('User login'), t('Blocks are not shown on the custom 404 page'));
+
+    // Log back in and remove the custom 404 page.
+    $this->drupalLogin($this->admin_user);
+    $this->drupalPost('admin/settings/error-reporting', array(), t('Reset to defaults'));
+
+    // Logout and check that the user login block is not shown on default 404 pages.
+    $this->drupalLogout();
+
+    $this->drupalGet($this->randomName(10));
+    $this->assertText(t('Page not found'), t('Found the default 404 page'));
+    $this->assertNoText(t('User login'), t('Blocks are not shown on the default 404 page'));
+  }
+}

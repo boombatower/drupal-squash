@@ -1,0 +1,8 @@
+; $Id$
+name = Menu
+description = Allows administrators to customize the site navigation menu.
+package = Core - optional
+version = VERSION
+core = 7.x
+files[] = menu.module
+files[] = menu.admin.inc

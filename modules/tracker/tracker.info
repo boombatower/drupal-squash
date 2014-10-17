@@ -1,0 +1,9 @@
+; $Id$
+name = Tracker
+description = Enables tracking of recent posts for users.
+dependencies[] = comment
+package = Core - optional
+version = VERSION
+core = 7.x
+files[] = tracker.module
+files[] = tracker.pages.inc

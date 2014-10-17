@@ -1,0 +1,9 @@
+; $Id$
+
+name = Blog
+description = Enables multi-user blogs.
+package = Core - optional
+version = VERSION
+core = 7.x
+files[] = blog.module
+files[] = blog.pages.inc
