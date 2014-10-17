@@ -1,0 +1,179 @@
+<?php
+
+/**
+ * @file
+ * Provides in-place content editing functionality for fields.
+ *
+ * The Edit module makes content editable in-place. Rather than having to visit
+ * a separate page to edit content, it may be edited in-place.
+ *
+ * Technically, this module adds classes and data- attributes to fields and
+ * entities, enabling them for in-place editing.
+ */
+
+use Drupal\Core\Entity\EntityInterface;
+use Drupal\edit\Form\EditFieldForm;
+use Drupal\Component\Utility\NestedArray;
+
+/**
+ * Implements hook_custom_theme().
+ *
+ * @todo Add an event subscriber to the Ajax system to automatically set the
+ *   base page theme for all Ajax requests, and then remove this one off.
+ */
+function edit_custom_theme() {
+  if (substr(current_path(), 0, 5) === 'edit/') {
+    return ajax_base_page_theme();
+  }
+}
+
+/**
+ * Implements hook_permission().
+ */
+function edit_permission() {
+  return array(
+    'access in-place editing' => array(
+      'title' => t('Access in-place editing'),
+    ),
+  );
+}
+
+/**
+ * Implements hook_page_build().
+ *
+ * Adds the edit library to the page for any user who has the 'access in-place
+ * editing' permission.
+ */
+function edit_page_build(&$page) {
+  if (!user_access('access in-place editing')) {
+    return;
+  }
+
+  $page['#attached']['js'][] = array(
+    'type' => 'setting',
+    'data' => array('edit' => array(
+      'metadataURL' => url('edit/metadata'),
+      'fieldFormURL' => url('edit/form/!entity_type/!id/!field_name/!langcode/!view_mode'),
+      'context' => 'body',
+    )),
+  );
+  $page['#attached']['library'][] = array('edit', 'edit');
+}
+
+/**
+ * Implements hook_library_info().
+ */
+function edit_library_info() {
+  $path = drupal_get_path('module', 'edit');
+  $options = array(
+    'scope' => 'footer',
+  );
+  $libraries['edit'] = array(
+    'title' => 'Edit: in-place editing',
+    'version' => VERSION,
+    'js' => array(
+      // Core.
+      $path . '/js/edit.js' => $options,
+      // Models.
+      $path . '/js/models/AppModel.js' => $options,
+      $path . '/js/models/EntityModel.js' => $options,
+      $path . '/js/models/FieldModel.js' => $options,
+      $path . '/js/models/EditorModel.js' => $options,
+      // Views.
+      $path . '/js/views/AppView.js' => $options,
+      $path . '/js/views/EditorDecorationView.js' => $options,
+      $path . '/js/views/ContextualLinkView.js' => $options,
+      $path . '/js/views/ModalView.js' => $options,
+      $path . '/js/views/FieldToolbarView.js' => $options,
+      $path . '/js/views/EditorView.js' => $options,
+      // Other.
+      $path . '/js/util.js' => $options,
+      $path . '/js/theme.js' => $options,
+    ),
+    'css' => array(
+      $path . '/css/edit.css' => array(),
+    ),
+    'dependencies' => array(
+      array('system', 'jquery'),
+      array('system', 'underscore'),
+      array('system', 'backbone'),
+      array('system', 'jquery.form'),
+      array('system', 'drupal.form'),
+      array('system', 'drupal.ajax'),
+      array('system', 'drupalSettings'),
+    ),
+  );
+  $libraries['edit.editorWidget.form'] = array(
+    'title' => 'Form in-place editor',
+    'version' => VERSION,
+    'js' => array(
+      $path . '/js/editors/formEditor.js' => $options,
+    ),
+    'dependencies' => array(
+      array('edit', 'edit'),
+    ),
+  );
+  $libraries['edit.editorWidget.direct'] = array(
+    'title' => 'Direct in-place editor',
+    'version' => VERSION,
+    'js' => array(
+      $path . '/js/editors/directEditor.js' => $options,
+    ),
+    'dependencies' => array(
+      array('edit', 'edit'),
+    ),
+  );
+
+  return $libraries;
+}
+
+/**
+ * Implements hook_preprocess_HOOK() for field.tpl.php.
+ */
+function edit_preprocess_field(&$variables) {
+  $element = $variables['element'];
+  $entity = $element['#object'];
+  $variables['attributes']['data-edit-id'] = $entity->entityType() . '/' . $entity->id() . '/' . $element['#field_name'] . '/' . $element['#language'] . '/' . $element['#view_mode'];
+}
+
+/**
+ * Implements hook_preprocess_HOOK() for node.tpl.php.
+ *
+ * @todo Remove this, handle in generic way: http://drupal.org/node/1972514.
+ */
+function edit_preprocess_node(&$variables) {
+  $node = $variables['elements']['#node'];
+  $variables['attributes']['data-edit-entity'] = 'node/' . $node->nid;
+}
+
+/**
+ * Implements hook_preprocess_HOOK() for taxonomy-term.tpl.php.
+ *
+ * @todo Remove this, handle in generic way: http://drupal.org/node/1972514.
+ */
+function edit_preprocess_taxonomy_term(&$variables) {
+  $term = $variables['elements']['#term'];
+  $variables['attributes']['data-edit-entity'] = 'taxonomy_term/' . $term->id();
+}
+
+/**
+ * Implements hook_preprocess_HOOK() for block.tpl.php.
+ *
+ * @todo Remove this, handle in generic way: http://drupal.org/node/1972514.
+ */
+function edit_preprocess_block(&$variables) {
+  if (isset($variables['elements']['content']['#custom_block'])) {
+    $custom_block = $variables['elements']['content']['#custom_block'];
+    $variables['attributes']['data-edit-entity'] = 'custom_block/' . $custom_block->id();
+  }
+}
+
+/**
+ * Form constructor for the field editing form.
+ *
+ * @ingroup forms
+ */
+function edit_field_form(array $form, array &$form_state, EntityInterface $entity, $field_name) {
+  $form_handler = new EditFieldForm();
+  return $form_handler->build($form, $form_state, $entity, $field_name);
+}

@@ -1,0 +1,89 @@
+system.cron:
+  pattern: '/cron/{key}'
+  defaults:
+    _controller: '\Drupal\system\CronController::run'
+  requirements:
+    _access_system_cron: 'TRUE'
+system.machine_name_transliterate:
+  pattern: '/machine_name/transliterate'
+  defaults:
+    _controller: '\Drupal\system\MachineNameController::transliterate'
+  requirements:
+    _permission: 'access content'
+
+system_site_information_settings:
+  pattern: '/admin/config/system/site-information'
+  defaults:
+    _form: 'Drupal\system\Form\SiteInformationForm'
+  requirements:
+    _permission: 'administer site configuration'
+
+system_cron_settings:
+  pattern: '/admin/config/system/cron'
+  defaults:
+    _form: 'Drupal\system\Form\CronForm'
+  requirements:
+    _permission: 'administer site configuration'
+
+system_logging_settings:
+  pattern: '/admin/config/development/logging'
+  defaults:
+    _form: 'Drupal\system\Form\LoggingForm'
+  requirements:
+    _permission: 'administer site configuration'
+
+system_performance_settings:
+  pattern: '/admin/config/development/performance'
+  defaults:
+    _form: 'Drupal\system\Form\PerformanceForm'
+  requirements:
+    _permission: 'administer site configuration'
+
+system_file_system_settings:
+  pattern: '/admin/config/media/file-system'
+  defaults:
+    _form: 'Drupal\system\Form\FileSystemForm'
+  requirements:
+    _permission: 'administer site configuration'
+
+system_rss_feeds_settings:
+  pattern: '/admin/config/services/rss-publishing'
+  defaults:
+    _form: 'Drupal\system\Form\RssFeedsForm'
+  requirements:
+    _permission: 'administer site configuration'
+
+system_regional_settings:
+  pattern: '/admin/config/regional/settings'
+  defaults:
+    _form: 'Drupal\system\Form\RegionalForm'
+  requirements:
+    _permission: 'administer site configuration'
+
+system_image_toolkit_settings:
+  pattern: '/admin/config/media/image-toolkit'
+  defaults:
+    _form: 'Drupal\system\Form\ImageToolkitForm'
+  requirements:
+    _permission: 'administer administration pages'
+
+system_site_maintenance_mode:
+  pattern: '/admin/config/development/maintenance'
+  defaults:
+    _form: 'Drupal\system\Form\SiteMaintenanceModeForm'
+  requirements:
+    _permission: 'administer site configuration'
+
+date_format_delete:
+  pattern: 'admin/config/regional/date-time/formats/{format_id}/delete'
+  defaults:
+    _form: '\Drupal\system\Form\DateFormatDeleteForm'
+  requirements:
+    _permission: 'administer site configuration'
+
+date_format_localize_reset:
+  pattern: 'admin/config/regional/date-time/locale/{langcode}/reset'
+  defaults:
+    _form: '\Drupal\system\Form\DateFormatLocalizeResetForm'
+  requirements:
+    _permission: 'administer site configuration'
