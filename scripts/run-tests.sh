@@ -70,10 +70,8 @@ if ($args['list']) {
 
 $test_list = simpletest_script_get_test_list();
 
-// If not in 'safe mode', increase the maximum execution time.
-if (!ini_get('safe_mode')) {
-  set_time_limit(0);
-}
+// Try to allocate unlimited time to run the tests.
+drupal_set_time_limit(0);
 
 simpletest_script_reporter_init();
 
@@ -82,6 +80,12 @@ $test_id = db_insert('simpletest_test_id')->useDefaults(array('test_id'))->execu
 
 // Execute tests.
 simpletest_script_command($args['concurrency'], $test_id, implode(",", $test_list));
+
+// Retrieve the last database prefix used for testing and the last test class
+// that was run from. Use the information to read the lgo file in case any
+// fatal errors caused the test to crash.
+list($last_prefix, $last_test_class) = simpletest_last_test_get($test_id);
+simpletest_log_read($test_id, $last_prefix, $last_test_class);
 
 // Display results before database is cleared.
 simpletest_script_reporter_display_results();
@@ -137,7 +141,8 @@ All arguments are long options.
   <test1>[,<test2>[,<test3> ...]]
 
               One or more tests to be run. By default, these are interpreted
-              as the names of test groups as shown at ?q=admin/development/testing.
+              as the names of test groups as shown at 
+              ?q=admin/config/development/testing.
               These group names typically correspond to module names like "User"
               or "Profile" or "System", but there is also a group "XML-RPC".
               If --class is specified then these are interpreted as the names of
@@ -396,7 +401,7 @@ function simpletest_script_get_test_list() {
     elseif ($args['file']) {
       $files = array();
       foreach ($args['test_names'] as $file) {
-        $files[realpath($file)] = 1;
+        $files[drupal_realpath($file)] = 1;
       }
 
       // Check for valid class names.
@@ -465,8 +470,6 @@ function simpletest_script_reporter_init() {
  */
 function simpletest_script_reporter_display_results() {
   global $args, $test_id, $results_map;
-
-  simpletest_log_read($test_id);
 
   echo "\n";
   $end = timer_stop('run-tests');

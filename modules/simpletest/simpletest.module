@@ -13,7 +13,7 @@ function simpletest_help($path, $arg) {
   switch ($path) {
     case 'admin/help#simpletest':
       $output  = '<p>' . t('The SimpleTest module is a framework for running automated unit tests in Drupal. It can be used to verify a working state of Drupal before and after any code changes, or as a means for developers to write and execute tests for their modules.') . '</p>';
-      $output .= '<p>' . t('Visit <a href="@admin-simpletest">Administer >> Structure >> SimpleTest</a> to display a list of available tests. For comprehensive testing, select <em>all</em> tests, or individually select tests for more targeted testing. Note that it might take several minutes for all tests to complete.)', array('@admin-simpletest' => url('admin/development/testing'))) . '</p>';
+      $output .= '<p>' . t('Visit <a href="@admin-simpletest">Administer >> Structure >> SimpleTest</a> to display a list of available tests. For comprehensive testing, select <em>all</em> tests, or individually select tests for more targeted testing. Note that it might take several minutes for all tests to complete.)', array('@admin-simpletest' => url('admin/config/development/testing'))) . '</p>';
       $output .= '<p>' . t('After the tests have run, a message will be displayed next to each test group indicating whether tests within it passed, failed, or had exceptions. A pass means that a test returned the expected results, while fail means that it did not. An exception normally indicates an error outside of the test, such as a PHP warning or notice. If there were fails or exceptions, the results are expanded, and the tests that had issues will be indicated in red or pink rows. Use these results to refine your code and tests until all tests return a pass.') . '</p>';
       $output .= '<p>' . t('For more information on creating and modifying your own tests, see the <a href="@simpletest-api">SimpleTest API Documentation</a> in the Drupal handbook.', array('@simpletest-api' => 'http://drupal.org/simpletest')) . '</p>';
       $output .= '<p>' . t('For more information, see the online handbook entry for <a href="@simpletest">SimpleTest module</a>.', array('@simpletest' => 'http://drupal.org/handbook/modules/simpletest')) . '</p>';
@@ -25,31 +25,34 @@ function simpletest_help($path, $arg) {
  * Implement hook_menu().
  */
 function simpletest_menu() {
-  $items['admin/development/testing'] = array(
+  $items['admin/config/development/testing'] = array(
     'title' => 'Testing',
     'page callback' => 'drupal_get_form',
     'page arguments' => array('simpletest_test_form'),
     'description' => 'Run tests against Drupal core and your active modules. These tests help assure that your site code is working as designed.',
     'access arguments' => array('administer unit tests'),
+    'file' => 'simpletest.pages.inc',
   );
-  $items['admin/development/testing/list'] = array(
+  $items['admin/config/development/testing/list'] = array(
     'title' => 'List',
     'type' => MENU_DEFAULT_LOCAL_TASK,
   );
-  $items['admin/development/testing/settings'] = array(
+  $items['admin/config/development/testing/settings'] = array(
     'title' => 'Settings',
     'page callback' => 'drupal_get_form',
     'page arguments' => array('simpletest_settings_form'),
     'access arguments' => array('administer unit tests'),
     'type' => MENU_LOCAL_TASK,
+    'file' => 'simpletest.pages.inc',
   );
-  $items['admin/development/testing/results/%'] = array(
+  $items['admin/config/development/testing/results/%'] = array(
     'title' => 'Test result',
     'page callback' => 'drupal_get_form',
-    'page arguments' => array('simpletest_result_form', 4),
+    'page arguments' => array('simpletest_result_form', 5),
     'description' => 'View result of tests.',
     'access arguments' => array('administer unit tests'),
     'type' => MENU_CALLBACK,
+    'file' => 'simpletest.pages.inc',
   );
   return $items;
 }
@@ -83,6 +86,19 @@ function simpletest_theme() {
 }
 
 /**
+ * Implementation of hook_stream_wrappers().
+ */
+function simpletest_test_stream_wrappers() {
+  return array(
+    'simpletest' => array(
+      'name' => t('Simpletest files'),
+      'class' => 'DrupalSimpleTestStreamWrapper',
+      'description' => t('Stream Wrapper for Simpletest files.'),
+    ),
+  );
+}
+
+/**
  * Implement hook_js_alter().
  */
 function simpletest_js_alter(&$javascript) {
@@ -95,11 +111,16 @@ function simpletest_js_alter(&$javascript) {
 }
 
 function _simpletest_format_summary_line($summary) {
-  return t('@pass, @fail, and @exception', array(
+  $args = array(
     '@pass' => format_plural(isset($summary['#pass']) ? $summary['#pass'] : 0, '1 pass', '@count passes'),
     '@fail' => format_plural(isset($summary['#fail']) ? $summary['#fail'] : 0, '1 fail', '@count fails'),
     '@exception' => format_plural(isset($summary['#exception']) ? $summary['#exception'] : 0, '1 exception', '@count exceptions'),
-  ));
+  );
+  if (!$summary['#debug']) {
+    return t('@pass, @fail, and @exception', $args);
+  }
+  $args['@debug'] = format_plural(isset($summary['#debug']) ? $summary['#debug'] : 0, '1 debug message', '@count debug messages');
+  return t('@pass, @fail, @exception, and @debug', $args);
 }
 
 /**
@@ -116,6 +137,9 @@ function simpletest_run_tests($test_list, $reporter = 'drupal') {
   $test_id = db_insert('simpletest_test_id')
     ->useDefaults(array('test_id'))
     ->execute();
+
+  // Clear out the previous verbose files.
+  file_unmanaged_delete_recursive(file_directory_path() . '/simpletest/verbose');
 
   // Get the info for the first test being run.
   $first_test = array_shift($test_list);
@@ -143,7 +167,7 @@ function simpletest_run_tests($test_list, $reporter = 'drupal') {
   // By calling batch_process() directly, we skip that behavior and ensure
   // that we don't exceed the size of data that can be sent to the database
   // (max_allowed_packet on MySQL).
-  batch_process('admin/development/testing/results/' . $test_id);
+  batch_process('admin/config/development/testing/results/' . $test_id);
 }
 
 /**
@@ -155,7 +179,7 @@ function _simpletest_batch_operation($test_list_init, $test_id, &$context) {
     // First iteration: initialize working values.
     $test_list = $test_list_init;
     $context['sandbox']['max'] = count($test_list);
-    $test_results = array('#pass' => 0, '#fail' => 0, '#exception' => 0);
+    $test_results = array('#pass' => 0, '#fail' => 0, '#exception' => 0, '#debug' => 0);
   }
   else {
     // Nth iteration: get the current values where we last stored them.
@@ -203,12 +227,34 @@ function _simpletest_batch_finished($success, $results, $operations, $elapsed) {
   }
   else {
     // Use the test_id passed as a parameter to _simpletest_batch_operation().
-    simpletest_log_read($operations[0][1][1]);
+    $test_id = $operations[0][1][1];
+
+    // Retrieve the last database prefix used for testing and the last test
+    // class that was run from. Use the information to read the lgo file
+    // in case any fatal errors caused the test to crash.
+    list($last_prefix, $last_test_class) = simpletest_last_test_get($test_id);
+    simpletest_log_read($test_id, $last_prefix, $last_test_class);
+
 
     drupal_set_message(t('The test run did not successfully finish.'), 'error');
     drupal_set_message(t('Please use the <em>Clean environment</em> button to clean-up temporary files and tables.'), 'warning');
   }
   module_invoke_all('test_group_finished');
+}
+
+/*
+ * Get information about the last test that ran given a test ID.
+ *
+ * @param $test_id
+ *   The test ID to get the last test from.
+ * @return
+ *   Array containing the last database prefix used and the last test class
+ *   that ran.
+ */
+function simpletest_last_test_get($test_id) {
+  $last_prefix = db_result(db_query_range('SELECT last_prefix FROM {simpletest_test_id} WHERE test_id = :test_id', array(':test_id' => $test_id), 0, 1));
+  $last_test_class = db_result(db_query_range('SELECT test_class FROM {simpletest} WHERE test_id = :test_id ORDER BY message_id DESC', array(':test_id' => $test_id), 0, 1));
+  return array($last_prefix, $last_test_class);
 }
 
 /**
@@ -218,28 +264,39 @@ function _simpletest_batch_finished($success, $results, $operations, $elapsed) {
  * will have been recorded by the error handler.
  *
  * @param $test_id
- *   The test ID to read log file for.
+ *   The test ID to which the log relates.
+ * @param $prefix
+ *   The database prefix to which the log relates.
+ * @param $test_class
+ *   The test class to which the log relates.
+ * @param $during_test
+ *   Indicates that the current file directory path is a temporary file
+ *   file directory used during testing.
+ * @return
+ *   Found any entries in log.
  */
-function simpletest_log_read($test_id) {
-  $last_prefix = db_result(db_query('SELECT last_prefix FROM {simpletest_test_id} WHERE test_id = :test_id', array(':test_id' => $test_id)));
-  $last_prefix = substr($last_prefix, 10);
-
-  $test_class = db_result(db_query('SELECT test_class FROM {simpletest} WHERE test_id = :test_id ORDER BY message_id', array(':test_id' => $test_id)));
-  $log = file_directory_path() . "/simpletest/$last_prefix/error.log";
+function simpletest_log_read($test_id, $prefix, $test_class, $during_test = FALSE) {
+  $log = 'public://' . ($during_test ? '' : '/simpletest/' . substr($prefix, 10)) . '/error.log';
+  $found = FALSE;
   if (file_exists($log)) {
     foreach (file($log) as $line) {
-      if (preg_match('/PHP Fatal error: (.*?) in (.*) on line (\d+)/', $line, $match)) {
+      if (preg_match('/\[.*?\] (.*?): (.*?) in (.*) on line (\d+)/', $line, $match)) {
+        // Parse PHP fatal errors for example: PHP Fatal error: Call to
+        // undefined function break_me() in /path/to/file.php on line 17
         $caller = array(
-          'line' => $match[3],
-          'file' => $match[2],
+          'line' => $match[4],
+          'file' => $match[3],
         );
-        DrupalTestCase::assertStatic($test_id, $test_class, FALSE, $match[1], 'Fatal error', $caller);
+        DrupalTestCase::insertAssert($test_id, $test_class, FALSE, $match[2], $match[1], $caller);
       }
       else {
-        DrupalTestCase::assertStatic($test_id, $test_class, FALSE, $line, 'Fatal error');
+        // Unkown format, place the entire message in the log.
+        DrupalTestCase::insertAssert($test_id, $test_class, FALSE, $line, 'Fatal error');
       }
+      $found = TRUE;
     }
   }
+  return $found;
 }
 
 /**
@@ -341,8 +398,13 @@ function simpletest_registry_files_alter(&$files, $modules) {
 function simpletest_clean_environment() {
   simpletest_clean_database();
   simpletest_clean_temporary_directories();
-  $count = simpletest_clean_results_table();
-  drupal_set_message(format_plural($count, 'Removed 1 test result.', 'Removed @count test results.'));
+  if (variable_get('simpletest_clear_results', TRUE)) {
+    $count = simpletest_clean_results_table();
+    drupal_set_message(format_plural($count, 'Removed 1 test result.', 'Removed @count test results.'));
+  }
+  else {
+    drupal_set_message(t('Clear results is disabled and the test results table will not be cleared.'), 'warning');
+  }
 }
 
 /**
@@ -372,12 +434,11 @@ function simpletest_clean_database() {
  * Find all leftover temporary directories and remove them.
  */
 function simpletest_clean_temporary_directories() {
-  $directory = file_directory_path() . '/simpletest';
-  $files = scandir($directory);
+  $files = scandir('public://');
   $count = 0;
   foreach ($files as $file) {
-    $path = "$directory/$file";
-    if (is_dir($path) && is_numeric($file)) {
+    $path = 'public://' . $file;
+    if (is_dir($path) && preg_match('/^simpletest\d+/', $file)) {
       file_unmanaged_delete_recursive($path);
       $count++;
     }
@@ -397,17 +458,17 @@ function simpletest_clean_temporary_directories() {
  * @param $test_id
  *   Test ID to remove results for, or NULL to remove all results.
  * @return
- *   The number of results removed or FALSE.
+ *   The number of results removed.
  */
 function simpletest_clean_results_table($test_id = NULL) {
   if (variable_get('simpletest_clear_results', TRUE)) {
     if ($test_id) {
       $count = db_query('SELECT COUNT(test_id) FROM {simpletest_test_id} WHERE test_id = :test_id', array(':test_id' => $test_id))->fetchField();
 
-      db_delete("simpletest")
+      db_delete('simpletest')
         ->condition('test_id', $test_id)
         ->execute();
-      db_delete("simpletest_test_id")
+      db_delete('simpletest_test_id')
         ->condition('test_id', $test_id)
         ->execute();
     }
@@ -415,11 +476,11 @@ function simpletest_clean_results_table($test_id = NULL) {
       $count = db_query('SELECT COUNT(test_id) FROM {simpletest_test_id}')->fetchField();
 
       // Clear test results.
-      db_delete("simpletest")->execute();
-      db_delete("simpletest_test_id")->execute();
+      db_delete('simpletest')->execute();
+      db_delete('simpletest_test_id')->execute();
     }
 
     return $count;
   }
-  return FALSE;
+  return 0;
 }

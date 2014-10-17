@@ -62,7 +62,7 @@ class BlogTestCase extends DrupalWebTestCase {
     $this->drupalLogin($this->big_user);
     // Enable the recent blog block.
     $edit = array();
-    $edit['blog_recent[region]'] = 'right';
+    $edit['blog_recent[region]'] = 'sidebar_second';
     $this->drupalPost('admin/structure/block', $edit, t('Save blocks'));
     $this->assertResponse(200);
 
@@ -128,7 +128,6 @@ class BlogTestCase extends DrupalWebTestCase {
     if ($response2 == 200) {
       $this->assertTitle(t('Blog | Drupal'), t('Blog help node was displayed'));
       $this->assertText(t('Blog'), t('Blog help node was displayed'));
-      $this->assertText(t('Home ' . $crumb . ' Administer ' . $crumb . ' Help'), t('Breadcrumbs were displayed'));
     }
 
     // Verify the blog block was displayed.
@@ -147,14 +146,14 @@ class BlogTestCase extends DrupalWebTestCase {
     $this->assertResponse($response);
     if ($response == 200) {
       $this->assertTitle('Edit Blog entry ' . $node->title . ' | Drupal', t('Blog edit node was displayed'));
-      $this->assertText(t('Home ' . $crumb . ' @title', array('@title' => $node->title)), t('Breadcrumbs were displayed'));
     }
 
     if ($response == 200) {
       // Edit blog node.
       $edit = array();
       $edit['title'] = 'node/' . $node->nid;
-      $edit['body[0][value]'] = $this->randomName(256);
+      $langcode = FIELD_LANGUAGE_NONE;
+      $edit["body[$langcode][0][value]"] = $this->randomName(256);
       $this->drupalPost('node/' . $node->nid . '/edit', $edit, t('Save'));
       $this->assertRaw(t('Blog entry %title has been updated.', array('%title' => $edit['title'])), t('Blog node was edited'));
 

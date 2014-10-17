@@ -40,6 +40,21 @@ define('SAVED_UPDATED', 2);
 define('SAVED_DELETED', 3);
 
 /**
+ * The default weight of system CSS files added to the page.
+ */
+define('CSS_SYSTEM', -100);
+
+/**
+ * The default weight of CSS files added to the page.
+ */
+define('CSS_DEFAULT', 0);
+
+/**
+ * The default weight of theme CSS files added to the page.
+ */
+define('CSS_THEME', 100);
+
+/**
  * The weight of JavaScript libraries, settings or jQuery plugins being
  * added to the page.
  */
@@ -60,6 +75,65 @@ define('JS_THEME', 100);
  * the specified timeout.
  */
 define('HTTP_REQUEST_TIMEOUT', 1);
+
+/**
+ * Constants defining cache granularity for blocks and renderable arrays.
+ *
+ * Modules specify the caching patterns for their blocks using binary
+ * combinations of these constants in their hook_block_info():
+ *   $block[delta]['cache'] = DRUPAL_CACHE_PER_ROLE | DRUPAL_CACHE_PER_PAGE;
+ * DRUPAL_CACHE_PER_ROLE is used as a default when no caching pattern is
+ * specified. Use DRUPAL_CACHE_CUSTOM to disable standard block cache and
+ * implement
+ *
+ * The block cache is cleared in cache_clear_all(), and uses the same clearing
+ * policy than page cache (node, comment, user, taxonomy added or updated...).
+ * Blocks requiring more fine-grained clearing might consider disabling the
+ * built-in block cache (DRUPAL_NO_CACHE) and roll their own.
+ *
+ * Note that user 1 is excluded from block caching.
+ */
+
+/**
+ * The block should not get cached. This setting should be used:
+ * - for simple blocks (notably those that do not perform any db query),
+ * where querying the db cache would be more expensive than directly generating
+ * the content.
+ * - for blocks that change too frequently.
+ */
+define('DRUPAL_NO_CACHE', -1);
+
+/**
+ * The block is handling its own caching in its hook_block_view(). From the
+ * perspective of the block cache system, this is equivalent to DRUPAL_NO_CACHE.
+ * Useful when time based expiration is needed or a site uses a node access
+ * which invalidates standard block cache.
+ */
+define('DRUPAL_CACHE_CUSTOM', -2);
+
+/**
+ * The block or element can change depending on the roles the user viewing the
+ * page belongs to. This is the default setting for blocks, used when the block
+ * does not specify anything.
+ */
+define('DRUPAL_CACHE_PER_ROLE', 0x0001);
+
+/**
+ * The block or element can change depending on the user viewing the page.
+ * This setting can be resource-consuming for sites with large number of users,
+ * and thus should only be used when DRUPAL_CACHE_PER_ROLE is not sufficient.
+ */
+define('DRUPAL_CACHE_PER_USER', 0x0002);
+
+/**
+ * The block or element can change depending on the page being viewed.
+ */
+define('DRUPAL_CACHE_PER_PAGE', 0x0004);
+
+/**
+ * The block or element is the same for every user on every page where it is visible.
+ */
+define('DRUPAL_CACHE_GLOBAL', 0x0008);
 
 /**
  * Add content to a specified region.
@@ -85,7 +159,7 @@ function drupal_add_region_content($region = NULL, $data = NULL) {
  *   A specified region to fetch content for. If NULL, all regions will be
  *   returned.
  * @param $delimiter
- *   Content to be inserted between exploded array elements.
+ *   Content to be inserted between imploded array elements.
  */
 function drupal_get_region_content($region = NULL, $delimiter = ' ') {
   $content = drupal_add_region_content();
@@ -103,6 +177,32 @@ function drupal_get_region_content($region = NULL, $delimiter = ' ') {
     return $content;
   }
 }
+
+/**
+ * Get the name of the currently active install profile.
+ *
+ * When this function is called during Drupal's initial installation process,
+ * the name of the profile that's about to be installed is stored in the global
+ * installation state. At all other times, the standard Drupal systems variable
+ * table contains the name of the current profile, and we can call variable_get()
+ * to determine what one is active.
+ *
+ * @return $profile
+ *   The name of the install profile.
+ */
+function drupal_get_profile() {
+  global $install_state;
+
+  if (isset($install_state['parameters']['profile'])) {
+    $profile = $install_state['parameters']['profile'];
+  }
+  else {
+    $profile = variable_get('install_profile', 'default');
+  }
+
+  return $profile;
+}
+
 
 /**
  * Set the breadcrumb trail for the current page.
@@ -289,7 +389,7 @@ function drupal_get_destination() {
  * destination in either the $_REQUEST-array (i.e. by using
  * the query string of an URI) This is used to direct the user back to
  * the proper page after completing a form. For example, after editing
- * a post on the 'admin/content/node'-page or after having logged on using the
+ * a post on the 'admin/content'-page or after having logged on using the
  * 'user login'-block in a sidebar. The function drupal_get_destination()
  * can be used to help set the destination URL.
  *
@@ -323,6 +423,14 @@ function drupal_goto($path = '', $query = NULL, $fragment = NULL, $http_response
     extract(parse_url(urldecode($_REQUEST['destination'])));
   }
 
+  $args = array(
+    'path' => &$path,
+    'query' => &$query,
+    'fragment' => &$fragment,
+    'http_response_code' => &$http_response_code,
+  );
+  drupal_alter('drupal_goto', $args);
+
   $url = url($path, array('query' => $query, 'fragment' => $fragment, 'absolute' => TRUE));
 
   // Allow modules to react to the end of the page request before redirecting.
@@ -349,8 +457,8 @@ function drupal_goto($path = '', $query = NULL, $fragment = NULL, $http_response
 function drupal_site_offline() {
   drupal_maintenance_theme();
   drupal_set_header('503 Service unavailable');
-  drupal_set_title(t('Site offline'));
-  print theme('maintenance_page', filter_xss_admin(variable_get('site_offline_message',
+  drupal_set_title(t('Site under maintenance'));
+  print theme('maintenance_page', filter_xss_admin(variable_get('maintenance_mode_message',
     t('@site is currently under maintenance. We should be back shortly. Thank you for your patience.', array('@site' => variable_get('site_name', 'Drupal'))))));
 }
 
@@ -383,9 +491,6 @@ function drupal_not_found() {
 
   drupal_set_page_content($return);
   $page = element_info('page');
-  // Optionally omit the blocks to conserve CPU and bandwidth.
-  $page['#show_blocks'] = variable_get('site_404_blocks', FALSE);
-
   print drupal_render_page($page);
 }
 
@@ -725,8 +830,6 @@ function _drupal_error_handler($error_level, $message, $filename, $line, $contex
       E_STRICT => 'Strict warning',
       E_RECOVERABLE_ERROR => 'Recoverable fatal error'
     );
-    $backtrace = debug_backtrace();
-
     $caller = _drupal_get_last_caller(debug_backtrace());
 
     // We treat recoverable errors as fatal.
@@ -777,7 +880,7 @@ function _drupal_decode_exception($exception) {
     // or in one of its global functions.
     $db_functions = array('db_query', 'pager_query', 'db_query_range', 'db_query_temporary', 'update_sql');
     while (!empty($backtrace[1]) && ($caller = $backtrace[1]) &&
-        ((isset($caller['class']) && (strpos($caller['class'], 'Query') !== FALSE || strpos($caller['class'], 'Database') !== FALSE || $caller['class'] == 'PDOStatement')) ||
+        ((isset($caller['class']) && (strpos($caller['class'], 'Query') !== FALSE || strpos($caller['class'], 'Database') !== FALSE || strpos($caller['class'], 'PDO') !== FALSE)) ||
         in_array($caller['function'], $db_functions))) {
       // We remove that call.
       array_shift($backtrace);
@@ -860,14 +963,23 @@ function _drupal_log_error($error, $fatal = FALSE) {
     $error_level = variable_get('error_level', ERROR_REPORTING_DISPLAY_ALL);
     $display_error = $error_level == ERROR_REPORTING_DISPLAY_ALL || ($error_level == ERROR_REPORTING_DISPLAY_SOME && $error['%type'] != 'Notice');
     if ($display_error || (defined('MAINTENANCE_MODE') && MAINTENANCE_MODE == 'update')) {
-      drupal_set_message(t('%type: %message in %function (line %line of %file).', $error), 'error');
+      $class = 'error';
+
+      // If error type is 'User notice' then treat it as debug information
+      // instead of an error message, see dd().
+      if ($error['%type'] == 'User notice') {
+        $error['%type'] = 'Debug';
+        $class = 'status';
+      }
+
+      drupal_set_message(t('%type: %message in %function (line %line of %file).', $error), $class);
     }
 
     if ($fatal) {
       drupal_set_title(t('Error'));
       // We fallback to a maintenance page at this point, because the page generation
       // itself can generate errors.
-      print theme('maintenance_page', t('The website encountered an unexpected error. Please try again later.'), FALSE);
+      print theme('maintenance_page', t('The website encountered an unexpected error. Please try again later.'));
       exit;
     }
   }
@@ -882,9 +994,11 @@ function _drupal_log_error($error, $fatal = FALSE) {
  *   An associative array with keys 'file', 'line' and 'function'.
  */
 function _drupal_get_last_caller($backtrace) {
-  // Errors that occur inside PHP internal functions
-  // do not generate information about file and line.
-  while ($backtrace && !isset($backtrace[0]['line'])) {
+  // Errors that occur inside PHP internal functions do not generate
+  // information about file and line. Ignore black listed functions.
+  $blacklist = array('debug');
+  while (($backtrace && !isset($backtrace[0]['line'])) ||
+         (isset($backtrace[1]['function']) && in_array($backtrace[1]['function'], $blacklist))) {
     array_shift($backtrace);
   }
 
@@ -1169,7 +1283,7 @@ function t($string, array $args = array(), array $options = array()) {
     $string = $custom_strings[$options['langcode']][$options['context']][$string];
   }
   // Translate with locale module if enabled.
-  // We don't use drupal_function_exists() here, because it breaks the testing
+  // We don't use function_exists() here, because it breaks the testing
   // framework if the locale module is enabled in the parent site (we cannot
   // unload functions in PHP).
   elseif (function_exists('locale') && $options['langcode'] != 'en') {
@@ -1263,39 +1377,70 @@ function valid_url($url, $absolute = FALSE) {
  */
 
 /**
- * Register an event for the current visitor (hostname/IP) to the flood control mechanism.
+ * Register an event for the current visitor to the flood control mechanism.
  *
  * @param $name
  *   The name of an event.
+ * @param $identifier
+ *   Optional identifier (defaults to the current user's IP address).
  */
-function flood_register_event($name) {
+function flood_register_event($name, $identifier = NULL) {
+  if (!isset($identifier)) {
+    $identifier = ip_address();
+  }
   db_insert('flood')
     ->fields(array(
       'event' => $name,
-      'hostname' => ip_address(),
+      'identifier' => $identifier,
       'timestamp' => REQUEST_TIME,
     ))
     ->execute();
 }
 
 /**
- * Check if the current visitor (hostname/IP) is allowed to proceed with the specified event.
+ * Make the flood control mechanism forget about an event for the current visitor.
+ *
+ * @param $name
+ *   The name of an event.
+ * @param $identifier
+ *   Optional identifier (defaults to the current user's IP address).
+ */
+function flood_clear_event($name, $identifier = NULL) {
+  if (!isset($identifier)) {
+    $identifier = ip_address();
+  }
+  db_delete('flood')
+    ->condition('event', $name)
+    ->condition('identifier', $identifier)
+    ->execute();
+}
+
+/**
+ * Check if the current visitor is allowed to proceed with the specified event.
  *
  * The user is allowed to proceed if he did not trigger the specified event more
- * than $threshold times per hour.
+ * than $threshold times in the specified time window.
  *
  * @param $name
  *   The name of the event.
  * @param $threshold
- *   The maximum number of the specified event per hour (per visitor).
+ *   The maximum number of the specified event allowed per time window.
+ * @param $window
+ *   Optional number of seconds over which to look for events.  Defaults to
+ *   3600 (1 hour).
+ * @param $identifier
+ *   Optional identifier (defaults to the current user's IP address).
  * @return
  *   True if the user did not exceed the hourly threshold. False otherwise.
  */
-function flood_is_allowed($name, $threshold) {
-  $number = db_query("SELECT COUNT(*) FROM {flood} WHERE event = :event AND hostname = :hostname AND timestamp > :timestamp", array(
+function flood_is_allowed($name, $threshold, $window = 3600, $identifier = NULL) {
+  if (!isset($identifier)) {
+    $identifier = ip_address();
+  }
+  $number = db_query("SELECT COUNT(*) FROM {flood} WHERE event = :event AND identifier = :identifier AND timestamp > :timestamp", array(
     ':event' => $name,
-    ':hostname' => ip_address(),
-    ':timestamp' => REQUEST_TIME - 3600))
+    ':identifier' => $identifier,
+    ':timestamp' => REQUEST_TIME - $window))
     ->fetchField();
   return ($number < $threshold);
 }
@@ -1865,14 +2010,14 @@ function format_interval($timestamp, $granularity = 2, $langcode = NULL) {
 /**
  * Format a date with the given configured format or a custom format string.
  *
- * Drupal allows administrators to select formatting strings for 'small',
- * 'medium' and 'large' date formats. This function can handle these formats,
+ * Drupal allows administrators to select formatting strings for 'short',
+ * 'medium' and 'long' date formats. This function can handle these formats,
  * as well as any custom format.
  *
  * @param $timestamp
  *   The exact date to format, as a UNIX timestamp.
  * @param $type
- *   The format to use. Can be "small", "medium" or "large" for the preconfigured
+ *   The format to use. Can be "short", "medium" or "long" for the preconfigured
  *   date formats. If "custom" is specified, then $format is required as well.
  * @param $format
  *   A PHP date format string as required by date(). A backslash should be used
@@ -1910,10 +2055,10 @@ function format_date($timestamp, $type = 'medium', $format = '', $timezone = NUL
   }
 
   switch ($type) {
-    case 'small':
+    case 'short':
       $format = variable_get('date_format_short', 'm/d/Y - H:i');
       break;
-    case 'large':
+    case 'long':
       $format = variable_get('date_format_long', 'l, F j, Y - H:i');
       break;
     case 'custom':
@@ -1988,7 +2133,7 @@ function _format_date_callback(array $matches = NULL, $new_langcode = NULL) {
  * Generate a URL from a Drupal menu path. Will also pass-through existing URLs.
  *
  * @param $path
- *   The Drupal path being linked to, such as "admin/content/node", or an
+ *   The Drupal path being linked to, such as "admin/content", or an
  *   existing URL like "http://drupal.org/". The special path
  *   '<front>' may also be given and will generate the site's base URL.
  * @param $options
@@ -2010,6 +2155,11 @@ function _format_date_callback(array $matches = NULL, $new_langcode = NULL) {
  *   - 'language'
  *       An optional language object. Used to build the URL to link to and
  *       look up the proper alias for the link.
+ *   - 'https'
+ *       Whether this URL should point to a secure location. If not specified,
+ *       the current scheme is used, so the user stays on http or https
+ *       respectively. TRUE enforces HTTPS and FALSE enforces HTTP, but HTTPS
+ *       can only be enforced when the variable 'https' is set to TRUE.
  *   - 'base_url'
  *       Only used internally, to modify the base URL when a language dependent
  *       URL requires so.
@@ -2029,6 +2179,7 @@ function url($path = NULL, array $options = array()) {
     'query' => '',
     'absolute' => FALSE,
     'alias' => FALSE,
+    'https' => FALSE,
     'prefix' => ''
   );
   if (!isset($options['external'])) {
@@ -2066,7 +2217,7 @@ function url($path = NULL, array $options = array()) {
     return $path . $options['fragment'];
   }
 
-  global $base_url;
+  global $base_url, $base_secure_url, $base_insecure_url;
   $script = &drupal_static(__FUNCTION__);
 
   if (!isset($script)) {
@@ -2076,9 +2227,21 @@ function url($path = NULL, array $options = array()) {
     $script = (strpos($_SERVER['SERVER_SOFTWARE'], 'Apache') === FALSE) ? 'index.php' : '';
   }
 
+  // The base_url might be rewritten from the language rewrite in domain mode.
   if (!isset($options['base_url'])) {
-    // The base_url might be rewritten from the language rewrite in domain mode.
-    $options['base_url'] = $base_url;
+    if (isset($options['https']) && variable_get('https', FALSE)) {
+      if ($options['https'] === TRUE) {
+        $options['base_url'] = $base_secure_url;
+        $options['absolute'] = TRUE;
+      }
+      elseif ($options['https'] === FALSE) {
+        $options['base_url'] = $base_insecure_url;
+        $options['absolute'] = TRUE;
+      }
+    }
+    else {
+      $options['base_url'] = $base_url;
+    }
   }
 
   // Preserve the original path before aliasing.
@@ -2140,14 +2303,14 @@ function url($path = NULL, array $options = array()) {
  * @return
  *   An HTML string ready for insertion in a tag.
  */
-function drupal_attributes($attributes = array()) {
-  foreach ($attributes as $attribute => $data) {
+function drupal_attributes(array $attributes = array()) {
+  foreach ($attributes as $attribute => &$data) {
     if (is_array($data)) {
       $data = implode(' ', $data);
     }
-    $items[] = $attribute . '="' . check_plain($data) . '"';
+    $data = $attribute . '="' . check_plain($data) . '"';
   }
-  return isset($items) ? ' ' . implode(' ', $items) : '';
+  return $attributes ? ' ' . implode(' ', $attributes) : '';
 }
 
 /**
@@ -2160,10 +2323,10 @@ function drupal_attributes($attributes = array()) {
  * @param $text
  *   The text to be enclosed with the anchor tag.
  * @param $path
- *   The Drupal path being linked to, such as "admin/content/node". Can be an
+ *   The Drupal path being linked to, such as "admin/content". Can be an
  *   external or internal URL.
  *     - If you provide the full URL, it will be considered an external URL.
- *     - If you provide only the path (e.g. "admin/content/node"), it is
+ *     - If you provide only the path (e.g. "admin/content"), it is
  *       considered an internal link. In this case, it must be a system URL
  *       as the url() function will generate the alias.
  *     - If you provide '<front>', it generates a link to the site's
@@ -2205,12 +2368,7 @@ function l($text, $path, array $options = array()) {
   // Append active class.
   if (($path == $_GET['q'] || ($path == '<front>' && drupal_is_front_page())) &&
       (empty($options['language']) || $options['language']->language == $language->language)) {
-    if (isset($options['attributes']['class'])) {
-      $options['attributes']['class'] .= ' active';
-    }
-    else {
-      $options['attributes']['class'] = 'active';
-    }
+    $options['attributes']['class'][] = 'active';
   }
 
   // Remove all HTML and PHP tags from a tooltip. For best performance, we act only
@@ -2243,7 +2401,6 @@ function drupal_page_footer() {
     ob_flush();
   }
 
-  module_implements(MODULE_IMPLEMENTS_WRITE_CACHE);
   _registry_check_code(REGISTRY_WRITE_LOOKUP_CACHE);
   drupal_cache_system_paths();
 }
@@ -2278,6 +2435,38 @@ function drupal_map_assoc($array, $function = NULL) {
       $result[$value] = $function($value);
     }
     return $result;
+  }
+}
+
+/**
+ * Attempts to set the PHP maximum execution time.
+ *
+ * This function is a wrapper around the PHP function set_time_limit().
+ * When called, set_time_limit() restarts the timeout counter from zero.
+ * In other words, if the timeout is the default 30 seconds, and 25 seconds
+ * into script execution a call such as set_time_limit(20) is made, the
+ * script will run for a total of 45 seconds before timing out.
+ *
+ * It also means that it is possible to decrease the total time limit if
+ * the sum of the new time limit and the current time spent running the
+ * script is inferior to the original time limit. It is inherent to the way
+ * set_time_limit() works, it should rather be called with an appropriate
+ * value every time you need to allocate a certain amount of time
+ * to execute a task than only once at the beginning of the script.
+ *
+ * Before calling set_time_limit(), we check if this function is available
+ * because it could be disabled by the server administrator. We also hide all
+ * the errors that could occur when calling set_time_limit(), because it is
+ * not possible to reliably ensure that PHP or a security extension will
+ * not issue a warning/error if they prevent the use of this function.
+ *
+ * @param $time_limit
+ *   An integer specifying the new time limit, in seconds. A value of 0
+ *   indicates unlimited execution time.
+ */
+function drupal_set_time_limit($time_limit) {
+  if (function_exists('set_time_limit')) {
+    @set_time_limit($time_limit);
   }
 }
 
@@ -2328,7 +2517,7 @@ function drupal_add_link($attributes) {
  * @param $data
  *   (optional) The stylesheet data to be added, depending on what is passed
  *   through to the $options['type'] parameter:
- *   - 'module' or 'theme': The path to the CSS file relative to the base_path(),
+ *   - 'file': The path to the CSS file relative to the base_path(),
  *     e.g., "modules/devel/devel.css".
  *
  *     Modules should always prefix the names of their CSS files with the
@@ -2345,15 +2534,31 @@ function drupal_add_link($attributes) {
  *     directory. This CSS file should contain overrides for properties which
  *     should be reversed or otherwise different in a right-to-left display.
  *   - 'inline': A string of CSS that should be placed in the given scope. Note
- *     that it is better practice to use 'module' or 'theme' stylesheets, rather
- *     than 'inline' as the CSS would then be aggregated and cached.
+ *     that it is better practice to use 'file' stylesheets, rather than 'inline'
+ *     as the CSS would then be aggregated and cached.
+ *   - 'external': The absolute path to an external CSS file that is not hosted
+ *     on the local server. These files will not be aggregated if CSS aggregation
+ *     is enabled.
  *
  * @param $options
  *   (optional) A string defining the 'type' of CSS that is being added in the
- *   $data parameter ('module', 'theme' or 'inline'), or an associative array of
- *   additional options, with the following keys:
- *   - 'type': The type of stylesheet that is being added. Types are: 'module',
- *     'theme' or 'inline'. Defaults to 'module'.
+ *   $data parameter ('file'/'inline'), or an array which can have any or all of
+ *   the following keys:
+ *   - 'type': The type of stylesheet being added. Available options are 'file',
+ *     'inline' or 'external'. Defaults to 'file'.
+ *   - 'weight': The weight of the stylesheet specifies the order in which the
+ *     CSS will appear when presented on the page.
+ *
+ *       Available constants are:
+ *       - CSS_SYSTEM: Any system-layer CSS.
+ *       - CSS_DEFAULT: Any module-layer CSS.
+ *       - CSS_THEME: Any theme-layer CSS.
+ *
+ *       If you need to embed a CSS file before any other module's stylesheets,
+ *       for example, you would use CSS_DEFAULT - 1. Note that inline CSS is
+ *       simply appended to the end of the specified scope (region), so they
+ *       always come last.
+ *
  *   - 'media': The media type for the stylesheet, e.g., all, print, screen.
  *     Defaults to 'all'.
  *   - 'preprocess': Allows the CSS to be aggregated and compressed if the
@@ -2365,7 +2570,8 @@ function drupal_add_link($attributes) {
  *     files into one file that is then compressed by removing all extraneous
  *     white space. Note that preprocessed inline stylesheets will not be
  *     aggregated into this single file, instead it will just be compressed
- *     when being output on the page.
+ *     when being output on the page. External stylesheets will not be
+ *     aggregated.
  *
  *     The reason for merging the CSS files is outlined quite thoroughly here:
  *     http://www.die.net/musings/page_load_time/
@@ -2385,7 +2591,6 @@ function drupal_add_link($attributes) {
  */
 function drupal_add_css($data = NULL, $options = NULL) {
   $css = &drupal_static(__FUNCTION__, array());
-  global $language;
 
   // Construct the options, taking the defaults into consideration.
   if (isset($options)) {
@@ -2401,25 +2606,27 @@ function drupal_add_css($data = NULL, $options = NULL) {
   // to the browser differently.
   if (isset($data)) {
     $options += array(
-      'type' => 'module',
+      'type' => 'file',
+      'weight' => CSS_DEFAULT,
       'media' => 'all',
-      'preprocess' => TRUE
+      'preprocess' => TRUE,
+      'data' => $data,
     );
-    $media = $options['media'];
-    $type = $options['type'];
 
-    // This check is necessary to ensure proper cascading of styles and is faster than an asort().
-    if (!isset($css[$media])) {
-      $css[$media] = array('module' => array(), 'theme' => array(), 'inline' => array());
-    }
-    $css[$media][$type][$data] = $options['preprocess'];
+    // Always add a tiny value to the weight, to conserve the insertion order.
+    $options['weight'] += count($css) / 1000;
 
-    // If the current language is RTL, add the CSS file with RTL overrides.
-    if ($type != 'inline' && $language->direction == LANGUAGE_RTL) {
-      $rtl_path = str_replace('.css', '-rtl.css', $data);
-      if (file_exists($rtl_path)) {
-        $css[$media][$type][$rtl_path] = $options['preprocess'];
-      }
+    // Add the data to the CSS array depending on the type.
+    switch ($options['type']) {
+      case 'inline':
+        // For inline stylesheets, we don't want to use the $data as the array
+        // key as $data could be a very long string of CSS.
+        $css[] = $options;
+        break;
+      default:
+        // Local and external files must keep their name as the associative key
+        // so the same CSS file is not be added twice.
+        $css[$data] = $options;
     }
   }
 
@@ -2453,13 +2660,10 @@ function drupal_get_css($css = NULL) {
   if (!isset($css)) {
     $css = drupal_add_css();
   }
-  $no_module_preprocess = '';
-  $no_theme_preprocess = '';
-  $no_inline_preprocess = '';
 
   $preprocess_css = (variable_get('preprocess_css', FALSE) && (!defined('MAINTENANCE_MODE') || MAINTENANCE_MODE != 'update'));
-  $directory = file_directory_path();
-  $is_writable = is_dir($directory) && is_writable($directory) && (variable_get('file_downloads', FILE_DOWNLOADS_PUBLIC) == FILE_DOWNLOADS_PUBLIC);
+  $directory = file_directory_path('public');
+  $is_writable = is_dir($directory) && is_writable($directory);
 
   // A dummy query-string is added to filenames, to gain control over
   // browser-caching. The string changes on every update or full cache
@@ -2467,97 +2671,103 @@ function drupal_get_css($css = NULL) {
   // URL changed.
   $query_string = '?' . substr(variable_get('css_js_query_string', '0'), 0, 1);
 
-  foreach ($css as $media => $types) {
-    // If CSS preprocessing is off, we still need to output the styles.
-    // Additionally, go through any remaining styles if CSS preprocessing is on and output the non-cached ones.
-    foreach ($types as $type => $information) {
-      if ($type == 'module') {
-        // Setup theme overrides for module styles.
-        $theme_styles = array();
-        foreach (array_keys($css[$media]['theme']) as $theme_style) {
-          $theme_styles[] = basename($theme_style);
-        }
-      }
-      foreach ($types[$type] as $data => $preprocess) {
-        // If the theme supplies its own style using the name of the module style, skip its inclusion.
-        // This includes any RTL styles associated with its main LTR counterpart.
-        if ($type == 'module' && in_array(str_replace('-rtl.css', '.css', basename($data)), $theme_styles)) {
-          // Unset the file to prevent its inclusion when CSS aggregation is enabled.
-          unset($types[$type][$data]);
-          continue;
-        }
-        // Include inline stylesheets.
-        if ($type == 'inline') {
-          $no_inline_preprocess .= drupal_load_stylesheet_content($data, $preprocess);
-        }
-        // Only include the stylesheet if it exists.
-        elseif (file_exists($data)) {
-          if (!$preprocess || !($is_writable && $preprocess_css)) {
-            // If a CSS file is not to be preprocessed and it's a module CSS file, it needs to *always* appear at the *top*,
-            // regardless of whether preprocessing is on or off.
-            if (!$preprocess && $type == 'module') {
-              $no_module_preprocess .= '<link type="text/css" rel="stylesheet" media="' . $media . '" href="' . base_path() . $data . $query_string . '" />' . "\n";
-            }
-            // If a CSS file is not to be preprocessed and it's a theme CSS file, it needs to *always* appear at the *bottom*,
-            // regardless of whether preprocessing is on or off.
-            elseif (!$preprocess && $type == 'theme') {
-              $no_theme_preprocess .= '<link type="text/css" rel="stylesheet" media="' . $media . '" href="' . base_path() . $data . $query_string . '" />' . "\n";
-            }
-            else {
-              $output .= '<link type="text/css" rel="stylesheet" media="' . $media . '" href="' . base_path() . $data . $query_string . '" />' . "\n";
-            }
-          }
-        }
-      }
-    }
+  // Allow modules to alter the css items.
+  drupal_alter('css', $css);
 
-    if ($is_writable && $preprocess_css) {
+  // Sort css items according to their weights.
+  uasort($css, 'drupal_sort_weight');
+
+  // Remove the overriden CSS files. Later CSS files override former ones.
+  $previous_item = array();
+  foreach ($css as $key => $item) {
+    if ($item['type'] == 'file') {
+      $basename = basename($item['data']);
+      if (isset($previous_item[$basename])) {
+        // Remove the previous item that shared the same base name.
+        unset($css[$previous_item[$basename]]);
+      }
+      $previous_item[$basename] = $key;
+    }
+  }
+
+  // If CSS preprocessing is off, we still need to output the styles.
+  // Additionally, go through any remaining styles if CSS preprocessing is on and output the non-cached ones.
+  $rendered_css = array();
+  $inline_css = '';
+  $external_css = '';
+  $preprocess_items = array();
+  foreach ($css as $data => $item) {
+    // Loop through each of the stylesheets, including them appropriately based
+    // on their type.
+    switch ($item['type']) {
+      case 'file':
+        // Depending on whether aggregation is desired, include the file.
+        if (!$item['preprocess'] || !($is_writable && $preprocess_css)) {
+          $rendered_css[] = '<link type="text/css" rel="stylesheet" media="' . $item['media'] . '" href="' . file_create_url($item['data']) . $query_string . '" />';
+        }
+        else {
+          $preprocess_items[$item['media']][] = $item;
+          // Mark the position of the preprocess element,
+          // it should be at the position of the first preprocessed file.
+          $rendered_css['preprocess'] = '';
+        }
+        break;
+      case 'inline':
+        // Include inline stylesheets.
+        $inline_css .= drupal_load_stylesheet_content($item['data'], $item['preprocess']);
+        break;
+      case 'external':
+        // Preprocessing for external CSS files is ignored.
+        $external_css .= '<link type="text/css" rel="stylesheet" media="' . $item['media'] . '" href="' . $item['data'] . '" />' . "\n";
+        break;
+    }
+  }
+
+  if (!empty($preprocess_items)) {
+    foreach ($preprocess_items as $media => $items) {
       // Prefix filename to prevent blocking by firewalls which reject files
       // starting with "ad*".
-      $filename = 'css_' . md5(serialize($types) . $query_string) . '.css';
-      $preprocess_file = drupal_build_css_cache($types, $filename);
-      $output .= '<link type="text/css" rel="stylesheet" media="' . $media . '" href="' . base_path() . $preprocess_file . '" />' . "\n";
+      $filename = 'css_' . md5(serialize($items) . $query_string) . '.css';
+      $preprocess_file = file_create_url(drupal_build_css_cache($items, $filename));
+      $rendered_css['preprocess'] .= '<link type="text/css" rel="stylesheet" media="' . $media . '" href="' . $preprocess_file . '" />' . "\n";
     }
   }
-  if (!empty($no_inline_preprocess)) {
-    $no_inline_preprocess = '<style type="text/css">' . $no_inline_preprocess . '</style>';
+  // Enclose the inline CSS with the style tag if required.
+  if (!empty($inline_css)) {
+    $inline_css = "\n" . '<style type="text/css">' . $inline_css .'</style>';
   }
-  return $no_module_preprocess . $output . $no_theme_preprocess . $no_inline_preprocess;
+
+  // Output all the CSS files with the inline stylesheets showing up last.
+  return implode("\n", $rendered_css) . $external_css . $inline_css;
 }
 
 /**
  * Aggregate and optimize CSS files, putting them in the files directory.
  *
- * @param $types
- *   An array of types of CSS files (e.g., screen, print) to aggregate and
- *   compress into one file.
+ * @param $css
+ *   An array of CSS files to aggregate and compress into one file.
  * @param $filename
  *   The name of the aggregate CSS file.
  * @return
  *   The name of the CSS file.
  */
-function drupal_build_css_cache($types, $filename) {
+function drupal_build_css_cache($css, $filename) {
   $data = '';
 
   // Create the css/ within the files folder.
-  $csspath = file_create_path('css');
-  file_check_directory($csspath, FILE_CREATE_DIRECTORY);
-
+  $csspath = 'public://css';
+  file_prepare_directory($csspath, FILE_CREATE_DIRECTORY);
   if (!file_exists($csspath . '/' . $filename)) {
     // Build aggregate CSS file.
-    foreach ($types as $type => $css) {
-      // Only 'module' or 'theme' stylesheets can be aggregated.
-      if ($type == 'module' || $type == 'theme') {
-        foreach ($css as $stylesheet => $cache) {
-          if ($cache) {
-            $contents = drupal_load_stylesheet($stylesheet, TRUE);
-            // Return the path to where this CSS file originated from.
-            $base = base_path() . dirname($stylesheet) . '/';
-            _drupal_build_css_path(NULL, $base);
-            // Prefix all paths within this CSS file, ignoring external and absolute paths.
-            $data .= preg_replace_callback('/url\([\'"]?(?![a-z]+:|\/+)([^\'")]+)[\'"]?\)/i', '_drupal_build_css_path', $contents);
-          }
-        }
+    foreach ($css as $stylesheet) {
+      // Only 'file' stylesheets can be aggregated.
+      if ($stylesheet['type'] == 'file') {
+        $contents = drupal_load_stylesheet($stylesheet['data'], TRUE);
+        // Return the path to where this CSS file originated from.
+        $base = base_path() . dirname($stylesheet['data']) . '/';
+        _drupal_build_css_path(NULL, $base);
+        // Prefix all paths within this CSS file, ignoring external and absolute paths.
+        $data .= preg_replace_callback('/url\([\'"]?(?![a-z]+:|\/+)([^\'")]+)[\'"]?\)/i', '_drupal_build_css_path', $contents);
       }
     }
 
@@ -2688,7 +2898,7 @@ function _drupal_load_stylesheet($matches) {
  * Delete all cached CSS files.
  */
 function drupal_clear_css_cache() {
-  file_scan_directory(file_create_path('css'), '/.*/', array('callback' => 'file_unmanaged_delete'));
+  file_scan_directory('public://css', '/.*/', array('callback' => 'file_unmanaged_delete'));
 }
 
 /**
@@ -2738,7 +2948,9 @@ function drupal_clear_css_cache() {
  *   (optional) If given, the value depends on the $options parameter:
  *   - 'file': Path to the file relative to base_path().
  *   - 'inline': The JavaScript code that should be placed in the given scope.
- *   - 'external': The absolute path to a JavaScript file hosted externally.
+ *   - 'external': The absolute path to an external JavaScript file that is not
+ *     hosted on the local server. These files will not be aggregated if
+ *     JavaScript aggregation is enabled.
  *   - 'setting': An array with configuration options as associative array. The
  *       array is directly placed in Drupal.settings. All modules should wrap
  *       their actual configuration settings in another variable to prevent
@@ -2783,8 +2995,8 @@ function drupal_clear_css_cache() {
  *       a JavaScript file. Defaults to TRUE.
  *   - preprocess
  *       Aggregate the JavaScript if the JavaScript optimization setting has
- *       been toggled in admin/settings/performance. Note that JavaScript of
- *       type 'external' is not aggregated. Defaults to TRUE.
+ *       been toggled in admin/config/development/performance. Note that
+ *       JavaScript of type 'external' is not aggregated. Defaults to TRUE.
  * @return
  *   The contructed array of JavaScript files.
  * @see drupal_get_js()
@@ -2833,8 +3045,9 @@ function drupal_add_js($data = NULL, $options = NULL) {
           'preprocess' => TRUE,
         ),
       );
-      // jQuery itself is registered as a library.
+      // Register all required libraries.
       drupal_add_library('system', 'jquery');
+      drupal_add_library('system', 'once');
     }
 
     switch ($options['type']) {
@@ -2852,7 +3065,6 @@ function drupal_add_js($data = NULL, $options = NULL) {
         // Local and external files must keep their name as the associative key
         // so the same JavaScript file is not be added twice.
         $javascript[$options['data']] = $options;
-        break;
     }
   }
   return $javascript;
@@ -2929,8 +3141,8 @@ function drupal_get_js($scope = 'header', $javascript = NULL) {
   $no_preprocess = '';
   $files = array();
   $preprocess_js = (variable_get('preprocess_js', FALSE) && (!defined('MAINTENANCE_MODE') || MAINTENANCE_MODE != 'update'));
-  $directory = file_directory_path();
-  $is_writable = is_dir($directory) && is_writable($directory) && (variable_get('file_downloads', FILE_DOWNLOADS_PUBLIC) == FILE_DOWNLOADS_PUBLIC);
+  $directory = file_directory_path('public');
+  $is_writable = is_dir($directory) && is_writable($directory);
 
   // A dummy query-string is added to filenames, to gain control over
   // browser-caching. The string changes on every update or full cache
@@ -2962,7 +3174,7 @@ function drupal_get_js($scope = 'header', $javascript = NULL) {
 
       case 'file':
         if (!$item['preprocess'] || !$is_writable || !$preprocess_js) {
-          $no_preprocess .= '<script type="text/javascript"' . ($item['defer'] ? ' defer="defer"' : '') . ' src="' . base_path() . $item['data'] . ($item['cache'] ? $query_string : '?' . REQUEST_TIME) . "\"></script>\n";
+          $no_preprocess .= '<script type="text/javascript"' . ($item['defer'] ? ' defer="defer"' : '') . ' src="' . file_create_url($item['data']) . ($item['cache'] ? $query_string : '?' . REQUEST_TIME) . "\"></script>\n";
         }
         else {
           $files[$item['data']] = $item;
@@ -2971,7 +3183,7 @@ function drupal_get_js($scope = 'header', $javascript = NULL) {
 
       case 'external':
         // Preprocessing for external JavaScript files is ignored.
-        $output .= '<script type="text/javascript"' . ($item['defer'] ? ' defer="defer"' : '') . ' src="' . $item['data'] . "\"></script>\n";
+        $output .= '<script type="text/javascript"' . ($item['defer'] ? ' defer="defer"' : '') . ' src="' . check_plain($item['data']) . "\"></script>\n";
         break;
     }
   }
@@ -2981,13 +3193,121 @@ function drupal_get_js($scope = 'header', $javascript = NULL) {
     // Prefix filename to prevent blocking by firewalls which reject files
     // starting with "ad*".
     $filename = 'js_' . md5(serialize($files) . $query_string) . '.js';
-    $preprocess_file = drupal_build_js_cache($files, $filename);
-    $preprocessed .= '<script type="text/javascript" src="' . base_path() . $preprocess_file . '"></script>' . "\n";
+    $preprocess_file = file_create_url(drupal_build_js_cache($files, $filename));
+    $preprocessed .= '<script type="text/javascript" src="' . $preprocess_file . '"></script>' . "\n";
   }
 
   // Keep the order of JS files consistent as some are preprocessed and others are not.
   // Make sure any inline or JS setting variables appear last after libraries have loaded.
   return $preprocessed . $no_preprocess . $output;
+}
+
+/**
+ * Add to the page all structures attached to a render() structure.
+ *
+ * Libraries, JavaScript, CSS and other types of custom structures are attached
+ * to elements using the #attached property. The #attached property contains an
+ * associative array, where the keys are the the types of the structure, and
+ * the value the attached data. For example:
+ * @code
+ * $build['#attached'] = array(
+ *   'js' => array(drupal_get_path('module', 'taxonomy') . '/taxonomy.js'),
+ *   'css' => array(drupal_get_path('module', 'taxonomy') . '/taxonomy.css'),
+ * );
+ * @endcode
+ *
+ * 'js', 'css', and 'library' are types that get special handling.  For any
+ * other kind of attached data, the array key must be the full name of the
+ * callback function and each value an array of arguments. For example:
+ *
+ * @code
+ * $build['#attached']['drupal_set_header'] = array(
+ *   array('Content-Type', 'application/rss+xml; charset=utf-8'),
+ * );
+ * @endcode
+ *
+ * @param $elements
+ *   The structured array describing the data being rendered.
+ * @param $weight
+ *   The default weight of JavaScript and CSS being added. This is only applied
+ *   to the stylesheets and JavaScript items that don't have an explicit weight
+ *   assigned to them.
+ * @param $dependency_check
+ *   When TRUE, will exit if a given library's dependencies are missing. When
+ *   set to FALSE, will continue to add the libraries, even though one of the
+ *   dependencies are missing. Defaults to FALSE.
+ * @return
+ *   Will return FALSE if there were any missing library dependencies. TRUE will
+ *   be returned if all library dependencies were met.
+ *
+ * @see drupal_add_library().
+ * @see drupal_add_js().
+ * @see drupal_add_css().
+ * @see drupal_render().
+ */
+function drupal_process_attached($elements, $weight = JS_DEFAULT, $dependency_check = FALSE) {
+  // If there is nothing to process then return. 
+  if (empty($elements['#attached'])) {
+    return;
+  }
+  // Add defaults to the special attached structures that should be processed differently.
+  $elements['#attached'] += array(
+    'library' => array(),
+    'js' => array(),
+    'css' => array(),
+  );
+
+  // Add the libraries first.
+  $success = TRUE;
+  foreach ($elements['#attached']['library'] as $library) {
+    if (drupal_add_library($library[0], $library[1]) === FALSE) {
+      $success = FALSE;
+      // Exit if the dependency is missing.
+      if ($dependency_check) {
+        return $success;
+      }
+    }
+  }
+  unset($elements['#attached']['library']);
+
+  // Add both the JavaScript and the CSS.
+  // The parameters for drupal_add_js() and drupal_add_css() require special
+  // handling.
+  foreach (array('js', 'css') as $type) {
+    foreach ($elements['#attached'][$type] as $data => $options) {
+      // If the value is not an array, it's a filename and passed as first
+      // (and only) argument.
+      if (!is_array($options)) {
+        $data = $options;
+        $options = NULL;
+      }
+      // In some cases, the first parameter ($data) is an array. Arrays can't be
+      // passed as keys in PHP, so we have to get $data from the value array.
+      if (is_numeric($data)) {
+        $data = $options['data'];
+        unset($options['data']);
+      }
+      // Apply the default weight if the weight isn't explicitly given.
+      if (!isset($options['weight'])) {
+        $options['weight'] = $weight;
+      }
+      call_user_func('drupal_add_' . $type, $data, $options);
+    }
+    unset($elements['#attached'][$type]);
+  }
+
+  // Add additional types of attachments specified in the render() structure.
+  // Libraries, Javascript and CSS have been added already, as they require
+  // special handling.
+  foreach ($elements['#attached'] as $callback => $options) {
+    if (function_exists($callback)) {
+      foreach ($elements['#attached'][$callback] as $args) {
+        call_user_func_array($callback, $args);
+      }
+    }
+  }
+
+  return $success;
 }
 
 /**
@@ -3016,42 +3336,20 @@ function drupal_add_library($module, $name) {
   $added = &drupal_static(__FUNCTION__, array());
 
   // Only process the library if it exists and it was not added already.
-  if (!isset($added[$module][$name]) && $library = drupal_get_library($module, $name)) {
-    // Prevent repeated/recursive processing.
-    $added[$module][$name] = TRUE;
-
-    // Ensure dependencies first.
-    foreach ($library['dependencies'] as $dependency) {
-      if (drupal_add_library($dependency[0], $dependency[1]) === FALSE) {
-        // If any dependent library could not be added, this library will break;
-        // stop here.
-        $added[$module][$name] = FALSE;
-        return FALSE;
-      }
+  if (!isset($added[$module][$name])) {
+    if ($library = drupal_get_library($module, $name)) {
+      // Add all components within the library.
+      $elements['#attached'] = array(
+        'library' => $library['dependencies'],
+        'js' => $library['js'],
+        'css' => $library['css'],
+      );
+      $added[$module][$name] = drupal_process_attached($elements, JS_LIBRARY, TRUE);
     }
-
-    // Add defined JavaScript.
-    foreach ($library['js'] as $data => $options) {
-      // For JS settings we need to transform $options['data'] into $data.
-      if (isset($options['type'], $options['data']) && $options['type'] == 'setting') {
-        $data = $options['data'];
-        unset($options['data']);
-      }
-      // If not specified, assign a default weight of JS_LIBRARY.
-      elseif (!isset($options['weight'])) {
-        $options['weight'] = JS_LIBRARY;
-      }
-      drupal_add_js($data, $options);
+    else {
+      // Requested library does not exist.
+      $added[$module][$name] = FALSE;
     }
-
-    // Add defined stylesheets.
-    foreach ($library['css'] as $data => $options) {
-      drupal_add_css($data, $options);
-    }
-  }
-  // Requested library does not exist.
-  else {
-    $added[$module][$name] = FALSE;
   }
 
   return $added[$module][$name];
@@ -3130,7 +3428,7 @@ function drupal_get_library($module, $name) {
  * In a situation where a single weight column is being sorted in the table, the
  * classes could be added like this (in the theme function):
  * @code
- * $form['my_elements'][$delta]['weight']['#attributes']['class'] = "my-elements-weight";
+ * $form['my_elements'][$delta]['weight']['#attributes']['class'] = array('my-elements-weight');
  * @endcode
  *
  * Each row of the table must also have a class of "draggable" in order to enable the
@@ -3139,7 +3437,7 @@ function drupal_get_library($module, $name) {
  * $row = array(...);
  * $rows[] = array(
  *   'data' => $row,
- *   'class' => 'draggable',
+ *   'class' => array('draggable'),
  * );
  * @endcode
  *
@@ -3157,7 +3455,7 @@ function drupal_get_library($module, $name) {
  * the block regions on the admin/structure/block page), a separate subgroup class
  * must also be added to differentiate the groups.
  * @code
- * $form['my_elements'][$region][$delta]['weight']['#attributes']['class'] = "my-elements-weight my-elements-weight-" . $region;
+ * $form['my_elements'][$region][$delta]['weight']['#attributes']['class'] = array('my-elements-weight', 'my-elements-weight-' . $region);
  * @endcode
  *
  * $group is still 'my-element-weight', and the additional $subgroup variable
@@ -3253,8 +3551,8 @@ function drupal_build_js_cache($files, $filename) {
   $contents = '';
 
   // Create the js/ within the files folder.
-  $jspath = file_create_path('js');
-  file_check_directory($jspath, FILE_CREATE_DIRECTORY);
+  $jspath = 'public://js';
+  file_prepare_directory($jspath, FILE_CREATE_DIRECTORY);
 
   if (!file_exists($jspath . '/' . $filename)) {
     // Build aggregate JS file.
@@ -3276,7 +3574,7 @@ function drupal_build_js_cache($files, $filename) {
  * Delete all cached JS files.
  */
 function drupal_clear_js_cache() {
-  file_scan_directory(file_create_path('js'), '/.*/', array('callback' => 'file_unmanaged_delete'));
+  file_scan_directory('public://js', '/.*/', array('callback' => 'file_unmanaged_delete'));
   variable_set('javascript_parsed', array());
 }
 
@@ -3439,6 +3737,8 @@ function _drupal_bootstrap_full() {
   require_once DRUPAL_ROOT . '/includes/form.inc';
   require_once DRUPAL_ROOT . '/includes/mail.inc';
   require_once DRUPAL_ROOT . '/includes/actions.inc';
+  require_once DRUPAL_ROOT . '/includes/ajax.inc';
+  require_once DRUPAL_ROOT . '/includes/token.inc';
   // Set the Drupal custom error handler.
   set_error_handler('_drupal_error_handler');
   set_exception_handler('_drupal_exception_handler');
@@ -3451,6 +3751,15 @@ function _drupal_bootstrap_full() {
   fix_gpc_magic();
   // Load all enabled modules
   module_load_all();
+  // Make sure all stream wrappers are registered.
+  file_get_stream_wrappers();
+  if (isset($_SERVER['HTTP_USER_AGENT']) && strpos($_SERVER['HTTP_USER_AGENT'], 'simpletest') !== FALSE) {
+    // Valid SimpleTest user-agent, log fatal errors to test specific file
+    // directory. The user-agent is validated in DRUPAL_BOOTSTRAP_DATABASE
+    // phase so as long as it is a SimpleTest user-agent it is valid.
+    ini_set('log_errors', 1);
+    ini_set('error_log', file_directory_path() . '/error.log');
+  }
 
   // Let all modules take action before menu system handles the request
   // We do not want this while running update.php.
@@ -3521,10 +3830,8 @@ function drupal_cron_run() {
   // Allow execution to continue even if the request gets canceled.
   @ignore_user_abort(TRUE);
 
-  // Try to increase the maximum execution time if it is too low.
-  if (ini_get('max_execution_time') < 240) {
-    @set_time_limit(240);
-  }
+  // Try to allocate enough time to run all the hook_cron implementations.
+  drupal_set_time_limit(240);
 
   // Fetch the cron semaphore
   $semaphore = variable_get('cron_semaphore', FALSE);
@@ -3606,17 +3913,10 @@ function drupal_cron_cleanup() {
  *   An array of file objects of the specified type.
  */
 function drupal_system_listing($mask, $directory, $key = 'name', $min_depth = 1) {
-  global $profile;
   $config = conf_path();
 
-  // When this function is called during Drupal's initial installation process,
-  // the name of the profile that's about to be installed is stored in the global
-  // $profile variable. At all other times, the standard Drupal systems variable
-  // table contains the name of the current profile, and we can call variable_get()
-  // to determine what one is active.
-  if (!isset($profile)) {
-    $profile = variable_get('install_profile', 'default');
-  }
+  $profile = drupal_get_profile();
+
   $searchdir = array($directory);
   $files = array();
 
@@ -3633,6 +3933,12 @@ function drupal_system_listing($mask, $directory, $key = 'name', $min_depth = 1)
 
   if (file_exists("$config/$directory")) {
     $searchdir[] = "$config/$directory";
+  }
+
+  // If the database is not available, we can't use function_exists(), so
+  // we load the file_scan_directory function definition manually.
+  if (!function_exists('file_scan_directory')) {
+    require_once DRUPAL_ROOT . '/includes/file.inc';
   }
 
   // Get current list of items
@@ -3722,7 +4028,6 @@ function drupal_set_page_content($content = NULL) {
  *   A string or array representing the content of a page. The array consists of
  *   the following keys:
  *   - #type: Value is always 'page'. This pushes the theming through page.tpl.php (required).
- *   - #show_blocks: A marker which suppresses left/right regions if FALSE (optional).
  *   - #show_messages: Suppress drupal_get_message() items. Used by Batch API (optional).
  *
  * @see hook_page_alter()
@@ -3736,8 +4041,14 @@ function drupal_render_page($page) {
     drupal_set_page_content($page);
     $page = element_info('page');
   }
+
+  // Modules can add elements to $page as needed in hook_page_build().
+  foreach (module_implements('page_build') as $module) {
+    $function = $module . '_page_build';
+    $function($page);
+  }
   // Modules alter the $page as needed. Blocks are populated into regions like
-  // 'left', 'footer', etc.
+  // 'sidebar_first', 'footer', etc.
   drupal_alter('page', $page);
 
   return drupal_render($page);
@@ -3749,7 +4060,7 @@ function drupal_render_page($page) {
  * Recursively iterates over each of the array elements, generating HTML code.
  *
  * HTML generation is controlled by two properties containing theme functions,
- * #theme and #theme_wrapper.
+ * #theme and #theme_wrappers.
  *
  * #theme is the theme function called first. If it is set and the element has
  * any children, they have to be rendered there. For elements that are not
@@ -3758,21 +4069,40 @@ function drupal_render_page($page) {
  * children, they are rendered and concatenated into a string by
  * drupal_render_children().
  *
- * The theme function in #theme_wrapper will be called after #theme has run.
- * It can be used to add further markup around the rendered children, e.g.
- * fieldsets add the required markup for a fieldset around their rendered
- * child elements.  A wrapper theme function always has to include the
- * element's #children property in its output, as this contains the rendered
+ * The #theme_wrappers property contains an array of theme functions which will
+ * be called, in order, after #theme has run. These can be used to add further
+ * markup around the rendered children; e.g., fieldsets add the required markup
+ * for a fieldset around their rendered child elements. All wrapper theme
+ * functions have to include the element's #children property in their output,
+ * as it contains the output of the previous theme functions and the rendered
  * children.
  *
- * For example, for the form element type, by default only the #theme_wrapper
+ * For example, for the form element type, by default only the #theme_wrappers
  * property is set, which adds the form markup around the rendered child
  * elements of the form. This allows you to set the #theme property on a
  * specific form to a custom theme function, giving you complete control over
  * the placement of the form's children while not at all having to deal with
  * the form markup itself.
  *
- * This function is usually called from within a another function, like
+ * drupal_render() can optionally cache the rendered output of elements to
+ * improve performance. To use drupal_render() caching, set the element's #cache
+ * property to an associative array with one or several of the following keys:
+ *    - 'keys': An array of one or more keys that identify the element. If 'keys'
+ *       is set, the cache ID is created automatically from these keys.
+ *       @see drupal_render_cid_create()
+ *    - 'granularity' (optional): Define the cache granularity using binary
+ *       combinations of the cache granularity constants, e.g. DRUPAL_CACHE_PER_USER
+ *       to cache for each user seperately or
+ *       DRUPAL_CACHE_PER_PAGE | DRUPAL_CACHE_PER_ROLE to cache seperately for each
+ *       page and role. If not specified the element is cached globally for each
+ *       theme and language.
+ *    - 'cid': Specify the cache ID directly. Either 'keys' or 'cid' is required.
+ *       If 'cid' is set, 'keys' and 'granularity' are ignored. Use only if you
+ *       have special requirements.
+ *    - 'expire': Set to one of the cache lifetime constants.
+ *    - 'bin': Specify a cache bin to cache the element in. Defaults to 'cache'.
+ *
+ * This function is usually called from within another function, like
  * drupal_get_form() or a theme function. Elements are sorted internally
  * using uasort(). Since this is expensive, when passing already sorted
  * elements to drupal_render(), for example from a database query, set
@@ -3784,6 +4114,7 @@ function drupal_render_page($page) {
  *   The rendered HTML.
  */
 function drupal_render(&$elements) {
+  static $defaults;
   // Early-return nothing if user does not have access.
   if (!isset($elements) || (isset($elements['#access']) && !$elements['#access'])) {
     return;
@@ -3794,13 +4125,21 @@ function drupal_render(&$elements) {
     return;
   }
 
+  // Try to fetch the element's markup from cache and return.
+  if (isset($elements['#cache']) && $cached_output = drupal_render_cache_get($elements)) {
+    return $cached_output;
+  }
+
   // If the default values for this element have not been loaded yet, populate
   // them.
   if (isset($elements['#type']) && empty($elements['#defaults_loaded'])) {
     $elements += element_info($elements['#type']);
   }
   else {
-    $elements += element_basic_defaults();
+    if (!isset($defaults)) {
+      $defaults = element_basic_defaults();
+    }
+    $elements += $defaults;
   }
 
   // If #markup is not empty and no theme function is set, use theme_markup.
@@ -3814,7 +4153,7 @@ function drupal_render(&$elements) {
   // element is rendered into the final text.
   if (isset($elements['#pre_render'])) {
     foreach ($elements['#pre_render'] as $function) {
-      if (drupal_function_exists($function)) {
+      if (function_exists($function)) {
         $elements = $function($elements);
       }
     }
@@ -3835,10 +4174,12 @@ function drupal_render(&$elements) {
     $elements['#children'] = drupal_render_children($elements, $children);
   }
 
-  // Let the theme function in #theme_wrapper add markup around the rendered
+  // Let the theme functions in #theme_wrappers add markup around the rendered
   // children.
-  if (!empty($elements['#theme_wrapper'])) {
-    $elements['#children'] = theme($elements['#theme_wrapper'], $elements);
+  if (isset($elements['#theme_wrappers'])) {
+    foreach ($elements['#theme_wrappers'] as $theme_wrapper) {
+      $elements['#children'] = theme($theme_wrapper, $elements);
+    }
   }
 
   // Filter the outputted content and make any last changes before the
@@ -3846,36 +4187,23 @@ function drupal_render(&$elements) {
   // which allows the output'ed text to be filtered.
   if (isset($elements['#post_render'])) {
     foreach ($elements['#post_render'] as $function) {
-      if (drupal_function_exists($function)) {
+      if (function_exists($function)) {
         $elements['#children'] = $function($elements['#children'], $elements);
       }
     }
   }
 
-  // Add additional CSS and JavaScript files associated with this element.
-  foreach (array('css', 'js') as $kind) {
-    if (!empty($elements['#attached_' . $kind]) && is_array($elements['#attached_' . $kind])) {
-      foreach ($elements['#attached_' . $kind] as $data => $options) {
-        // If the value is not an array, it's a filename and passed as first
-        // (and only) argument.
-        if (!is_array($options)) {
-          $data = $options;
-          $options = NULL;
-        }
-        // When drupal_add_js with 'type' => 'setting' is called, the first
-        // parameter ($data) is an array. Arrays can't be keys in PHP, so we
-        // have to get $data from the value array.
-        if (is_numeric($data)) {
-          $data = $options['data'];
-          unset($options['data']);
-        }
-        call_user_func('drupal_add_' . $kind, $data, $options);
-      }
-    }
-  }
+  // Add additional libraries, CSS, JavaScript an other custom
+  // attached data associated with this element.
+  drupal_process_attached($elements);
 
   $prefix = isset($elements['#prefix']) ? $elements['#prefix'] : '';
   $suffix = isset($elements['#suffix']) ? $elements['#suffix'] : '';
+
+  // Cache the processed element if #cache is set.
+  if (isset($elements['#cache'])) {
+    drupal_render_cache_set($prefix . $elements['#children'] . $suffix, $elements);
+  }
 
   $elements['#printed'] = TRUE;
   return $prefix . $elements['#children'] . $suffix;
@@ -3955,6 +4283,128 @@ function show(&$element) {
 }
 
 /**
+ * Get the rendered output of a renderable element from cache.
+ *
+ * @see drupal_render()
+ * @see drupal_render_cache_set()
+ * 
+ * @param $elements
+ *   A renderable array.
+ * @return
+ *   A markup string containing the rendered content of the element, or FALSE
+ *   if no cached copy of the element is available.
+ */
+function drupal_render_cache_get($elements) {
+  if (!in_array($_SERVER['REQUEST_METHOD'], array('GET', 'HEAD')) || !$cid = drupal_render_cid_create($elements)) {
+    return FALSE;
+  }
+  $bin = isset($elements['#cache']['bin']) ? $elements['#cache']['bin'] : 'cache';
+
+  if (!empty($cid) && $cache = cache_get($cid, $bin)) {
+    // Add additional libraries, JavaScript, CSS and other data attached
+    // to this element.
+    drupal_process_attached($cache->data);
+    // Return the rendered output.
+    return $cache->data['#markup'];;
+  }
+  return FALSE;
+}
+
+/**
+ * Cache the rendered output of a renderable element.
+ *
+ * This is called by drupal_render() if the #cache property is set on an element.
+ *
+ * @see drupal_render()
+ * @see drupal_render_cache_get()
+ *
+ * @param $markup
+ *   The rendered output string of $elements.
+ * @param $elements
+ *   A renderable array.
+ */
+function drupal_render_cache_set($markup, $elements) {
+  // Create the cache ID for the element 
+  if (!in_array($_SERVER['REQUEST_METHOD'], array('GET', 'HEAD')) || !$cid = drupal_render_cid_create($elements)) {
+    return FALSE;
+  }
+
+  $data['#markup'] = $markup;
+  // Persist attached data associated with this element.
+  $data['#attached'] = $elements['#attached'];
+  $bin = isset($elements['#cache']['bin']) ? $elements['#cache']['bin'] : 'cache';
+  $expire = isset($elements['#cache']['expire']) ? $elements['#cache']['expire'] : CACHE_PERMANENT;
+  cache_set($cid, $data, $bin, $expire);
+}
+
+/**
+ * Helper function for building cache ids.
+ *
+ * @param $granularity
+ *   One or more cache granularity constants, e.g. DRUPAL_CACHE_PER_USER to cache
+ *   for each user seperately or DRUPAL_CACHE_PER_PAGE | DRUPAL_CACHE_PER_ROLE to
+ *   cache seperately for each page and role.
+ *
+ * @return
+ *   An array of cache ID parts, always containing the active theme. If the
+ *   locale module is enabled it also contains the active language. If
+ *   $granularity was passed in, more parts are added.
+ */
+function drupal_render_cid_parts($granularity = NULL) {
+  global $theme, $base_root, $user;
+
+  $cid_parts[] = $theme;
+  if (module_exists('locale')) {
+    global $language;
+    $cid_parts[] = $language->language;
+  }
+
+  if (!empty($granularity)) {
+    // 'PER_ROLE' and 'PER_USER' are mutually exclusive. 'PER_USER' can be a
+    // resource drag for sites with many users, so when a module is being
+    // equivocal, we favor the less expensive 'PER_ROLE' pattern.
+    if ($granularity & DRUPAL_CACHE_PER_ROLE) {
+      $cid_parts[] = 'r.' . implode(',', array_keys($user->roles));
+    }
+    elseif ($granularity & DRUPAL_CACHE_PER_USER) {
+      $cid_parts[] = "u.$user->uid";
+    }
+
+    if ($granularity & DRUPAL_CACHE_PER_PAGE) {
+      $cid_parts[] = $base_root . request_uri();
+    }
+  }
+
+  return $cid_parts;
+}
+
+/**
+ * Create the cache ID for a renderable element.
+ *
+ * This creates the cache ID string, either by returning the #cache['cid']
+ * property if present or by building the cache ID out of the #cache['keys']
+ * and, optionally, the #cache['granularity'] properties.
+ *
+ * @param $elements
+ *   A renderable array.
+ *
+ * @return
+ *   The cache ID string, or FALSE if the element may not be cached.
+ */
+function drupal_render_cid_create($elements) {
+  if (isset($elements['#cache']['cid'])) {
+    return $elements['#cache']['cid'];
+  }
+  elseif (isset($elements['#cache']['keys'])) {
+    $granularity = isset($elements['#cache']['granularity']) ? $elements['#cache']['granularity'] : NULL;
+    // Merge in additional cache ID parts based provided by drupal_render_cid_parts().
+    $cid_parts = array_merge($elements['#cache']['keys'], drupal_render_cid_parts($granularity));
+    return implode(':', $cid_parts);
+  }
+  return FALSE;
+}
+
+/**
  * Function used by uasort to sort structured arrays by weight.
  */
 function element_sort($a, $b) {
@@ -3974,24 +4424,16 @@ function element_info($type) {
 
   if (!isset($cache)) {
     $basic_defaults = element_basic_defaults();
-    $cache = array();
-    foreach (module_implements('elements') as $module) {
-      $elements = module_invoke($module, 'elements');
-      if (isset($elements) && is_array($elements)) {
-        $cache = array_merge_recursive($cache, $elements);
-      }
-    }
-    if (!empty($cache)) {
-      foreach ($cache as $element_type => $info) {
-        $cache[$element_type] = array_merge_recursive($basic_defaults, $info);
-        $cache[$element_type]['#type'] = $element_type;
-      }
+    $cache = module_invoke_all('element_info');
+    foreach ($cache as $element_type => $info) {
+      $cache[$element_type] = array_merge_recursive($basic_defaults, $info);
+      $cache[$element_type]['#type'] = $element_type;
     }
     // Allow modules to alter the element type defaults.
     drupal_alter('element_info', $cache);
   }
 
-  return $cache[$type];
+  return isset($cache[$type]) ? $cache[$type] : array();
 }
 
 /**
@@ -4003,6 +4445,7 @@ function element_basic_defaults() {
     '#title' => '',
     '#attributes' => array(),
     '#required' => FALSE,
+    '#attached' => array(),
   );
 }
 
@@ -4094,10 +4537,8 @@ function drupal_common_theme() {
       'template' => 'page',
     ),
     'maintenance_page' => array(
-      'arguments' => array('content' => NULL, 'show_blocks' => TRUE, 'show_messages' => TRUE),
+      'arguments' => array('content' => NULL, 'show_messages' => TRUE),
       'template' => 'maintenance-page',
-      'path' => 'includes',
-      'file' => 'theme.maintenance.inc',
     ),
     'update_page' => array(
       'arguments' => array('content' => NULL, 'show_messages' => TRUE),
@@ -4112,7 +4553,7 @@ function drupal_common_theme() {
       'arguments' => array('display' => NULL),
     ),
     'links' => array(
-      'arguments' => array('links' => NULL, 'attributes' => array('class' => 'links')),
+      'arguments' => array('links' => NULL, 'attributes' => array('class' => array('links')), 'heading' => array()),
     ),
     'image' => array(
       'arguments' => array('path' => NULL, 'alt' => '', 'title' => '', 'attributes' => array(), 'getsize' => TRUE),
@@ -4127,7 +4568,7 @@ function drupal_common_theme() {
       'arguments' => array('links' => NULL),
     ),
     'table' => array(
-      'arguments' => array('header' => NULL, 'rows' => NULL, 'attributes' => array(), 'caption' => NULL),
+      'arguments' => array('header' => NULL, 'rows' => NULL, 'attributes' => array(), 'caption' => NULL, 'colgroups' => array(), 'sticky' => TRUE),
     ),
     'table_select_header_cell' => array(
       'arguments' => array(),
@@ -4149,9 +4590,6 @@ function drupal_common_theme() {
     ),
     'more_link' => array(
       'arguments' => array('url' => NULL, 'title' => NULL)
-    ),
-    'closure' => array(
-      'arguments' => array('main' => 0),
     ),
     'blocks' => array(
       'arguments' => array('region' => NULL),
@@ -4200,6 +4638,9 @@ function drupal_common_theme() {
     ),
     'menu_local_task' => array(
       'arguments' => array('link' => NULL, 'active' => FALSE),
+    ),
+    'menu_local_action' => array(
+      'arguments' => array('link' => NULL),
     ),
     'menu_local_tasks' => array(
       'arguments' => array(),
@@ -4357,9 +4798,10 @@ function drupal_get_schema_unprocessed($module, $table = NULL) {
   if (!is_null($table) && isset($schema[$table])) {
     return $schema[$table];
   }
-  else {
+  else if (!empty($schema)) {
     return $schema;
   }
+  return array();
 }
 
 /**
@@ -4779,7 +5221,7 @@ function drupal_flush_all_caches() {
   }
 
   drupal_theme_rebuild();
-  // Rebuild content types, menu will be rebuilt as well.
+  menu_rebuild();
   node_types_rebuild();
   // Don't clear cache_form - in-progress form submissions may break.
   // Ordered so clearing the page cache will always be the last action.
@@ -4809,3 +5251,222 @@ function _drupal_flush_css_js() {
   }
   variable_set('css_js_query_string', $new_character . substr($string_history, 0, 19));
 }
+
+/**
+ * Debug function used for outputting debug information.
+ *
+ * The debug information is passed on to trigger_error() after being converted
+ * to a string using _drupal_debug_message().
+ *
+ * @param $data
+ *   Data to be output.
+ * @param $label
+ *   Label to prefix the data.
+ * @param $print_r
+ *   Flag to switch between print_r() and var_export() for data conversion to
+ *   string. Set $print_r to TRUE when dealing with a recursive data structure
+ *   as var_export() will generate an error.
+ */
+function debug($data, $label = NULL, $print_r = FALSE) {
+  // Print $data contents to string.
+  $string = $print_r ? print_r($data, TRUE) : var_export($data, TRUE);
+  trigger_error(trim($label ? "$label: $string" : $string));
+}
+
+/**
+ * Parse a dependency for comparison by drupal_check_incompatibility().
+ *
+ * @param $dependency
+ *   A dependency string, for example 'foo (>=7.x-4.5-beta5, 3.x)'.
+ * @return
+ *   An associative array with three keys:
+ *   - 'name' includes the name of the thing to depend on (e.g. 'foo').
+ *   - 'original_version' contains the original version string (which can be
+ *     used in the UI for reporting incompatibilities).
+ *   - 'versions' is a list of associative arrays, each containing the keys
+ *     'op' and 'version'. 'op' can be one of: '=', '==', '!=', '<>', '<',
+ *     '<=', '>', or '>='. 'version' is one piece like '4.5-beta3'.
+ *   Callers should pass this structure to drupal_check_incompatibility().
+ *
+ * @see drupal_check_incompatibility()
+ */
+function drupal_parse_dependency($dependency) {
+  // We use named subpatterns and support every op that version_compare
+  // supports. Also, op is optional and defaults to equals.
+  $p_op = '(?P<operation>!=|==|=|<|<=|>|>=|<>)?';
+  // Core version is always optional: 7.x-2.x and 2.x is treated the same.
+  $p_core = '(?:' . preg_quote(DRUPAL_CORE_COMPATIBILITY) . '-)?';
+  $p_major = '(?P<major>\d+)';
+  // By setting the minor version to x, branches can be matched.
+  $p_minor = '(?P<minor>(?:\d+|x)(?:-[A-Za-z]+\d+)?)';
+  $value = array();
+  $parts = explode('(', $dependency, 2);
+  $value['name'] = trim($parts[0]);
+  if (isset($parts[1])) {
+    $value['original_version'] = ' (' . $parts[1];
+    foreach (explode(',', $parts[1]) as $version) {
+      if (preg_match("/^\s*$p_op\s*$p_core$p_major\.$p_minor/", $version, $matches)) {
+        $op = !empty($matches['operation']) ? $matches['operation'] : '=';
+        if ($matches['minor'] == 'x') {
+          // Drupal considers "2.x" to mean any version that begins with
+          // "2" (e.g. 2.0, 2.9 are all "2.x"). PHP's version_compare(),
+          // on the other hand, treats "x" as a string; so to
+          // version_compare(), "2.x" is considered less than 2.0. This
+          // means that >=2.x and <2.x are handled by version_compare()
+          // as we need, but > and <= are not.
+          if ($op == '>' || $op == '<=') {
+            $matches['major']++;
+          }
+          // Equivalence can be checked by adding two restrictions.
+          if ($op == '=' || $op == '==') {
+            $value['versions'][] = array('op' => '<', 'version' => ($matches['major'] + 1) . '.x');
+            $op = '>=';
+          }
+        }
+        $value['versions'][] = array('op' => $op, 'version' => $matches['major'] . '.' . $matches['minor']);
+      }
+    }
+  }
+  return $value;
+}
+
+/**
+ * Check whether a version is compatible with a given dependency.
+ *
+ * @param $v
+ *   The parsed dependency structure from drupal_parse_dependency().
+ * @param $current_version
+ *   The version to check against (like 4.2).
+ * @return
+ *   NULL if compatible, otherwise the original dependency version string that
+ *   caused the incompatiblity.
+ *
+ * @see drupal_parse_dependency()
+ */
+function drupal_check_incompatibility($v, $current_version) {
+  if (!empty($v['versions'])) {
+    foreach ($v['versions'] as $required_version) {
+      if ((isset($required_version['op']) && !version_compare($current_version, $required_version['version'], $required_version['op']))) {
+        return $v['original_version'];
+      }
+    }
+  }
+}
+
+/**
+ * Get the entity info array of an entity type.
+ *
+ * @see hook_entity_info()
+ * @see hook_entity_info_alter()
+ *
+ * @param $entity_type
+ *   The entity type, e.g. node, for which the info shall be returned, or NULL
+ *   to return an array with info about all types.
+ */
+function entity_get_info($entity_type = NULL) {
+  // We statically cache the information returned by hook_entity_info().
+  $entity_info = &drupal_static(__FUNCTION__, array());
+
+  if (empty($entity_info)) {
+    if ($cache = cache_get('entity_info')) {
+      $entity_info = $cache->data;
+    }
+    else {
+      $entity_info = module_invoke_all('entity_info');
+      // Merge in default values.
+      foreach ($entity_info as $name => $data) {
+        $entity_info[$name] += array(
+          'fieldable' => FALSE,
+          'controller class' => 'DrupalDefaultEntityController',
+          'static cache' => TRUE,
+          'load hook' => $name . '_load',
+        );
+      }
+      // Let other modules alter the entity info.
+      drupal_alter('entity_info', $entity_info);
+      cache_set('entity_info', $entity_info);
+    }
+  }
+
+  return empty($entity_type) ? $entity_info : $entity_info[$entity_type];
+}
+
+/**
+ * Load entities from the database.
+ *
+ * This function should be used whenever you need to load more than one entity
+ * from the database. The entities are loaded into memory and will not require
+ * database access if loaded again during the same page request.
+ *
+ * The actual loading is done through a class that has to implement the
+ * DrupalEntityController interface. By default, DrupalDefaultEntityController
+ * is used. Entity types can specify that a different class should be used by
+ * setting the 'controller class' key in hook_entity_info(). These classes can
+ * either implement the DrupalEntityController interface, or, most commonly,
+ * extend the DrupalDefaultEntityController class. See node_entity_info() and
+ * the NodeController in node.module as an example.
+ *
+ * @see hook_entity_info()
+ * @see DrupalEntityController
+ * @see DrupalDefaultEntityController
+ *
+ * @param $entity_type
+ *   The entity type to load, e.g. node or user.
+ * @param $ids
+ *   An array of entity IDs, or FALSE to load all entities.
+ * @param $conditions
+ *   An array of conditions in the form 'field' => $value.
+ * @param $reset
+ *   Whether to reset the internal cache for the requested entity type.
+ *
+ * @return
+ *   An array of entity objects indexed by their ids.
+ */
+function entity_load($entity_type, $ids = array(), $conditions = array(), $reset = FALSE) {
+  if ($reset) {
+    entity_get_controller($entity_type)->resetCache();
+  }
+  return entity_get_controller($entity_type)->load($ids, $conditions);
+}
+
+/**
+ * Get the entity controller class for an entity type.
+ */
+function entity_get_controller($entity_type) {
+  $controllers = &drupal_static(__FUNCTION__, array());
+  if (!isset($controllers[$entity_type])) {
+    $type_info = entity_get_info($entity_type);
+    $class = $type_info['controller class'];
+    $controllers[$entity_type] = new $class($entity_type);
+  }
+  return $controllers[$entity_type];
+}
+
+/**
+ * Performs one or more XML-RPC request(s).
+ *
+ * @param $url
+ *   An absolute URL of the XML-RPC endpoint.
+ *     Example:
+ *     http://www.example.com/xmlrpc.php
+ * @param ...
+ *   For one request:
+ *     The method name followed by a variable number of arguments to the method.
+ *   For multiple requests (system.multicall):
+ *     An array of call arrays. Each call array follows the pattern of the single
+ *     request: method name followed by the arguments to the method.
+ * @return
+ *   For one request:
+ *     Either the return value of the method on success, or FALSE.
+ *     If FALSE is returned, see xmlrpc_errno() and xmlrpc_error_msg().
+ *   For multiple requests:
+ *     An array of results. Each result will either be the result
+ *     returned by the method called, or an xmlrpc_error object if the call
+ *     failed. See xmlrpc_error().
+ */
+function xmlrpc($url) {
+  require_once DRUPAL_ROOT . '/includes/xmlrpc.inc';
+  $args = func_get_args();
+  return call_user_func_array('_xmlrpc', $args);
+}
+

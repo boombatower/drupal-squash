@@ -114,7 +114,7 @@ function user_filter_form_submit($form, &$form_state) {
       return;
   }
 
-  $form_state['redirect'] = 'admin/user/user';
+  $form_state['redirect'] = 'admin/people';
   return;
 }
 
@@ -297,7 +297,7 @@ function user_admin_settings() {
   $form['registration_cancellation']['user_cancel_method'] = array(
     '#type' => 'item',
     '#title' => t('When cancelling a user account'),
-    '#description' => t('Users with the %select-cancel-method or %administer-users <a href="@permissions-url">permissions</a> can override this default method.', array('%select-cancel-method' => t('Select method for cancelling account'), '%administer-users' => t('Administer users'), '@permissions-url' => url('admin/user/permissions'))),
+    '#description' => t('Users with the %select-cancel-method or %administer-users <a href="@permissions-url">permissions</a> can override this default method.', array('%select-cancel-method' => t('Select method for cancelling account'), '%administer-users' => t('Administer users'), '@permissions-url' => url('admin/config/people/permissions'))),
   );
   $form['registration_cancellation']['user_cancel_method'] += user_cancel_methods();
   foreach (element_children($form['registration_cancellation']['user_cancel_method']) as $element) {
@@ -324,8 +324,11 @@ function user_admin_settings() {
   );
   // If picture support is enabled, check whether the picture directory exists.
   if (variable_get('user_pictures', 0)) {
-    $picture_path = file_create_path(variable_get('user_picture_path', 'pictures'));
-    file_check_directory($picture_path, FILE_CREATE_DIRECTORY, 'user_picture_path');
+    $picture_path =  variable_get('file_default_scheme', 'public') . '://' . variable_get('user_picture_path', 'pictures');
+    if (!file_prepare_directory($picture_path, FILE_CREATE_DIRECTORY)) {
+      form_set_error('user_picture_path', t('The directory %directory does not exist or is not writable.', array('%directory' => $picture_path)));
+      watchdog('file system', 'The directory %directory does not exist or is not writable.', array('%directory' => $picture_path), WATCHDOG_ERROR);
+    }
   }
   $picture_support = variable_get('user_pictures', 0);
   $form['personalization']['user_pictures'] = array(
@@ -366,7 +369,7 @@ function user_admin_settings() {
       '#title' => t('Picture display style'),
       '#options' => image_style_options(TRUE),
       '#default_value' => variable_get('user_picture_style', ''),
-      '#description' => t('The style selected will be used on display, while the original image is retained. Styles may be configured in the <a href="!url">Image styles</a> administration area.', array('!url' => url('admin/settings/image-styles'))),
+      '#description' => t('The style selected will be used on display, while the original image is retained. Styles may be configured in the <a href="!url">Image styles</a> administration area.', array('!url' => url('admin/config/media/image-styles'))),
     );
   }
   $form['personalization']['pictures']['user_picture_dimensions'] = array(
@@ -648,7 +651,7 @@ function user_admin_permissions($form_state, $rid = NULL) {
   }
   $form['submit'] = array('#type' => 'submit', '#value' => t('Save permissions'));
 
-  $form['#attached_js'] = array(drupal_get_path('module', 'user') . '/user.permissions.js');
+  $form['#attached']['js'][] = drupal_get_path('module', 'user') . '/user.permissions.js';
 
   return $form;
 }
@@ -660,19 +663,8 @@ function user_admin_permissions($form_state, $rid = NULL) {
  */
 function user_admin_permissions_submit($form, &$form_state) {
   foreach ($form_state['values']['role_names'] as $rid => $name) {
-    $checked = array_filter($form_state['values'][$rid]);
-    // Delete existing permissions for the role. This handles "unchecking" checkboxes.
-    db_delete('role_permission')
-      ->condition('rid', $rid)
-      ->execute();
-    $query = db_insert('role_permission')->fields(array('rid', 'permission'));
-    foreach ($checked as $permission) {
-      $query->values(array(
-        'rid' => $rid,
-        'permission' => $permission,
-      ));
-    }
-    $query->execute();
+    $permissions = array_filter($form_state['values'][$rid]);
+    user_role_set_permissions($rid, $permissions);
   }
 
   drupal_set_message(t('The changes have been saved.'));
@@ -692,23 +684,23 @@ function theme_user_admin_permissions($form) {
     $row = array();
     // Module name
     if (is_numeric($key)) {
-      $row[] = array('data' => drupal_render($form['permission'][$key]), 'class' => 'module', 'id' => 'module-' . $form['permission'][$key]['#id'], 'colspan' => count($form['role_names']['#value']) + 1);
+      $row[] = array('data' => drupal_render($form['permission'][$key]), 'class' => array('module'), 'id' => 'module-' . $form['permission'][$key]['#id'], 'colspan' => count($form['role_names']['#value']) + 1);
     }
     else {
       // Permission row.
       $row[] = array(
         'data' => drupal_render($form['permission'][$key]),
-        'class' => 'permission',
+        'class' => array('permission'),
       );
       foreach (element_children($form['checkboxes']) as $rid) {
-        $row[] = array('data' => drupal_render($form['checkboxes'][$rid][$key]), 'class' => 'checkbox', 'title' => $roles[$rid] . ' : ' . t($key));
+        $row[] = array('data' => drupal_render($form['checkboxes'][$rid][$key]), 'class' => array('checkbox'), 'title' => $roles[$rid] . ' : ' . t($key));
       }
     }
     $rows[] = $row;
   }
   $header[] = (t('Permission'));
   foreach (element_children($form['role_names']) as $rid) {
-    $header[] = array('data' => drupal_render($form['role_names'][$rid]), 'class' => 'checkbox');
+    $header[] = array('data' => drupal_render($form['role_names'][$rid]), 'class' => array('checkbox'));
   }
   $output = theme('system_compact_link');
   $output .= theme('table', $header, $rows, array('id' => 'permissions'));
@@ -725,10 +717,10 @@ function theme_user_admin_permissions($form) {
  * @see theme_user_admin_new_role()
  */
 function user_admin_role() {
-  $rid = arg(4);
+  $rid = arg(5);
   if ($rid) {
     if ($rid == DRUPAL_ANONYMOUS_RID || $rid == DRUPAL_AUTHENTICATED_RID) {
-      drupal_goto('admin/user/roles');
+      drupal_goto('admin/config/people/roles');
     }
     // Display the edit role form.
     $role = db_query('SELECT * FROM {role} WHERE rid = :rid', array(':rid' => $rid))->fetchObject();
@@ -773,13 +765,13 @@ function user_admin_role() {
 function user_admin_role_validate($form, &$form_state) {
   if ($form_state['values']['name']) {
     if ($form_state['values']['op'] == t('Save role')) {
-      $existing_role = (bool) db_query_range("SELECT 1 FROM {role} WHERE name = :name AND rid <> :rid", array(':name' => $form_state['values']['name'], ':rid' => $form_state['values']['rid']), 0, 1)->fetchField();
-      if ($existing_role) {
+      $role = user_role_load($form_state['values']['name']);
+      if ($role && $role->rid != $form_state['values']['rid']) {    
         form_set_error('name', t('The role name %name already exists. Please choose another role name.', array('%name' => $form_state['values']['name'])));
       }
     }
     elseif ($form_state['values']['op'] == t('Add role')) {
-      if ((bool) db_query_range('SELECT 1 FROM {role} WHERE name = :name', array(':name' => $form_state['values']['name']), 0, 1)->fetchField()) {
+      if (user_role_load($form_state['values']['name'])) {
         form_set_error('name', t('The role name %name already exists. Please choose another role name.', array('%name' => $form_state['values']['name'])));
       }
     }
@@ -790,34 +782,20 @@ function user_admin_role_validate($form, &$form_state) {
 }
 
 function user_admin_role_submit($form, &$form_state) {
+  $role = (object)$form_state['values'];
   if ($form_state['values']['op'] == t('Save role')) {
-    db_update('role')
-      ->fields(array('name' => $form_state['values']['name']))
-      ->condition('rid', $form_state['values']['rid'])
-      ->execute();
+    user_role_save($role);
     drupal_set_message(t('The role has been renamed.'));
   }
   elseif ($form_state['values']['op'] == t('Delete role')) {
-    db_delete('role')
-      ->condition('rid', $form_state['values']['rid'])
-      ->execute();
-    db_delete('role_permission')
-      ->condition('rid', $form_state['values']['rid'])
-      ->execute();
-    // Update the users who have this role set:
-    db_delete('users_roles')
-      ->condition('rid', $form_state['values']['rid'])
-      ->execute();
-
+    user_role_delete($form_state['values']['rid']);
     drupal_set_message(t('The role has been deleted.'));
   }
   elseif ($form_state['values']['op'] == t('Add role')) {
-    db_insert('role')
-      ->fields(array('name' => $form_state['values']['name']))
-      ->execute();
+    user_role_save($role);
     drupal_set_message(t('The role has been added.'));
   }
-  $form_state['redirect'] = 'admin/user/roles';
+  $form_state['redirect'] = 'admin/config/people/roles';
   return;
 }
 
@@ -874,9 +852,9 @@ function theme_user_admin_account($form) {
 function theme_user_admin_new_role($form) {
   $header = array(t('Name'), array('data' => t('Operations'), 'colspan' => 2));
   foreach (user_roles() as $rid => $name) {
-    $edit_permissions = l(t('edit permissions'), 'admin/user/permissions/' . $rid);
+    $edit_permissions = l(t('edit permissions'), 'admin/config/people/permissions/' . $rid);
     if (!in_array($rid, array(DRUPAL_ANONYMOUS_RID, DRUPAL_AUTHENTICATED_RID))) {
-      $rows[] = array($name, l(t('edit role'), 'admin/user/roles/edit/' . $rid), $edit_permissions);
+      $rows[] = array($name, l(t('edit role'), 'admin/config/people/roles/edit/' . $rid), $edit_permissions);
     }
     else {
       $rows[] = array($name, t('locked'), $edit_permissions);
@@ -934,42 +912,4 @@ function theme_user_filters($form) {
   $output .= '</li></ul>';
 
   return $output;
-}
-
-/**
- * Implementation of hook_modules_installed().
- */
-function user_modules_installed($modules) {
-  // Assign all available permissions to the administrator role.
-  $rid = variable_get('user_admin_role', 0);
-  if ($rid) {
-    foreach ($modules as $module) {
-      if ($permissions = module_invoke($module, 'permission')) {
-        foreach (array_keys($permissions) as $permission) {
-          db_insert('role_permission')
-            ->fields(array(
-              'rid' => $rid,
-              'permission' => $permission,
-            ))->execute();
-        }
-      }
-    }
-  }
-}
-
-/**
- * Implement hook_modules_uninstalled().
- */
-function user_modules_uninstalled($modules) {
-  $permissions = array();
-  foreach ($modules as $module) {
-    if (drupal_function_exists($module . '_permission')) {
-      $permissions = array_merge($permissions, array_keys(module_invoke($module, 'permission')));
-    }
-  }
-  if (!empty($permissions)) {
-    db_delete('role_permission')
-      ->condition('permission', $permissions, 'IN')
-      ->execute();
-  }
 }

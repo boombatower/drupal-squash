@@ -10,13 +10,14 @@
  * Implement hook_install().
  */
 function forum_install() {
-  // Create tables.
-  drupal_install_schema('forum');
   // Set the weight of the forum.module to 1 so it is loaded after the taxonomy.module.
   db_update('system')
     ->fields(array('weight' => 1))
     ->condition('name', 'forum')
     ->execute();
+  // Forum topics are published by default, but do not have any other default
+  // options set (for example, they are not promoted to the front page).
+  variable_set('node_options_forum', array('status'));
 }
 
 function forum_enable() {
@@ -58,7 +59,6 @@ function forum_uninstall() {
   $vid = variable_get('forum_nav_vocabulary', 0);
   taxonomy_vocabulary_delete($vid);
 
-  drupal_uninstall_schema('forum');
   variable_del('forum_containers');
   variable_del('forum_nav_vocabulary');
   variable_del('forum_hot_topic');
@@ -66,6 +66,7 @@ function forum_uninstall() {
   variable_del('forum_order');
   variable_del('forum_block_num_active');
   variable_del('forum_block_num_new');
+  variable_del('node_options_forum');
 }
 
 /**
@@ -98,7 +99,7 @@ function forum_schema() {
       ),
     ),
     'indexes' => array(
-      'nid' => array('nid'),
+      'forum_topic' => array('nid', 'tid'),
       'tid' => array('tid'),
     ),
     'primary key' => array('vid'),
@@ -109,4 +110,15 @@ function forum_schema() {
   );
 
   return $schema;
+}
+
+/**
+ * Add new index to forum table.
+ */
+function forum_update_7000() {
+  $ret = array();
+  db_drop_index($ret, 'forum', 'nid');
+  db_add_index($ret, 'forum', 'forum_topic', array('nid', 'tid'));
+
+  return $ret;
 }

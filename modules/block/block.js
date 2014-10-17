@@ -25,7 +25,9 @@ Drupal.behaviors.blockDrag = {
     // Add a handler so when a row is dropped, update fields dropped into new regions.
     tableDrag.onDrop = function () {
       dragObject = this;
-      var regionRow = $(dragObject.rowObject.element).prev('tr').get(0);
+      // Use "region-message" row instead of "region" row because
+      // "region-{region_name}-message" is less prone to regexp match errors.
+      var regionRow = $(dragObject.rowObject.element).prevAll('tr.region-message').get(0);
       var regionName = regionRow.className.replace(/([^ ]+[ ]+)*region-([^ ]+)-message([ ]+[^ ]+)*/, '$2');
       var regionField = $('select.block-region-select', dragObject.rowObject.element);
       // Check whether the newly picked region is available for this block.
@@ -49,7 +51,7 @@ Drupal.behaviors.blockDrag = {
     };
 
     // Add the behavior to each region select list.
-    $('select.block-region-select:not(.blockregionselect-processed)', context).each(function () {
+    $('select.block-region-select', context).once('block-region-select', function () {
       $(this).change(function (event) {
         // Make our new row and select field.
         var row = $(this).parents('tr:first');
@@ -80,7 +82,6 @@ Drupal.behaviors.blockDrag = {
         // Remove focus from selectbox.
         select.get(0).blur();
       });
-      $(this).addClass('blockregionselect-processed');
     });
 
     var checkEmptyRegions = function (table, rowObject) {

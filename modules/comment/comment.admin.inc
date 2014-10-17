@@ -89,7 +89,7 @@ function comment_admin_overview($type = 'new', $arg) {
       'subject' => l($comment->subject, 'comment/' . $comment->cid, array('attributes' => array('title' => truncate_utf8($comment->comment, 128)), 'fragment' => 'comment-' . $comment->cid)),
       'author' => theme('username', $comment),
       'posted_in' => l($comment->node_title, 'node/' . $comment->nid),
-      'time' => format_date($comment->timestamp, 'small'),
+      'time' => format_date($comment->timestamp, 'short'),
       'operations' => l(t('edit'), 'comment/edit/' . $comment->cid, array('query' => $destination)),
     );
   }
@@ -101,9 +101,7 @@ function comment_admin_overview($type = 'new', $arg) {
     '#empty' => t('No comments available.'),
   );
 
-  $form['pager'] = array(
-    '#markup' => theme('pager', NULL)
-  );
+  $form['pager'] = array('#theme' => 'pager');
 
   return $form;
 }
@@ -116,7 +114,7 @@ function comment_admin_overview_validate($form, &$form_state) {
   // We can't execute any 'Update options' if no comments were selected.
   if (count($form_state['values']['comments']) == 0) {
     form_set_error('', t('Please select one or more comments to perform the update on.'));
-    drupal_goto('admin/content/content/comment');
+    drupal_goto('admin/content/comment');
   }
 }
 
@@ -147,7 +145,7 @@ function comment_admin_overview_submit($form, &$form_state) {
     }
     cache_clear_all();
     drupal_set_message(t('The update has been performed.'));
-    $form_state['redirect'] = 'admin/content/content/comment';
+    $form_state['redirect'] = 'admin/content/comment';
   }
 }
 
@@ -174,7 +172,7 @@ function comment_multiple_delete_confirm(&$form_state) {
   foreach (array_filter($edit['comments']) as $cid => $value) {
     $comment = comment_load($cid);
     if (is_object($comment) && is_numeric($comment->cid)) {
-      $subject = db_result(db_query('SELECT subject FROM {comment} WHERE cid = %d', $cid));
+      $subject = db_query('SELECT subject FROM {comment} WHERE cid = :cid', array(':cid' => $cid))->fetchField();
       $form['comments'][$cid] = array('#type' => 'hidden', '#value' => $cid, '#prefix' => '<li>', '#suffix' => check_plain($subject) . '</li>');
       $comment_counter++;
     }
@@ -183,12 +181,12 @@ function comment_multiple_delete_confirm(&$form_state) {
 
   if (!$comment_counter) {
     drupal_set_message(t('There do not appear to be any comments to delete, or your selected comment was deleted by another administrator.'));
-    drupal_goto('admin/content/content/comment');
+    drupal_goto('admin/content/comment');
   }
   else {
     return confirm_form($form,
                         t('Are you sure you want to delete these comments and all their children?'),
-                        'admin/content/content/comment', t('This action cannot be undone.'),
+                        'admin/content/comment', t('This action cannot be undone.'),
                         t('Delete comments'), t('Cancel'));
   }
 }
@@ -198,16 +196,13 @@ function comment_multiple_delete_confirm(&$form_state) {
  */
 function comment_multiple_delete_confirm_submit($form, &$form_state) {
   if ($form_state['values']['confirm']) {
-    foreach ($form_state['values']['comments'] as $cid => $value) {
-      $comment = comment_load($cid);
-      // Perform the actual comment deletion.
-      _comment_delete_thread($comment);
-      _comment_update_node_statistics($comment->nid);
-    }
+    comment_delete_multiple(array_keys($form_state['values']['comments']));
     cache_clear_all();
-    drupal_set_message(t('The comments have been deleted.'));
+    $count = count($form_state['values']['comments']);
+    watchdog('content', 'Deleted @count comments.', array('@count' => $count));
+    drupal_set_message(t('Deleted @count comments.', array('@count' => $count)));
   }
-  $form_state['redirect'] = 'admin/content/content/comment';
+  $form_state['redirect'] = 'admin/content/comment';
 }
 
 /**
@@ -216,7 +211,7 @@ function comment_multiple_delete_confirm_submit($form, &$form_state) {
  * @param $cid
  *   The comment to be deleted.
  */
-function comment_delete($cid = NULL) {
+function comment_delete_page($cid = NULL) {
   $comment = db_query('SELECT c.*, u.name AS registered_name, u.uid FROM {comment} c INNER JOIN {users} u ON u.uid = c.uid WHERE c.cid = :cid', array(':cid' => $cid))->fetch();
   $comment->name = $comment->uid ? $comment->registered_name : $comment->name;
   $output = '';
@@ -254,41 +249,13 @@ function comment_confirm_delete(&$form_state, $comment) {
  * Process comment_confirm_delete form submissions.
  */
 function comment_confirm_delete_submit($form, &$form_state) {
-  drupal_set_message(t('The comment and all its replies have been deleted.'));
   $comment = $form['#comment'];
   // Delete the comment and its replies.
-  _comment_delete_thread($comment);
-  _comment_update_node_statistics($comment->nid);
+  comment_delete($comment->cid);
+  drupal_set_message(t('The comment and all its replies have been deleted.'));
+  watchdog('content', t('Deleted comment @cid and its replies.', array('@cid' => $comment->cid)));
   // Clear the cache so an anonymous user sees that his comment was deleted.
   cache_clear_all();
 
   $form_state['redirect'] = "node/$comment->nid";
-}
-
-/**
- * Perform the actual deletion of a comment and all its replies.
- *
- * @param $comment
- *   An associative array describing the comment to be deleted.
- */
-function _comment_delete_thread($comment) {
-  if (!is_object($comment) || !is_numeric($comment->cid)) {
-    watchdog('content', 'Cannot delete non-existent comment.', array(), WATCHDOG_WARNING);
-
-    return;
-  }
-
-  // Delete the comment.
-  db_delete('comment')
-    ->condition('cid', $comment->cid)
-    ->execute();
-  watchdog('content', 'Comment: deleted %subject.', array('%subject' => $comment->subject));
-  module_invoke_all('comment_delete', $comment);
-
-  // Delete the comment's replies.
-  $result = db_query('SELECT c.*, u.name AS registered_name, u.uid FROM {comment} c INNER JOIN {users} u ON u.uid = c.uid WHERE pid = :cid', array(':cid' => $comment->cid));
-  foreach ($result as $comment) {
-    $comment->name = $comment->uid ? $comment->registered_name : $comment->name;
-    _comment_delete_thread($comment);
-  }
 }

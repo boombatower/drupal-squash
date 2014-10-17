@@ -46,7 +46,7 @@ function locale_languages_overview_form() {
     $form['weight'][$langcode] = array(
       '#type' => 'weight',
       '#default_value' => $language->weight,
-      '#attributes' => array('class' => 'language-order-weight'),
+      '#attributes' => array('class' => array('language-order-weight')),
     );
     $form['name'][$langcode] = array('#markup' => check_plain($language->name));
     $form['native'][$langcode] = array('#markup' => check_plain($language->native));
@@ -89,9 +89,9 @@ function theme_locale_languages_overview_form($form) {
           array('data' => drupal_render($form['enabled'][$key]), 'align' => 'center'),
           drupal_render($form['site_default'][$key]),
           drupal_render($form['weight'][$key]),
-          l(t('edit'), 'admin/international/language/edit/' . $key) . (($key != 'en' && $key != $default->language) ? ' ' . l(t('delete'), 'admin/international/language/delete/' . $key) : '')
+          l(t('edit'), 'admin/config/regional/language/edit/' . $key) . (($key != 'en' && $key != $default->language) ? ' ' . l(t('delete'), 'admin/config/regional/language/delete/' . $key) : '')
         ),
-        'class' => 'draggable'
+        'class' => array('draggable'),
       );
     }
   }
@@ -142,7 +142,7 @@ function locale_languages_overview_form_submit($form, &$form_state) {
   // Changing the language settings impacts the interface.
   cache_clear_all('*', 'cache_page', TRUE);
 
-  $form_state['redirect'] = 'admin/international/language';
+  $form_state['redirect'] = 'admin/config/regional/language';
   return;
 }
 /**
@@ -345,7 +345,7 @@ function locale_languages_predefined_form_submit($form, &$form_state) {
     batch_set($batch);
   }
 
-  $form_state['redirect'] = 'admin/international/language';
+  $form_state['redirect'] = 'admin/config/regional/language';
   return;
 }
 
@@ -391,7 +391,7 @@ function locale_languages_edit_form_submit($form, &$form_state) {
     }
     variable_set('language_default', $default);
   }
-  $form_state['redirect'] = 'admin/international/language';
+  $form_state['redirect'] = 'admin/config/regional/language';
   return;
 }
 /**
@@ -411,12 +411,12 @@ function locale_languages_delete_form(&$form_state, $langcode) {
   // Do not allow deletion of English locale.
   if ($langcode == 'en') {
     drupal_set_message(t('The English language cannot be deleted.'));
-    drupal_goto('admin/international/language');
+    drupal_goto('admin/config/regional/language');
   }
 
   if (language_default('language') == $langcode) {
     drupal_set_message(t('The default language cannot be deleted.'));
-    drupal_goto('admin/international/language');
+    drupal_goto('admin/config/regional/language');
   }
 
   // For other languages, warn user that data loss is ahead.
@@ -427,7 +427,7 @@ function locale_languages_delete_form(&$form_state, $langcode) {
   }
   else {
     $form['langcode'] = array('#type' => 'value', '#value' => $langcode);
-    return confirm_form($form, t('Are you sure you want to delete the language %name?', array('%name' => t($languages[$langcode]->name))), 'admin/international/language', t('Deleting a language will remove all interface translations associated with it, and posts in this language will be set to be language neutral. This action cannot be undone.'), t('Delete'), t('Cancel'));
+    return confirm_form($form, t('Are you sure you want to delete the language %name?', array('%name' => t($languages[$langcode]->name))), 'admin/config/regional/language', t('Deleting a language will remove all interface translations associated with it, and posts in this language will be set to be language neutral. This action cannot be undone.'), t('Delete'), t('Cancel'));
   }
 }
 
@@ -460,7 +460,7 @@ function locale_languages_delete_form_submit($form, &$form_state) {
   // Changing the language settings impacts the interface:
   cache_clear_all('*', 'cache_page', TRUE);
 
-  $form_state['redirect'] = 'admin/international/language';
+  $form_state['redirect'] = 'admin/config/regional/language';
   return;
 }
 /**
@@ -500,7 +500,7 @@ function locale_languages_configure_form() {
 function locale_languages_configure_form_submit($form, &$form_state) {
   variable_set('language_negotiation', $form_state['values']['language_negotiation']);
   drupal_set_message(t('Language negotiation configuration saved.'));
-  $form_state['redirect'] = 'admin/international/language';
+  $form_state['redirect'] = 'admin/config/regional/language';
   return;
 }
 /**
@@ -687,7 +687,7 @@ function locale_translation_filter_form_submit($form, &$form_state) {
       break;
   }
 
-  $form_state['redirect'] = 'admin/international/translate/translate';
+  $form_state['redirect'] = 'admin/config/regional/translate/translate';
 }
 
 /**
@@ -777,11 +777,11 @@ function locale_translate_import_form_submit($form, &$form_state) {
   }
   else {
     drupal_set_message(t('File to import not found.'), 'error');
-    $form_state['redirect'] = 'admin/international/translate/import';
+    $form_state['redirect'] = 'admin/config/regional/translate/import';
     return;
   }
 
-  $form_state['redirect'] = 'admin/international/translate';
+  $form_state['redirect'] = 'admin/config/regional/translate';
   return;
 }
 /**
@@ -886,7 +886,7 @@ function locale_translate_edit_form(&$form_state, $lid) {
   $source = db_query('SELECT source, context, textgroup, location FROM {locales_source} WHERE lid = :lid', array(':lid' => $lid))->fetchObject();
   if (!$source) {
     drupal_set_message(t('String not found.'), 'error');
-    drupal_goto('admin/international/translate/translate');
+    drupal_goto('admin/config/regional/translate/translate');
   }
 
   // Add original text to the top and some values for form altering.
@@ -1024,7 +1024,7 @@ function locale_translate_edit_form_submit($form, &$form_state) {
   _locale_invalidate_js();
   cache_clear_all('locale:', 'cache', TRUE);
 
-  $form_state['redirect'] = 'admin/international/translate/translate';
+  $form_state['redirect'] = 'admin/config/regional/translate/translate';
   return;
 }
 /**
@@ -1053,7 +1053,7 @@ function locale_translate_delete_page($lid) {
  */
 function locale_translate_delete_form(&$form_state, $source) {
   $form['lid'] = array('#type' => 'value', '#value' => $source->lid);
-  return confirm_form($form, t('Are you sure you want to delete the string "%source"?', array('%source' => $source->source)), 'admin/international/translate/translate', t('Deleting the string will remove all translations of this string in all languages. This action cannot be undone.'), t('Delete'), t('Cancel'));
+  return confirm_form($form, t('Are you sure you want to delete the string "%source"?', array('%source' => $source->source)), 'admin/config/regional/translate/translate', t('Deleting the string will remove all translations of this string in all languages. This action cannot be undone.'), t('Delete'), t('Cancel'));
 }
 
 /**
@@ -1070,7 +1070,7 @@ function locale_translate_delete_form_submit($form, &$form_state) {
   _locale_invalidate_js();
   cache_clear_all('locale:', 'cache', TRUE);
   drupal_set_message(t('The string has been removed.'));
-  $form_state['redirect'] = 'admin/international/translate/translate';
+  $form_state['redirect'] = 'admin/config/regional/translate/translate';
 }
 /**
  * @} End of "locale-translate-delete"
@@ -1167,10 +1167,8 @@ function locale_add_language($langcode, $name = NULL, $native = NULL, $direction
  *   Text group to import PO file into (eg. 'default' for interface translations)
  */
 function _locale_import_po($file, $langcode, $mode, $group = NULL) {
-  // If not in 'safe mode', increase the maximum execution time.
-  if (!ini_get('safe_mode')) {
-    set_time_limit(240);
-  }
+  // Try to allocate enough time to parse and import the data.
+  drupal_set_time_limit(240);
 
   // Check if we have the language already in the database.
   if (!db_query("SELECT COUNT(language) FROM {languages} WHERE language = :language", array(':language' => $langcode))->fetchField()) {
@@ -1225,7 +1223,7 @@ function _locale_import_po($file, $langcode, $mode, $group = NULL) {
  */
 function _locale_import_read_po($op, $file, $mode = NULL, $lang = NULL, $group = 'default') {
 
-  $fd = fopen($file->filepath, "rb"); // File will get closed by PHP on return
+  $fd = fopen($file->uri, "rb"); // File will get closed by PHP on return
   if (!$fd) {
     _locale_import_message('The translation import failed, because the file %filename could not be read.', $file);
     return FALSE;
@@ -1441,7 +1439,7 @@ function _locale_import_one_string($op, $value = NULL, $mode = NULL, $lang = NUL
         $header = _locale_import_parse_header($value['msgstr']);
 
         // Get the plural formula and update in database.
-        if (isset($header["Plural-Forms"]) && $p = _locale_import_parse_plural_forms($header["Plural-Forms"], $file->filename)) {
+        if (isset($header["Plural-Forms"]) && $p = _locale_import_parse_plural_forms($header["Plural-Forms"], $file->uri)) {
           list($nplurals, $plural) = $p;
           db_update('languages')
             ->fields(array(
@@ -1636,13 +1634,13 @@ function _locale_import_parse_header($header) {
  *
  * @param $pluralforms
  *   A string containing the Plural-Forms entry
- * @param $filename
- *   A string containing the filename
+ * @param $filepath
+ *   A string containing the filepath
  * @return
  *   An array containing the number of plurals and a
  *   formula in PHP for computing the plural form
  */
-function _locale_import_parse_plural_forms($pluralforms, $filename) {
+function _locale_import_parse_plural_forms($pluralforms, $filepath) {
   // First, delete all whitespace
   $pluralforms = strtr($pluralforms, array(" " => "", "\t" => ""));
 
@@ -1669,7 +1667,7 @@ function _locale_import_parse_plural_forms($pluralforms, $filename) {
     return array($nplurals, $plural);
   }
   else {
-    drupal_set_message(t('The translation file %filename contains an error: the plural formula could not be parsed.', array('%filename' => $filename)), 'error');
+    drupal_set_message(t('The translation file %filepath contains an error: the plural formula could not be parsed.', array('%filepath' => $filepath)), 'error');
     return FALSE;
   }
 }
@@ -2305,8 +2303,8 @@ function _locale_translate_seek() {
       array('data' => check_plain(truncate_utf8($string['source'], 150, FALSE, TRUE)) . '<br /><small>' . $string['location'] . '</small>'),
       $string['context'],
       array('data' => _locale_translate_language_list($string['languages'], $limit_language), 'align' => 'center'),
-      array('data' => l(t('edit'), "admin/international/translate/edit/$lid", array('query' => drupal_get_destination())), 'class' => 'nowrap'),
-      array('data' => l(t('delete'), "admin/international/translate/delete/$lid", array('query' => drupal_get_destination())), 'class' => 'nowrap'),
+      array('data' => l(t('edit'), "admin/config/regional/translate/edit/$lid", array('query' => drupal_get_destination())), 'class' => array('nowrap')),
+      array('data' => l(t('delete'), "admin/config/regional/translate/delete/$lid", array('query' => drupal_get_destination())), 'class' => array('nowrap')),
     );
   }
 
@@ -2437,11 +2435,11 @@ function _locale_rebuild_js($langcode = NULL) {
 
   // Construct the filepath where JS translation files are stored.
   // There is (on purpose) no front end to edit that variable.
-  $dir = file_create_path(variable_get('locale_js_directory', 'languages'));
+  $dir = 'public://' . variable_get('locale_js_directory', 'languages');
 
   // Delete old file, if we have no translations anymore, or a different file to be saved.
   if (!empty($language->javascript) && (!$data || $language->javascript != $data_hash)) {
-    file_unmanaged_delete(file_create_path($dir . '/' . $language->language . '_' . $language->javascript . '.js'));
+    file_unmanaged_delete($dir . '/' . $language->language . '_' . $language->javascript . '.js');
     $language->javascript = '';
     $status = 'deleted';
   }
@@ -2449,7 +2447,7 @@ function _locale_rebuild_js($langcode = NULL) {
   // Only create a new file if the content has changed.
   if ($data && $language->javascript != $data_hash) {
     // Ensure that the directory exists and is writable, if possible.
-    file_check_directory($dir, TRUE);
+    file_prepare_directory($dir, FILE_CREATE_DIRECTORY);
 
     // Save the file.
     $dest = $dir . '/' . $language->language . '_' . $data_hash . '.js';
@@ -2652,7 +2650,7 @@ function _locale_batch_build($files, $finished = NULL, $components = array()) {
     $operations = array();
     foreach ($files as $file) {
       // We call _locale_batch_import for every batch operation.
-      $operations[] = array('_locale_batch_import', array($file->filepath));
+      $operations[] = array('_locale_batch_import', array($file->uri));
     }
     $batch = array(
       'operations'    => $operations,
@@ -2684,7 +2682,7 @@ function _locale_batch_import($filepath, &$context) {
   // The filename is either {langcode}.po or {prefix}.{langcode}.po, so
   // we can extract the language code to use for the import from the end.
   if (preg_match('!(/|\.)([^\./]+)\.po$!', $filepath, $langcode)) {
-    $file = (object) array('filename' => basename($filepath), 'filepath' => $filepath);
+    $file = (object) array('filename' => basename($filepath), 'uri' => $filepath);
     _locale_import_read_po('db-store', $file, LOCALE_IMPORT_KEEP, $langcode[2]);
     $context['results'][] = $filepath;
   }

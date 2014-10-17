@@ -72,8 +72,8 @@ function update_help($path, $arg) {
       $output .= '<p>' . t('To extend the functionality or to change the look of your site, a number of contributed <a href="@modules">modules</a> and <a href="@themes">themes</a> are available.', array('@modules' => 'http://drupal.org/project/modules', '@themes' => 'http://drupal.org/project/themes')) . '</p>';
       $output .= '<p>' . t('Each time Drupal core or a contributed module or theme is updated, it is important that <a href="@update-php">update.php</a> is run.', array('@update-php' => url($base_url . '/update.php', array('external' => TRUE)))) . '</p>';
       return $output;
-    case 'admin/structure/themes':
-    case 'admin/structure/modules':
+    case 'admin/appearance':
+    case 'admin/config/modules':
       include_once DRUPAL_ROOT . '/includes/install.inc';
       $status = update_requirements('runtime');
       foreach (array('core', 'contrib') as $report_type) {
@@ -95,8 +95,8 @@ function update_help($path, $arg) {
 
     case 'admin/help#update':
       $output = '<p>' . t("The Update status module periodically checks for new versions of your site's software (including contributed modules and themes), and alerts you to available updates.") . '</p>';
-      $output .= '<p>' . t('The <a href="@update-report">report of available updates</a> will alert you when new releases are available for download. You may configure options for update checking frequency and notifications at the <a href="@update-settings">Update status module settings page</a>.', array('@update-report' => url('admin/reports/updates'), '@update-settings' => url('admin/settings/updates'))) . '</p>';
-      $output .= '<p>' . t('Please note that in order to provide this information, anonymous usage statistics are sent to drupal.org. If desired, you may disable the Update status module from the <a href="@modules">module administration page</a>.', array('@modules' => url('admin/structure/modules'))) . '</p>';
+      $output .= '<p>' . t('The <a href="@update-report">report of available updates</a> will alert you when new releases are available for download. You may configure options for update checking frequency and notifications at the <a href="@update-settings">Update status module settings page</a>.', array('@update-report' => url('admin/reports/updates'), '@update-settings' => url('admin/reports/updates/settings'))) . '</p>';
+      $output .= '<p>' . t('Please note that in order to provide this information, anonymous usage statistics are sent to drupal.org. If desired, you may disable the Update status module from the <a href="@modules">module administration page</a>.', array('@modules' => url('admin/config/modules'))) . '</p>';
       $output .= '<p>' . t('For more information, see the online handbook entry for <a href="@update">Update status module</a>.', array('@update' => 'http://drupal.org/handbook/modules/update')) . '</p>';
       return $output;
 
@@ -132,19 +132,27 @@ function update_menu() {
     'page callback' => 'update_status',
     'access arguments' => array('administer site configuration'),
     'weight' => 10,
+    'file' => 'update.report.inc',
   );
-  $items['admin/settings/updates'] = array(
-    'title' => 'Updates',
-    'description' => 'Change frequency of checks for available updates to your installed modules and themes, and how you would like to be notified.',
+  $items['admin/reports/updates/list'] = array(
+    'title' => 'List',
+    'access arguments' => array('administer site configuration'),
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+  );
+  $items['admin/reports/updates/settings'] = array(
+    'title' => 'Settings',
     'page callback' => 'drupal_get_form',
     'page arguments' => array('update_settings'),
     'access arguments' => array('administer site configuration'),
+    'file' => 'update.settings.inc',
+    'type' => MENU_LOCAL_TASK,
   );
   $items['admin/reports/updates/check'] = array(
     'title' => 'Manual update check',
     'page callback' => 'update_manual_status',
     'access arguments' => array('administer site configuration'),
     'type' => MENU_CALLBACK,
+    'file' => 'update.fetch.inc',
   );
 
   return $items;
@@ -162,7 +170,7 @@ function update_theme() {
       'arguments' => array('data' => NULL),
     ),
     'update_version' => array(
-      'arguments' => array('version' => NULL, 'tag' => NULL, 'class' => NULL),
+      'arguments' => array('version' => NULL, 'tag' => NULL, 'class' => array()),
     ),
   );
 }
@@ -419,6 +427,14 @@ function update_mail($key, &$message, $params) {
     $message['body'][] = _update_message_text($msg_type, $msg_reason, FALSE, $language);
   }
   $message['body'][] = t('See the available updates page for more information:', array(), array('langcode' => $langcode)) . "\n" . url('admin/reports/updates', array('absolute' => TRUE, 'language' => $language));
+
+  $settings_url = url('admin/reports/updates/settings', array('absolute' => TRUE));
+  if (variable_get('update_notification_threshold', 'all') == 'all') {
+    $message['body'][] = t('Your site is currently configured to send these emails when any updates are available. To get notified only for security updates, please visit !url.', array('!url' => $settings_url));
+  }
+  else {
+    $message['body'][] = t('Your site is currently configured to send these emails only when security updates are available. To get notified for any available updates, please visit !url.', array('!url' => $settings_url));
+  }
 }
 
 /**

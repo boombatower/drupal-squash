@@ -36,14 +36,14 @@ Let's begin!
     More information on multisite configuration is located in INSTALL.txt.
 
 2.  If possible, log on as the user with user ID 1, which is the first account
-    created and the main administrator account. User ID 1 will be able to
-    automatically access update.php in step #10. There are special instructions
-    in step #10 if you are unable to log on as user ID 1. Do not close your
-    browser until the final step is complete.
+    created - also known as the site maintenance account. Only this account will
+    be able to automatically access update.php in step #10. There are special
+    instructions in step #10 if you are unable to log on as user ID 1. Do not
+    close your browser until the final step is complete.
 
 3.  Place the site in "Offline" mode, to let the database updates run without
     interruption and avoid displaying errors to end users of the site. This
-    option is at http://www.example.com/?q=admin/settings/maintenance-mode
+    option is at http://www.example.com/?q=admin/config/development/maintenance
     (replace www.example.com with your installation's domain name and path).
 
 4.  If using a custom or contributed theme, switch
@@ -103,7 +103,7 @@ Let's begin!
 
 14. Finally, return your site to "Online" mode so your visitors may resume
     browsing. As in step #3, this option is available in your administration
-    screens at http://www.example.com/?q=admin/settings/maintenance-mode
+    screens at http://www.example.com/?q=admin/config/development/maintenance
     (replace www.example.com with your installation's domain name and path).
 
 For more information on upgrading visit

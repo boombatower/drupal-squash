@@ -17,7 +17,7 @@ $.fn.getSummary = function () {
  *   retrieved or a string (which is returned each time).
  */
 $.fn.setSummary = function (callback) {
-  var that = this;
+  var self = this;
 
   // To facilitate things, the callback should always be a function. If it's
   // not, we wrap it into an anonymous function which just returns the value.
@@ -32,7 +32,7 @@ $.fn.setSummary = function (callback) {
     // (re-)added.
     .unbind('formUpdated.summary')
     .bind('formUpdated.summary', function () {
-      that.trigger('summaryUpdated');
+      self.trigger('summaryUpdated');
     })
     // The actual summaryUpdated handler doesn't fire when the callback is
     // changed, so we have to do this manually.
@@ -61,8 +61,7 @@ Drupal.behaviors.formUpdated = {
 Drupal.behaviors.multiselectSelector = {
   attach: function (context, settings) {
     // Automatically selects the right radio button in a multiselect control.
-    $('.multiselect select:not(.multiselectSelector-processed)', context)
-      .addClass('multiselectSelector-processed').change(function () {
+    $('.multiselect select', context).once('multiselect').change(function () {
         $('.multiselect input:radio[value="' + this.id.substr(5) + '"]')
           .attr('checked', true);
     });
@@ -75,8 +74,7 @@ Drupal.behaviors.multiselectSelector = {
  */
 Drupal.behaviors.filterGuidelines = {
   attach: function (context) {
-    $('.filter-guidelines:not(.filter-guidelines-processed)', context)
-      .addClass('filter-guidelines-processed')
+    $('.filter-guidelines', context).once('filter-guidelines')
       .find('label').hide()
       .parents('.filter-wrapper').find('select.filter-list')
       .bind('change', function () {

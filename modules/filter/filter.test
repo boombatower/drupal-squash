@@ -15,9 +15,9 @@ class FilterAdminTestCase extends DrupalWebTestCase {
    */
   function testFilterAdmin() {
     // URL filter.
-    $first_filter = 2;
+    $first_filter = 'filter_url';
     // Line filter.
-    $second_filter = 1;
+    $second_filter = 'filter_autop';
 
     // Create users.
     $admin_user = $this->drupalCreateUser(array('administer filters'));
@@ -26,48 +26,52 @@ class FilterAdminTestCase extends DrupalWebTestCase {
 
     list($filtered, $full) = $this->checkFilterFormats();
 
+    // Verify access permissions to Full HTML format.
+    $this->assertTrue(filter_access($full, $admin_user), t('Admin user may use Full HTML.'));
+    $this->assertFalse(filter_access($full, $web_user), t('Web user may not use Full HTML.'));
+
     // Change default filter.
     $edit = array();
     $edit['default'] = $full;
-    $this->drupalPost('admin/settings/formats', $edit, t('Save changes'));
+    $this->drupalPost('admin/config/content/formats', $edit, t('Save changes'));
     $this->assertText(t('Default format updated.'), t('Default filter updated successfully.'));
 
-    $this->assertNoRaw('admin/settings/formats/delete/' . $full, t('Delete link not found.'));
+    $this->assertNoRaw('admin/config/content/formats/' . $full . '/delete', t('Delete link not found.'));
 
     // Add an additional tag.
     $edit = array();
-    $edit['allowed_html_1'] = '<a> <em> <strong> <cite> <code> <ul> <ol> <li> <dl> <dt> <dd> <quote>';
-    $this->drupalPost('admin/settings/formats/' . $filtered . '/configure', $edit, t('Save configuration'));
+    $edit['settings[filter_html][allowed_html]'] = '<a> <em> <strong> <cite> <code> <ul> <ol> <li> <dl> <dt> <dd> <quote>';
+    $this->drupalPost('admin/config/content/formats/' . $filtered . '/configure', $edit, t('Save configuration'));
     $this->assertText(t('The configuration options have been saved.'), t('Allowed HTML tag added.'));
 
-    $this->assertRaw(htmlentities($edit['allowed_html_1']), t('Tag displayed.'));
+    $this->assertRaw(htmlentities($edit['settings[filter_html][allowed_html]']), t('Tag displayed.'));
 
     $result = db_query('SELECT * FROM {cache_filter}')->fetchObject();
     $this->assertFalse($result, t('Cache cleared.'));
 
     // Reorder filters.
     $edit = array();
-    $edit['weights[filter/' . $second_filter . ']'] = 1;
-    $edit['weights[filter/' . $first_filter . ']'] = 2;
-    $this->drupalPost('admin/settings/formats/' . $filtered . '/order', $edit, t('Save configuration'));
+    $edit['weights[' . $second_filter . ']'] = 1;
+    $edit['weights[' . $first_filter . ']'] = 2;
+    $this->drupalPost('admin/config/content/formats/' . $filtered . '/order', $edit, t('Save configuration'));
     $this->assertText(t('The filter ordering has been saved.'), t('Order saved successfully.'));
 
     $result = db_query('SELECT * FROM {filter} WHERE format = :format ORDER BY weight ASC', array(':format' => $filtered));
     $filters = array();
     foreach ($result as $filter) {
-      if ($filter->delta == $second_filter || $filter->delta == $first_filter) {
+      if ($filter->name == $second_filter || $filter->name == $first_filter) {
         $filters[] = $filter;
       }
     }
-    $this->assertTrue(($filters[0]->delta == $second_filter && $filters[1]->delta == $first_filter), t('Order confirmed.'));
+    $this->assertTrue(($filters[0]->name == $second_filter && $filters[1]->name == $first_filter), t('Order confirmed.'));
 
     // Add filter.
     $edit = array();
     $edit['name'] = $this->randomName();
-    $edit['roles[2]'] = TRUE;
-    $edit['filters[filter/' . $second_filter . ']'] = TRUE;
-    $edit['filters[filter/' . $first_filter . ']'] = TRUE;
-    $this->drupalPost('admin/settings/formats/add', $edit, t('Save configuration'));
+    $edit['roles[2]'] = 1;
+    $edit['filters[' . $second_filter . '][status]'] = TRUE;
+    $edit['filters[' . $first_filter . '][status]'] = TRUE;
+    $this->drupalPost('admin/config/content/formats/add', $edit, t('Save configuration'));
     $this->assertRaw(t('Added text format %format.', array('%format' => $edit['name'])), t('New filter created.'));
 
     $format = $this->getFilter($edit['name']);
@@ -75,26 +79,27 @@ class FilterAdminTestCase extends DrupalWebTestCase {
 
     if ($format !== NULL) {
       $this->assertFieldByName('roles[2]', '', t('Role found.'));
-      $this->assertFieldByName('filters[filter/' . $second_filter . ']', '', t('Line break filter found.'));
-      $this->assertFieldByName('filters[filter/' . $first_filter . ']', '', t('Url filter found.'));
+      $this->assertFieldByName('filters[' . $second_filter . '][status]', '', t('Line break filter found.'));
+      $this->assertFieldByName('filters[' . $first_filter . '][status]', '', t('Url filter found.'));
 
       // Delete new filter.
-      $this->drupalPost('admin/settings/formats/delete/' . $format->format, array(), t('Delete'));
+      $this->drupalPost('admin/config/content/formats/' . $format->format . '/delete', array(), t('Delete'));
       $this->assertRaw(t('Deleted text format %format.', array('%format' => $edit['name'])), t('Format successfully deleted.'));
     }
 
     // Change default filter back.
     $edit = array();
     $edit['default'] = $filtered;
-    $this->drupalPost('admin/settings/formats', $edit, t('Save changes'));
+    $this->drupalPost('admin/config/content/formats', $edit, t('Save changes'));
     $this->assertText(t('Default format updated.'), t('Default filter updated successfully.'));
 
-    $this->assertNoRaw('admin/settings/formats/delete/' . $filtered, t('Delete link not found.'));
+    $this->assertNoRaw('admin/config/content/formats/' . $filtered . '/delete', t('Delete link not found.'));
 
     // Allow authenticated users on full HTML.
     $edit = array();
-    $edit['roles[2]'] = TRUE;
-    $this->drupalPost('admin/settings/formats/' . $full, $edit, t('Save configuration'));
+    $edit['roles[1]'] = 0;
+    $edit['roles[2]'] = 1;
+    $this->drupalPost('admin/config/content/formats/' . $full, $edit, t('Save configuration'));
     $this->assertText(t('The text format settings have been updated.'), t('Full HTML format successfully updated.'));
 
     // Switch user.
@@ -110,8 +115,9 @@ class FilterAdminTestCase extends DrupalWebTestCase {
 
     $edit = array();
     $edit['title'] = $this->randomName();
-    $edit['body[0][value]'] = $body . '<random>' . $extra_text . '</random>';
-    $edit['body[0][value_format]'] = $filtered;
+    $langcode = FIELD_LANGUAGE_NONE;
+    $edit["body[$langcode][0][value]"] = $body . '<random>' . $extra_text . '</random>';
+    $edit["body[$langcode][0][value_format]"] = $filtered;
     $this->drupalPost('node/add/page', $edit, t('Save'));
     $this->assertRaw(t('Page %title has been created.', array('%title' => $edit['title'])), t('Filtered node created.'));
 
@@ -128,21 +134,21 @@ class FilterAdminTestCase extends DrupalWebTestCase {
     // Clean up.
     // Allowed tags.
     $edit = array();
-    $edit['allowed_html_1'] = '<a> <em> <strong> <cite> <code> <ul> <ol> <li> <dl> <dt> <dd>';
-    $this->drupalPost('admin/settings/formats/' . $filtered . '/configure', $edit, t('Save configuration'));
+    $edit['settings[filter_html][allowed_html]'] = '<a> <em> <strong> <cite> <code> <ul> <ol> <li> <dl> <dt> <dd>';
+    $this->drupalPost('admin/config/content/formats/' . $filtered . '/configure', $edit, t('Save configuration'));
     $this->assertText(t('The configuration options have been saved.'), t('Changes reverted.'));
 
     // Full HTML.
     $edit = array();
     $edit['roles[2]'] = FALSE;
-    $this->drupalPost('admin/settings/formats/' . $full, $edit, t('Save configuration'));
+    $this->drupalPost('admin/config/content/formats/' . $full, $edit, t('Save configuration'));
     $this->assertText(t('The text format settings have been updated.'), t('Full HTML format successfully reverted.'));
 
     // Filter order.
     $edit = array();
-    $edit['weights[filter/' . $second_filter . ']'] = 2;
-    $edit['weights[filter/' . $first_filter . ']'] = 1;
-    $this->drupalPost('admin/settings/formats/' . $filtered . '/order', $edit, t('Save configuration'));
+    $edit['weights[' . $second_filter . ']'] = 2;
+    $edit['weights[' . $first_filter . ']'] = 1;
+    $this->drupalPost('admin/config/content/formats/' . $filtered . '/order', $edit, t('Save configuration'));
     $this->assertText(t('The filter ordering has been saved.'), t('Order successfully reverted.'));
   }
 
@@ -182,22 +188,16 @@ class FilterAdminTestCase extends DrupalWebTestCase {
   }
 }
 
-class FilterTestCase extends DrupalWebTestCase {
-  protected $format;
-
+/**
+ * Unit tests for core filters.
+ */
+class FilterUnitTestCase extends DrupalWebTestCase {
   public static function getInfo() {
     return array(
       'name' => 'Core filters',
-      'description' => 'Filter each filter individually: Convert URLs into links, Convert line breaks, Correct broken HTML, Escape all HTML, Limit allowed HTML tags.',
+      'description' => 'Filter each filter individually: convert line breaks, correct broken HTML.',
       'group' => 'Filter',
     );
-  }
-
-  function setUp() {
-    parent::setUp();
-
-    $admin_user = $this->drupalCreateUser(array('administer filters', 'create page content'));
-    $this->drupalLogin($admin_user);
   }
 
   /**
@@ -425,35 +425,41 @@ class FilterTestCase extends DrupalWebTestCase {
    *   or better a whitelist approach should be used for that too.
    */
   function testFilter() {
-    // Check that access restriction really works.
+    // Setup dummy filter object.
+    $filter = new stdClass;
+    $filter->settings = array(
+      'allowed_html' => '<a> <em> <strong> <cite> <blockquote> <code> <ul> <ol> <li> <dl> <dt> <dd>',
+      'filter_html_help' => 1,
+      'filter_html_nofollow' => 0,
+    );
 
     // HTML filter is not able to secure some tags, these should never be
     // allowed.
-    $f = filter_filter('process', 0, 'no_such_format', '<script />');
+    $f = _filter_html('<script />', $filter);
     $this->assertNoNormalized($f, 'script', t('HTML filter should always remove script tags.'));
 
-    $f = filter_filter('process', 0, 'no_such_format', '<iframe />');
+    $f = _filter_html('<iframe />', $filter);
     $this->assertNoNormalized($f, 'iframe', t('HTML filter should always remove iframe tags.'));
 
-    $f = filter_filter('process', 0, 'no_such_format', '<object />');
+    $f = _filter_html('<object />', $filter);
     $this->assertNoNormalized($f, 'object', t('HTML filter should always remove object tags.'));
 
-    $f = filter_filter('process', 0, 'no_such_format', '<style />');
+    $f = _filter_html('<style />', $filter);
     $this->assertNoNormalized($f, 'style', t('HTML filter should always remove style tags.'));
 
     // Some tags make CSRF attacks easier, let the user take the risk herself.
-    $f = filter_filter('process', 0, 'no_such_format', '<img />');
+    $f = _filter_html('<img />', $filter);
     $this->assertNoNormalized($f, 'img', t('HTML filter should remove img tags on default.'));
 
-    $f = filter_filter('process', 0, 'no_such_format', '<input />');
+    $f = _filter_html('<input />', $filter);
     $this->assertNoNormalized($f, 'img', t('HTML filter should remove input tags on default.'));
 
     // Filtering content of some attributes is infeasible, these shouldn't be
     // allowed too.
-    $f = filter_filter('process', 0, 'no_such_format', '<p style="display: none;" />');
+    $f = _filter_html('<p style="display: none;" />', $filter);
     $this->assertNoNormalized($f, 'style', t('HTML filter should remove style attribute on default.'));
 
-    $f = filter_filter('process', 0, 'no_such_format', '<p onerror="alert(0);" />');
+    $f = _filter_html('<p onerror="alert(0);" />', $filter);
     $this->assertNoNormalized($f, 'onerror', t('HTML filter should remove on* attributes on default.'));
   }
 
@@ -461,24 +467,34 @@ class FilterTestCase extends DrupalWebTestCase {
    * Test the spam deterrent.
    */
   function testNoFollowFilter() {
-    variable_set('filter_html_nofollow_f', TRUE);
+    // Setup dummy filter object.
+    $filter = new stdClass;
+    $filter->settings = array(
+      'allowed_html' => '<a>',
+      'filter_html_help' => 1,
+      'filter_html_nofollow' => 1,
+    );
 
     // Test if the rel="nofollow" attribute is added, even if we try to prevent
     // it.
-    $f = _filter_html('<a href="http://www.example.com/">text</a>', 'f');
+    $f = _filter_html('<a href="http://www.example.com/">text</a>', $filter);
     $this->assertNormalized($f, 'rel="nofollow"', t('Spam deterrent -- no evasion.'));
 
-    $f = _filter_html('<A href="http://www.example.com/">text</a>', 'f');
+    $f = _filter_html('<A href="http://www.example.com/">text</a>', $filter);
     $this->assertNormalized($f, 'rel="nofollow"', t('Spam deterrent evasion -- capital A.'));
 
-    $f = _filter_html("<a/href=\"http://www.example.com/\">text</a>", 'f');
+    $f = _filter_html("<a/href=\"http://www.example.com/\">text</a>", $filter);
     $this->assertNormalized($f, 'rel="nofollow"', t('Spam deterrent evasion -- non whitespace character after tag name.'));
 
-    $f = _filter_html("<\0a\0 href=\"http://www.example.com/\">text</a>", 'f');
+    $f = _filter_html("<\0a\0 href=\"http://www.example.com/\">text</a>", $filter);
     $this->assertNormalized($f, 'rel="nofollow"', t('Spam deterrent evasion -- some nulls.'));
 
-    $f = _filter_html('<!--[if true]><a href="http://www.example.com/">text</a><![endif]-->', 'f');
+    $f = _filter_html('<!--[if true]><a href="http://www.example.com/">text</a><![endif]-->', $filter);
     $this->assertNormalized($f, 'rel="nofollow"', t('Spam deterrent evasion -- link within a comment.'));
+
+    $f = _filter_html('<a href="http://www.example.com/" rel="follow">text</a>', $filter);
+    $this->assertNoNormalized($f, 'rel="follow"', t('Spam deterrent evasion -- with rel set - rel="follow" removed.'));
+    $this->assertNormalized($f, 'rel="nofollow"', t('Spam deterrent evasion -- with rel set - rel="nofollow" added.'));
   }
 
   /**
@@ -498,113 +514,111 @@ class FilterTestCase extends DrupalWebTestCase {
 
   /**
    * Test the HTML escaping filter.
-   *
-   * Here we test only whether check_plain() does what it should.
    */
   function testNoHtmlFilter() {
-    // Test that characters that have special meaning in XML are changed into
-    // entities.
-    $f = check_plain('<>&"');
-    $this->assertEqual($f, '&lt;&gt;&amp;&quot;', t('No HTML filter basic test.'));
+    $this->_testEscapedHTML('_filter_html_escape');
+  }
 
-    // A single quote can also be used for evil things in some contexts.
-    $f = check_plain('\'');
-    $this->assertEqual($f, '&#039;', t('No HTML filter -- single quote.'));
-
-    // Test that the filter is not fooled by different evasion techniques.
-    $f = check_plain("\xc2\"");
-    $this->assertEqual($f, '', t('No HTML filter -- invalid UTF-8.'));
+  /**
+   * Test that the check_plain() function escapes HTML correctly.
+   */
+  function testCheckPlain() {
+    $this->_testEscapedHTML('check_plain');
   }
 
   /**
    * Test the URL filter.
    */
   function testUrlFilter() {
-    variable_set('filter_url_length_f', 496);
+    // Setup dummy filter object.
+    $filter = new stdClass;
+    $filter->settings = array(
+      'filter_url_length' => 496,
+    );
 
     // Converting URLs.
-    $f = _filter_url('http://www.example.com/', 'f');
+    $f = _filter_url('http://www.example.com/', $filter);
     $this->assertEqual($f, '<a href="http://www.example.com/" title="http://www.example.com/">http://www.example.com/</a>', t('Converting URLs.'));
 
-    $f = _filter_url('http://www.example.com/?a=1&b=2', 'f');
+    $f = _filter_url('http://www.example.com/?a=1&b=2', $filter);
     $this->assertEqual($f, '<a href="http://www.example.com/?a=1&amp;b=2" title="http://www.example.com/?a=1&amp;b=2">http://www.example.com/?a=1&amp;b=2</a>', t('Converting URLs -- ampersands.'));
 
-    $f = _filter_url('ftp://user:pass@ftp.example.com/dir1/dir2', 'f');
+    $f = _filter_url('ftp://user:pass@ftp.example.com/dir1/dir2', $filter);
     $this->assertEqual($f, '<a href="ftp://user:pass@ftp.example.com/dir1/dir2" title="ftp://user:pass@ftp.example.com/dir1/dir2">ftp://user:pass@ftp.example.com/dir1/dir2</a>', t('Converting URLs -- FTP scheme.'));
 
     // Converting domain names.
-    $f = _filter_url('www.example.com', 'f');
+    $f = _filter_url('www.example.com', $filter);
     $this->assertEqual($f, '<a href="http://www.example.com" title="www.example.com">www.example.com</a>', t('Converting domain names.'));
 
-    $f = _filter_url('<li>www.example.com</li>', 'f');
+    $f = _filter_url('<li>www.example.com</li>', $filter);
     $this->assertEqual($f, '<li><a href="http://www.example.com" title="www.example.com">www.example.com</a></li>', t('Converting domain names -- domain in a list.'));
 
-    $f = _filter_url('(www.example.com/dir?a=1&b=2#a)', 'f');
+    $f = _filter_url('(www.example.com/dir?a=1&b=2#a)', $filter);
     $this->assertEqual($f, '(<a href="http://www.example.com/dir?a=1&amp;b=2#a" title="www.example.com/dir?a=1&amp;b=2#a">www.example.com/dir?a=1&amp;b=2#a</a>)', t('Converting domain names --  domain in parentheses.'));
 
     // Converting e-mail addresses.
-    $f = _filter_url('johndoe@example.com', 'f');
+    $f = _filter_url('johndoe@example.com', $filter);
     $this->assertEqual($f, '<a href="mailto:johndoe@example.com">johndoe@example.com</a>', t('Converting e-mail addresses.'));
 
-    $f = _filter_url('aaa@sub.tv', 'f');
+    $f = _filter_url('aaa@sub.tv', $filter);
     $this->assertEqual($f, '<a href="mailto:aaa@sub.tv">aaa@sub.tv</a>', t('Converting e-mail addresses -- a short e-mail from Tuvalu.'));
 
     // URL trimming.
-    variable_set('filter_url_length_f', 28);
+    $filter->settings['filter_url_length'] = 28;
 
-    $f = _filter_url('http://www.example.com/d/ff.ext?a=1&b=2#a1', 'f');
+    $f = _filter_url('http://www.example.com/d/ff.ext?a=1&b=2#a1', $filter);
     $this->assertNormalized($f, 'http://www.example.com/d/ff....', t('URL trimming.'));
 
     // Not breaking existing links.
-    $f = _filter_url('<a href="http://www.example.com">www.example.com</a>', 'f');
+    $f = _filter_url('<a href="http://www.example.com">www.example.com</a>', $filter);
     $this->assertEqual($f, '<a href="http://www.example.com">www.example.com</a>', t('Converting URLs -- do not break existing links.'));
 
-    $f = _filter_url('<a href="foo">http://www.example.com</a>', 'f');
+    $f = _filter_url('<a href="foo">http://www.example.com</a>', $filter);
     $this->assertEqual($f, '<a href="foo">http://www.example.com</a>', t('Converting URLs -- do not break existing, relative links.'));
 
     // Addresses within some tags such as code or script should not be converted.
-    $f = _filter_url('<code>http://www.example.com</code>', 'f');
+    $f = _filter_url('<code>http://www.example.com</code>', $filter);
     $this->assertEqual($f, '<code>http://www.example.com</code>', t('Converting URLs -- skip code contents.'));
 
-    $f = _filter_url('<code><em>http://www.example.com</em></code>', 'f');
+    $f = _filter_url('<code><em>http://www.example.com</em></code>', $filter);
     $this->assertEqual($f, '<code><em>http://www.example.com</em></code>', t('Converting URLs -- really skip code contents.'));
 
-    $f = _filter_url('<script>http://www.example.com</script>', 'f');
+    $f = _filter_url('<script>http://www.example.com</script>', $filter);
     $this->assertEqual($f, '<script>http://www.example.com</script>', t('Converting URLs -- do not process scripts.'));
 
     // Addresses in attributes should not be converted.
-    $f = _filter_url('<p xmlns="http://www.example.com" />', 'f');
+    $f = _filter_url('<p xmlns="http://www.example.com" />', $filter);
     $this->assertEqual($f, '<p xmlns="http://www.example.com" />', t('Converting URLs -- do not convert addresses in attributes.'));
 
-    $f = _filter_url('<a title="Go to www.example.com" href="http://www.example.com">text</a>', 'f');
+    $f = _filter_url('<a title="Go to www.example.com" href="http://www.example.com">text</a>', $filter);
     $this->assertEqual($f, '<a title="Go to www.example.com" href="http://www.example.com">text</a>', t('Converting URLs -- do not break existing links with custom title attribute.'));
 
     // Even though a dot at the end of a URL can indicate a fully qualified
     // domain name, such usage is rare compared to using a link at the end
     // of a sentence, so remove the dot from the link.
     // @todo It can also be used at the end of a filename or a query string.
-    $f = _filter_url('www.example.com.', 'f');
+    $f = _filter_url('www.example.com.', $filter);
     $this->assertEqual($f, '<a href="http://www.example.com" title="www.example.com">www.example.com</a>.', t('Converting URLs -- do not recognize a dot at the end of a domain name (FQDNs).'));
 
-    $f = _filter_url('http://www.example.com.', 'f');
+    $f = _filter_url('http://www.example.com.', $filter);
     $this->assertEqual($f, '<a href="http://www.example.com" title="http://www.example.com">http://www.example.com</a>.', t('Converting URLs -- do not recognize a dot at the end of an URL (FQDNs).'));
 
-    $f = _filter_url('www.example.com/index.php?a=.', 'f');
+    $f = _filter_url('www.example.com/index.php?a=.', $filter);
     $this->assertEqual($f, '<a href="http://www.example.com/index.php?a=" title="www.example.com/index.php?a=">www.example.com/index.php?a=</a>.', t('Converting URLs -- do forget about a dot at the end of a query string.'));
   }
 
   /**
-   * Test the HTML corrector.
+   * Test the HTML corrector filter.
    *
    * @todo This test could really use some validity checking function.
    */
-  function testHtmlCorrector() {
+  function testHtmlCorrectorFilter() {
     // Tag closing.
     $f = _filter_htmlcorrector('<p>text');
     $this->assertEqual($f, '<p>text</p>', t('HTML corrector -- tag closing at the end of input.'));
 
     $f = _filter_htmlcorrector('<p>text<p><p>text');
-    $this->assertEqual($f, '<p>text</p><p></p><p>text</p>', t('HTML corrector -- tag closing.'));
+    $this->assertEqual($f, '<p>text</p><p /><p>text</p>', t('HTML corrector -- tag closing.'));
 
     $f = _filter_htmlcorrector("<ul><li>e1<li>e2");
     $this->assertEqual($f, "<ul><li>e1</li><li>e2</li></ul>", t('HTML corrector -- unclosed list tags.'));
@@ -615,22 +629,70 @@ class FilterTestCase extends DrupalWebTestCase {
     // XHTML slash for empty elements.
     $f = _filter_htmlcorrector('<hr><br>');
     $this->assertEqual($f, '<hr /><br />', t('HTML corrector -- XHTML closing slash.'));
-  }
 
-  function createFormat($filter) {
-    $edit = array(
-      'name' => $this->randomName(),
-      'roles[2]' => TRUE,
-      'filters[filter/' . $filter . ']' => TRUE,
-    );
-    $this->drupalPost('admin/settings/filter/add', $edit, t('Save configuration'));
-    return db_query("SELECT * FROM {filter_format} WHERE name = :name", array(':name' => $edit['name']))->fetchObject();
-  }
+    $f = _filter_htmlcorrector('<P>test</P>');
+    $this->assertEqual($f, '<p>test</p>', t('HTML corrector -- Convert uppercased tags to proper lowercased ones.'));
 
-  function deleteFormat($format) {
-    if ($format !== NULL) {
-      $this->drupalPost('admin/settings/formats/delete/' . $format->format, array(), t('Delete'));
-    }
+    $f = _filter_htmlcorrector('<P>test</p>');
+    $this->assertEqual($f, '<p>test</p>', t('HTML corrector -- Convert uppercased tags to proper lowercased ones.'));
+
+    $f = _filter_htmlcorrector('test<hr/>');
+    $this->assertEqual($f, 'test<hr />', t('HTML corrector -- Let proper XHTML pass thru.'));
+
+    $f = _filter_htmlcorrector('test<hr />');
+    $this->assertEqual($f, 'test<hr />', t('HTML corrector -- Let proper XHTML pass thru.'));
+
+    $f = _filter_htmlcorrector('<span class="test" />');
+    $this->assertEqual($f, '<span class="test" />', t('HTML corrector -- Let proper XHTML pass thru.'));
+
+    $f = _filter_htmlcorrector('test1<br class="test">test2');
+    $this->assertEqual($f, 'test1<br class="test" />test2', t('HTML corrector -- Automatically close single tags.'));
+
+    $f = _filter_htmlcorrector('line1<hr>line2');
+    $this->assertEqual($f, 'line1<hr />line2', t('HTML corrector -- Automatically close single tags.'));
+
+    $f = _filter_htmlcorrector('line1<HR>line2');
+    $this->assertEqual($f, 'line1<hr />line2', t('HTML corrector -- Automatically close single tags.'));
+
+    $f = _filter_htmlcorrector('<img src="http://example.com/test.jpg">test</img>');
+    $this->assertEqual($f, '<img src="http://example.com/test.jpg" />test', t('HTML corrector -- Automatically close single tags.'));
+
+    $f = _filter_htmlcorrector('<p>line1<br/><hr/>line2</p>');
+    $this->assertEqual($f, '<p>line1<br /></p><hr />line2', t('HTML corrector -- Move non-inline elements outside of inline containers.'));
+
+    $f = _filter_htmlcorrector('<p>line1<div>line2</div></p>');
+    $this->assertEqual($f, '<p>line1</p><div>line2</div>', t('HTML corrector -- Move non-inline elements outside of inline containers.'));
+
+    $f = _filter_htmlcorrector('<p>test<p>test</p>\n');
+    $this->assertEqual($f, '<p>test</p><p>test</p>\n', t('HTML corrector -- Auto-close improperly nested tags.'));
+
+    $f = _filter_htmlcorrector('<p>Line1<br><STRONG>bold stuff</b>');
+    $this->assertEqual($f, '<p>Line1<br /><strong>bold stuff</strong></p>', t('HTML corrector -- Properly close unclosed tags, and remove useless closing tags.'));
+
+    $f = _filter_htmlcorrector('test <!-- this is a comment -->');
+    $this->assertEqual($f, 'test <!-- this is a comment -->', t('HTML corrector -- Do not touch HTML comments.'));
+
+    $f = _filter_htmlcorrector('test <!--this is a comment-->');
+    $this->assertEqual($f, 'test <!--this is a comment-->', t('HTML corrector -- Do not touch HTML comments.'));
+
+    $f = _filter_htmlcorrector('test <!-- comment <p>another 
+    <strong>multiple</strong> line 
+    comment</p> -->');
+    $this->assertEqual($f, 'test <!-- comment <p>another 
+    <strong>multiple</strong> line 
+    comment</p> -->', t('HTML corrector -- Do not touch HTML comments.'));
+
+    $f = _filter_htmlcorrector('test <!-- comment <p>another comment</p> -->');
+    $this->assertEqual($f, 'test <!-- comment <p>another comment</p> -->', t('HTML corrector -- Do not touch HTML comments.'));
+
+    $f = _filter_htmlcorrector('test <!--break-->');
+    $this->assertEqual($f, 'test <!--break-->', t('HTML corrector -- Do not touch HTML comments.'));
+
+    $f = _filter_htmlcorrector('<p>test\n</p>\n');
+    $this->assertEqual($f, '<p>test\n</p>\n', t('HTML corrector -- New-lines are accepted and kept as-is.'));
+
+    $f = _filter_htmlcorrector('<p>دروبال');
+    $this->assertEqual($f, '<p>دروبال</p>', t('HTML corrector -- Encoding is correctly kept.'));
   }
 
   /**
@@ -680,4 +742,99 @@ class FilterTestCase extends DrupalWebTestCase {
   function assertNoNormalized($haystack, $needle, $message = '', $group = 'Other') {
     return $this->assertTrue(strpos(strtolower(decode_entities($haystack)), $needle) === FALSE, $message, $group);
   }
+
+  /**
+   * Helper method to test functions that are intended to escape HTML.
+   *
+   * @param $function
+   *   The name of the function to test.
+   */
+  function _testEscapedHTML($function) {
+    // Define string replacements for the assertion messages.
+    $replacements = array('@function' => $function);
+
+    // Test that characters that have special meaning in XML are changed into
+    // entities.
+    $f = $function('<>&"');
+    $this->assertEqual($f, '&lt;&gt;&amp;&quot;', t('The @function() function correctly filters basic HTML entities.', $replacements));
+
+    // A single quote can also be used for evil things in some contexts.
+    $f = $function('\'');
+    $this->assertEqual($f, '&#039;', t('The @function() function correctly filters single quotes.', $replacements));
+
+    // Test that the filter is not fooled by different evasion techniques.
+    $f = $function("\xc2\"");
+    $this->assertEqual($f, '', t('The @function() function correctly filters invalid UTF-8.', $replacements));
+  }
 }
+
+/**
+ * Tests for filter hook invocation.
+ */
+class FilterHooksTestCase extends DrupalWebTestCase {
+  public static function getInfo() {
+    return array(
+      'name' => 'Filter format hooks',
+      'description' => 'Test hooks for text formats insert/update/delete.',
+      'group' => 'Filter',
+    );
+  }
+
+  function setUp() {
+    parent::setUp('block', 'filter_test');
+    $admin_user = $this->drupalCreateUser(array('administer filters', 'administer blocks'));
+    $this->drupalLogin($admin_user);
+  }
+
+  /**
+   * Test that hooks run correctly on creating, editing, and deleting a text format.
+   */
+  function testFilterHooks() {
+    // Add a text format.
+    $name = $this->randomName();
+    $edit = array();
+    $edit['name'] = $name;
+    $edit['roles[1]'] = 1;
+    $this->drupalPost('admin/config/content/formats/add', $edit, t('Save configuration'));
+    $this->assertRaw(t('Added text format %format.', array('%format' => $name)), t('New format created.'));
+    $this->assertText('hook_filter_format_insert invoked.', t('hook_filter_format_insert was invoked.'));
+
+    $format = db_query("SELECT format FROM {filter_format} WHERE name = :name", array(':name' => $name))->fetchField();
+
+    // Update text format.
+    $edit = array();
+    $edit['roles[2]'] = 1;
+    $this->drupalPost('admin/config/content/formats/' . $format, $edit, t('Save configuration'));
+    $this->assertRaw(t('The text format settings have been updated.'), t('Full HTML format successfully updated.'));
+    $this->assertText('hook_filter_format_update invoked.', t('hook_filter_format_update() was invoked.'));
+
+    // Add a new custom block.
+    $custom_block = array();
+    $custom_block['info'] = $this->randomName(8);
+    $custom_block['title'] = $this->randomName(8);
+    $custom_block['body'] = $this->randomName(32);
+    // Use the format created.
+    $custom_block['body_format'] = $format;
+    $this->drupalPost('admin/structure/block/add', $custom_block, t('Save block'));
+    $this->assertText(t('The block has been created.'), t('New block successfully created.'));
+
+    // Verify the new block is in the database.
+    $bid = db_query("SELECT bid FROM {block_custom} WHERE info = :info", array(':info' => $custom_block['info']))->fetchField();
+    $this->assertNotNull($bid, t('New block found in database'));
+
+    // Delete the text format.
+    $this->drupalPost('admin/config/content/formats/' . $format . '/delete', array(), t('Delete'));
+    $this->assertRaw(t('Deleted text format %format.', array('%format' => $name)), t('Format successfully deleted.'));
+    $this->assertText('hook_filter_format_delete invoked.', t('hook_filter_format_delete() was invoked.'));
+
+    // Verify that the deleted format was replaced with the default format.
+    $current_format = db_select('block_custom', 'b')
+      ->fields('b', array('format'))
+      ->condition('bid', $bid)
+      ->execute()
+      ->fetchField();
+    $default = variable_get('filter_default_format', 1);
+    $this->assertEqual($current_format, $default, t('Deleted text format replaced with the default format.'));
+  }
+}
+

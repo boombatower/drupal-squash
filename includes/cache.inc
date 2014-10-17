@@ -18,8 +18,8 @@ function _cache_get_object($bin) {
   // storage of a cache bin mid-request.
   static $cache_objects, $default_class;
   if (!isset($cache_objects[$bin])) {
-    $class = variable_get($bin, FALSE);
-    if (empty($class)) {
+    $class = variable_get('cache_class_' . $bin);
+    if (!isset($class)) {
       $class = variable_get('cache_default_class', 'DrupalDatabaseCache');
     }
     $cache_objects[$bin] = new $class($bin);
@@ -152,7 +152,7 @@ function cache_set($cid, $data, $bin = 'cache', $expire = CACHE_PERMANENT, array
  * @param $wildcard
  *   If $wildcard is TRUE, cache IDs starting with $cid are deleted in
  *   addition to the exact cache ID specified by $cid.  If $wildcard is
- *   TRUE and $cid is '*' then the entire table $table is emptied. 
+ *   TRUE and $cid is '*' then the entire table $table is emptied.
  */
 function cache_clear_all($cid = NULL, $bin = NULL, $wildcard = FALSE) {
   if (!isset($cid) && !isset($bin)) {
@@ -165,6 +165,21 @@ function cache_clear_all($cid = NULL, $bin = NULL, $wildcard = FALSE) {
     return;
   }
   return _cache_get_object($bin)->clear($cid, $wildcard);
+}
+
+/**
+ * Check if a cache bin is empty.
+ *
+ * A cache bin is considered empty if it does not contain any valid data for any
+ * cache ID.
+ *
+ * @param $bin
+ *   The cache bin to check.
+ * @return
+ *   TRUE if the cache bin specified is empty.
+ */
+function cache_is_empty($bin) {
+  return _cache_get_object($bin)->isEmpty();
 }
 
 /**
@@ -260,6 +275,17 @@ interface DrupalCacheInterface {
    *   match. If '*' is given as $cid, the bin $bin will be emptied.
    */
   function clear($cid = NULL, $wildcard = FALSE);
+
+  /**
+   * Check if a cache bin is empty.
+   *
+   * A cache bin is considered empty if it does not contain any valid data for
+   * any cache ID.
+   *
+   * @return
+   *   TRUE if the cache bin specified is empty.
+   */
+  function isEmpty();
 }
 
 /**
@@ -398,7 +424,7 @@ class DrupalDatabaseCache implements DrupalCacheInterface {
         // simulate that the cache was flushed for this user by not returning
         // cached data that was cached before the timestamp.
         $user->cache = REQUEST_TIME;
-  
+
         $cache_flush = variable_get('cache_flush_' . $this->bin, 0);
         if ($cache_flush == 0) {
           // This is the first request to clear the cache, start a timer.
@@ -448,5 +474,15 @@ class DrupalDatabaseCache implements DrupalCacheInterface {
           ->execute();
       }
     }
+  }
+
+  function isEmpty() {
+    $this->garbageCollection();
+    $query = db_select($this->bin);
+    $query->addExpression('1');
+    $result = $query->range(0, 1)
+      ->execute()
+      ->fetchField();
+    return empty($result);
   }
 }

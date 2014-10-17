@@ -19,7 +19,7 @@ function toolbar_permission() {
 }
 
 /**
- * Implementation of hook_theme().
+ * Implement hook_theme().
  */
 function toolbar_theme($existing, $type, $theme, $path) {
   $items['toolbar'] = array(
@@ -31,18 +31,18 @@ function toolbar_theme($existing, $type, $theme, $path) {
 }
 
 /**
- * Implementation of hook_page_alter().
+ * Implement hook_page_build().
  * 
  * Add admin toolbar to the page_top region automatically.
  */
-function toolbar_page_alter(&$page) {
+function toolbar_page_build(&$page) {
   if (user_access('access toolbar')) {
     $page['page_top']['toolbar'] = toolbar_build();
   }
 }
 
 /**
- * Implementation of hook_preprocess_page().
+ * Implement hook_preprocess_page().
  *
  * Add some page classes, so global page theming can adjust to the toolbar.
  */
@@ -61,12 +61,14 @@ function toolbar_build() {
   $module_path = drupal_get_path('module', 'toolbar');
   $build = array(
     '#theme' => 'toolbar',
-    '#attached_js' => array(
-      $module_path . '/toolbar.js',
-      array('data' => 'misc/jquery.cookie.js', 'weight' => JS_LIBRARY + 2),
-    ),
-    '#attached_css' => array(
-      $module_path . '/toolbar.css',
+    '#attached'=> array(
+      'js' => array(
+        $module_path . '/toolbar.js',
+        array('data' => 'misc/jquery.cookie.js', 'weight' => JS_LIBRARY + 2),
+      ),
+      'css' => array(
+        $module_path . '/toolbar.css',
+      ),
     ),
   );
 
@@ -88,7 +90,7 @@ function toolbar_build() {
         'html' => TRUE,
       ),
       'logout' => array(
-        'title' => t('Logout'),
+        'title' => t('Log out'),
         'href' => 'user/logout',
       ),
     ),
@@ -111,18 +113,17 @@ function toolbar_build() {
  * Get only the top level items below the 'admin' path.
  */
 function toolbar_get_menu_tree() {
-  $tree = menu_tree_all_data('management');
-  foreach ($tree as $item) {
-    if ($item['link']['link_path'] == 'admin' && !empty($item['below'])) {
-      // Only take items right below the 'admin' path. All other management 
-      // items are discarded.
-      $tree = $item['below'];
-      break;
+  $tree = array();
+  $admin_link = db_query("SELECT * FROM {menu_links} WHERE menu_name = 'management' AND module = 'system' AND link_path = 'admin'")->fetchAssoc();
+  if ($admin_link) {
+    $tree = menu_tree_all_data('management', $admin_link);
+    // The tree will be a sub-tree with the admin link as a single root item.
+    $admin_link = array_pop($tree);
+    $tree = $admin_link['below'] ? $admin_link['below'] : array();
+    foreach ($tree as $key => $item) {
+      // Get rid of subitems to have a leaner data structure.
+      unset($tree[$key]['below']);
     }
-  }
-  foreach ($tree as $key => $item) {
-    // Get rid of subitems to have a leaner data structure.
-    unset($tree[$key]['below']);
   }
   return $tree;
 }
@@ -147,7 +148,7 @@ function toolbar_menu_navigation_links($tree) {
       // Add icon placeholder.
       $link['title'] = '<span class="icon"></span>' . $item['link']['title'];
       // Add admin link ID and to-overlay class for the overlay.
-      $link['attributes'] = array('id' => 'toolbar-link-' . $id, 'class' => 'to-overlay');
+      $link['attributes'] = array('id' => 'toolbar-link-' . $id, 'class' => array('to-overlay'));
       $link['html'] = TRUE;
 
       $class = ' path-' . $id;

@@ -76,7 +76,7 @@ class CommentHelperCase extends DrupalWebTestCase {
       $regex .= '<div(.*?)'; // Begin in comment div.
       $regex .= $comment->subject . '(.*?)'; // Match subject.
       $regex .= $comment->comment . '(.*?)'; // Match comment.
-      $regex .= '<\/div>/s'; // Dot matches newlines and ensure that match doesn't bleed outside comment div.
+      $regex .= '/s';
 
       return (boolean)preg_match($regex, $this->drupalGetContent());
     }
@@ -176,7 +176,7 @@ class CommentHelperCase extends DrupalWebTestCase {
     $edit['1[access comments]'] = $access_comments;
     $edit['1[post comments]'] = $post_comments;
     $edit['1[post comments without approval]'] = $without_approval;
-    $this->drupalPost('admin/user/permissions', $edit, t('Save permissions'));
+    $this->drupalPost('admin/config/people/permissions', $edit, t('Save permissions'));
     $this->assertText(t('The changes have been saved.'), t('Anonymous user comments ' . ($access_comments ? 'access comments' : 'not access comments'). '.'));
   }
 
@@ -203,11 +203,11 @@ class CommentHelperCase extends DrupalWebTestCase {
     $edit = array();
     $edit['operation'] = $operation;
     $edit['comments[' . $comment->id . ']'] = TRUE;
-    $this->drupalPost('admin/content/content/comment' . ($approval ? '/approval' : ''), $edit, t('Update'));
+    $this->drupalPost('admin/content/comment' . ($approval ? '/approval' : ''), $edit, t('Update'));
 
     if ($operation == 'delete') {
       $this->drupalPost(NULL, array(), t('Delete comments'));
-      $this->assertText(t('The comments have been deleted.'), t('Operation "' . $operation . '" was performed on comment.'));
+      $this->assertRaw(t('Deleted @count comments.', array('@count' => 1)), t('Operation "' . $operation . '" was performed on comment.'));
     }
     else {
       $this->assertText(t('The update has been performed.'), t('Operation "' . $operation . '" was performed on comment.'));
@@ -223,7 +223,7 @@ class CommentHelperCase extends DrupalWebTestCase {
    *   Comment id.
    */
   function getUnapprovedComment($subject) {
-    $this->drupalGet('admin/content/content/comment/approval');
+    $this->drupalGet('admin/content/comment/approval');
     preg_match('/href="(.*?)#comment-([^"]+)"(.*?)>(' . $subject . ')/', $this->drupalGetContent(), $match);
 
     return $match[2];
@@ -361,6 +361,83 @@ class CommentInterfaceTest extends CommentHelperCase {
   }
 }
 
+/**
+ * Test previewing comments.
+ */
+class CommentPreviewTest extends CommentHelperCase {
+  public static function getInfo() {
+    return array(
+      'name' => 'Comment preview',
+      'description' => 'Test comment preview.',
+      'group' => 'Comment',
+    );
+  }
+
+  /**
+   * Test comment preview.
+   */
+  function testCommentPreview() {
+    // As admin user, configure comment settings.
+    $this->drupalLogin($this->admin_user);
+    $this->setCommentPreview(TRUE);
+    $this->setCommentForm(TRUE);
+    $this->setCommentSubject(TRUE);
+    $this->setCommentSettings('comment_default_mode', COMMENT_MODE_THREADED, t('Comment paging changed.'));
+    $this->drupalLogout();
+
+    // As web user, fill in node creation form and preview node.
+    $this->drupalLogin($this->web_user);
+    $edit = array();
+    $edit['subject'] = $this->randomName(8);
+    $edit['comment'] = $this->randomName(16);
+    $this->drupalPost('node/' . $this->node->nid, $edit, t('Preview'));
+
+    // Check that the preview is displaying the title and body.
+    $this->assertTitle(t('Preview comment | Drupal'), t('Page title is "Preview comment".'));
+    $this->assertText($edit['subject'], t('Subject displayed.'));
+    $this->assertText($edit['comment'], t('Comment displayed.'));
+
+    // Check that the title and body fields are displayed with the correct values.
+    $this->assertFieldByName('subject', $edit['subject'], t('Subject field displayed.'));
+    $this->assertFieldByName('comment', $edit['comment'], t('Comment field displayed.'));
+  }
+  
+  /**
+   * Test comment edit and preview.
+   */
+  function testCommentEditPreview() {
+    $web_user = $this->drupalCreateUser(array('access comments', 'post comments', 'post comments without approval'));
+    $this->drupalLogin($this->admin_user);
+    $this->setCommentPreview(TRUE);
+    $this->setCommentForm(TRUE);
+    $this->setCommentSubject(TRUE);
+    $this->setCommentSettings('comment_default_mode', COMMENT_MODE_THREADED, t('Comment paging changed.'));
+    
+    $edit = array();
+    $edit['subject'] = $this->randomName(8);
+    $edit['comment'] = $this->randomName(16);
+    $edit['author'] = $web_user->name;
+    $edit['date'] = '2008-03-02 17:23 +0300';
+    $expected_date = format_date(strtotime($edit['date']));
+    $comment = $this->postComment($this->node, $edit['subject'], $edit['comment'], TRUE);
+    $this->drupalPost('comment/edit/' . $comment->id, $edit, t('Preview'));
+    
+    // Check that the preview is displaying the subject, comment, author and date correctly.
+    $this->assertTitle(t('Preview comment | Drupal'), t('Page title is "Preview comment".'));
+    $this->assertText($edit['subject'], t('Subject displayed.'));
+    $this->assertText($edit['comment'], t('Comment displayed.'));
+    $this->assertText($edit['author'], t('Author displayed.'));
+    $this->assertText($expected_date, t('Date displayed.'));
+
+    // Check that the title and body fields are displayed with the correct values.
+    $this->assertFieldByName('subject', $edit['subject'], t('Subject field displayed.'));
+    $this->assertFieldByName('comment', $edit['comment'], t('Comment field displayed.'));
+    $this->assertFieldByName('author', $edit['author'], t('Author field displayed.'));
+    $this->assertFieldByName('date', $edit['date'], t('Date field displayed.'));
+  }
+
+}
+
 class CommentAnonymous extends CommentHelperCase {
   public static function getInfo() {
     return array(
@@ -422,19 +499,19 @@ class CommentAnonymous extends CommentHelperCase {
     $this->drupalLogin($this->admin_user);
     $this->performCommentOperation($anonymous_comment3, 'unpublish');
 
-    $this->drupalGet('admin/content/content/comment/approval');
+    $this->drupalGet('admin/content/comment/approval');
     $this->assertRaw('comments[' . $anonymous_comment3->id . ']', t('Comment was unpublished.'));
 
     // Publish comment.
     $this->performCommentOperation($anonymous_comment3, 'publish', TRUE);
 
-    $this->drupalGet('admin/content/content/comment');
+    $this->drupalGet('admin/content/comment');
     $this->assertRaw('comments[' . $anonymous_comment3->id . ']', t('Comment was published.'));
 
     // Delete comment.
     $this->performCommentOperation($anonymous_comment3, 'delete');
 
-    $this->drupalGet('admin/content/content/comment');
+    $this->drupalGet('admin/content/comment');
     $this->assertNoRaw('comments[' . $anonymous_comment3->id . ']', t('Comment was deleted.'));
 
     // Reset.
@@ -446,7 +523,7 @@ class CommentAnonymous extends CommentHelperCase {
     // "Login or register to post comments" type link may be shown.
     $this->drupalLogout();
     $this->drupalGet('node/' . $this->node->nid);
-    $this->assertNoRaw('<div id="comments">', t('Comments were not displayed.'));
+    $this->assertNoPattern('/<div ([^>]*?)id="comments"([^>]*?)>/', t('Comments were not displayed.'));
     $this->assertNoLink('Add new comment', t('Link to add comment was found.'));
 
     // Attempt to view node-comment form while disallowed.
@@ -459,7 +536,7 @@ class CommentAnonymous extends CommentHelperCase {
     $this->setAnonymousUserComment(TRUE, FALSE, FALSE);
     $this->drupalLogout();
     $this->drupalGet('node/' . $this->node->nid);
-    $this->assertRaw('<div id="comments">', t('Comments were displayed.'));
+    $this->assertPattern('/<div ([^>]*?)id="comments"([^>]*?)>/', t('Comments were displayed.'));
     $this->assertLink('Login', 1, t('Link to login was found.'));
     $this->assertLink('register', 1, t('Link to register was found.'));
   }
@@ -562,7 +639,7 @@ class CommentApprovalTest extends CommentHelperCase {
   }
 
   /**
-   * Test comment approval functionality through admin/content/content/comment.
+   * Test comment approval functionality through admin/content/comment.
    */
   function testApprovalAdminInterface() {
     $this->drupalLogin($this->admin_user);
@@ -651,10 +728,10 @@ class CommentBlockFunctionalTest extends CommentHelperCase {
 
     // Set the block to a region to confirm block is available.
     $edit = array(
-      'comment_recent[region]' => 'left',
+      'comment_recent[region]' => 'sidebar_first',
     );
     $this->drupalPost('admin/structure/block', $edit, t('Save blocks'));
-    $this->assertText(t('The block settings have been updated.'), t('Block saved to left region.'));
+    $this->assertText(t('The block settings have been updated.'), t('Block saved to first sidebar region.'));
 
     // Set block title and variables.
     $block = array(

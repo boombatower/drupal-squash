@@ -10,19 +10,12 @@
  */
 function garland_breadcrumb($breadcrumb) {
   if (!empty($breadcrumb)) {
-    return '<div class="breadcrumb">' . implode(' › ', $breadcrumb) . '</div>';
-  }
-}
+    // Provide a navigational heading to give context for breadcrumb links to
+    // screen-reader users. Make the heading invisible with .element-invisible.
+    $output = '<h2 class="element-invisible">' . t('You are here') . '</h2>';
 
-/**
- * Allow themable wrapping of all comments.
- */
-function garland_comment_wrapper($content, $node) {
-  if (!$content || $node->type == 'forum') {
-    return '<div id="comments">' . $content . '</div>';
-  }
-  else {
-    return '<div id="comments"><h2 class="comments">' . t('Comments') . '</h2>' . $content . '</div>';
+    $output .= '<div class="breadcrumb">' . implode(' › ', $breadcrumb) . '</div>';
+    return $output;
   }
 }
 
@@ -31,8 +24,36 @@ function garland_comment_wrapper($content, $node) {
  */
 function garland_preprocess_page(&$vars) {
   $vars['tabs2'] = menu_secondary_local_tasks();
-  $vars['primary_nav'] = isset($vars['main_menu']) ? theme('links', $vars['main_menu'], array('class' => 'links main-menu')) : FALSE;
-  $vars['secondary_nav'] = isset($vars['secondary_menu']) ? theme('links', $vars['secondary_menu'], array('class' => 'links secondary-menu')) : FALSE;
+  if (isset($vars['main_menu'])) {
+    $vars['primary_nav'] = theme('links', $vars['main_menu'],
+      array(
+        'class' => array('links', 'main-menu'),
+      ),
+      array(
+        'text' => t('Main menu'),
+        'level' => 'h2',
+        'class' => array('element-invisible'),
+      )
+    );
+  }
+  else {
+    $vars['primary_nav'] = FALSE;
+  }
+  if (isset($vars['secondary_menu'])) {
+    $vars['secondary_nav'] = theme('links', $vars['secondary_menu'],
+      array(
+        'class' => array('links', 'secondary-menu'),
+      ),
+      array(
+        'text' => t('Secondary menu'),
+        'level' => 'h2',
+        'class' => array('element-invisible'),
+      )
+    );
+  }
+  else {
+    $vars['secondary_nav'] = FALSE;
+  }
   $vars['ie_styles'] = garland_get_ie_styles();
 
   // Prepare header
@@ -49,6 +70,12 @@ function garland_preprocess_page(&$vars) {
   }
   $vars['site_html'] = implode(' ', $site_fields);
 
+}
+
+/**
+ * Override process function used to alter variables as late as possible.
+ */
+function garland_process_page(&$vars) {
   // Hook into color.module
   if (module_exists('color')) {
     _color_page_alter($vars);
@@ -64,36 +91,14 @@ function garland_menu_local_tasks() {
 }
 
 /**
- * Format the "Submitted by username on date/time" for each comment.
- */
-function garland_comment_submitted($comment) {
-  return t('!datetime — !username',
-    array(
-      '!username' => theme('username', $comment),
-      '!datetime' => format_date($comment->timestamp)
-    ));
-}
-
-/**
- * Format the "Submitted by username on date/time" for each node.
- */
-function garland_node_submitted($node) {
-  return t('!datetime — !username',
-    array(
-      '!username' => theme('username', $node),
-      '!datetime' => format_date($node->created),
-    ));
-}
-
-/**
  * Generates IE CSS links for LTR and RTL languages.
  */
 function garland_get_ie_styles() {
   global $language;
 
-  $ie_styles = '<link type="text/css" rel="stylesheet" media="all" href="' . base_path() . path_to_theme() . '/fix-ie.css" />' . "\n";
+  $ie_styles = '<link type="text/css" rel="stylesheet" media="all" href="' . file_create_url(path_to_theme() . '/fix-ie.css') . '" />' . "\n";
   if ($language->direction == LANGUAGE_RTL) {
-    $ie_styles .= '      <style type="text/css" media="all">@import "' . base_path() . path_to_theme() . '/fix-ie-rtl.css";</style>' . "\n";
+    $ie_styles .= '      <style type="text/css" media="all">@import "' . file_create_url(path_to_theme() . '/fix-ie-rtl.css') . '";</style>' . "\n";
   }
 
   return $ie_styles;

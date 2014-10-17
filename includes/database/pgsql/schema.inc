@@ -242,7 +242,11 @@ class DatabaseSchema_pgsql extends DatabaseSchema {
       'blob:big' => 'bytea',
       'blob:normal' => 'bytea',
 
+      'date:normal' => 'date',
+
       'datetime:normal' => 'timestamp without time zone',
+      
+      'time:normal'     => 'time without time zone',
 
       'serial:tiny' => 'serial',
       'serial:small' => 'serial',
@@ -260,7 +264,7 @@ class DatabaseSchema_pgsql extends DatabaseSchema {
         $ret[] = 'substr(' . $field[0] . ', 1, ' . $field[1] . ')';
       }
       else {
-        $ret[] = $field;
+        $ret[] = '"' . $field . '"';
       }
     }
     return implode(', ', $ret);
@@ -328,8 +332,8 @@ class DatabaseSchema_pgsql extends DatabaseSchema {
     $ret[] = update_sql($query);
     if (isset($spec['initial'])) {
       // All this because update_sql does not support %-placeholders.
-      $sql = 'UPDATE {' . $table . '} SET ' . $field . ' = ' . db_type_placeholder($spec['type']);
-      $result = db_query($sql, $spec['initial']);
+      $sql = 'UPDATE {' . $table . '} SET ' . $field . ' = :value';
+      $result = db_query($sql, array(':value' => $spec['initial']));
       $ret[] = array('success' => $result !== FALSE, 'query' => check_plain($sql . ' (' . $spec['initial'] . ')'));
     }
     if ($fixnull) {
@@ -355,7 +359,7 @@ class DatabaseSchema_pgsql extends DatabaseSchema {
    *   The field to be dropped.
    */
   public function dropField(&$ret, $table, $field) {
-    $ret[] = update_sql('ALTER TABLE {' . $table . '} DROP COLUMN ' . $field);
+    $ret[] = update_sql('ALTER TABLE {' . $table . '} DROP COLUMN "' . $field . '"');
   }
 
   /**
@@ -378,7 +382,7 @@ class DatabaseSchema_pgsql extends DatabaseSchema {
       $default = is_string($default) ? "'$default'" : $default;
     }
 
-    $ret[] = update_sql('ALTER TABLE {' . $table . '} ALTER COLUMN ' . $field . ' SET DEFAULT ' . $default);
+    $ret[] = update_sql('ALTER TABLE {' . $table . '} ALTER COLUMN "' . $field . '" SET DEFAULT ' . $default);
   }
 
   /**
@@ -392,7 +396,7 @@ class DatabaseSchema_pgsql extends DatabaseSchema {
    *   The field to be altered.
    */
   public function fieldSetNoDefault(&$ret, $table, $field) {
-    $ret[] = update_sql('ALTER TABLE {' . $table . '} ALTER COLUMN ' . $field . ' DROP DEFAULT');
+    $ret[] = update_sql('ALTER TABLE {' . $table . '} ALTER COLUMN "' . $field . '" DROP DEFAULT');
   }
 
   /**
@@ -435,7 +439,7 @@ class DatabaseSchema_pgsql extends DatabaseSchema {
    */
   function addUniqueKey(&$ret, $table, $name, $fields) {
     $name = '{' . $table . '}_' . $name . '_key';
-    $ret[] = update_sql('ALTER TABLE {' . $table . '} ADD CONSTRAINT ' . $name . ' UNIQUE (' . implode(',', $fields) . ')');
+    $ret[] = update_sql('ALTER TABLE {' . $table . '} ADD CONSTRAINT "' . $name . '" UNIQUE (' . implode(',', $fields) . ')');
   }
 
   /**
@@ -450,7 +454,7 @@ class DatabaseSchema_pgsql extends DatabaseSchema {
    */
   public function dropUniqueKey(&$ret, $table, $name) {
     $name = '{' . $table . '}_' . $name . '_key';
-    $ret[] = update_sql('ALTER TABLE {' . $table . '} DROP CONSTRAINT ' . $name);
+    $ret[] = update_sql('ALTER TABLE {' . $table . '} DROP CONSTRAINT "' . $name . '"');
   }
 
   /**
@@ -547,7 +551,7 @@ class DatabaseSchema_pgsql extends DatabaseSchema {
    *   table specification but without the 'fields' element.
    */
   public function changeField(&$ret, $table, $field, $field_new, $spec, $new_keys = array()) {
-    $ret[] = update_sql("ALTER TABLE {" . $table . "} RENAME $field TO " . $field . "_old");
+    $ret[] = update_sql('ALTER TABLE {' . $table . '} RENAME "' . $field . '" TO "' . $field . '_old"');
     $not_null = isset($spec['not null']) ? $spec['not null'] : FALSE;
     unset($spec['not null']);
 
@@ -578,7 +582,7 @@ class DatabaseSchema_pgsql extends DatabaseSchema {
   }
 
   protected function _createIndexSql($table, $name, $fields) {
-    $query = 'CREATE INDEX {' . $table . '}_' . $name . '_idx ON {' . $table . '} (';
+    $query = 'CREATE INDEX "{' . $table . '}_' . $name . '_idx" ON {' . $table . '} (';
     $query .= $this->_createKeySql($fields) . ')';
     return $query;
   }

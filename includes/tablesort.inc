@@ -22,10 +22,22 @@ class TableSort extends SelectQueryExtender {
    */
   protected $header = array();
 
-  public function execute() {
-    return $this->query->execute();
+  public function __construct(SelectQueryInterface $query, DatabaseConnection $connection) {
+    parent::__construct($query, $connection);
+
+    // Add convenience tag to mark that this is an extended query. We have to
+    // do this in the constructor to ensure that it is set before preExecute()
+    // gets called.
+    $this->addTag('tablesort');
   }
 
+  /**
+   * Order the query based on a header array.
+   *
+   * @see theme_table()
+   * @param $header
+   *   Table header array.
+   */
   public function orderByHeader(Array $header) {
     $this->header = $header;
     $ts = $this->init();
@@ -185,12 +197,7 @@ function tablesort_header($cell, $header, $ts) {
     $title = t('sort by @s', array('@s' => $cell['data']));
     if ($cell['data'] == $ts['name']) {
       $ts['sort'] = (($ts['sort'] == 'asc') ? 'desc' : 'asc');
-      if (isset($cell['class'])) {
-        $cell['class'] .= ' active';
-      }
-      else {
-        $cell['class'] = 'active';
-      }
+      $cell['class'][] = 'active';
       $image = theme('tablesort_indicator', $ts['sort']);
     }
     else {
@@ -228,15 +235,10 @@ function tablesort_header($cell, $header, $ts) {
 function tablesort_cell($cell, $header, $ts, $i) {
   if (isset($header[$i]['data']) && $header[$i]['data'] == $ts['name'] && !empty($header[$i]['field'])) {
     if (is_array($cell)) {
-      if (isset($cell['class'])) {
-        $cell['class'] .= ' active';
-      }
-      else {
-        $cell['class'] = 'active';
-      }
+      $cell['class'][] = 'active';
     }
     else {
-      $cell = array('data' => $cell, 'class' => 'active');
+      $cell = array('data' => $cell, 'class' => array('active'));
     }
   }
   return $cell;

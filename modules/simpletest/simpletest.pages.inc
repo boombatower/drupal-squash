@@ -72,8 +72,8 @@ function theme_simpletest_test_table($table) {
   // Create header for test selection table.
   $header = array(
     theme('table_select_header_cell'),
-    array('data' => t('Test'), 'class' => 'simpletest_test'),
-    array('data' => t('Description'), 'class' => 'simpletest_description'),
+    array('data' => t('Test'), 'class' => array('simpletest_test')),
+    array('data' => t('Description'), 'class' => array('simpletest_description')),
   );
 
   // Define the images used to expand/collapse the test groups.
@@ -100,7 +100,7 @@ function theme_simpletest_test_table($table) {
     $image_index = $collapsed ? 0 : 1;
 
     // Place-holder for checkboxes to select group of tests.
-    $row[] = array('id' => $test_class, 'class' => 'simpletest-select-all');
+    $row[] = array('id' => $test_class, 'class' => array('simpletest-select-all'));
 
     // Expand/collapse image and group title.
     $row[] = array(
@@ -111,7 +111,7 @@ function theme_simpletest_test_table($table) {
 
     $row[] = '&nbsp;';
 
-    $rows[] = array('data' => $row, 'class' => 'simpletest-group');
+    $rows[] = array('data' => $row, 'class' => array('simpletest-group'));
 
     // Add individual tests to group.
     $current_js = array(
@@ -145,7 +145,7 @@ function theme_simpletest_test_table($table) {
       $row[] = theme('indentation', 1) . '<label for="edit-' . $test_name . '">' . $title . '</label>';
       $row[] = '<div class="description">' . $description . '</div>';
 
-      $rows[] = array('data' => $row, 'class' => $test_class . '-test' . ($collapsed ? ' js-hide' : ''));
+      $rows[] = array('data' => $row, 'class' => array($test_class . '-test', ($collapsed ? 'js-hide' : '')));
     }
     $js['simpletest-test-group-' . $test_class] = $current_js;
     unset($table[$key]);
@@ -203,7 +203,7 @@ function simpletest_result_form(&$form_state, $test_id) {
   $results = array();
   if (is_numeric($test_id) && !$results = simpletest_result_get($test_id)) {
     drupal_set_message(t('No test results to display.'), 'error');
-    drupal_goto('admin/development/testing');
+    drupal_goto('admin/config/development/testing');
     return $form;
   }
 
@@ -226,6 +226,7 @@ function simpletest_result_form(&$form_state, $test_id) {
     '#pass' => 0,
     '#fail' => 0,
     '#exception' => 0,
+    '#debug' => 0,
   );
 
   // Cycle through each test group.
@@ -254,18 +255,24 @@ function simpletest_result_form(&$form_state, $test_id) {
       $row[] = $assertion->function;
       $row[] = simpletest_result_status_image($assertion->status);
 
-      $rows[] = array('data' => $row, 'class' => 'simpletest-' . $assertion->status);
+      $class = 'simpletest-' . $assertion->status;
+      if ($assertion->message_group == 'Debug') {
+        $class = 'simpletest-debug';
+      }
+      $rows[] = array('data' => $row, 'class' => array($class));
 
       $group_summary['#' . $assertion->status]++;
       $form['result']['summary']['#' . $assertion->status]++;
     }
     $form['result']['results'][$group]['table'] = array(
-      '#markup' => theme('table', $header, $rows),
+      '#theme' => 'table',
+      '#header' => $header,
+      '#rows' => $rows,
     );
 
     // Set summary information.
     $group_summary['#ok'] = $group_summary['#fail'] + $group_summary['#exception'] == 0;
-    $form['result']['results'][$group]['#collapsed'] = $group_summary['#ok'];
+    $form['result']['results'][$group]['#collapsed'] = $group_summary['#ok'] && !$group_summary['#debug'];
 
     // Store test group (class) as for use in filter.
     $filter[$group_summary['#ok'] ? 'pass' : 'fail'][] = $group;
@@ -275,11 +282,11 @@ function simpletest_result_form(&$form_state, $test_id) {
   $form['result']['summary']['#ok'] = $form['result']['summary']['#fail'] + $form['result']['summary']['#exception'] == 0;
 
   // Actions.
-  $form['#action'] = url('admin/development/testing/results/re-run');
+  $form['#action'] = url('admin/config/development/testing/results/re-run');
   $form['action'] = array(
     '#type' => 'fieldset',
     '#title' => t('Actions'),
-    '#attributes' => array('class' => 'container-inline'),
+    '#attributes' => array('class' => array('container-inline')),
     '#weight' => -11,
   );
 
@@ -310,7 +317,7 @@ function simpletest_result_form(&$form_state, $test_id) {
   );
 
   $form['action']['return'] = array(
-    '#markup' => l(t('Return to list'), 'admin/development/testing'),
+    '#markup' => l(t('Return to list'), 'admin/config/development/testing'),
   );
 
   if (is_numeric($test_id)) {
@@ -338,7 +345,7 @@ function simpletest_result_form_submit($form, &$form_state) {
   }
 
   if (!$classes) {
-    $form_state['redirect'] = 'admin/development/testing';
+    $form_state['redirect'] = 'admin/config/development/testing';
     return;
   }
 
@@ -395,9 +402,10 @@ function simpletest_result_status_image($status) {
 
   if (!isset($map)) {
     $map = array(
-      'pass' => theme('image', 'misc/watchdog-ok.png'),
-      'fail' => theme('image', 'misc/watchdog-error.png'),
-      'exception' => theme('image', 'misc/watchdog-warning.png'),
+      'pass' => theme('image', 'misc/watchdog-ok.png', t('Pass')),
+      'fail' => theme('image', 'misc/watchdog-error.png', t('Fail')),
+      'exception' => theme('image', 'misc/watchdog-warning.png', t('Exception')),
+      'debug' => theme('image', 'misc/watchdog-warning.png', t('Debug')),
     );
   }
   if (isset($map[$status])) {
@@ -419,13 +427,13 @@ function simpletest_settings_form(&$form_state) {
   $form['general']['simpletest_clear_results'] = array(
     '#type' => 'checkbox',
     '#title' => t('Clear results after each complete test suite run'),
-    '#description' => t('By default SimpleTest will clear the results after they have been viewed on the results page, but in some cases it may be useful to leave the results in the database. The results can then be viewed at <em>admin/development/testing/[test_id]</em>. The test ID can be found in the database, simpletest table, or kept track of when viewing the results the first time. Additionally, some modules may provide more analaysis or features that require this setting to be disabled.'),
+    '#description' => t('By default SimpleTest will clear the results after they have been viewed on the results page, but in some cases it may be useful to leave the results in the database. The results can then be viewed at <em>admin/config/development/testing/[test_id]</em>. The test ID can be found in the database, simpletest table, or kept track of when viewing the results the first time. Additionally, some modules may provide more analaysis or features that require this setting to be disabled.'),
     '#default_value' => variable_get('simpletest_clear_results', TRUE),
   );
   $form['general']['simpletest_verbose'] = array(
     '#type' => 'checkbox',
     '#title' => t('Provide verbose information when running tests'),
-    '#description' => t('The verbose data will be printed along with the standard assertions. Useful for debugging.'),
+    '#description' => t('The verbose data will be printed along with the standard assertions and is useful for debugging. The verbose data will be erased between each test suite run. The verbose data output is very detailed and should only be used when debugging.'),
     '#default_value' => variable_get('simpletest_verbose', FALSE),
   );
 

@@ -60,7 +60,7 @@ function field_test_menu() {
 /**
  * Define a test fieldable entity.
  */
-function field_test_fieldable_info() {
+function field_test_entity_info() {
   $bundles = variable_get('field_test_bundles', array('test_bundle' => array('label' => 'Test Bundle')));
   return array(
     'test_entity' => array(
@@ -72,6 +72,7 @@ function field_test_fieldable_info() {
       ),
       'cacheable' => FALSE,
       'bundles' => $bundles,
+      'fieldable' => TRUE,
     ),
     // This entity type doesn't get form handling for now...
     'test_cacheable_entity' => array(
@@ -81,10 +82,20 @@ function field_test_fieldable_info() {
         'revision' => 'ftvid',
         'bundle' => 'fttype',
       ),
+      'fieldable' => TRUE,
       'cacheable' => TRUE,
       'bundles' => $bundles,
     ),
   );
+}
+
+/**
+ * Implement hook_entity_info_alter().
+ */
+function field_test_entity_info_alter(&$entity_info) {
+  foreach (field_test_entity_info_translatable() as $obj_type => $translatable) {
+    $entity_info[$obj_type]['translation_handlers']['field_test'] = TRUE;
+  }
 }
 
 /**
@@ -372,7 +383,7 @@ function field_test_field_schema($field) {
 /**
  * Implement hook_field_load().
  */
-function field_test_field_load($obj_type, $objects, $field, $instances, &$items, $age) {
+function field_test_field_load($obj_type, $objects, $field, $instances, $langcode, &$items, $age) {
   foreach ($items as $id => $item) {
     // To keep the test non-intrusive, only act for instances with the
     // test_hook_field_load setting explicitly set to TRUE.
@@ -393,10 +404,10 @@ function field_test_field_load($obj_type, $objects, $field, $instances, &$items,
  * Possible error codes:
  * - 'field_test_invalid': The value is invalid.
  */
-function field_test_field_validate($obj_type, $object, $field, $instance, $items, &$errors) {
+function field_test_field_validate($obj_type, $object, $field, $instance, $langcode, $items, &$errors) {
   foreach ($items as $delta => $item) {
     if ($item['value'] == -1) {
-      $errors[$field['field_name']][$delta][] = array(
+      $errors[$field['field_name']][$langcode][$delta][] = array(
         'error' => 'field_test_invalid',
         'message' => t('%name does not accept the value -1.', array('%name' => $instance['label'])),
       );
@@ -407,7 +418,7 @@ function field_test_field_validate($obj_type, $object, $field, $instance, $items
 /**
  * Implement hook_field_sanitize().
  */
-function field_test_field_sanitize($obj_type, $object, $field, $instance, &$items) {
+function field_test_field_sanitize($obj_type, $object, $field, $instance, $langcode, &$items) {
   foreach ($items as $delta => $item) {
     $value = check_plain($item['value']);
     $items[$delta]['safe'] = $value;
@@ -424,7 +435,7 @@ function field_test_field_is_empty($item, $field) {
 /**
  * Implement hook_field_widget_info().
  *
- * Here we indicate that the content module will handle
+ * Here we indicate that the field module will handle
  * the default value and multiple values for these widgets.
  *
  * Callbacks can be omitted if default handing is used.
@@ -459,16 +470,12 @@ function field_test_field_widget_info() {
  * Implement hook_field_widget().
  *
  * Attach a single form element to the form. It will be built out and
- * validated in the callback(s) listed in hook_elements. We build it
+ * validated in the callback(s) listed in hook_element_info(). We build it
  * out in the callbacks rather than here in hook_widget so it can be
  * plugged into any module that can provide it with valid
  * $field information.
  *
- * Content module will set the weight, field name and delta values
- * for each form element. This is a change from earlier CCK versions
- * where the widget managed its own multiple values.
- *
- * If there are multiple values for this field, the content module will
+ * If there are multiple values for this field, the field module will
  * call this function as many times as needed.
  *
  * @param $form
@@ -478,8 +485,8 @@ function field_test_field_widget_info() {
  *   holds the field's form values.
  * @param $field
  *   The field structure.
- * @param $insatnce
- *   the insatnce array
+ * @param $instance
+ *   the instance array
  * @param $items
  *   array of default values for this field
  * @param $delta
@@ -488,7 +495,7 @@ function field_test_field_widget_info() {
  * @return
  *   the form item for a single element for this field
  */
-function field_test_field_widget(&$form, &$form_state, $field, $instance, $items, $delta = 0) {
+function field_test_field_widget(&$form, &$form_state, $field, $instance, $langcode, $items, $delta = 0) {
   $element = array(
     'value' => array(
       '#title' => $instance['label'],
@@ -514,6 +521,7 @@ function field_test_field_formatter_info() {
   return array(
     'field_test_default' => array(
       'label' => t('Default'),
+      'description' => t('Default formatter'),
       'field types' => array('test_field'),
       'settings' => array(
         'test_formatter_setting' => 'dummy test string',
@@ -523,7 +531,8 @@ function field_test_field_formatter_info() {
       ),
     ),
     'field_test_multiple' => array(
-      'label' => t('Default'),
+      'label' => t('Multiple'),
+      'description' => t('Multiple formatter'),
       'field types' => array('test_field'),
       'settings' => array(
         'test_formatter_setting_multiple' => 'dummy test string',
@@ -581,6 +590,48 @@ function field_test_default_value($obj_type, $object, $field, $instance) {
 }
 
 /**
+ * Generic op to test _field_invoke behavior.
+ */
+function field_test_field_test_op($obj_type, $object, $field, $instance, $langcode, &$items) {
+  return array($langcode => md5(serialize(array($obj_type, $object, $field['field_name'], $langcode, $items))));
+}
+
+/**
+ * Generic op to test _field_invoke_multiple behavior.
+ */
+function field_test_field_test_op_multiple($obj_type, $objects, $field, $instances, $langcode, &$items) {
+  $result = array();
+  foreach ($objects as $id => $object) {
+    $result[$id] = array($langcode => md5(serialize(array($obj_type, $object, $field['field_name'], $langcode, $items[$id]))));
+  }
+  return $result;
+}
+
+/**
+ * Implement hook_field_languages().
+ */
+function field_test_field_languages($obj_type, $field, &$languages) {
+  if ($field['settings']['test_hook_in']) {
+    // Add an unavailable language.
+    $languages[] = 'xx';
+    // Remove an available language.
+    unset($languages[0]);
+  }
+}
+
+/**
+ * Helper function to enable entity translations.
+ */
+function field_test_entity_info_translatable($obj_type = NULL, $translatable = NULL) {
+  $stored_value = &drupal_static(__FUNCTION__, array());
+  if (isset($obj_type) && isset($translatable)) {
+    $stored_value[$obj_type] = $translatable;
+    _field_info_collate_types(TRUE);
+  }
+  return $stored_value;
+}
+
+/**
  * Store and retrieve keyed data for later verification by unit tests.
  *
  * This function is a simple in-memory key-value store with the
@@ -622,7 +673,7 @@ function field_test_default_value($obj_type, $object, $field, $instance) {
  *   for that key.
  */
 function field_test_memorize($key = NULL, $value = NULL) {
-  $memorize =& drupal_static(__FUNCTION__, NULL);
+  $memorize = &drupal_static(__FUNCTION__, NULL);
 
   if (is_null($key)) {
     $ret = $memorize;
@@ -638,6 +689,30 @@ function field_test_memorize($key = NULL, $value = NULL) {
  * Memorize calls to hook_field_create_field().
  */
 function field_test_field_create_field($field) {
+  $args = func_get_args();
+  field_test_memorize(__FUNCTION__, $args);
+}
+
+/**
+ * Memorize calls to hook_field_insert().
+ */
+function field_test_field_insert($obj_type, $object, $field, $instance, $items) {
+  $args = func_get_args();
+  field_test_memorize(__FUNCTION__, $args);
+}
+
+/**
+ * Memorize calls to hook_field_update().
+ */
+function field_test_field_update($obj_type, $object, $field, $instance, $items) {
+  $args = func_get_args();
+  field_test_memorize(__FUNCTION__, $args);
+}
+
+/**
+ * Memorize calls to hook_field_delete().
+ */
+function field_test_field_delete($obj_type, $object, $field, $instance, $items) {
   $args = func_get_args();
   field_test_memorize(__FUNCTION__, $args);
 }

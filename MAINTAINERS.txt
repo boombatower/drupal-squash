@@ -3,9 +3,6 @@
 List of maintainers
 --------------------------------------------------------------------------------
 
-BLOG API
-James Walker 'walkah' <http://drupal.org/user/1531>
-
 DATABASE SYSTEM
 Larry Garfield 'Crell' <http://drupal.org/user/26398>
 
@@ -52,6 +49,10 @@ Joon Park 'dvessel' <http://drupal.org/user/56782>
 
 UPDATE MODULE
 Derek Wright 'dww' <http://drupal.org/user/46549>
+
+USER EXPERIENCE AND USABILITY
+Roy Scholten 'yoroy' <http://drupal.org/user/41502>
+Bojhan Somers <http://drupal.org/user/87969>
 
 TRANSLATIONS COORDINATOR
 Gerhard Killesreiter 'killes' <http://drupal.org/user/83>

@@ -121,8 +121,8 @@ function theme_update_report($data) {
           $security_class = ' version-recommended version-recommended-strong';
         }
         else {
-          $security_class = '';
-          $version_class = 'version-recommended';
+          $security_class = array();
+          $version_class[] = 'version-recommended';
           // Apply an extra class if we're displaying both a recommended
           // version and anything else for an extra visual hint.
           if ($project['recommended'] !== $project['latest_version']
@@ -134,7 +134,7 @@ function theme_update_report($data) {
               || (isset($project['security updates'][0])
                 && $project['recommended'] !== $project['security updates'][0])
               ) {
-            $version_class .= ' version-recommended-strong';
+            $version_class[] = 'version-recommended-strong';
           }
           $row .= theme('update_version', $project['releases'][$project['recommended']], t('Recommended version:'), $version_class);
         }
@@ -148,19 +148,19 @@ function theme_update_report($data) {
       }
 
       if ($project['recommended'] !== $project['latest_version']) {
-        $row .= theme('update_version', $project['releases'][$project['latest_version']], t('Latest version:'), 'version-latest');
+        $row .= theme('update_version', $project['releases'][$project['latest_version']], t('Latest version:'), array('version-latest'));
       }
       if ($project['install_type'] == 'dev'
           && $project['status'] != UPDATE_CURRENT
           && isset($project['dev_version'])
           && $project['recommended'] !== $project['dev_version']) {
-        $row .= theme('update_version', $project['releases'][$project['dev_version']], t('Development version:'), 'version-latest');
+        $row .= theme('update_version', $project['releases'][$project['dev_version']], t('Development version:'), array('version-latest'));
       }
     }
 
     if (isset($project['also'])) {
       foreach ($project['also'] as $also) {
-        $row .= theme('update_version', $project['releases'][$also], t('Also available:'), 'version-also-available');
+        $row .= theme('update_version', $project['releases'][$also], t('Also available:'), array('version-also-available'));
       }
     }
 
@@ -170,7 +170,7 @@ function theme_update_report($data) {
     if (!empty($project['extra'])) {
       $row .= '<div class="extra">' . "\n";
       foreach ($project['extra'] as $key => $value) {
-        $row .= '<div class="' . $value['class'] . '">';
+        $row .= '<div class="' . implode(' ', $value['class']) . '">';
         $row .= check_plain($value['label']) . ': ';
         $row .= theme('placeholder', $value['data']);
         $row .= "</div>\n";
@@ -180,7 +180,18 @@ function theme_update_report($data) {
 
     $row .= '<div class="includes">';
     sort($project['includes']);
-    $row .= t('Includes: %includes', array('%includes' => implode(', ', $project['includes'])));
+    if (!empty($project['disabled'])) {
+      sort($project['disabled']);
+      // Make sure we start with a clean slate for each project in the report.
+      $includes_items = array();
+      $row .= t('Includes:');
+      $includes_items[] = t('Enabled: %includes', array('%includes' => implode(', ', $project['includes'])));
+      $includes_items[] = t('Disabled: %disabled', array('%disabled' => implode(', ', $project['disabled'])));
+      $row .= theme('item_list', $includes_items);
+    }
+    else {
+      $row .= t('Includes: %includes', array('%includes' => implode(', ', $project['includes'])));
+    }
     $row .= "</div>\n";
 
     $row .= "</div>\n"; // info div.
@@ -189,7 +200,7 @@ function theme_update_report($data) {
       $rows[$project['project_type']] = array();
     }
     $rows[$project['project_type']][] = array(
-      'class' => $class,
+      'class' => array($class),
       'data' => array($row),
     );
   }
@@ -198,13 +209,13 @@ function theme_update_report($data) {
     'core' => t('Drupal core'),
     'module' => t('Modules'),
     'theme' => t('Themes'),
-    'disabled-module' => t('Disabled modules'),
-    'disabled-theme' => t('Disabled themes'),
+    'module-disabled' => t('Disabled modules'),
+    'theme-disabled' => t('Disabled themes'),
   );
   foreach ($project_types as $type_name => $type_label) {
     if (!empty($rows[$type_name])) {
       $output .= "\n<h3>" . $type_label . "</h3>\n";
-      $output .= theme('table', $header, $rows[$type_name], array('class' => 'update'));
+      $output .= theme('table', $header, $rows[$type_name], array('class' => array('update')));
     }
   }
   drupal_add_css(drupal_get_path('module', 'update') . '/update.css');

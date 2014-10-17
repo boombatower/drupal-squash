@@ -15,11 +15,7 @@
   </head>
   <body class="<?php print $classes ?>">
 
-  <?php if ($page_top): ?>
-    <div id="page-top-region" class="clearfix">
-      <?php print $page_top; ?>
-    </div>
-  <?php endif; ?>
+  <?php print $page_top; ?>
 
   <div id="header-region" class="clearfix"><?php print $header ?></div>
 
@@ -42,10 +38,10 @@
         <?php if ($secondary_nav): print $secondary_nav; endif; ?>
       </div> <!-- /#header -->
 
-      <?php if ($left): ?>
-        <div id="sidebar-left" class="sidebar">
+      <?php if ($sidebar_first): ?>
+        <div id="sidebar-first" class="sidebar">
           <?php if ($search_box): ?><div class="block block-theme"><?php print $search_box ?></div><?php endif; ?>
-          <?php print $left ?>
+          <?php print $sidebar_first ?>
         </div>
       <?php endif; ?>
 
@@ -58,6 +54,7 @@
           <?php if ($tabs2): ?><ul class="tabs secondary"><?php print $tabs2 ?></ul><?php endif; ?>
           <?php if ($show_messages && $messages): print $messages; endif; ?>
           <?php print $help; ?>
+          <?php if ($action_links): ?><ul class="action-links"><?php print $action_links; ?></ul><?php endif; ?>
           <div class="clearfix">
             <?php print $content ?>
           </div>
@@ -65,16 +62,16 @@
           <div id="footer"><?php print $footer ?></div>
       </div></div></div></div> <!-- /.left-corner, /.right-corner, /#squeeze, /#center -->
 
-      <?php if ($right): ?>
-        <div id="sidebar-right" class="sidebar">
-          <?php if (!$left && $search_box): ?><div class="block block-theme"><?php print $search_box ?></div><?php endif; ?>
-          <?php print $right ?>
+      <?php if ($sidebar_second): ?>
+        <div id="sidebar-second" class="sidebar">
+          <?php if (!$sidebar_first && $search_box): ?><div class="block block-theme"><?php print $search_box ?></div><?php endif; ?>
+          <?php print $sidebar_second ?>
         </div>
       <?php endif; ?>
 
     </div> <!-- /#container -->
   </div> <!-- /#wrapper -->
 
-  <?php print $closure ?>
+  <?php print $page_bottom; ?>
   </body>
 </html>

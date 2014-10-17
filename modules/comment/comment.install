@@ -7,20 +7,9 @@
  */
 
 /**
- * Implement hook_install().
- */
-function comment_install() {
-  // Create tables.
-  drupal_install_schema('comment');
-}
-
-/**
  * Implement hook_uninstall().
  */
 function comment_uninstall() {
-  // Remove tables.
-  drupal_uninstall_schema('comment');
-
   // Remove variables.
   variable_del('comment_block_count');
   $node_types = array_keys(node_type_get_types());
@@ -42,7 +31,18 @@ function comment_uninstall() {
  */
 function comment_enable() {
   // Insert records into the node_comment_statistics for nodes that are missing.
-  db_query("INSERT INTO {node_comment_statistics} (nid, last_comment_timestamp, last_comment_name, last_comment_uid, comment_count) SELECT n.nid, n.changed, NULL, n.uid, 0 FROM {node} n LEFT JOIN {node_comment_statistics} c ON n.nid = c.nid WHERE c.comment_count IS NULL");
+  $query = db_select('node', 'n');
+  $query->leftJoin('node_comment_statistics', 'ncs', 'ncs.nid = n.nid');
+  $query->addField('n', 'changed', 'last_comment_timestamp');
+  $query->addField('n', 'uid', 'last_comment_uid');
+  $query->addField('n', 'nid');
+  $query->addExpression('0', 'comment_count');
+  $query->addExpression('NULL', 'last_comment_name');
+  $query->isNull('ncs.comment_count');
+
+  db_insert('node_comment_statistics')
+    ->from($query)
+    ->execute();
 }
 
 /**
@@ -124,6 +124,28 @@ function comment_update_7004() {
     }
   }
   return array();
+}
+
+/**
+ * Create comment Field API bundles.
+ */
+function comment_update_7005() {
+  $ret = array();
+
+  foreach (node_type_get_types() as $info) {
+    field_attach_create_bundle('comment_node_' . $info->type);
+  }
+  return $ret;
+}
+
+/**
+ * Create user related indexes.
+ */
+function comment_update_7006() {
+  $ret = array();
+  db_add_index($ret, 'comment', 'comment_uid', array('uid'));
+  db_add_index($ret, 'node_comment_statistics', 'last_comment_uid', array('last_comment_uid'));
+  return $ret;
 }
 
 /**
@@ -230,10 +252,12 @@ function comment_schema() {
     'indexes' => array(
       'comment_status_pid' => array('pid', 'status'),
       'comment_num_new' => array('nid', 'timestamp', 'status'),
+      'comment_uid' => array('uid'),
     ),
     'primary key' => array('cid'),
     'foreign keys' => array(
       'nid' => array('node' => 'nid'),
+      'uid' => array('users' => 'uid'),
     ),
   );
 
@@ -276,9 +300,12 @@ function comment_schema() {
     'primary key' => array('nid'),
     'indexes' => array(
       'node_comment_timestamp' => array('last_comment_timestamp'),
+      'comment_count' => array('comment_count'),
+      'last_comment_uid' => array('last_comment_uid'),
     ),
     'foreign keys' => array(
       'nid' => array('node' => 'nid'),
+      'last_comment_uid' => array('users' => 'uid'),
     ),
   );
 

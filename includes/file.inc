@@ -7,6 +7,13 @@
  */
 
 /**
+ * Stream wrapper code is included here because there are cases where
+ * File API is needed before a bootstrap, or in an alternate order (e.g.
+ * maintenance theme).
+ */
+require_once DRUPAL_ROOT . '/includes/stream_wrappers.inc';
+
+/**
  * @defgroup file File interface
  * @{
  * Common file handling functions.
@@ -17,7 +24,7 @@
  * - filename - Name of the file with no path components. This may differ from
  *   the basename of the filepath if the file is renamed to avoid overwriting
  *   an existing file.
- * - filepath - Path of the file relative to Drupal root.
+ * - uri - URI of the file.
  * - filemime - The file's MIME type.
  * - filesize - The size of the file in bytes.
  * - status - A bitmapped field indicating the status of the file. The first 8
@@ -28,28 +35,12 @@
  */
 
 /**
- * Flag to indicate that the 'public' file download method is enabled.
- *
- * When using this method, files are available from a regular HTTP request,
- * which provides no additional access restrictions.
- */
-define('FILE_DOWNLOADS_PUBLIC', 1);
-
-/**
- * Flag to indicate that the 'private' file download method is enabled.
- *
- * When using this method, all file requests are served by Drupal, during which
- * access-control checking can be performed.
- */
-define('FILE_DOWNLOADS_PRIVATE', 2);
-
-/**
- * Flag used by file_check_directory() -- create directory if not present.
+ * Flag used by file_prepare_directory() -- create directory if not present.
  */
 define('FILE_CREATE_DIRECTORY', 1);
 
 /**
- * Flag used by file_check_directory() -- file permissions may be changed.
+ * Flag used by file_prepare_directory() -- file permissions may be changed.
  */
 define('FILE_MODIFY_PERMISSIONS', 2);
 
@@ -77,56 +68,272 @@ define('FILE_EXISTS_ERROR', 2);
 define('FILE_STATUS_PERMANENT', 1);
 
 /**
- * Create the download path to a file.
- *
- * @param $path A string containing the path of the file to generate URL for.
- * @return A string containing a URL that can be used to download the file.
+ * Methods to manage a registry of stream wrappers.
  */
-function file_create_url($path) {
-  // Strip file_directory_path from $path. We only include relative paths in
-  // URLs.
-  $path = file_directory_strip($path);
-  switch (variable_get('file_downloads', FILE_DOWNLOADS_PUBLIC)) {
-    case FILE_DOWNLOADS_PUBLIC:
-      return $GLOBALS['base_url'] . '/' . file_directory_path() . '/' . str_replace('\\', '/', $path);
-    case FILE_DOWNLOADS_PRIVATE:
-      return url('system/files/' . $path, array('absolute' => TRUE));
+
+/**
+ * Drupal stream wrapper registry.
+ *
+ * A stream wrapper is an abstraction of a file system that allows Drupal to
+ * use the same set of methods to access both local files and remote resources.
+ *
+ * Provide a facility for managing and querying user-defined stream wrappers
+ * in PHP. PHP's internal stream_get_wrappers() doesn't return the class
+ * registered to handle a stream, which we need to be able to find the handler
+ * for class instantiation.
+ *
+ * If a module registers a scheme that is already registered with PHP, the
+ * existing scheme will be unregistered and replaced with the specified class.
+ *
+ * A stream is referenced as "scheme://target".
+ *
+ * @return
+ *   Returns the entire Drupal stream wrapper registry.
+ * @see hook_stream_wrappers()
+ * @see hook_stream_wrappers_alter()
+ */
+function file_get_stream_wrappers() {
+  $wrappers = &drupal_static(__FUNCTION__);
+
+  if (!isset($wrappers)) {
+    $wrappers = module_invoke_all('stream_wrappers');
+    drupal_alter('stream_wrappers', $wrappers);
+    $existing = stream_get_wrappers();
+    foreach ($wrappers as $scheme => $info) {
+      // We only register classes that implement our interface.
+      if (in_array('DrupalStreamWrapperInterface', class_implements($info['class']), TRUE)) {
+        // Record whether we are overriding an existing scheme.
+        if (in_array($scheme, $existing, TRUE)) {
+          $wrappers[$scheme]['override'] = TRUE;
+          stream_wrapper_unregister($scheme);
+        }
+        else {
+          $wrappers[$scheme]['override'] = FALSE;
+        }
+        stream_wrapper_register($scheme, $info['class']);
+      }
+    }
+  }
+  return $wrappers;
+}
+
+/**
+ * Returns the stream wrapper class name for a given scheme.
+ *
+ * @param $scheme
+ *   Stream scheme.
+ * @return
+ *   Return string if a scheme has a registered handler, or FALSE.
+ */
+function file_stream_wrapper_get_class($scheme) {
+  $wrappers = file_get_stream_wrappers();
+  return empty($wrappers[$scheme]) ? FALSE : $wrappers[$scheme]['class'];
+}
+
+/**
+ * Returns the scheme of a URI (e.g. a stream).
+ *
+ * @param $uri
+ *   A stream, referenced as "scheme://target".
+ * @return
+ *   A string containing the name of the scheme, or FALSE if none. For example,
+ *   the URI "public://example.txt" would return "public".
+ */
+function file_uri_scheme($uri) {
+  $data = explode('://', $uri, 2);
+
+  return count($data) == 2 ? $data[0] : FALSE;
+}
+
+/**
+ * Check that the scheme of a stream URI is valid.
+ *
+ * Confirms that there is a registered stream handler for the provided scheme
+ * and that it is callable. This is useful if you want to confirm a valid
+ * scheme without creating a new instance of the registered handler.
+ *
+ * @param $scheme
+ *   A URI scheme, a stream is referenced as "scheme://target".
+ * @return
+ *   Returns TRUE if the string is the name of a validated stream,
+ *   or FALSE if the scheme does not have a registered handler.
+ */
+function file_stream_wrapper_valid_scheme($scheme) {
+  // Does the scheme have a registered handler that is callable?
+  $class = file_stream_wrapper_get_class($scheme);
+  if (class_exists($class)) {
+    return TRUE;
+  }
+  else {
+    return FALSE;
   }
 }
 
 /**
- * Make sure the destination is a complete path and resides in the file system
- * directory, if it is not prepend the file system directory.
+ * Returns the target of a URI (e.g. a stream).
  *
- * @param $destination
- *   A string containing the path to verify. If this value is omitted, Drupal's
- *   'files' directory will be used.
+ * @param $uri
+ *   A stream, referenced as "scheme://target".
  * @return
- *   A string containing the path to file, with file system directory appended
- *   if necessary, or FALSE if the path is invalid (i.e. outside the configured
- *   'files' or temp directories).
+ *   A string containing the target (path), or FALSE if none.
+ *   For example, the URI "public://sample/test.txt" would return
+ *   "sample/test.txt".
  */
-function file_create_path($destination = NULL) {
-  $file_path = file_directory_path();
-  if (is_null($destination)) {
-    return $file_path;
+function file_uri_target($uri) {
+  $data = explode('://', $uri, 2);
+
+  if (count($data) != 2) {
+    return FALSE;
   }
-  // file_check_location() checks whether the destination is inside the Drupal
-  // files directory.
-  if (file_check_location($destination, $file_path)) {
-    return $destination;
+
+  // Remove erroneous beginning forward slash.
+  $data[1] = ltrim($data[1], '\/');
+
+  return $data[1];
+}
+
+/**
+ * Normalizes a URI by making it syntactically correct.
+ *
+ * A stream is referenced as "scheme://target".
+ *
+ * The following actions are taken:
+ * - Remove all occurrences of the wrapper's directory path
+ * - Remove trailing slashes from target
+ * - Trim erroneous leading slashes from target. e.g. ":///" becomes "://".
+ *
+ * @param $uri
+ *   String reference containing the URI to normalize.
+ * @return
+ *   The normalized URI.
+ */
+function file_stream_wrapper_uri_normalize($uri) {
+  $scheme = file_uri_scheme($uri);
+
+  if ($scheme && file_stream_wrapper_valid_scheme($scheme)) {
+    $target = file_uri_target($uri);
+
+    // Remove all occurrences of the wrapper's directory path.
+    $directory_path = file_stream_wrapper_get_instance_by_scheme($scheme)->getDirectoryPath();
+    $target = str_replace($directory_path, '', $target);
+
+    // Trim trailing slashes from target.
+    $target = rtrim($target, '/');
+
+    // Trim erroneous leading slashes from target.
+    $uri = $scheme . '://' . ltrim($target, '/');
   }
-  // Check if the destination is instead inside the Drupal temporary files
-  // directory.
-  elseif (file_check_location($destination, file_directory_temp())) {
-    return $destination;
+  return $uri;
+}
+
+/**
+ * Returns a reference to the stream wrapper class responsible for a given URI (stream).
+ *
+ * The scheme determines the stream wrapper class that should be
+ * used by consulting the stream wrapper registry.
+ *
+ * @param $uri
+ *   A stream, referenced as "scheme://target".
+ * @return
+ *   Returns a new stream wrapper object appropriate for the given URI or FALSE
+ *   if no registered handler could be found. For example, a URI of
+ *   "private://example.txt" would return a new private stream wrapper object
+ *   (DrupalPrivateStreamWrapper).
+ */
+function file_stream_wrapper_get_instance_by_uri($uri) {
+  $scheme = file_uri_scheme($uri);
+  $class = file_stream_wrapper_get_class($scheme);
+  if (class_exists($class)) {
+    $instance = new $class;
+    $instance->setUri($uri);
+    return $instance;
   }
-  // Not found, try again with prefixed directory path.
-  elseif (file_check_location($file_path . '/' . $destination, $file_path)) {
-    return $file_path . '/' . $destination;
+  else {
+    return FALSE;
   }
-  // File not found.
-  return FALSE;
+}
+
+/**
+ * Returns a reference to the stream wrapper class responsible for a given scheme.
+ *
+ * This helper method returns a stream instance using a scheme. That is, the
+ * passed string does not contain a "://". For example, "public" is a scheme
+ * but "public://" is a URI (stream). This is because the later contains both
+ * a scheme and target despite target being empty.
+ *
+ * Note: the instance URI will be initialized to "scheme://" so that you can
+ * make the customary method calls as if you had retrieved an instance by URI.
+ *
+ * @param $scheme
+ *   If the stream was "public://target", "public" would be the scheme.
+ * @return
+ *   Returns a new stream wrapper object appropriate for the given $scheme.
+ *   For example, for the public scheme a stream wrapper object
+ *   (DrupalPublicStreamWrapper).
+ *   FALSE is returned if no registered handler could be found.
+ */
+function file_stream_wrapper_get_instance_by_scheme($scheme) {
+  $class = file_stream_wrapper_get_class($scheme);
+  if (class_exists($class)) {
+    $instance = new $class;
+    $instance->setUri($scheme . '://');
+    return $instance;
+  }
+  else {
+    return FALSE;
+  }
+}
+
+/**
+ * Creates a web-accessible URL for a stream to an external or local file.
+ *
+ * Compatibility: normal paths and stream wrappers.
+ * @see http://drupal.org/node/515192
+ *
+ * There are two kinds of local files:
+ * - "created files", i.e. those in the files directory (which is stored in
+ *   the file_directory_path variable and can be retrieved using
+ *   file_directory_path()). These are files that have either been uploaded by
+ *   users or were generated automatically (for example through CSS
+ *   aggregation).
+ * - "shipped files", i.e. those outside of the files directory, which ship as
+ *   part of Drupal core or contributed modules or themes.
+ *
+ * @param $uri
+ *   The URI to a file for which we need an external URL, or the path to a
+ *   shipped file.
+ * @return
+ *   A string containing a URL that may be used to access the file.
+ *   If the provided string already contains a preceding 'http', nothing is done
+ *   and the same string is returned. If a valid stream wrapper could not be
+ *   found to generate an external URL, then FALSE will be returned.
+ */
+function file_create_url($uri) {
+  // Allow the URI to be altered, e.g. to serve a file from a CDN or static
+  // file server.
+  drupal_alter('file_url', $uri);
+  
+  $scheme = file_uri_scheme($uri);
+
+  if (!$scheme) {
+    // If this is not a properly formatted stream, then it is a shipped file.
+    // Therefor, return the URI with the base URL prepended.
+    return $GLOBALS['base_url'] . '/' . $uri;
+  }
+  elseif ($scheme == 'http' || $scheme == 'https') {
+    // Check for http so that we don't have to implement getExternalUrl() for
+    // the http wrapper.
+    return $uri;
+  }
+  else {
+    // Attempt to return an external URL using the appropriate wrapper.
+    if ($wrapper = file_stream_wrapper_get_instance_by_uri($uri)) {
+      return $wrapper->getExternalUrl();
+    }
+    else {
+      return FALSE;
+    }
+  }
 }
 
 /**
@@ -135,126 +342,90 @@ function file_create_path($destination = NULL) {
  * Directories need to have execute permissions to be considered a directory by
  * FTP servers, etc.
  *
- * @param $directory
- *   A string containing the name of a directory path.
- * @param $mode
+ * @param &$directory
+ *   A string reference containing the name of a directory path or URI. A
+ *   trailing slash will be trimmed from a path.
+ * @param $options
  *   A bitmask to indicate if the directory should be created if it does
  *   not exist (FILE_CREATE_DIRECTORY) or made writable if it is read-only
  *   (FILE_MODIFY_PERMISSIONS).
- * @param $form_item
- *   An optional string containing the name of a form item that any errors will
- *   be attached to. This is useful for settings forms that require the user to
- *   specify a writable directory. If it can't be made to work, a form error
- *   will be set preventing them from saving the settings.
  * @return
- *   FALSE when directory not found, or TRUE when directory exists.
+ *   TRUE if the directory exists (or was created) and is writable. FALSE
+ *   otherwise.
  */
-function file_check_directory(&$directory, $mode = 0, $form_item = NULL) {
-  $directory = rtrim($directory, '/\\');
+function file_prepare_directory(&$directory, $options = FILE_MODIFY_PERMISSIONS) {
+  if (!file_stream_wrapper_valid_scheme(file_uri_scheme($directory))) {
+    // Only trim if we're not dealing with a stream.
+    $directory = rtrim($directory, '/\\');
+  }
 
   // Check if directory exists.
   if (!is_dir($directory)) {
     // Let mkdir() recursively create directories and use the default directory
     // permissions.
-    if (($mode & FILE_CREATE_DIRECTORY) && @mkdir($directory, variable_get('file_chmod_directory', 0775), TRUE)) {
-      drupal_chmod($directory);
+    if (($options & FILE_CREATE_DIRECTORY) && @drupal_mkdir($directory, NULL, TRUE)) {
+      return drupal_chmod($directory);
     }
-    else {
-      if ($form_item) {
-        form_set_error($form_item, t('The directory %directory does not exist.', array('%directory' => $directory)));
-        watchdog('file system', 'The directory %directory does not exist.', array('%directory' => $directory), WATCHDOG_ERROR);
-      }
-      return FALSE;
-    }
-  }
-
-  // Check to see if the directory is writable.
-  if (!is_writable($directory)) {
-    // If not able to modify permissions, or if able to, but chmod
-    // fails, return false.
-    if (!$mode || (($mode & FILE_MODIFY_PERMISSIONS) && !drupal_chmod($directory))) {
-      if ($form_item) {
-        form_set_error($form_item, t('The directory %directory is not writable', array('%directory' => $directory)));
-        watchdog('file system', 'The directory %directory is not writable, because it does not have the correct permissions set.', array('%directory' => $directory), WATCHDOG_ERROR);
-      }
-      return FALSE;
-    }
-  }
-
-  if ((file_directory_path() == $directory || file_directory_temp() == $directory) && !is_file("$directory/.htaccess")) {
-    $htaccess_lines = "SetHandler Drupal_Security_Do_Not_Remove_See_SA_2006_006\nOptions None\nOptions +FollowSymLinks";
-    if (file_put_contents("$directory/.htaccess", $htaccess_lines)) {
-      drupal_chmod("$directory/.htaccess");
-    }
-    else {
-      $variables = array('%directory' => $directory, '!htaccess' => '<br />' . nl2br(check_plain($htaccess_lines)));
-      form_set_error($form_item, t("Security warning: Couldn't write .htaccess file. Please create a .htaccess file in your %directory directory which contains the following lines: <code>!htaccess</code>", $variables));
-      watchdog('security', "Security warning: Couldn't write .htaccess file. Please create a .htaccess file in your %directory directory which contains the following lines: <code>!htaccess</code>", $variables, WATCHDOG_ERROR);
-    }
-  }
-
-  return TRUE;
-}
-
-/**
- * Checks path to see if it is a directory, or a directory/file.
- *
- * @param $path
- *   A string containing a file path. This will be set to the directory's path.
- * @return
- *   If the directory is not in a Drupal writable directory, FALSE is returned.
- *   Otherwise, the base name of the path is returned.
- */
-function file_check_path(&$path) {
-  // Check if path is a directory.
-  if (file_check_directory($path)) {
-    return '';
-  }
-
-  // Check if path is a possible dir/file.
-  $filename = basename($path);
-  $path = dirname($path);
-  if (file_check_directory($path)) {
-    return $filename;
-  }
-
-  return FALSE;
-}
-
-/**
- * Check if a file is really located inside $directory.
- *
- * This should be used to make sure a file specified is really located within
- * the directory to prevent exploits. Note that the file or path being checked
- * does not actually need to exist yet.
- *
- * @code
- *   // Returns FALSE:
- *   file_check_location('/www/example.com/files/../../../etc/passwd', '/www/example.com/files');
- * @endcode
- *
- * @param $source
- *   A string set to the file to check.
- * @param $directory
- *   A string where the file should be located.
- * @return
- *   FALSE if the path does not exist in the directory; otherwise, the real
- *   path of the source.
- */
-function file_check_location($source, $directory = '') {
-  $check = realpath($source);
-  if ($check) {
-    $source = $check;
-  }
-  else {
-    // This file does not yet exist.
-    $source = realpath(dirname($source)) . '/' . basename($source);
-  }
-  $directory = realpath($directory);
-  if ($directory && strpos($source, $directory) !== 0) {
     return FALSE;
   }
-  return $source;
+  // The directory exists, so check to see if it is writable.
+  $writable = is_writable($directory);
+  if (!$writable && ($options & FILE_MODIFY_PERMISSIONS)) {
+    return drupal_chmod($directory);
+  }
+
+  return $writable;
+}
+
+/**
+ * If missing, create a .htaccess file in each Drupal files directory.
+ */
+function file_ensure_htaccess() {
+  file_create_htaccess('public://', FALSE);
+  file_create_htaccess('private://', TRUE);
+  file_create_htaccess('temporary://', TRUE);
+}
+
+/**
+ * Creates an .htaccess file in the given directory.
+ *
+ * @param $directory
+ *   The directory.
+ * @param $private
+ *   FALSE indicates that $directory should be an open and public directory.
+ *   The default is TRUE which indicates a private and protected directory.
+ */
+function file_create_htaccess($directory, $private = TRUE) {
+  if (file_uri_scheme($directory)) {
+    $directory = file_stream_wrapper_uri_normalize($directory);
+  }
+  else {
+    $directory = rtrim($directory, '/\\');
+  }
+  $htaccess_path =  $directory . '/.htaccess';
+
+  if (file_exists($htaccess_path)) {
+    // Short circuit if the .htaccess file already exists.
+    return;
+  }
+
+  if ($private) {
+    // Private .htaccess file.
+    $htaccess_lines = "SetHandler Drupal_Security_Do_Not_Remove_See_SA_2006_006\nDeny from all\nOptions None\nOptions +FollowSymLinks";
+  }
+  else {
+    // Public .htaccess file.
+    $htaccess_lines = "SetHandler Drupal_Security_Do_Not_Remove_See_SA_2006_006\nOptions None\nOptions +FollowSymLinks";
+  }
+
+  // Write the .htaccess file.
+  if (file_put_contents($htaccess_path, $htaccess_lines)) {
+    drupal_chmod($htaccess_path, 0444);
+  }
+  else {
+    $variables = array('%directory' => $directory, '!htaccess' => '<br />' . nl2br(check_plain($htaccess_lines)));
+    watchdog('security', "Security warning: Couldn't write .htaccess file. Please create a .htaccess file in your %directory directory which contains the following lines: <code>!htaccess</code>", $variables, WATCHDOG_ERROR);
+  }
 }
 
 /**
@@ -272,30 +443,7 @@ function file_check_location($source, $directory = '') {
  * @see file_load()
  */
 function file_load_multiple($fids = array(), $conditions = array()) {
-  $query = db_select('files', 'f')->fields('f');
-
-  // If the $fids array is populated, add those to the query.
-  if ($fids) {
-    $query->condition('f.fid', $fids, 'IN');
-  }
-
-  // If the conditions array is populated, add those to the query.
-  if ($conditions) {
-    foreach ($conditions as $field => $value) {
-      $query->condition('f.' . $field, $value);
-    }
-  }
-  $files = $query->execute()->fetchAllAssoc('fid');
-
-  // Invoke hook_file_load() on the terms loaded from the database
-  // and add them to the static cache.
-  if (!empty($files)) {
-    foreach (module_implements('file_load') as $module) {
-      $function = $module . '_file_load';
-      $function($files);
-    }
-  }
-  return $files;
+  return entity_load('file', $fids, $conditions);
 }
 
 /**
@@ -328,18 +476,17 @@ function file_load($fid) {
  * @see hook_file_insert()
  * @see hook_file_update()
  */
-function file_save($file) {
-  $file = (object)$file;
+function file_save(stdClass $file) {
   $file->timestamp = REQUEST_TIME;
-  $file->filesize = filesize($file->filepath);
+  $file->filesize = filesize($file->uri);
 
   if (empty($file->fid)) {
-    drupal_write_record('files', $file);
+    drupal_write_record('file', $file);
     // Inform modules about the newly added file.
     module_invoke_all('file_insert', $file);
   }
   else {
-    drupal_write_record('files', $file, 'fid');
+    drupal_write_record('file', $file, 'fid');
     // Inform modules that the file has been updated.
     module_invoke_all('file_update', $file);
   }
@@ -365,9 +512,9 @@ function file_save($file) {
  * @param $source
  *   A file object.
  * @param $destination
- *   A string containing the destination that $source should be copied to. This
- *   can be a complete file path, a directory path or, if this value is omitted,
- *   Drupal's 'files' directory will be used.
+ *   A string containing the destination that $source should be copied to.
+ *   This should be a stream wrapper URI. If this value is omitted, Drupal's
+ *   public files scheme will be used, "public://".
  * @param $replace
  *   Replace behavior when the destination file already exists:
  *   - FILE_EXISTS_REPLACE - Replace the existing file. If a managed file with
@@ -382,17 +529,15 @@ function file_save($file) {
  * @see file_unmanaged_copy()
  * @see hook_file_copy()
  */
-function file_copy($source, $destination = NULL, $replace = FILE_EXISTS_RENAME) {
-  $source = (object)$source;
-
-  if ($filepath = file_unmanaged_copy($source->filepath, $destination, $replace)) {
+function file_copy(stdClass $source, $destination = NULL, $replace = FILE_EXISTS_RENAME) {
+  if ($uri = file_unmanaged_copy($source->uri, $destination, $replace)) {
     $file = clone $source;
     $file->fid = NULL;
-    $file->filepath = $filepath;
-    $file->filename = basename($filepath);
+    $file->uri = $uri;
+    $file->filename = basename($uri);
     // If we are replacing an existing file re-use its database record.
     if ($replace == FILE_EXISTS_REPLACE) {
-      $existing_files = file_load_multiple(array(), array('filepath' => $filepath));
+      $existing_files = file_load_multiple(array(), array('uri' => $uri));
       if (count($existing_files)) {
         $existing = reset($existing_files);
         $file->fid = $existing->fid;
@@ -401,7 +546,7 @@ function file_copy($source, $destination = NULL, $replace = FILE_EXISTS_RENAME) 
     }
     // If we are renaming around an existing file (rather than a directory),
     // use its basename for the filename.
-    else if ($replace == FILE_EXISTS_RENAME && is_file(file_create_path($destination))) {
+    elseif ($replace == FILE_EXISTS_RENAME && is_file($destination)) {
       $file->filename = basename($destination);
     }
 
@@ -428,11 +573,10 @@ function file_copy($source, $destination = NULL, $replace = FILE_EXISTS_RENAME) 
  *   replace the file or rename the file based on the $replace parameter.
  *
  * @param $source
- *   A string specifying the file location of the original file.
+ *   A string specifying the filepath or URI of the original file.
  * @param $destination
- *   A string containing the destination that $source should be copied to. This
- *   can be a complete file path, a directory path or, if this value is omitted,
- *   Drupal's 'files' directory will be used.
+ *   A URI containing the destination that $source should be copied to. If
+ *   NULL the default scheme will be used as the destination.
  * @param $replace
  *   Replace behavior when the destination file already exists:
  *   - FILE_EXISTS_REPLACE - Replace the existing file.
@@ -448,38 +592,55 @@ function file_unmanaged_copy($source, $destination = NULL, $replace = FILE_EXIST
   $original_source = $source;
   $original_destination = $destination;
 
-  $source = realpath($source);
+  // Assert that the source file actually exists.
+  $source = drupal_realpath($source);
   if (!file_exists($source)) {
+    // @todo Replace drupal_set_message() calls with exceptions instead.
     drupal_set_message(t('The specified file %file could not be copied, because no file by that name exists. Please check that you supplied the correct filename.', array('%file' => $original_source)), 'error');
     return FALSE;
   }
 
-  $proposed_destination = file_create_path($destination);
-  $directory = $proposed_destination;
-  $basename = file_check_path($directory);
-
-  // Make sure we at least have a valid directory.
-  if ($basename === FALSE) {
-    drupal_set_message(t('The specified file %file could not be copied, because the destination %directory is not properly configured. This is often caused by a problem with file or directory permissions.', array('%file' => $original_source, '%directory' => empty($original_destination) ? $proposed_destination : $original_destination)), 'error');
-    return FALSE;
+  // Build a destination URI if necessary.
+  if (!isset($destination)) {
+    $destination = file_build_uri(basename($source));
   }
 
-  // If the destination file is not specified then use the filename of the
-  // source file.
-  $basename = $basename ? $basename : basename($source);
-  $destination = file_destination($directory . '/' . $basename, $replace);
+  // Assert that the destination contains a valid stream.
+  $destination_scheme = file_uri_scheme($destination);
+  if (!$destination_scheme || !file_stream_wrapper_valid_scheme($destination_scheme)) {
+    drupal_set_message(t('The specified file %file could not be copied, because the destination %destination is invalid. This is often caused by improper use of file_unmanaged_copy() or a missing stream wrapper.', array('%file' => $original_source, '%destination' => $destination)), 'error');
+  }
 
+  // Prepare the destination directory.
+  if (file_prepare_directory($destination)) {
+    // The destination is already a directory, so append the source basename.
+    $destination = file_stream_wrapper_uri_normalize($destination . '/' . basename($source));
+  }
+  else {
+    // Perhaps $destination is a dir/file?
+    $dirname = drupal_dirname($destination);
+    if (!file_prepare_directory($dirname)) {
+      // The destination is not valid.
+      drupal_set_message(t('The specified file %file could not be copied, because the destination %directory is not properly configured. This is often caused by a problem with file or directory permissions.', array('%file' => $original_source, '%directory' => $destination)), 'error');
+      return FALSE;
+    }
+  }
+
+  // Determine whether we can perform this operation based on overwrite rules.
+  $destination = file_destination($destination, $replace);
   if ($destination === FALSE) {
-    drupal_set_message(t('The specified file %file could not be copied because a file by that name already exists in the destination %directory.', array('%file' => $source, '%directory' => $proposed_destination)), 'error');
+    drupal_set_message(t('The file %file could not be copied because a file by that name already exists in the destination directory (%directory)', array('%file' => $source, '%directory' => $destination)), 'error');
     return FALSE;
   }
-  // Make sure source and destination filenames are not the same, makes no
-  // sense to copy it if they are. In fact copying the file will most likely
-  // result in a 0 byte file. Which is bad. Real bad.
-  if ($source == realpath($destination)) {
+
+  // Assert that the source and destination filenames are not the same.
+  if (drupal_realpath($source) == drupal_realpath($destination)) {
     drupal_set_message(t('The specified file %file was not copied because it would overwrite itself.', array('%file' => $source)), 'error');
     return FALSE;
   }
+  // Make sure the .htaccess files are present.
+  file_ensure_htaccess();
+  // Perform the copy operation.
   if (!@copy($source, $destination)) {
     drupal_set_message(t('The specified file %file could not be copied.', array('%file' => $source)), 'error');
     return FALSE;
@@ -492,11 +653,19 @@ function file_unmanaged_copy($source, $destination = NULL, $replace = FILE_EXIST
 }
 
 /**
+ * Given a relative path, construct a URI into Drupal's default files location.
+ */
+function file_build_uri($path) {
+  $uri = variable_get('file_scheme_default', 'public') . '://' . $path;
+  return file_stream_wrapper_uri_normalize($uri);
+}
+
+/**
  * Determines the destination path for a file depending on how replacement of
  * existing files should be handled.
  *
  * @param $destination
- *   A string specifying the desired path.
+ *   A string specifying the desired final URI or filepath.
  * @param $replace
  *   Replace behavior when the destination file already exists.
  *   - FILE_EXISTS_REPLACE - Replace the existing file.
@@ -504,8 +673,8 @@ function file_unmanaged_copy($source, $destination = NULL, $replace = FILE_EXIST
  *       unique.
  *   - FILE_EXISTS_ERROR - Do nothing and return FALSE.
  * @return
- *   The destination file path or FALSE if the file already exists and
- *   FILE_EXISTS_ERROR was specified.
+ *   The destination filepath, or FALSE if the file already exists
+ *   and FILE_EXISTS_ERROR is specified.
  */
 function file_destination($destination, $replace) {
   if (file_exists($destination)) {
@@ -516,12 +685,12 @@ function file_destination($destination, $replace) {
 
       case FILE_EXISTS_RENAME:
         $basename = basename($destination);
-        $directory = dirname($destination);
+        $directory = drupal_dirname($destination);
         $destination = file_create_filename($basename, $directory);
         break;
 
       case FILE_EXISTS_ERROR:
-        drupal_set_message(t('The specified file %file could not be copied, because a file by that name already exists in the destination.', array('%file' => $destination)), 'error');
+        // Error reporting handled by calling function.
         return FALSE;
     }
   }
@@ -543,7 +712,7 @@ function file_destination($destination, $replace) {
  *   A file object.
  * @param $destination
  *   A string containing the destination that $source should be moved to. This
- *   can be a complete file path, a directory path or, if this value is omitted,
+ *   must be a URI matching a Drupal stream wrapper. If this value is omitted,
  *   Drupal's 'files' directory will be used.
  * @param $replace
  *   Replace behavior when the destination file already exists:
@@ -561,17 +730,15 @@ function file_destination($destination, $replace) {
  * @see file_unmanaged_move()
  * @see hook_file_move()
  */
-function file_move($source, $destination = NULL, $replace = FILE_EXISTS_RENAME) {
-  $source = (object)$source;
-
-  if ($filepath = file_unmanaged_move($source->filepath, $destination, $replace)) {
+function file_move(stdClass $source, $destination = NULL, $replace = FILE_EXISTS_RENAME) {
+  if ($uri = file_unmanaged_move($source->uri, $destination, $replace)) {
     $delete_source = FALSE;
 
     $file = clone $source;
-    $file->filepath = $filepath;
+    $file->uri = $uri;
     // If we are replacing an existing file re-use its database record.
     if ($replace == FILE_EXISTS_REPLACE) {
-      $existing_files = file_load_multiple(array(), array('filepath' => $filepath));
+      $existing_files = file_load_multiple(array(), array('uri' => $uri));
       if (count($existing_files)) {
         $existing = reset($existing_files);
         $delete_source = TRUE;
@@ -580,7 +747,7 @@ function file_move($source, $destination = NULL, $replace = FILE_EXISTS_RENAME) 
     }
     // If we are renaming around an existing file (rather than a directory),
     // use its basename for the filename.
-    else if ($replace == FILE_EXISTS_RENAME && is_file(file_create_path($destination))) {
+    elseif ($replace == FILE_EXISTS_RENAME && is_file($destination)) {
       $file->filename = basename($destination);
     }
 
@@ -604,10 +771,10 @@ function file_move($source, $destination = NULL, $replace = FILE_EXISTS_RENAME) 
  * changes to the database.
  *
  * @param $source
- *   A string specifying the file location of the original file.
+ *   A string specifying the filepath or URI of the original file.
  * @param $destination
  *   A string containing the destination that $source should be moved to. This
- *   can be a complete file path, a directory name or, if this value is omitted,
+ *   must be a URI matching a Drupal stream wrapper. If this value is omitted,
  *   Drupal's 'files' directory will be used.
  * @param $replace
  *   Replace behavior when the destination file already exists:
@@ -616,7 +783,7 @@ function file_move($source, $destination = NULL, $replace = FILE_EXISTS_RENAME) 
  *       unique.
  *   - FILE_EXISTS_ERROR - Do nothing and return FALSE.
  * @return
- *   The filepath of the moved file, or FALSE in the event of an error.
+ *   The URI of the moved file, or FALSE in the event of an error.
  *
  * @see file_move()
  */
@@ -695,13 +862,21 @@ function file_unmunge_filename($filename) {
  * @param $basename
  *   String filename
  * @param $directory
- *   String directory
+ *   String containing the directory or parent URI.
  * @return
  *   File path consisting of $directory and a unique filename based off
  *   of $basename.
  */
 function file_create_filename($basename, $directory) {
-  $destination = $directory . '/' . $basename;
+  // A URI or path may already have a trailing slash or look like "public://".
+  if (substr($directory, -1) == '/') {
+    $separator = '';
+  }
+  else {
+    $separator = '/';
+  }
+
+  $destination = $directory . $separator . $basename;
 
   if (file_exists($destination)) {
     // Destination file already exists, generate an alternative.
@@ -717,7 +892,7 @@ function file_create_filename($basename, $directory) {
 
     $counter = 0;
     do {
-      $destination = $directory . '/' . $name . '_' . $counter++ . $ext;
+      $destination = $directory . $separator . $name . '_' . $counter++ . $ext;
     } while (file_exists($destination));
   }
 
@@ -745,9 +920,7 @@ function file_create_filename($basename, $directory) {
  * @see hook_file_references()
  * @see hook_file_delete()
  */
-function file_delete($file, $force = FALSE) {
-  $file = (object)$file;
-
+function file_delete(stdClass $file, $force = FALSE) {
   // If any module returns a value from the reference hook, the file will not
   // be deleted from Drupal, but file_delete will return a populated array that
   // tests as TRUE.
@@ -760,8 +933,8 @@ function file_delete($file, $force = FALSE) {
 
   // Make sure the file is deleted before removing its row from the
   // database, so UIs can still find the file in the database.
-  if (file_unmanaged_delete($file->filepath)) {
-    db_delete('files')->condition('fid', $file->fid)->execute();
+  if (file_unmanaged_delete($file->uri)) {
+    db_delete('file')->condition('fid', $file->fid)->execute();
     return TRUE;
   }
   return FALSE;
@@ -775,7 +948,7 @@ function file_delete($file, $force = FALSE) {
  * entry recorded in the files table.
  *
  * @param $path
- *   A string containing a file path.
+ *   A string containing a filepath or URI.
  * @return
  *   TRUE for success or path does not exist, or FALSE in the event of an
  *   error.
@@ -816,7 +989,7 @@ function file_unmanaged_delete($path) {
  * Note that this only deletes visible files with write permission.
  *
  * @param $path
- *   A string containing a file or directory path.
+ *   A string containing a URI, filepath. or directory path.
  * @return
  *   TRUE for success or path does not exist, or FALSE in the event of an
  *   error.
@@ -852,7 +1025,7 @@ function file_unmanaged_delete_recursive($path) {
  *   An integer containing the number of bytes used.
  */
 function file_space_used($uid = NULL, $status = FILE_STATUS_PERMANENT) {
-  $query = db_select('files', 'f');
+  $query = db_select('file', 'f');
   // Use separate placeholders for the status to avoid a bug in some versions
   // of PHP. @see http://drupal.org/node/352956
   $query->where('f.status & :status1 = :status2', array(':status1' => $status, ':status2' => $status));
@@ -866,22 +1039,24 @@ function file_space_used($uid = NULL, $status = FILE_STATUS_PERMANENT) {
 /**
  * Saves a file upload to a new location.
  *
- * The file will be added to the files table as a temporary file. Temporary
- * files are periodically cleaned. To make the file a permanent file call
- * assign the status and use file_save() to save it.
+ * The file will be added to the {file} table as a temporary file. Temporary
+ * files are periodically cleaned. To make the file a permanent file, assign
+ * the status and use file_save() to save the changes.
  *
  * @param $source
- *   A string specifying the name of the upload field to save.
+ *   A string specifying the filepath or URI of the uploaded file to save.
  * @param $validators
  *   An optional, associative array of callback functions used to validate the
  *   file. See file_validate() for a full discussion of the array format.
  * @param $destination
- *   A string containing the directory $source should be copied to. If this is
- *   not provided or is not writable, the temporary directory will be used.
+ *   A string containing the URI $source should be copied to.  Defaults to
+ *  "temporary://".
  * @param $replace
- *   A boolean indicating whether an existing file of the same name in the
- *   destination directory should overwritten. A false value will generate a
- *   new, unique filename in the destination directory.
+ *   Replace behavior when the destination file already exists:
+ *   - FILE_EXISTS_REPLACE: Replace the existing file.
+ *   - FILE_EXISTS_RENAME: Append _{incrementing number} until the filename is
+ *     unique.
+ *   - FILE_EXISTS_ERROR: Do nothing and return FALSE.
  * @return
  *   An object containing the file information if the upload succeeded, FALSE
  *   in the event of an error, or NULL if no file was uploaded.
@@ -941,28 +1116,39 @@ function file_save_upload($source, $validators = array(), $destination = FALSE, 
   $file->uid      = $user->uid;
   $file->status   = 0;
   $file->filename = file_munge_filename(trim(basename($_FILES['files']['name'][$source]), '.'), $extensions);
-  $file->filepath = $_FILES['files']['tmp_name'][$source];
+  $file->uri      = $_FILES['files']['tmp_name'][$source];
   $file->filemime = file_get_mimetype($file->filename);
   $file->filesize = $_FILES['files']['size'][$source];
 
   // Rename potentially executable files, to help prevent exploits.
   if (preg_match('/\.(php|pl|py|cgi|asp|js)$/i', $file->filename) && (substr($file->filename, -4) != '.txt')) {
     $file->filemime = 'text/plain';
-    $file->filepath .= '.txt';
+    $file->uri .= '.txt';
     $file->filename .= '.txt';
   }
 
-  // If the destination is not provided, or is not writable, then use the
-  // temporary directory.
-  if (empty($destination) || file_check_path($destination) === FALSE) {
-    $destination = file_directory_temp();
+  // If the destination is not provided, use the temporary directory.
+  if (empty($destination)) {
+    $destination = 'temporary://';
+  }
+
+  // Assert that the destination contains a valid stream.
+  $destination_scheme = file_uri_scheme($destination);
+  if (!$destination_scheme || !file_stream_wrapper_valid_scheme($destination_scheme)) {
+    drupal_set_message(t('The file could not be uploaded, because the destination %destination is invalid.', array('%destination' => $destination)), 'error');
+    return FALSE;
   }
 
   $file->source = $source;
-  $file->destination = file_destination(file_create_path($destination . '/' . $file->filename), $replace);
+  // A URI may already have a trailing slash or look like "public://".
+  if (substr($destination, -1) != '/') {
+    $destination .= '/';
+  }
+  $file->destination = file_destination($destination . $file->filename, $replace);
   // If file_destination() returns FALSE then $replace == FILE_EXISTS_ERROR and
   // there's an existing file so we need to bail.
   if ($file->destination === FALSE) {
+    drupal_set_message(t('The file %source could not be uploaded because a file by that name already exists in the destination %directory.', array('%source' => $source, '%directory' => $destination)), 'error');
     return FALSE;
   }
 
@@ -988,19 +1174,19 @@ function file_save_upload($source, $validators = array(), $destination = FALSE, 
   // Move uploaded files from PHP's upload_tmp_dir to Drupal's temporary
   // directory. This overcomes open_basedir restrictions for future file
   // operations.
-  $file->filepath = $file->destination;
-  if (!move_uploaded_file($_FILES['files']['tmp_name'][$source], $file->filepath)) {
+  $file->uri = $file->destination;
+  if (!move_uploaded_file($_FILES['files']['tmp_name'][$source], $file->uri)) {
     form_set_error($source, t('File upload error. Could not move uploaded file.'));
-    watchdog('file', 'Upload error. Could not move uploaded file %file to destination %destination.', array('%file' => $file->filename, '%destination' => $file->filepath));
+    watchdog('file', 'Upload error. Could not move uploaded file %file to destination %destination.', array('%file' => $file->filename, '%destination' => $file->uri));
     return FALSE;
   }
 
   // Set the permissions on the new file.
-  drupal_chmod($file->filepath);
+  drupal_chmod($file->uri);
 
   // If we are replacing an existing file re-use its database record.
   if ($replace == FILE_EXISTS_REPLACE) {
-    $existing_files = file_load_multiple(array(), array('filepath' => $file->filepath));
+    $existing_files = file_load_multiple(array(), array('uri' => $file->uri));
     if (count($existing_files)) {
       $existing = reset($existing_files);
       $file->fid = $existing->fid;
@@ -1037,11 +1223,11 @@ function file_save_upload($source, $validators = array(), $destination = FALSE, 
  *
  * @see hook_file_validate()
  */
-function file_validate(&$file, $validators = array()) {
+function file_validate(stdClass &$file, $validators = array()) {
   // Call the validation functions specified by this function's caller.
   $errors = array();
   foreach ($validators as $function => $args) {
-    if (drupal_function_exists($function)) {
+    if (function_exists($function)) {
       array_unshift($args, $file);
       $errors = array_merge($errors, call_user_func_array($function, $args));
     }
@@ -1059,14 +1245,14 @@ function file_validate(&$file, $validators = array()) {
  * @return
  *   An array. If the file name is too long, it will contain an error message.
  */
-function file_validate_name_length($file) {
+function file_validate_name_length(stdClass $file) {
   $errors = array();
 
   if (empty($file->filename)) {
     $errors[] = t("The file's name is empty. Please give a name to the file.");
   }
-  if (strlen($file->filename) > 255) {
-    $errors[] = t("The file's name exceeds the 255 characters limit. Please rename the file and try again.");
+  if (strlen($file->filename) > 240) {
+    $errors[] = t("The file's name exceeds the 240 characters limit. Please rename the file and try again.");
   }
   return $errors;
 }
@@ -1084,7 +1270,7 @@ function file_validate_name_length($file) {
  *
  * @see hook_file_validate()
  */
-function file_validate_extensions($file, $extensions) {
+function file_validate_extensions(stdClass $file, $extensions) {
   $errors = array();
 
   $regex = '/\.(' . preg_replace('/ +/', '|', preg_quote($extensions)) . ')$/i';
@@ -1113,7 +1299,7 @@ function file_validate_extensions($file, $extensions) {
  *
  * @see hook_file_validate()
  */
-function file_validate_size($file, $file_limit = 0, $user_limit = 0) {
+function file_validate_size(stdClass $file, $file_limit = 0, $user_limit = 0) {
   global $user;
 
   $errors = array();
@@ -1142,10 +1328,10 @@ function file_validate_size($file, $file_limit = 0, $user_limit = 0) {
  *
  * @see hook_file_validate()
  */
-function file_validate_is_image($file) {
+function file_validate_is_image(stdClass $file) {
   $errors = array();
 
-  $info = image_get_info($file->filepath);
+  $info = image_get_info($file->uri);
   if (!$info || empty($info['extension'])) {
     $errors[] = t('Only JPEG, PNG and GIF images are allowed.');
   }
@@ -1177,17 +1363,17 @@ function file_validate_is_image($file) {
  *
  * @see hook_file_validate()
  */
-function file_validate_image_resolution($file, $maximum_dimensions = 0, $minimum_dimensions = 0) {
+function file_validate_image_resolution(stdClass $file, $maximum_dimensions = 0, $minimum_dimensions = 0) {
   $errors = array();
 
   // Check first that the file is an image.
-  if ($info = image_get_info($file->filepath)) {
+  if ($info = image_get_info($file->uri)) {
     if ($maximum_dimensions) {
       // Check that it is smaller than the given dimensions.
       list($width, $height) = explode('x', $maximum_dimensions);
       if ($info['width'] > $width || $info['height'] > $height) {
         // Try to resize the image to fit the dimensions.
-        if ($image = image_load($file->filepath)) {
+        if ($image = image_load($file->uri)) {
           image_scale($image, $width, $height);
           image_save($image);
           $file->filesize = $image->info['file_size'];
@@ -1217,9 +1403,9 @@ function file_validate_image_resolution($file, $maximum_dimensions = 0, $minimum
  * @param $data
  *   A string containing the contents of the file.
  * @param $destination
- *   A string containing the destination location. If no value is provided
- *   then a randomly name will be generated and the file saved in Drupal's
- *   files directory.
+ *   A string containing the destination URI. If no value is provided then a
+ *   randomly name will be generated and the file saved in Drupal's files
+ *   directory.
  * @param $replace
  *   Replace behavior when the destination file already exists:
  *   - FILE_EXISTS_REPLACE - Replace the existing file. If a managed file with
@@ -1236,18 +1422,18 @@ function file_validate_image_resolution($file, $maximum_dimensions = 0, $minimum
 function file_save_data($data, $destination = NULL, $replace = FILE_EXISTS_RENAME) {
   global $user;
 
-  if ($filepath = file_unmanaged_save_data($data, $destination, $replace)) {
+  if ($uri = file_unmanaged_save_data($data, $destination, $replace)) {
     // Create a file object.
     $file = new stdClass();
     $file->fid = NULL;
-    $file->filepath = $filepath;
-    $file->filename = basename($filepath);
-    $file->filemime = file_get_mimetype($file->filepath);
+    $file->uri = $uri;
+    $file->filename = basename($uri);
+    $file->filemime = file_get_mimetype($file->uri);
     $file->uid      = $user->uid;
     $file->status  |= FILE_STATUS_PERMANENT;
     // If we are replacing an existing file re-use its database record.
     if ($replace == FILE_EXISTS_REPLACE) {
-      $existing_files = file_load_multiple(array(), array('filepath' => $filepath));
+      $existing_files = file_load_multiple(array(), array('uri' => $uri));
       if (count($existing_files)) {
         $existing = reset($existing_files);
         $file->fid = $existing->fid;
@@ -1256,7 +1442,7 @@ function file_save_data($data, $destination = NULL, $replace = FILE_EXISTS_RENAM
     }
     // If we are renaming around an existing file (rather than a directory),
     // use its basename for the filename.
-    else if ($replace == FILE_EXISTS_RENAME && is_file(file_create_path($destination))) {
+    elseif ($replace == FILE_EXISTS_RENAME && is_file($destination)) {
       $file->filename = basename($destination);
     }
 
@@ -1270,7 +1456,7 @@ function file_save_data($data, $destination = NULL, $replace = FILE_EXISTS_RENAM
  * making any changes to the database.
  *
  * This function is identical to file_save_data() except the file will not be
- * saved to the files table and none of the file_* hooks will be called.
+ * saved to the {file} table and none of the file_* hooks will be called.
  *
  * @param $data
  *   A string containing the contents of the file.
@@ -1291,7 +1477,7 @@ function file_save_data($data, $destination = NULL, $replace = FILE_EXISTS_RENAM
  */
 function file_unmanaged_save_data($data, $destination = NULL, $replace = FILE_EXISTS_RENAME) {
   // Write the data to a temporary file.
-  $temp_name = tempnam(file_directory_temp(), 'file');
+  $temp_name = drupal_tempnam('temporary://', 'file');
   if (file_put_contents($temp_name, $data) === FALSE) {
     drupal_set_message(t('The file could not be created.'), 'error');
     return FALSE;
@@ -1305,12 +1491,12 @@ function file_unmanaged_save_data($data, $destination = NULL, $replace = FILE_EX
  * Transfer file using HTTP to client. Pipes a file through Drupal to the
  * client.
  *
- * @param $source
- *   String specifying the file path to transfer.
+ * @param $uri
+ *   String specifying the file URI to transfer.
  * @param $headers
  *   An array of HTTP headers to send along with file.
  */
-function file_transfer($source, $headers) {
+function file_transfer($uri, $headers) {
   if (ob_get_level()) {
     ob_end_clean();
   }
@@ -1319,11 +1505,9 @@ function file_transfer($source, $headers) {
     drupal_set_header($name, $value);
   }
   drupal_send_headers();
-
-  $source = file_create_path($source);
-
+  $scheme = file_uri_scheme($uri);
   // Transfer file in 1024 byte chunks to save memory usage.
-  if ($fd = fopen($source, 'rb')) {
+  if ($scheme && file_stream_wrapper_valid_scheme($scheme) && $fd = fopen($uri, 'rb')) {
     while (!feof($fd)) {
       print fread($fd, 1024);
     }
@@ -1349,21 +1533,18 @@ function file_transfer($source, $headers) {
 function file_download() {
   // Merge remainder of arguments from GET['q'], into relative file path.
   $args = func_get_args();
-  $filepath = implode('/', $args);
+  $scheme = array_shift($args);
+  $target = implode('/', $args);
+  $uri = $scheme . '://' . $target;
 
-  // Maintain compatibility with old ?file=paths saved in node bodies.
-  if (isset($_GET['file'])) {
-    $filepath =  $_GET['file'];
-  }
-
-  if (file_exists(file_create_path($filepath))) {
+  if (file_exists($uri)) {
     // Let other modules provide headers and controls access to the file.
-    $headers = module_invoke_all('file_download', $filepath);
+    $headers = module_invoke_all('file_download', $uri);
     if (in_array(-1, $headers)) {
       return drupal_access_denied();
     }
     if (count($headers)) {
-      file_transfer($filepath, $headers);
+      file_transfer($uri, $headers);
     }
   }
   return drupal_not_found();
@@ -1378,7 +1559,7 @@ function file_download() {
  * from being scanned.
  *
  * @param $dir
- *   The base directory for the scan, without trailing slash.
+ *   The base directory or URI for the scan, without trailing slash.
  * @param $mask
  *   The preg_match() regular expression of the files to find.
  * @param $options
@@ -1404,7 +1585,7 @@ function file_download() {
  *   should not be passed.
  * @return
  *   An associative array (keyed on the provided key) of objects with
- *   'filepath', 'filename', and 'name' members corresponding to the
+ *   'uri', 'filename', and 'name' members corresponding to the
  *   matching files.
  */
 function file_scan_directory($dir, $mask, $options = array(), $depth = 0) {
@@ -1413,32 +1594,32 @@ function file_scan_directory($dir, $mask, $options = array(), $depth = 0) {
     'nomask' => '/(\.\.?|CVS)$/',
     'callback' => 0,
     'recurse' => TRUE,
-    'key' => 'filepath',
+    'key' => 'uri',
     'min_depth' => 0,
   );
 
-  $options['key'] = in_array($options['key'], array('filepath', 'filename', 'name')) ? $options['key'] : 'filepath';
+  $options['key'] = in_array($options['key'], array('uri', 'filename', 'name')) ? $options['key'] : 'uri';
   $files = array();
   if (is_dir($dir) && $handle = opendir($dir)) {
     while (FALSE !== ($filename = readdir($handle))) {
       if (!preg_match($options['nomask'], $filename) && $filename[0] != '.') {
-        $filepath = "$dir/$filename";
-        if (is_dir($filepath) && $options['recurse']) {
+        $uri = "$dir/$filename";
+        $uri = file_stream_wrapper_uri_normalize($uri);
+        if (is_dir($uri) && $options['recurse']) {
           // Give priority to files in this folder by merging them in after any subdirectory files.
-          $files = array_merge(file_scan_directory($filepath, $mask, $options, $depth + 1), $files);
+          $files = array_merge(file_scan_directory($uri, $mask, $options, $depth + 1), $files);
         }
         elseif ($depth >= $options['min_depth'] && preg_match($mask, $filename)) {
           // Always use this match over anything already set in $files with the
           // same $$options['key'].
-          $file = (object) array(
-            'filepath' => $filepath,
-            'filename' => $filename,
-            'name' => pathinfo($filename, PATHINFO_FILENAME),
-          );
+          $file = new StdClass;
+          $file->uri = $uri;
+          $file->filename = $filename;
+          $file->name = pathinfo($filename, PATHINFO_FILENAME);
           $key = $options['key'];
           $files[$file->$key] = $file;
           if ($options['callback']) {
-            $options['callback']($filepath);
+            $options['callback']($uri);
           }
         }
       }
@@ -1451,70 +1632,29 @@ function file_scan_directory($dir, $mask, $options = array(), $depth = 0) {
 }
 
 /**
- * Determine the default temporary directory.
+ * Determines the local directory path of a given wrapper.
  *
+ * This function will return the directory path of a stream wrapper. A stream
+ * is referenced as: "scheme://target".  For example, a scheme of "public"
+ * might return "sites/default/files" or "temporary" might return "/tmp".
+ *
+ * @param $scheme
+ *   A string representing the scheme of a stream. The default wrapper is
+ *   is assumed if this is not provided.
  * @return
- *   A string containing a temp directory.
+ *   A string containing the directory path of a stream. FALSE is returned if
+ *   the scheme is invalid or a wrapper could not be instantiated.
  */
-function file_directory_temp() {
-  $temporary_directory = variable_get('file_directory_temp');
-
-  if (is_null($temporary_directory)) {
-    $directories = array();
-
-    // Has PHP been set with an upload_tmp_dir?
-    if (ini_get('upload_tmp_dir')) {
-      $directories[] = ini_get('upload_tmp_dir');
-    }
-
-    // Operating system specific dirs.
-    if (substr(PHP_OS, 0, 3) == 'WIN') {
-      $directories[] = 'c:/windows/temp';
-      $directories[] = 'c:/winnt/temp';
-    }
-    else {
-      $directories[] = '/tmp';
-    }
-
-    foreach ($directories as $directory) {
-      if (!$temporary_directory && is_dir($directory)) {
-        $temporary_directory = $directory;
-      }
-    }
-
-    // if a directory has been found, use it, otherwise default to 'files/tmp'
-    $temporary_directory = $temporary_directory ? $temporary_directory : file_directory_path() . '/tmp';
-    variable_set('file_directory_temp', $temporary_directory);
+function file_directory_path($scheme = NULL) {
+  if (empty($scheme)) {
+    $scheme = variable_get('file_default_scheme', 'public');
   }
-
-  return $temporary_directory;
-}
-
-/**
- * Determine the default 'files' directory.
- *
- * @return
- *   A string containing the path to Drupal's 'files' directory.
- */
-function file_directory_path() {
-  return variable_get('file_directory_path', conf_path() . '/files');
-}
-
-/**
- * Remove a possible leading file directory path from the given path.
- *
- * @param $path
- *   Path to a file that may be in Drupal's files directory.
- * @return
- *   String with Drupal's files directory removed from it.
- */
-function file_directory_strip($path) {
-  // Strip file_directory_path from $path. We only include relative paths in
-  // URLs.
-  if (strpos($path, file_directory_path() . '/') === 0) {
-    $path = trim(substr($path, strlen(file_directory_path())), '\\/');
+  if ($wrapper = file_stream_wrapper_get_instance_by_scheme($scheme)) {
+    return $wrapper->getDirectoryPath();
   }
-  return $path;
+  else {
+    return FALSE;
+  }
 }
 
 /**
@@ -1538,50 +1678,30 @@ function file_upload_max_size() {
 /**
  * Determine an Internet Media Type, or MIME type from a filename.
  *
- * @param $filename
- *   Name of the file, including extension.
+ * @param $uri
+ *   A string containing the URI, path, or filename.
  * @param $mapping
  *   An optional map of extensions to their mimetypes, in the form:
  *    - 'mimetypes': a list of mimetypes, keyed by an identifier,
  *    - 'extensions': the mapping itself, an associative array in which
- *      the key is the extension (lowercase) and the value is the mimetype identifier.
- *    If $mapping is omitted, the drupal variable mime_extension_mapping is checked
- *    for a value and if that fails then file_default_mimetype_mapping() is called
+ *      the key is the extension (lowercase) and the value is the mimetype
+ *      identifier. If $mapping is NULL file_mimetype_mapping() is called.
  *
  * @return
- *   The internet media type registered for the extension or application/octet-stream for unknown extensions.
+ *   The internet media type registered for the extension or
+ *   application/octet-stream for unknown extensions.
  * @see
  *   file_default_mimetype_mapping()
  */
-function file_get_mimetype($filename, $mapping = NULL) {
-  if (!isset($mapping)) {
-    $mapping = variable_get('mime_extension_mapping', NULL);
-    if (!isset($mapping) && drupal_function_exists('file_default_mimetype_mapping')) {
-      // The default file map, defined in file.mimetypes.inc is quite big.
-      // We only load it when necessary.
-      $mapping = file_default_mimetype_mapping();
-    }
+function file_get_mimetype($uri, $mapping = NULL) {
+  if ($wrapper = file_stream_wrapper_get_instance_by_uri($uri)) {
+    return $wrapper->getMimeType($uri, $mapping);
   }
-
-  $extension = '';
-  $file_parts = explode('.', $filename);
-
-  // Remove the first part: a full filename should not match an extension.
-  array_shift($file_parts);
-
-  // Iterate over the file parts, trying to find a match.
-  // For my.awesome.image.jpeg, we try:
-  //   - jpeg
-  //   - image.jpeg, and
-  //   - awesome.image.jpeg
-  while ($additional_part = array_pop($file_parts)) {
-    $extension = strtolower($additional_part . ($extension ? '.' . $extension : ''));
-    if (isset($mapping['extensions'][$extension])) {
-      return $mapping['mimetypes'][$mapping['extensions'][$extension]];
-    }
+  else {
+    // getMimeType() is not implementation specific, so we can directly
+    // call it without an instance.
+    return DrupalLocalStreamWrapper::getMimeType($uri, $mapping);
   }
-
-  return 'application/octet-stream';
 }
 
 /**
@@ -1594,17 +1714,21 @@ function file_get_mimetype($filename, $mapping = NULL) {
  * these files, and give group write permissions so webserver group members
  * (e.g. a vhost account) can alter files uploaded and owned by the webserver.
  *
- * @param $path
- *   String containing the path to a file or directory.
+ * PHP's chmod does not support stream wrappers so we use our wrapper implementation
+ * which interfaces with chmod() by default. Contrib wrappers may override this
+ * bahavior in their implementations as needed.
+ *
+ * @param $uri
+ *   A string containing a URI file, or directory path.
  * @param $mode
  *   Integer value for the permissions. Consult PHP chmod() documentation for
  *   more information.
  * @return
  *   TRUE for success, FALSE in the event of an error.
  */
-function drupal_chmod($path, $mode = NULL) {
+function drupal_chmod($uri, $mode = NULL) {
   if (!isset($mode)) {
-    if (is_dir($path)) {
+    if (is_dir($uri)) {
       $mode = variable_get('file_chmod_directory', 0775);
     }
     else {
@@ -1612,12 +1736,166 @@ function drupal_chmod($path, $mode = NULL) {
     }
   }
 
-  if (@chmod($path, $mode)) {
-    return TRUE;
+  // If this URI is a stream, pass it off to the appropriate stream wrapper.
+  // Otherwise, attempt PHP's chmod. This allows use of drupal_chmod even
+  // for unmanaged files outside of the stream wrapper interface.
+  if ($wrapper = file_stream_wrapper_get_instance_by_uri($uri)) {
+    if ($wrapper->chmod($mode)) {
+      return TRUE;
+    }
+  }
+  else {
+    if (@chmod($uri, $mode)) {
+      return TRUE;
+    }
   }
 
-  watchdog('file', 'The file permissions could not be set on %path.', array('%path' => $path), WATCHDOG_ERROR);
+  watchdog('file', 'The file permissions could not be set on %uri.', array('%uri' => $uri), WATCHDOG_ERROR);
   return FALSE;
+}
+
+/**
+ * Returns the absolute path of a file or directory
+ *
+ * PHP's realpath() does not properly support streams, so this function
+ * fills that gap. If a stream wrapped URI is provided, it will be passed
+ * to the registered wrapper for handling. If the URI does not contain a
+ * scheme or the wrapper implementation does not implement realpath, then
+ * FALSE will be returned.
+ *
+ * @see http://php.net/manual/en/function.realpath.php
+ *
+ * Compatibility: normal paths and stream wrappers.
+ * @see http://drupal.org/node/515192
+ *
+ * @param $uri
+ *   A string containing the URI to verify. If this value is omitted,
+ *   Drupal's public files directory will be used [public://].
+ * @return
+ *   The absolute pathname, or FALSE on failure.
+ *
+ * @see realpath()
+ */
+function drupal_realpath($uri) {
+  // If this URI is a stream, pass it off to the appropriate stream wrapper.
+  // Otherwise, attempt PHP's realpath. This allows use of drupal_realpath even
+  // for unmanaged files outside of the stream wrapper interface.
+  if ($wrapper = file_stream_wrapper_get_instance_by_uri($uri)) {
+    return $wrapper->realpath();
+  }
+  else {
+    return realpath($uri);
+  }
+}
+
+/**
+ * Gets the name of the directory from a given path.
+ *
+ * PHP's dirname() does not properly pass streams, so this function fills
+ * that gap. It is backwards compatible with normal paths and will use
+ * PHP's dirname() as a fallback.
+ *
+ * Compatibility: normal paths and stream wrappers.
+ * @see http://drupal.org/node/515192
+ *
+ * @param $uri
+ *   A URI or path.
+ * @return
+ *   A string containing the directory name.
+ *
+ * @see dirname()
+ */
+function drupal_dirname($uri) {
+	$scheme = file_uri_scheme($uri);
+
+  if ($scheme && file_stream_wrapper_valid_scheme($scheme)) {
+    $target  = file_uri_target($uri);
+    $dirname = dirname($target);
+
+    if ($dirname == '.') {
+      $dirname = '';
+    }
+
+    return $scheme . '://' . $dirname;
+  }
+  else {
+    return dirname($uri);
+  }
+}
+
+/**
+ * Creates a directory using Drupal's default mode.
+ *
+ * PHP's mkdir() does not respect Drupal's default permissions mode. If a mode
+ * is not provided, this function will make sure that Drupal's is used.
+ *
+ * Compatibility: normal paths and stream wrappers.
+ * @see http://drupal.org/node/515192
+ *
+ * @param $uri
+ *   A URI or pathname.
+ * @param $mode
+ *   By default the Drupal mode is used.
+ * @param $recursive
+ *   Default to FALSE.
+ * @param $context
+ *   Refer to http://php.net/manual/en/ref.stream.php
+ * @return
+ *   Boolean TRUE on success, or FALSE on failure.
+ *
+ * @see mkdir()
+ */
+function drupal_mkdir($uri, $mode = NULL, $recursive = FALSE, $context = NULL) {
+
+  if (is_null($mode)) {
+    $mode = variable_get('file_chmod_directory', 0775);
+  }
+
+  if (is_null($context)) {
+    return mkdir($uri, $mode, $recursive);
+  }
+  else {
+    return mkdir($uri, $mode, $recursive, $context);
+  }
+}
+
+/**
+ * Creates a file with a unique filename in the specified directory.
+ *
+ * PHP's tempnam() does not return a URI like we want. This function
+ * will return a URI if given a URI, or it will return a filepath if
+ * given a filepath.
+ *
+ * Compatibility: normal paths and stream wrappers.
+ * @see http://drupal.org/node/515192
+ *
+ * @param $directory
+ *   The directory where the temporary filename will be created.
+ * @param $prefix
+ *   The prefix of the generated temporary filename.
+ *   Note: Windows uses only the first three characters of prefix.
+ * @return
+ *   The new temporary fillename, or FALSE on failure.
+ *
+ * @see tempnam()
+ */
+function drupal_tempnam($directory, $prefix) {
+ 	$scheme = file_uri_scheme($directory);
+
+  if ($scheme && file_stream_wrapper_valid_scheme($scheme)) {
+    $wrapper = file_stream_wrapper_get_instance_by_scheme($scheme);
+
+    if ($filename = tempnam($wrapper->getDirectoryPath(), $prefix)) {
+      return $scheme . '://' . basename($filename);
+    }
+    else {
+      return FALSE;
+    }
+  }
+  else {
+    // Handle as a normal tempnam() call.
+    return tempnam($directory, $prefix);
+  }
 }
 
 /**

@@ -118,7 +118,7 @@ function image_gd_resize(stdClass $image, $width, $height) {
  */
 function image_gd_rotate(stdClass $image, $degrees, $background = NULL) {
   // PHP installations using non-bundled GD do not have imagerotate.
-  if (!drupal_function_exists('imagerotate')) {
+  if (!function_exists('imagerotate')) {
     watchdog('image', 'The image %file could not be rotated because the imagerotate() function is not available in this PHP installation.', array('%file' => $image->source));
     return FALSE;
   }
@@ -215,7 +215,7 @@ function image_gd_crop(stdClass $image, $x, $y, $width, $height) {
  */
 function image_gd_desaturate(stdClass $image) {
   // PHP installations using non-bundled GD do not have imagefilter.
-  if (!drupal_function_exists('imagefilter')) {
+  if (!function_exists('imagefilter')) {
     watchdog('image', 'The image %file could not be desaturated because the imagefilter() function is not available in this PHP installation.', array('%file' => $image->source));
     return FALSE;
   }
@@ -254,6 +254,11 @@ function image_gd_load(stdClass $image) {
  * @see image_save()
  */
 function image_gd_save(stdClass $image, $destination) {
+  // Convert URI to a normal path because PHP apparently has some gaps in stream wrapper support.
+  if ($wrapper = file_stream_wrapper_get_instance_by_uri($destination)) {
+    $destination = $wrapper->realpath();
+  }
+  
   $extension = str_replace('jpg', 'jpeg', $image->info['extension']);
   $function = 'image' . $extension;
   if (!function_exists($function)) {
@@ -313,6 +318,39 @@ function image_gd_create_tmp(stdClass $image, $width, $height) {
   }
 
   return $res;
+}
+
+/**
+ * Get details about an image.
+ *
+ * @param $image
+ *   An image object.
+ * @return
+ *   FALSE, if the file could not be found or is not an image. Otherwise, a
+ *   keyed array containing information about the image:
+ *   - "width": Width, in pixels.
+ *   - "height": Height, in pixels.
+ *   - "extension": Commonly used file extension for the image.
+ *   - "mime_type": MIME type ('image/jpeg', 'image/gif', 'image/png').
+ *
+ * @see image_get_info()
+ */
+function image_gd_get_info(stdClass $image) {
+  $details = FALSE;
+  $data = getimagesize($image->source);
+
+  if (isset($data) && is_array($data)) {
+    $extensions = array('1' => 'gif', '2' => 'jpg', '3' => 'png');
+    $extension = array_key_exists($data[2], $extensions) ?  $extensions[$data[2]] : '';
+    $details = array(
+      'width'     => $data[0],
+      'height'    => $data[1],
+      'extension' => $extension,
+      'mime_type' => $data['mime'],
+    );
+  }
+
+  return $details;
 }
 
 /**

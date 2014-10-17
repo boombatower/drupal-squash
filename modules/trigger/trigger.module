@@ -11,7 +11,7 @@
  * Implement hook_help().
  */
 function trigger_help($path, $arg) {
-  $explanation = '<p>' . t('Triggers are system events, such as when new content is added or when a user logs in. Trigger module combines these triggers with actions (functional tasks), such as unpublishing content or e-mailing an administrator. The <a href="@url">Actions settings page</a> contains a list of existing actions and provides the ability to create and configure additional actions.', array('@url' => url('admin/settings/actions'))) . '</p>';
+  $explanation = '<p>' . t('Triggers are system events, such as when new content is added or when a user logs in. Trigger module combines these triggers with actions (functional tasks), such as unpublishing content or e-mailing an administrator. The <a href="@url">Actions settings page</a> contains a list of existing actions and provides the ability to create and configure additional actions.', array('@url' => url('admin/config/system/actions'))) . '</p>';
   switch ($path) {
     case 'admin/structure/trigger/comment':
       return $explanation . '<p>' . t('Below you can assign actions to run when certain comment-related triggers happen. For example, you could promote a post to the front page when a comment is added.') . '</p>';
@@ -24,7 +24,7 @@ function trigger_help($path, $arg) {
     case 'admin/structure/trigger/user':
       return $explanation . '<p>' . t("Below you can assign actions to run when certain user-related triggers happen. For example, you could send an e-mail to an administrator when a user account is deleted.") . '</p>';
     case 'admin/help#trigger':
-      $output = '<p>' . t('The Trigger module provides the ability to trigger <a href="@actions">actions</a> upon system events, such as when new content is added or when a user logs in.', array('@actions' => url('admin/settings/actions'))) . '</p>';
+      $output = '<p>' . t('The Trigger module provides the ability to trigger <a href="@actions">actions</a> upon system events, such as when new content is added or when a user logs in.', array('@actions' => url('admin/config/system/actions'))) . '</p>';
       $output .= '<p>' . t('The combination of actions and triggers can perform many useful tasks, such as e-mailing an administrator if a user account is deleted, or automatically unpublishing comments that contain certain words. By default, there are five "contexts" of events (Comments, Content, Cron, Taxonomy, and Users), but more may be added by additional modules.') . '</p>';
       $output .= '<p>' . t('For more information, see the online handbook entry for <a href="@trigger">Trigger module</a>.', array('@trigger' => 'http://drupal.org/handbook/modules/trigger/')) . '</p>';
       return $output;
@@ -39,60 +39,31 @@ function trigger_menu() {
     'title' => 'Triggers',
     'description' => 'Tell Drupal when to execute actions.',
     'page callback' => 'trigger_assign',
-    'access callback' => 'trigger_access_check',
-    'access arguments' => array('node'),
+    'access arguments' => array('administer actions'),
+    'file' => 'trigger.admin.inc',
   );
-  // We don't use a menu wildcard here because these are tabs,
-  // not invisible items.
-  $items['admin/structure/trigger/node'] = array(
-    'title' => 'Content',
-    'page callback' => 'trigger_assign',
-    'page arguments' => array('node'),
-    'access callback' => 'trigger_access_check',
-    'access arguments' => array('node'),
-    'type' => MENU_LOCAL_TASK,
-  );
-  $items['admin/structure/trigger/user'] = array(
-    'title' => 'Users',
-    'page callback' => 'trigger_assign',
-    'page arguments' => array('user'),
-    'access callback' => 'trigger_access_check',
-    'access arguments' => array('user'),
-    'type' => MENU_LOCAL_TASK,
-  );
-  $items['admin/structure/trigger/comment'] = array(
-    'title' => 'Comments',
-    'page callback' => 'trigger_assign',
-    'page arguments' => array('comment'),
-    'access callback' => 'trigger_access_check',
-    'access arguments' => array('comment'),
-    'type' => MENU_LOCAL_TASK,
-  );
-  $items['admin/structure/trigger/taxonomy'] = array(
-    'title' => 'Taxonomy',
-    'page callback' => 'trigger_assign',
-    'page arguments' => array('taxonomy'),
-    'access callback' => 'trigger_access_check',
-    'access arguments' => array('taxonomy'),
-    'type' => MENU_LOCAL_TASK,
-  );
+
+  // Explicitly define the system menu item so we can label it "cron" rather
+  // than "system".
   $items['admin/structure/trigger/cron'] = array(
     'title' => 'Cron',
     'page callback' => 'trigger_assign',
-    'page arguments' => array('cron'),
+    'page arguments' => array('system'),
     'access arguments' => array('administer actions'),
     'type' => MENU_LOCAL_TASK,
+    'file' => 'trigger.admin.inc',
   );
 
   // We want contributed modules to be able to describe
   // their hooks and have actions assignable to them.
   $hooks = module_invoke_all('hook_info');
   foreach ($hooks as $module => $hook) {
-    // We've already done these.
-    if (in_array($module, array('node', 'comment', 'user', 'system', 'taxonomy'))) {
+    // We've already done system.module.
+    if ($module == 'system') {
       continue;
     }
     $info = db_select('system')
+      ->fields('system', array('info'))
       ->condition('name', $module)
       ->execute()
       ->fetchField();
@@ -102,8 +73,9 @@ function trigger_menu() {
       'title' => $nice_name,
       'page callback' => 'trigger_assign',
       'page arguments' => array($module),
-      'access arguments' => array($module),
+      'access arguments' => array('administer actions'),
       'type' => MENU_LOCAL_TASK,
+      'file' => 'trigger.admin.inc',
     );
   }
   $items['admin/structure/trigger/unassign'] = array(
@@ -113,16 +85,10 @@ function trigger_menu() {
     'page arguments' => array('trigger_unassign'),
     'access arguments' => array('administer actions'),
     'type' => MENU_CALLBACK,
+    'file' => 'trigger.admin.inc',
   );
 
   return $items;
-}
-
-/**
- * Access callback for menu system.
- */
-function trigger_access_check($module) {
-  return (module_exists($module) && user_access('administer actions'));
 }
 
 /**
@@ -416,28 +382,28 @@ function _trigger_normalize_user_context($type, $account) {
 /**
  * trigger_user_login
  */
-function trigger_user_login(&$edit, &$account, $category) {
+function trigger_user_login(&$edit, $account, $category) {
   _trigger_user('login', $edit, $account, $category);
 }
 
 /**
  * Implement hook_user_logout().
  */
-function trigger_user_logout($edit, $account) {
-  _trigger_user('logout', $edit, $account);
+function trigger_user_logout($account) {
+  _trigger_user('logout', $edit = NULL, $account);
 }
 
 /**
  * Implement hook_user_insert().
  */
-function trigger_user_insert(&$edit, &$account, $category) {
+function trigger_user_insert(&$edit, $account, $category) {
   _trigger_user('insert', $edit, $account, $category);
 }
 
 /**
  * Implement hook_user_update().
  */
-function trigger_user_update(&$edit, &$account, $category) {
+function trigger_user_update(&$edit, $account, $category) {
   _trigger_user('update', $edit, $account, $category);
 }
 
@@ -456,8 +422,8 @@ function trigger_user_cancel($edit, $account, $method) {
 /**
  * Implement hook_user_view().
  */
-function trigger_user_view(&$edit, &$account, $category) {
-  _trigger_user('view', $edit, $account, $category);
+function trigger_user_view($account) {
+  _trigger_user('view', $edit = NULL, $account, NULL);
 }
 
 /**
@@ -465,7 +431,7 @@ function trigger_user_view(&$edit, &$account, $category) {
  *
  * @TODO: Take advantage of the new API and reorganise/remove this function.
  */
-function _trigger_user($op, &$edit, &$account, $category = NULL) {
+function _trigger_user($op, &$edit, $account, $category = NULL) {
   // Keep objects for reuse so that changes actions make to objects can persist.
   static $objects;
   $aids = _trigger_get_hook_aids('user', $op);

@@ -8,8 +8,8 @@
 Drupal.behaviors.password = {
   attach: function (context, settings) {
     var translate = settings.password;
-    $('input.password-field:not(.password-processed)', context).each(function () {
-      var passwordInput = $(this).addClass('password-processed');
+    $('input.password-field', context).once('password', function () {
+      var passwordInput = $(this);
       var innerWrapper = $(this).parent();
       var outerWrapper = $(this).parent().parent();
 
@@ -161,7 +161,7 @@ Drupal.evaluatePasswordStrength = function (password, translate) {
 };
 
 /**
- * Show all of the picture-related form elements at admin/settings/user
+ * Show all of the picture-related form elements at admin/config/people/accounts
  * depending on whether user pictures are enabled or not.
  */
 Drupal.behaviors.userSettings = {

@@ -43,6 +43,14 @@ class PagerDefault extends SelectQueryExtender {
    */
   protected $customCountQuery = FALSE;
 
+  public function __construct(SelectQueryInterface $query, DatabaseConnection $connection) {
+    parent::__construct($query, $connection);
+
+    // Add pager tag. Do this here to ensure that it is always added before
+    // preExecute() is called.
+    $this->addTag('pager');
+  }
+
   /**
    * Override the execute method.
    *
@@ -50,7 +58,14 @@ class PagerDefault extends SelectQueryExtender {
    * to it.
    */
   public function execute() {
-    global $pager_page_array, $pager_total, $pager_total_items;
+    global $pager_page_array, $pager_total, $pager_total_items, $pager_limits;
+
+    // Add convenience tag to mark that this is an extended query. We have to
+    // do this in the constructor to ensure that it is set before preExecute()
+    // gets called.
+    if (!$this->preExecute($this)) {
+      return NULL;
+    }
 
     // A NULL limit is the "kill switch" for pager queries.
     if (empty($this->limit)) {
@@ -71,6 +86,7 @@ class PagerDefault extends SelectQueryExtender {
     $pager_total_items[$this->element] = $this->getCountQuery()->execute()->fetchField();
     $pager_total[$this->element] = ceil($pager_total_items[$this->element] / $this->limit);
     $pager_page_array[$this->element] = max(0, min((int)$pager_page_array[$this->element], ((int)$pager_total[$this->element]) - 1));
+    $pager_limits[$this->element] = $this->limit;
     $this->range($pager_page_array[$this->element] * $this->limit, $this->limit);
 
     // Now that we've added our pager-based range instructions, run the query normally.
@@ -197,7 +213,7 @@ class PagerDefault extends SelectQueryExtender {
  * @ingroup database
  */
 function pager_query($query, $limit = 10, $element = 0, $count_query = NULL) {
-  global $pager_page_array, $pager_total, $pager_total_items;
+  global $pager_page_array, $pager_total, $pager_total_items, $pager_limits;
   $page = isset($_GET['page']) ? $_GET['page'] : '';
 
   // Substitute in query arguments.
@@ -217,9 +233,10 @@ function pager_query($query, $limit = 10, $element = 0, $count_query = NULL) {
   $pager_page_array = explode(',', $page);
 
   // We calculate the total of pages as ceil(items / limit).
-  $pager_total_items[$element] = db_result(db_query($count_query, $args));
+  $pager_total_items[$element] = db_query($count_query, $args)->fetchField();
   $pager_total[$element] = ceil($pager_total_items[$element] / $limit);
   $pager_page_array[$element] = max(0, min((int)$pager_page_array[$element], ((int)$pager_total[$element]) - 1));
+  $pager_limits[$element] = $limit;
   return db_query_range($query, $args, $pager_page_array[$element] * $limit, $limit);
 }
 
@@ -296,13 +313,13 @@ function theme_pager($tags = array(), $element = 0, $parameters = array(), $quan
   if ($pager_total[$element] > 1) {
     if ($li_first) {
       $items[] = array(
-        'class' => 'pager-first',
+        'class' => array('pager-first'),
         'data' => $li_first,
       );
     }
     if ($li_previous) {
       $items[] = array(
-        'class' => 'pager-previous',
+        'class' => array('pager-previous'),
         'data' => $li_previous,
       );
     }
@@ -311,7 +328,7 @@ function theme_pager($tags = array(), $element = 0, $parameters = array(), $quan
     if ($i != $pager_max) {
       if ($i > 1) {
         $items[] = array(
-          'class' => 'pager-ellipsis',
+          'class' => array('pager-ellipsis'),
           'data' => '…',
         );
       }
@@ -319,26 +336,26 @@ function theme_pager($tags = array(), $element = 0, $parameters = array(), $quan
       for (; $i <= $pager_last && $i <= $pager_max; $i++) {
         if ($i < $pager_current) {
           $items[] = array(
-            'class' => 'pager-item',
+            'class' => array('pager-item'),
             'data' => theme('pager_previous', $i, $element, ($pager_current - $i), $parameters),
           );
         }
         if ($i == $pager_current) {
           $items[] = array(
-            'class' => 'pager-current',
+            'class' => array('pager-current'),
             'data' => $i,
           );
         }
         if ($i > $pager_current) {
           $items[] = array(
-            'class' => 'pager-item',
+            'class' => array('pager-item'),
             'data' => theme('pager_next', $i, $element, ($i - $pager_current), $parameters),
           );
         }
       }
       if ($i < $pager_max) {
         $items[] = array(
-          'class' => 'pager-ellipsis',
+          'class' => array('pager-ellipsis'),
           'data' => '…',
         );
       }
@@ -346,17 +363,17 @@ function theme_pager($tags = array(), $element = 0, $parameters = array(), $quan
     // End generation.
     if ($li_next) {
       $items[] = array(
-        'class' => 'pager-next',
+        'class' => array('pager-next'),
         'data' => $li_next,
       );
     }
     if ($li_last) {
       $items[] = array(
-        'class' => 'pager-last',
+        'class' => array('pager-last'),
         'data' => $li_last,
       );
     }
-    return theme('item_list', $items, NULL, 'ul', array('class' => 'pager'));
+    return theme('item_list', $items, NULL, 'ul', array('class' => array('pager')));
   }
 }
 

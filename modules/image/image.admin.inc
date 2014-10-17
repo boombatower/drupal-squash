@@ -15,18 +15,13 @@ function image_style_list() {
   $styles = image_styles();
   $page['image_style_list'] = array(
     '#markup' => theme('image_style_list', $styles),
-    '#attached_css' => array(drupal_get_path('module', 'image') . '/image.admin.css' => array('preprocess' => FALSE)),
+    '#attached' => array(
+      'css' => array(drupal_get_path('module', 'image') . '/image.admin.css' => array('preprocess' => FALSE)),
+    ),
   );
 
   return $page;
 
-}
-
-/**
- * Menu title callback; Title for editing and deleting image styles.
- */
-function image_style_title($string, $style) {
-  return t($string, array('!name' => $style['name']));
 }
 
 /**
@@ -41,10 +36,15 @@ function image_style_title($string, $style) {
  * @see image_style_name_validate()
  */
 function image_style_form(&$form_state, $style) {
+  $title = t('Edit %name style', array('%name' => $style['name']));
+  drupal_set_title($title, PASS_THROUGH);
+
   $form_state['image_style'] = $style;
   $form = array(
     '#tree' => TRUE,
-    '#attached_css' => array(drupal_get_path('module', 'image') . '/image.admin.css' => array('preprocess' => FALSE)),
+    '#attached' => array(
+      'css' => array(drupal_get_path('module', 'image') . '/image.admin.css' => array('preprocess' => FALSE)),
+    ),
   );
 
   // Allow the name of the style to be changed.
@@ -55,6 +55,7 @@ function image_style_form(&$form_state, $style) {
     '#default_value' => $style['name'],
     '#description' => t('The name is used in URLs for generated images. Use only lowercase alphanumeric characters, underscores (_), and hyphens (-).'),
     '#element_validate' => array('image_style_name_validate'),
+    '#required' => TRUE,
   );
 
   // Build the list of existing image effects for this image style.
@@ -74,10 +75,10 @@ function image_style_form(&$form_state, $style) {
       '#default_value' => $effect['weight'],
     );
     $form['effects'][$ieid]['configure'] = array(
-      '#markup' => isset($effect['form callback']) ? l(t('configure'), 'admin/settings/image-styles/edit/' . $style['name'] . '/effects/' . $effect['ieid'] ) : '',
+      '#markup' => isset($effect['form callback']) ? l(t('edit'), 'admin/config/media/image-styles/edit/' . $style['name'] . '/effects/' . $effect['ieid'] ) : '',
     );
     $form['effects'][$ieid]['remove'] = array(
-      '#markup' => l(t('delete'), 'admin/settings/image-styles/edit/' . $style['name'] . '/effects/' . $effect['ieid'] . '/delete'),
+      '#markup' => l(t('delete'), 'admin/config/media/image-styles/edit/' . $style['name'] . '/effects/' . $effect['ieid'] . '/delete'),
     );
   }
 
@@ -139,7 +140,7 @@ function image_style_form_add_submit($form, &$form_state) {
 
   // Load the configuration form for this option.
   if (isset($effect['form callback'])) {
-    $path = 'admin/settings/image-styles/edit/' . $form_state['image_style']['name'] . '/add/' . $form_state['values']['new'];
+    $path = 'admin/config/media/image-styles/edit/' . $form_state['image_style']['name'] . '/add/' . $form_state['values']['new'];
     $form_state['redirect'] = array($path, array('weight' => $form_state['values']['weight']));
   }
   // If there's no form, immediately add the image effect.
@@ -176,7 +177,7 @@ function image_style_form_submit($form, &$form_state) {
   if ($form_state['values']['op'] == t('Update style')) {
     drupal_set_message('Changes to the style have been saved.');
   }
-  $form_state['redirect'] = 'admin/settings/image-styles/edit/' . $style['name'];
+  $form_state['redirect'] = 'admin/config/media/image-styles/edit/' . $style['name'];
 }
 
 /**
@@ -196,6 +197,7 @@ function image_style_add_form(&$form_state) {
     '#default_value' => '',
     '#description' => t('The name is used in URLs for generated images. Use only lowercase alphanumeric characters, underscores (_), and hyphens (-).'),
     '#element_validate' => array('image_style_name_validate'),
+    '#required' => TRUE,
   );
 
   $form['submit'] = array(
@@ -213,7 +215,7 @@ function image_style_add_form_submit($form, &$form_state) {
   $style = array('name' => $form_state['values']['name']);
   $style = image_style_save($style);
   drupal_set_message(t('Style %name was created.', array('%name' => $style['name'])));
-  $form_state['redirect'] = 'admin/settings/image-styles/edit/' . $style['name'];
+  $form_state['redirect'] = 'admin/config/media/image-styles/edit/' . $style['name'];
 }
 
 /**
@@ -256,7 +258,7 @@ function image_style_delete_form($form_state, $style) {
   return confirm_form(
     $form,
     t('Optionally select a style before deleting %style', array('%style' => $style['name'])),
-    'admin/settings/image-styles',
+    'admin/config/media/image-styles',
     t('If this style is in use on the site, you may select another style to replace it. All images that have been generated for this style will be permanently deleted.'),
     t('Delete'),  t('Cancel')
   );
@@ -270,17 +272,7 @@ function image_style_delete_form_submit($form, &$form_state) {
 
   image_style_delete($style, $form_state['values']['replacement']);
   drupal_set_message(t('Style %name was deleted.', array('%name' => $style['name'])));
-  $form_state['redirect'] = 'admin/settings/image-styles';
-}
-
-/**
- * Menu title callback; Title for editing, deleting, and adding image effects.
- *
- * @param $effect
- *   An image effect array.
- */
-function image_effect_title($string, $effect) {
-  return t($string, array('!label' => $effect['label']));
+  $form_state['redirect'] = 'admin/config/media/image-styles';
 }
 
 /**
@@ -307,19 +299,29 @@ function image_effect_title($string, $effect) {
  * @see image_effect_form_submit()
  */
 function image_effect_form(&$form_state, $style, $effect) {
+  if (!empty($effect['data'])) {
+    $title = t('Edit %label effect', array('%label' => $effect['label']));
+  }
+  else{
+    $title = t('Add %label effect', array('%label' => $effect['label']));
+  }
+  drupal_set_title($title, PASS_THROUGH);
+
   $form_state['image_style'] = $style;
   $form_state['image_effect'] = $effect;
 
   // If no configuration for this image effect, return to the image style page.
   if (!isset($effect['form callback'])) {
-    drupal_goto('admin/settings/image-styles/edit/' . $style['name']);
+    drupal_goto('admin/config/media/image-styles/edit/' . $style['name']);
   }
 
   $form = array(
     '#tree' => TRUE,
-    '#attached_css' => array(drupal_get_path('module', 'image') . '/image.admin.css' => array('preprocess' => FALSE)),
+    '#attached' => array(
+      'css' => array(drupal_get_path('module', 'image') . '/image.admin.css' => array('preprocess' => FALSE)),
+    ),
   );
-  if (drupal_function_exists($effect['form callback'])) {
+  if (function_exists($effect['form callback'])) {
     $form['data'] = call_user_func($effect['form callback'], $effect['data']);
   }
 
@@ -335,7 +337,7 @@ function image_effect_form(&$form_state, $style, $effect) {
     '#value' => isset($effect['ieid']) ? t('Update effect') : t('Add effect'),
   );
   $form['buttons']['cancel'] = array(
-    '#markup' => l(t('Cancel'), 'admin/settings/image-styles/edit/' . $style['name']),
+    '#markup' => l(t('Cancel'), 'admin/config/media/image-styles/edit/' . $style['name']),
   );
 
   return $form;
@@ -350,7 +352,7 @@ function image_effect_form_submit($form, &$form_state) {
   $effect['isid'] = $style['isid'];
   image_effect_save($effect);
   drupal_set_message(t('The image effect was successfully applied.'));
-  $form_state['redirect'] = 'admin/settings/image-styles/edit/' . $style['name'];
+  $form_state['redirect'] = 'admin/config/media/image-styles/edit/' . $style['name'];
 }
 
 /**
@@ -369,7 +371,7 @@ function image_effect_delete_form(&$form_state, $style, $effect) {
 
   $form = array();
   $question = t('Are you sure you want to delete the @effect effect from the %style style?', array('%style' => $style['name'], '@effect' => $effect['label']));
-  return confirm_form($form, $question, 'admin/settings/image-styles/edit/' . $style['name'], '', t('Delete'));
+  return confirm_form($form, $question, 'admin/config/media/image-styles/edit/' . $style['name'], '', t('Delete'));
 }
 
 /**
@@ -381,7 +383,7 @@ function image_effect_delete_form_submit($form, &$form_state) {
 
   image_effect_delete($effect);
   drupal_set_message(t('The image effect %name has been deleted.', array('%name' => $effect['label'])));
-  $form_state['redirect'] = 'admin/settings/image-styles/edit/' . $style['name'];
+  $form_state['redirect'] = 'admin/config/media/image-styles/edit/' . $style['name'];
 }
 
 /**
@@ -575,21 +577,21 @@ function theme_image_style_list($styles) {
   $rows = array();
   foreach ($styles as $style) {
     $row = array();
-    $row[] = l($style['name'], 'admin/settings/image-styles/edit/' . $style['name']);
+    $row[] = l($style['name'], 'admin/config/media/image-styles/edit/' . $style['name']);
     $link_attributes = array(
       'attributes' => array(
-        'class' => 'image-style-link',
+        'class' => array('image-style-link'),
       ),
     );
-    $row[] = l(t('edit'), 'admin/settings/image-styles/edit/' . $style['name'], $link_attributes);
-    $row[] = l(t('delete'), 'admin/settings/image-styles/delete/' . $style['name'], $link_attributes);
+    $row[] = l(t('edit'), 'admin/config/media/image-styles/edit/' . $style['name'], $link_attributes);
+    $row[] = l(t('delete'), 'admin/config/media/image-styles/delete/' . $style['name'], $link_attributes);
     $rows[] = $row;
   }
 
   if (empty($rows)) {
     $rows[] = array(array(
       'colspan' => 4,
-      'data' => t('There are currently no styles. <a href="!url">Add a new one</a>.', array('!url' => url('admin/settings/image-styles/add'))),
+      'data' => t('There are currently no styles. <a href="!url">Add a new one</a>.', array('!url' => url('admin/config/media/image-styles/add'))),
     ));
   }
 
@@ -608,7 +610,7 @@ function theme_image_style_effects($form) {
 
   foreach (element_children($form) as $key) {
     if (is_numeric($key)) {
-      $form[$key]['weight']['#attributes']['class'] = 'image-effect-order-weight';
+      $form[$key]['weight']['#attributes']['class'] = array('image-effect-order-weight');
       $summary = drupal_render($form[$key]['summary']);
       $row = array();
       $row[] = drupal_render($form[$key]['label']) . (empty($summary) ? '' : ' ' . $summary);
@@ -618,7 +620,7 @@ function theme_image_style_effects($form) {
     }
     else {
       // Add the row for adding a new image effect.
-      $form['new']['weight']['#attributes']['class'] = 'image-effect-order-weight';
+      $form['new']['weight']['#attributes']['class'] = array('image-effect-order-weight');
       $row = array();
       $row[] = '<div class="image-style-new">' . drupal_render($form['new']['new']) . drupal_render($form['new']['add']) . '</div>';
       $row[] = drupal_render($form['new']['weight']);
@@ -627,7 +629,7 @@ function theme_image_style_effects($form) {
 
     $rows[] = array(
       'data' => $row,
-      'class' => 'draggable',
+      'class' => array('draggable'),
     );
   }
 
@@ -677,11 +679,10 @@ function theme_image_style_preview($style) {
 
   // Set up preview file information.
   $preview_file = image_style_path($style['name'], $original_path);
-  $preview_path = file_create_path($preview_file);
-  if (!file_exists($preview_path) && image_style_create_derivative($style, $original_path, $preview_file)) {
-    $preview_path = file_create_path($preview_file);
+  if (!file_exists($preview_file)) {
+    image_style_create_derivative($style, $original_path, $preview_file);
   }
-  $preview_image = image_get_info($preview_path);
+  $preview_image = image_get_info($preview_file);
   if ($preview_image['width'] > $preview_image['height']) {
     $preview_width = min($preview_image['width'], $sample_width);
     $preview_height = round($preview_width / $preview_image['width'] * $preview_image['height']);
@@ -742,7 +743,7 @@ function theme_image_anchor($element) {
     }
   }
 
-  return theme('table', array(), $rows, array('class' => 'image-anchor'));
+  return theme('table', array(), $rows, array('class' => array('image-anchor')));
 }
 
 /**

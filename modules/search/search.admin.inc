@@ -11,7 +11,7 @@
  */
 function search_reindex_confirm() {
   return confirm_form(array(), t('Are you sure you want to re-index the site?'),
-                  'admin/settings/search', t(' The search index is not cleared but systematically updated to reflect the new settings. Searching will continue to work but new content won\'t be indexed until all existing content has been re-indexed. This action cannot be undone.'), t('Re-index site'), t('Cancel'));
+                  'admin/config/search/settings', t(' The search index is not cleared but systematically updated to reflect the new settings. Searching will continue to work but new content won\'t be indexed until all existing content has been re-indexed. This action cannot be undone.'), t('Re-index site'), t('Cancel'));
 }
 
 /**
@@ -21,9 +21,30 @@ function search_reindex_confirm_submit(&$form, &$form_state) {
   if ($form['confirm']) {
     search_reindex();
     drupal_set_message(t('The index will be rebuilt.'));
-    $form_state['redirect'] = 'admin/settings/search';
+    $form_state['redirect'] = 'admin/config/search/settings';
     return;
   }
+}
+
+/**
+ * Helper function to get real module names.
+ */
+function _search_get_module_names() {
+
+  $search_info = search_get_info();
+  $modules = db_select('system', 's')
+    ->fields('s', array('name', 'info'))
+    ->condition('s.status', 1)
+    ->condition('s.type', 'module')
+    ->condition('s.name', array_keys($search_info), 'IN')
+    ->orderBy('s.name')
+    ->execute();
+  $names = array();
+  foreach ($modules as $item) {
+    $info = unserialize($item->info);
+    $names[$item->name] = $info['name'];
+  }
+  return $names;
 }
 
 /**
@@ -38,12 +59,13 @@ function search_admin_settings() {
   // Collect some stats
   $remaining = 0;
   $total = 0;
-  foreach (module_implements('search') as $module) {
-    $function = $module . '_search';
-    $status = $function('status');
-    $remaining += $status['remaining'];
-    $total += $status['total'];
+  foreach(variable_get('search_active_modules', array('node', 'user')) as $module) {
+    if ($status = module_invoke($module, 'search_status')) {
+      $remaining += $status['remaining'];
+      $total += $status['total'];
+    }
   }
+
   $count = format_plural($remaining, 'There is 1 item left to index.', 'There are @count items left to index.');
   $percentage = ((int)min(100, 100 * ($total - $remaining) / max(1, $total))) . '%';
   $status = '<p><strong>' . t('%percentage of the site has been indexed.', array('%percentage' => $percentage)) . ' ' . $count . '</strong></p>';
@@ -88,10 +110,24 @@ function search_admin_settings() {
     '#description' => t('Whether to apply a simple Chinese/Japanese/Korean tokenizer based on overlapping sequences. Turn this off if you want to use an external preprocessor for this instead. Does not affect other languages.')
   );
 
+  $form['search_active_modules'] = array(
+    '#type' => 'checkboxes',
+    '#title' => t('Active search modules'),
+    '#default_value' => array('node', 'user'),
+    '#options' => _search_get_module_names(),
+    '#description' => t('Determine which search modules are active from the available modules.')
+  );
+
   $form['#submit'][] = 'search_admin_settings_submit';
 
   // Per module settings
-  $form = array_merge($form, module_invoke_all('search', 'admin'));
+  foreach(variable_get('search_active_modules', array('node', 'user')) as $module) {
+    $added_form = module_invoke($module, 'search_admin');
+    if (is_array($added_form)) {
+      $form = array_merge($form, $added_form);
+    }
+  }
+
   return system_settings_form($form, TRUE);
 }
 
@@ -105,6 +141,18 @@ function search_admin_settings_submit($form, &$form_state) {
     drupal_set_message(t('The index will be rebuilt.'));
     search_reindex();
   }
+  $current_modules = variable_get('search_active_modules', array('node', 'user'));
+  // Check whether we are resetting the values.
+  if ($form_state['clicked_button']['#value'] == t('Reset to defaults')) {
+    $new_modules = array('node', 'user');
+  }
+  else {
+    $new_modules = array_filter($form_state['values']['search_active_modules']);
+  }
+  if (array_diff($current_modules, $new_modules)) {
+    drupal_set_message(t('The active search modules have been changed.'));
+    variable_set('menu_rebuild_needed', TRUE);
+  }
 }
 
 /**
@@ -112,5 +160,5 @@ function search_admin_settings_submit($form, &$form_state) {
  */
 function search_admin_reindex_submit($form, &$form_state) {
   // send the user to the confirmation page
-  $form_state['redirect'] = 'admin/settings/search/reindex';
+  $form_state['redirect'] = 'admin/config/search/settings/reindex';
 }

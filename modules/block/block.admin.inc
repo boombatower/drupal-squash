@@ -184,6 +184,39 @@ function block_admin_configure(&$form_state, $module = NULL, $delta = 0) {
     '#weight' => -18,
   );
 
+  // Allow the user to define this block's region directly
+  $form['regions'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Region settings'),
+    '#collapsible' => TRUE,
+    '#collapsed' => TRUE,
+    '#description' => t('Specify in which region this block is displayed.'),
+    '#tree' => TRUE,
+  );
+
+  $theme_default = variable_get('theme_default', 'garland');
+
+  // Create a select list for each theme
+  foreach (list_themes() as $theme_key => $theme) {
+    // Only display enabled themes
+    if ($theme->status) {
+      $region = db_query("SELECT region FROM {block} WHERE module = :module AND delta = :delta AND theme = :theme", array(
+        ':module' => $module,
+        ':delta' => $delta,
+        ':theme' => $theme_key,
+      ))->fetchField();
+  
+      $form['regions'][$theme_key] = array(
+        '#type' => 'select',
+        '#title' => t('!theme region', array('!theme' => $theme->info['name'])),
+        '#default_value' => (!empty($region) ? $region : BLOCK_REGION_NONE),
+        '#options' => array(BLOCK_REGION_NONE => t('Disabled')) + $theme->info['regions'],
+        '#expandable' => ($theme_key !== $theme_default),
+        '#weight' => ($theme_key == $theme_default ? 9 : 10),
+      );
+    }
+  }
+
   // Module-specific block configurations.
   if ($settings = module_invoke($module, 'block_configure', $delta)) {
     foreach ($settings as $k => $v) {
@@ -192,7 +225,7 @@ function block_admin_configure(&$form_state, $module = NULL, $delta = 0) {
   }
 
   // Get the block subject for the page title.
-  $info = module_invoke($module, 'block_list');
+  $info = module_invoke($module, 'block_info');
   if (isset($info[$delta])) {
     drupal_set_title(t("'%name' block", array('%name' => $info[$delta]['info'])), PASS_THROUGH);
   }
@@ -300,11 +333,11 @@ function block_admin_configure(&$form_state, $module = NULL, $delta = 0) {
 
 function block_admin_configure_validate($form, &$form_state) {
   if ($form_state['values']['module'] == 'block') {
-    $box_exists = (bool) db_query_range('SELECT 1 FROM {box} WHERE bid <> :bid AND info = :info', array(
+    $custom_block_exists = (bool) db_query_range('SELECT 1 FROM {block_custom} WHERE bid <> :bid AND info = :info', array(
       ':bid' => $form_state['values']['delta'],
       ':info' => $form_state['values']['info'],
     ), 0, 1)->fetchField();
-    if (empty($form_state['values']['info']) || $box_exists) {
+    if (empty($form_state['values']['info']) || $custom_block_exists) {
       form_set_error('info', t('Please ensure that each block description is unique.'));
     }
   }
@@ -351,6 +384,18 @@ function block_admin_configure_submit($form, &$form_state) {
     }
     $query->execute();
 
+    // Store regions per theme for this block
+    foreach ($form_state['values']['regions'] as $theme => $region) {
+      db_merge('block')
+        ->key(array('theme' => $theme, 'delta' => $form_state['values']['delta'], 'module' => $form_state['values']['module']))
+        ->fields(array(
+          'region' => $region,
+          'pages' => trim($form_state['values']['pages']),
+          'status' => (int) ($region != BLOCK_REGION_NONE),
+        ))
+        ->execute();
+    }
+
     module_invoke($form_state['values']['module'], 'block_save', $form_state['values']['delta'], $form_state['values']);
     drupal_set_message(t('The block configuration has been saved.'));
     cache_clear_all();
@@ -366,9 +411,9 @@ function block_add_block_form(&$form_state) {
 }
 
 function block_add_block_form_validate($form, &$form_state) {
-  $box_exists = (bool) db_query_range('SELECT 1 FROM {box} WHERE info = :info', array(':info' => $form_state['values']['info']), 0, 1)->fetchField();
+  $custom_block_exists = (bool) db_query_range('SELECT 1 FROM {block_custom} WHERE info = :info', array(':info' => $form_state['values']['info']), 0, 1)->fetchField();
 
-  if (empty($form_state['values']['info']) || $box_exists) {
+  if (empty($form_state['values']['info']) || $custom_block_exists) {
     form_set_error('info', t('Please ensure that each block description is unique.'));
   }
 }
@@ -377,7 +422,7 @@ function block_add_block_form_validate($form, &$form_state) {
  * Save the new custom block.
  */
 function block_add_block_form_submit($form, &$form_state) {
-  $delta = db_insert('box')
+  $delta = db_insert('block_custom')
     ->fields(array(
       'body' => $form_state['values']['body'],
       'info' => $form_state['values']['info'],
@@ -398,7 +443,7 @@ function block_add_block_form_submit($form, &$form_state) {
         'status' => 0,
         'weight' => 0,
         'delta' => $delta, 
-        'cache' => BLOCK_NO_CACHE,
+        'cache' => DRUPAL_NO_CACHE,
       ));
     }
   }
@@ -423,6 +468,18 @@ function block_add_block_form_submit($form, &$form_state) {
     ));
   }
   $query->execute();
+  
+  // Store regions per theme for this block
+  foreach ($form_state['values']['regions'] as $theme => $region) {
+    db_merge('block')
+      ->key(array('theme' => $theme, 'delta' => $delta, 'module' => $form_state['values']['module']))
+      ->fields(array(
+        'region' => $region,
+        'pages' => trim($form_state['values']['pages']),
+        'status' => (int) ($region != BLOCK_REGION_NONE),
+      ))
+      ->execute();
+  }
 
   drupal_set_message(t('The block has been created.'));
   cache_clear_all();
@@ -432,19 +489,19 @@ function block_add_block_form_submit($form, &$form_state) {
 /**
  * Menu callback; confirm deletion of custom blocks.
  */
-function block_box_delete(&$form_state, $bid = 0) {
-  $box = block_box_get($bid);
-  $form['info'] = array('#type' => 'hidden', '#value' => $box['info'] ? $box['info'] : $box['title']);
+function block_custom_block_delete(&$form_state, $bid = 0) {
+  $custom_block = block_custom_block_get($bid);
+  $form['info'] = array('#type' => 'hidden', '#value' => $custom_block['info'] ? $custom_block['info'] : $custom_block['title']);
   $form['bid'] = array('#type' => 'hidden', '#value' => $bid);
 
-  return confirm_form($form, t('Are you sure you want to delete the block %name?', array('%name' => $box['info'])), 'admin/structure/block', '', t('Delete'), t('Cancel'));
+  return confirm_form($form, t('Are you sure you want to delete the block %name?', array('%name' => $custom_block['info'])), 'admin/structure/block', '', t('Delete'), t('Cancel'));
 }
 
 /**
  * Deletion of custom blocks.
  */
-function block_box_delete_submit($form, &$form_state) {
-  db_delete('box')
+function block_custom_block_delete_submit($form, &$form_state) {
+  db_delete('block_custom')
     ->condition('bid', $form_state['values']['bid'])
     ->execute();
   db_delete('block')
@@ -491,12 +548,12 @@ function template_preprocess_block_admin_display_form(&$variables) {
       $region = $block['region']['#default_value'];
 
       // Set special classes needed for table drag and drop.
-      $variables['form'][$i]['region']['#attributes']['class'] = 'block-region-select block-region-' . $region;
-      $variables['form'][$i]['weight']['#attributes']['class'] = 'block-weight block-weight-' . $region;
+      $variables['form'][$i]['region']['#attributes']['class'] = array('block-region-select', 'block-region-' . $region);
+      $variables['form'][$i]['weight']['#attributes']['class'] = array('block-weight', 'block-weight-' . $region);
 
       $variables['block_listing'][$region][$i] = new stdClass();
-      $variables['block_listing'][$region][$i]->row_class = isset($block['#attributes']['class']) ? $block['#attributes']['class'] : '';
-      $variables['block_listing'][$region][$i]->block_modified = isset($block['#attributes']['class']) && strpos($block['#attributes']['class'], 'block-modified') !== FALSE;
+      $variables['block_listing'][$region][$i]->row_class = !empty($block['#attributes']['class']) ? implode(' ', $block['#attributes']['class']) : '';
+      $variables['block_listing'][$region][$i]->block_modified = !empty($block['#attributes']['class']) && in_array('block-modified', $block['#attributes']['class']);
       $variables['block_listing'][$region][$i]->block_title =  drupal_render($block['info']);
       $variables['block_listing'][$region][$i]->region_select = drupal_render($block['region']) . drupal_render($block['theme']);
       $variables['block_listing'][$region][$i]->weight_select = drupal_render($block['weight']);

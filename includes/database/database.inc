@@ -891,7 +891,7 @@ abstract class DatabaseConnection extends PDO {
       }
 
       // Reset any scheduled rollback
-      $this->willRollBack = FALSE;
+      $this->willRollback = FALSE;
     }
   }
 
@@ -912,7 +912,7 @@ abstract class DatabaseConnection extends PDO {
     --$this->transactionLayers;
 
     if ($this->transactionLayers == 0 && $this->supportsTransactions()) {
-      if ($this->willRollBack) {
+      if ($this->willRollback) {
         parent::rollBack();
       }
       else {
@@ -1360,6 +1360,29 @@ abstract class Database {
       // passing on the exception otherwise.
       _db_check_install_needed();
       throw $e;
+    }
+  }
+
+  /**
+   * Closes a connection to the server specified by the given key and target.
+   *
+   * @param $target
+   *   The database target name.  Defaults to NULL meaning that all target
+   *   connections will be closed.
+   * @param $key
+   *   The database connection key. Defaults to NULL which means the active key.
+   */
+  public static function closeConnection($target = NULL, $key = NULL) {
+    // Gets the active conection by default.
+    if (!isset($key)) {
+      $key = self::$activeKey;
+    }
+    // To close the connection, we need to unset the static variable.
+    if (isset($target)) {
+      unset(self::$connections[$key][$target]);
+    }
+    else {
+      unset(self::$connections[$key]);
     }
   }
 
@@ -2072,6 +2095,20 @@ function db_driver() {
 }
 
 /**
+ * Closes the active database connection.
+ *
+ * @param $options
+ *   An array of options to control which connection is closed.  Only the
+ *   target key has any meaning in this case.
+ */
+function db_close(array $options = array()) {
+  if (empty($options['target'])) {
+    $options['target'] = NULL;
+  }
+  Database::closeConnection($options['target']);
+}
+
+/**
  * @} End of "defgroup database".
  */
 
@@ -2093,7 +2130,9 @@ function db_driver() {
  *   A Schema API table definition array.
  */
 function db_create_table(&$ret, $name, $table) {
-  return Database::getConnection()->schema()->createTable($ret, $name, $table);
+  if (!db_table_exists($name)) {
+    return Database::getConnection()->schema()->createTable($ret, $name, $table);
+  }
 }
 
 /**
@@ -2137,50 +2176,6 @@ function db_column_exists($table, $column) {
 function db_find_tables($table_expression) {
   return Database::getConnection()->schema()->findTables($table_expression);
 }
-
-/**
- * Given a Schema API field type, return the correct %-placeholder.
- *
- * Embed the placeholder in a query to be passed to db_query and and pass as an
- * argument to db_query a value of the specified type.
- *
- * @todo Remove this after all queries are converted to type-agnostic form.
- * @param $type
- *   The Schema API type of a field.
- * @return
- *   The placeholder string to embed in a query for that type.
- */
-function db_type_placeholder($type) {
-  switch ($type) {
-    case 'varchar':
-    case 'char':
-    case 'text':
-    case 'datetime':
-      return '\'%s\'';
-
-    case 'numeric':
-      // Numeric values are arbitrary precision numbers. Syntactically, numerics
-      // should be specified directly in SQL. However, without single quotes
-      // the %s placeholder does not protect against non-numeric characters such
-      // as spaces which would expose us to SQL injection.
-      return '%n';
-
-    case 'serial':
-    case 'int':
-      return '%d';
-
-    case 'float':
-      return '%f';
-
-    case 'blob':
-      return '%b';
-  }
-
-  // There is no safe value to return here, so return something that
-  // will cause the query to fail.
-  return 'unsupported type ' . $type . 'for db_type_placeholder';
-}
-
 
 function _db_create_keys_sql($spec) {
   return Database::getConnection()->schema()->createKeysSql($spec);
@@ -2494,10 +2489,6 @@ function db_fetch_object(DatabaseStatementInterface $statement) {
   return $statement->fetch(PDO::FETCH_OBJ);
 }
 
-function db_fetch_array(DatabaseStatementInterface $statement) {
-  return $statement->fetch(PDO::FETCH_ASSOC);
-}
-
 function db_result(DatabaseStatementInterface $statement) {
   return $statement->fetchField();
 }
@@ -2509,7 +2500,7 @@ function db_result(DatabaseStatementInterface $statement) {
  */
 function _db_check_install_needed() {
   global $databases;
-  if (empty($databases) && !function_exists('install_main')) {
+  if (empty($databases) && !drupal_installation_attempted()) {
     include_once DRUPAL_ROOT . '/includes/install.inc';
     install_goto('install.php');
   }
@@ -2539,41 +2530,7 @@ function _db_query_process_args($query, $args, $options) {
     $args = array_values($args);  // The old system allowed named arrays, but PDO doesn't if you use ?.
   }
 
-  // A large number of queries pass FALSE or empty-string for
-  // int/float fields because the previous version of db_query()
-  // casted them to int/float, resulting in 0. MySQL PDO happily
-  // accepts these values as zero but PostgreSQL PDO does not, and I
-  // do not feel like tracking down and fixing every such query at
-  // this time.
-  if (preg_match_all('/%([dsfb])/', $old_query, $m) > 0) {
-    foreach ($m[1] as $idx => $char) {
-      switch ($char) {
-        case 'd':
-          $args[$idx] = (int) $args[$idx];
-          break;
-        case 'f':
-          $args[$idx] = (float) $args[$idx];
-          break;
-      }
-    }
-  }
-
   return array($query, $args, $options);
-}
-
-
-/**
- * Returns the last insert id.
- *
- * @todo Remove this function when all queries have been ported to db_insert().
- * @param $table
- *   The name of the table you inserted into.
- * @param $field
- *   The name of the autoincrement field.
- */
-function db_last_insert_id($table, $field) {
-  $sequence_name = Database::getConnection()->makeSequenceName($table, $field);
-  return Database::getConnection()->lastInsertId($sequence_name);
 }
 
 /**

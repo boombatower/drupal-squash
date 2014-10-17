@@ -38,7 +38,8 @@ class TriggerContentTestCase extends DrupalWebTestCase {
       $this->drupalLogin($web_user);
       $edit = array();
       $edit['title'] = '!SimpleTest test node! ' . $this->randomName(10);
-      $edit['body[0][value]'] = '!SimpleTest test body! ' . $this->randomName(32) . ' ' . $this->randomName(32);
+      $langcode = FIELD_LANGUAGE_NONE;
+      $edit["body[$langcode][0][value]"] = '!SimpleTest test body! ' . $this->randomName(32) . ' ' . $this->randomName(32);
       $edit[$info['property']] = !$info['expected'];
       $this->drupalPost('node/add/page', $edit, t('Save'));
       // Make sure the text we want appears.
@@ -60,7 +61,7 @@ class TriggerContentTestCase extends DrupalWebTestCase {
       // Test 3: The action should be able to be unassigned from a trigger.
       $this->drupalPost('admin/structure/trigger/unassign/node/presave/' . $hash, array(), t('Unassign'));
       $this->assertRaw(t('Action %action has been unassigned.', array('%action' => ucfirst($info['name']))), t('Check to make sure the @action action can be unassigned from the trigger.', array('@action' => $info['name'])));
-      $assigned = db_result(db_query("SELECT COUNT(*) FROM {trigger_assignments} WHERE aid IN ('" . implode("','", $content_actions) . "')"));
+      $assigned = db_query("SELECT COUNT(*) FROM {trigger_assignments} WHERE aid IN (:keys)", array(':keys' => $content_actions))->fetchField();
       $this->assertFalse($assigned, t('Check to make sure unassign worked properly at the database level.'));
     }
   }
@@ -149,7 +150,7 @@ class TriggerCronTestCase extends DrupalWebTestCase {
       'actions_description' => $action_description,
       'subject' => $action_description,
     );
-    $this->drupalPost('admin/settings/actions/configure/' . $hash, $edit, t('Save'));
+    $this->drupalPost('admin/config/system/actions/configure/' . $hash, $edit, t('Save'));
     $edit = array('aid' => md5('1'));
     $this->drupalPost('admin/structure/trigger/cron', $edit, t('Assign'));
  
@@ -159,7 +160,7 @@ class TriggerCronTestCase extends DrupalWebTestCase {
       'actions_description' => $action_description,
       'subject' => $action_description,
     );
-    $this->drupalPost('admin/settings/actions/configure/' . $hash, $edit, t('Save'));
+    $this->drupalPost('admin/config/system/actions/configure/' . $hash, $edit, t('Save'));
     $edit = array('aid' => md5('2'));
     $this->drupalPost('admin/structure/trigger/cron', $edit, t('Assign'));
  

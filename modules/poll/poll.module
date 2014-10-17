@@ -54,8 +54,7 @@ function poll_theme() {
  * Implement hook_permission().
  */
 function poll_permission() {
-  $perms = node_list_permissions('poll');
-  $perms += array(
+  $perms = array(
     'vote on polls' => array(
       'title' => t('Vote on polls'),
       'description' => t('Cast votes on polls.'),
@@ -74,20 +73,6 @@ function poll_permission() {
 }
 
 /**
- * Implement hook_access().
- */
-function poll_access($op, $node, $account) {
-  switch ($op) {
-    case 'create':
-      return user_access('create poll content', $account);
-    case 'update':
-      return user_access('edit any poll content', $account) || (user_access('edit own poll content', $account) && ($node->uid == $account->uid));
-    case 'delete':
-      return user_access('delete any poll content', $account) || (user_access('delete own poll content', $account) && ($node->uid == $account->uid));
-  }
-}
-
-/**
  * Implement hook_menu().
  */
 function poll_menu() {
@@ -96,6 +81,7 @@ function poll_menu() {
     'page callback' => 'poll_page',
     'access arguments' => array('access content'),
     'type' => MENU_SUGGESTED_ITEM,
+    'file' => 'poll.pages.inc',
   );
 
   $items['node/%node/votes'] = array(
@@ -106,6 +92,7 @@ function poll_menu() {
     'access arguments' => array(1, 'inspect all votes', FALSE),
     'weight' => 3,
     'type' => MENU_LOCAL_TASK,
+    'file' => 'poll.pages.inc',
   );
 
   $items['node/%node/results'] = array(
@@ -116,6 +103,7 @@ function poll_menu() {
     'access arguments' => array(1, 'access content', TRUE),
     'weight' => 3,
     'type' => MENU_LOCAL_TASK,
+    'file' => 'poll.pages.inc',
   );
 
   return $items;
@@ -129,9 +117,9 @@ function _poll_menu_access($node, $perm, $inspect_allowvotes) {
 }
 
 /**
- * Implement hook_block_list().
+ * Implement hook_block_info().
  */
-function poll_block_list() {
+function poll_block_info() {
   if (user_access('access content')) {
     $blocks['recent']['info'] = t('Most recent poll');
     return $blocks;
@@ -199,6 +187,28 @@ function poll_node_info() {
 }
 
 /**
+ * Implement hook_field_extra_fields().
+ */
+function poll_field_extra_fields($bundle) {
+  $extra = array();
+
+  if ($bundle == 'poll') {
+    $extra['choice_wrapper'] = array(
+      'label' => t('Poll choices'),
+      'description' => t('Poll module choices.'),
+      'weight' => -4,
+    );
+    $extra['settings'] = array(
+      'label' => t('Poll settings'),
+      'description' => t('Poll module settings.'),
+      'weight' => -3,
+    );
+  }
+
+  return $extra;
+}
+
+/**
  * Implement hook_form().
  */
 function poll_form($node, $form_state) {
@@ -263,14 +273,14 @@ function poll_form($node, $form_state) {
   }
 
   // We name our button 'poll_more' to avoid conflicts with other modules using
-  // AHAH-enabled buttons with the id 'more'.
+  // AJAX-enabled buttons with the id 'more'.
   $form['choice_wrapper']['poll_more'] = array(
     '#type' => 'submit',
     '#value' => t('More choices'),
     '#description' => t("If the amount of boxes above isn't enough, click here to add more choices."),
     '#weight' => 1,
     '#submit' => array('poll_more_choices_submit'), // If no javascript action.
-    '#ahah' => array(
+    '#ajax' => array(
       'callback' => 'poll_choice_js',
       'wrapper' => 'poll-choices',
       'method' => 'replace',
@@ -315,12 +325,13 @@ function poll_form($node, $form_state) {
  * entire form is rebuilt during the page reload.
  */
 function poll_more_choices_submit($form, &$form_state) {
+  include_once DRUPAL_ROOT . '/' . drupal_get_path('module', 'node') . '/node.pages.inc';
   // Set the form to rebuild and run submit handlers.
   node_form_submit_build_node($form, $form_state);
 
   // Make the changes we want to the form state.
   if ($form_state['values']['poll_more']) {
-    $n = $_GET['q'] == 'system/ahah' ? 1 : 5;
+    $n = $_GET['q'] == 'system/ajax' ? 1 : 5;
     $form_state['choice_count'] = count($form_state['values']['choice']) + $n;
   }
 }
@@ -371,15 +382,11 @@ function _poll_choice_form($key, $chid = NULL, $value = '', $votes = 0, $weight 
 function poll_choice_js($form, $form_state) {
   $choice_form = $form['choice_wrapper']['choice'];
 
-  // Prevent duplicate wrappers.
-  unset($choice_form['#prefix'], $choice_form['#suffix']);
-  $output = theme('status_messages') . drupal_render($choice_form);
-
-  drupal_json(array('status' => TRUE, 'data' => $output));
+  return theme('status_messages') . drupal_render($choice_form);
 }
 
 /**
- * Implement hook_submit().
+ * Renumber fields and create a teaser when a poll node is submitted.
  */
 function poll_node_form_submit(&$form, &$form_state) {
   // Renumber fields
@@ -562,7 +569,7 @@ function poll_block_latest_poll_view($node) {
   $node->readmore = FALSE;
   $node->teaser = '';
 
-  $links = module_invoke_all('link', 'node', $node, 1);
+  $links = array();
   $links[] = array('title' => t('Older polls'), 'href' => 'poll', 'attributes' => array('title' => t('View the list of polls on this site.')));
   if ($node->allowvotes) {
     $links[] = array('title' => t('Results'), 'href' => 'node/' . $node->nid . '/results', 'attributes' => array('title' => t('View the current poll results.')));
@@ -755,21 +762,23 @@ function theme_poll_choices($form) {
   foreach (element_children($form) as $key) {
     $delta++;
     // Set special classes for drag and drop updating.
-    $form[$key]['weight']['#attributes']['class'] = 'poll-weight';
+    $form[$key]['weight']['#attributes']['class'] = array('poll-weight');
 
     // Build the table row.
     $row = array(
       'data' => array(
-        array('class' => 'choice-flag'),
+        array('class' => array('choice-flag')),
         drupal_render($form[$key]['chtext']),
         drupal_render($form[$key]['chvotes']),
         drupal_render($form[$key]['weight']),
       ),
-      'class' => 'draggable',
+      'class' => array('draggable'),
     );
 
     // Add any additional classes set on the row.
-    $row['class'] .= isset($form[$key]['#attributes']['class']) ? ' ' . $form[$key]['#attributes']['class'] : '';
+    if (!empty($form[$key]['#attributes']['class'])) {
+      $row['class'] = array_merge($row['class'], $form[$key]['#attributes']['class']);
+    }
 
     $rows[] = $row;
   }

@@ -7,13 +7,6 @@
  */
 
 /**
- * Implement hook_install().
- */
-function field_install() {
-  drupal_install_schema('field');
-}
-
-/**
  * Implement hook_schema.
  */
 function field_schema() {
@@ -58,6 +51,12 @@ function field_schema() {
         'default' => '',
       ),
       'cardinality' => array(
+        'type' => 'int',
+        'size' => 'tiny',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'translatable' => array(
         'type' => 'int',
         'size' => 'tiny',
         'not null' => TRUE,
@@ -116,11 +115,6 @@ function field_schema() {
         'not null' => TRUE,
         'serialize' => TRUE,
       ),
-      'weight' => array(
-        'type' => 'int',
-        'not null' => TRUE,
-        'default' => 0,
-      ),
       'deleted' => array(
         'type' => 'int',
         'size' => 'tiny',
@@ -129,10 +123,9 @@ function field_schema() {
       ),
     ),
     'primary key' => array('id'),
-    'unique keys' => array(
-      'field_id_bundle' => array('field_id', 'bundle'),
-    ),
     'indexes' => array(
+      // used by field_delete_instance()
+      'field_name_bundle' => array('field_name', 'bundle'),
       // used by field_read_instances()
       'widget_active_deleted' => array('widget_active', 'deleted'),
       // used by field_modules_disabled()

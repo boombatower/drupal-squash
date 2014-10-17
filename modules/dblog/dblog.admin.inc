@@ -7,20 +7,6 @@
  */
 
 /**
- * Implement hook_form_FORM_ID_alter().
- */
-function dblog_form_system_logging_settings_alter(&$form, $form_state) {
-  $form['dblog_row_limit'] = array(
-    '#type' => 'select',
-    '#title' => t('Database log entries to keep'),
-    '#default_value' => variable_get('dblog_row_limit', 1000),
-    '#options' => drupal_map_assoc(array(100, 1000, 10000, 100000, 1000000)),
-    '#description' => t('The maximum number of entries to keep in the database log. Requires a <a href="@cron">cron maintenance task</a>.', array('@cron' => url('admin/reports/status')))
-  );
-  $form['buttons']['#weight'] = 1;
-}
-
-/**
  * Menu callback; displays a listing of log messages.
  */
 function dblog_overview() {
@@ -78,13 +64,13 @@ function dblog_overview() {
         // Cells
         $icons[$dblog->severity],
         t($dblog->type),
-        format_date($dblog->timestamp, 'small'),
+        format_date($dblog->timestamp, 'short'),
         l(truncate_utf8(_dblog_format_message($dblog), 56, TRUE, TRUE), 'admin/reports/event/' . $dblog->wid, array('html' => TRUE)),
         theme('username', $dblog),
         $dblog->link,
       ),
       // Attributes for tr
-      'class' => "dblog-" . preg_replace('/[^a-z]/i', '-', $dblog->type) . ' ' . $classes[$dblog->severity]
+      'class' => array('dblog-' . preg_replace('/[^a-z]/i', '-', $dblog->type), $classes[$dblog->severity]),
     );
   }
 
@@ -92,8 +78,13 @@ function dblog_overview() {
     $rows[] = array(array('data' => t('No log messages available.'), 'colspan' => 6));
   }
 
-  $build['dblog_table'] = array('#markup' => theme('table', $header, $rows, array('id' => 'admin-dblog')));
-  $build['dblog_pager'] = array('#markup' => theme('pager', NULL));
+  $build['dblog_table'] = array(
+    '#theme' => 'table',
+    '#header' => $header,
+    '#rows' => $rows,
+    '#attributes' => array('id' => 'admin-dblog'),
+  );
+  $build['dblog_pager'] = array('#theme' => 'pager');
 
   return $build;
 }
@@ -133,10 +124,14 @@ function dblog_top($type) {
     $rows[] = array(array('data' => t('No log messages available.'), 'colspan' => 2));
   }
 
-  $output  = theme('table', $header, $rows);
-  $output .= theme('pager', NULL);
+  $build['dblog_top_table']  = array(
+    '#theme' => 'table',
+    '#header' => $header,
+    '#rows' => $rows,
+  );
+  $build['dblog_top_pager'] = array('#theme' => 'pager');
 
-  return $output;
+  return $build;
 }
 
 /**
@@ -144,7 +139,6 @@ function dblog_top($type) {
  */
 function dblog_event($id) {
   $severity = watchdog_severity_levels();
-  $output = '';
   $result = db_query('SELECT w.*, u.name, u.uid FROM {watchdog} w INNER JOIN {users} u ON w.uid = u.uid WHERE w.wid = :id', array(':id' => $id))->fetchObject();
   if ($dblog = $result) {
     $rows = array(
@@ -154,7 +148,7 @@ function dblog_event($id) {
       ),
       array(
         array('data' => t('Date'), 'header' => TRUE),
-        format_date($dblog->timestamp, 'large'),
+        format_date($dblog->timestamp, 'long'),
       ),
       array(
         array('data' => t('User'), 'header' => TRUE),
@@ -185,10 +179,16 @@ function dblog_event($id) {
         $dblog->link,
       ),
     );
-    $attributes = array('class' => 'dblog-event');
-    $output = theme('table', array(), $rows, $attributes);
+    $build['dblog_table'] = array(
+      '#theme' => 'table',
+      '#rows' => $rows,
+      '#attributes' => array('class' => array('dblog-event')),
+    );
+    return $build;
   }
-  return $output;
+  else {
+    return '';
+  }
 }
 
 /**
@@ -235,14 +235,14 @@ function dblog_filters() {
   if (!empty($types)) {
     $filters['type'] = array(
       'title' => t('Type'),
-      'where' => "w.type = ':s'",
+      'where' => "w.type = ?",
       'options' => $types,
     );
   }
 
   $filters['severity'] = array(
     'title' => t('Severity'),
-    'where' => 'w.severity = :d',
+    'where' => 'w.severity = ?',
     'options' => watchdog_severity_levels(),
   );
 

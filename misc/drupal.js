@@ -12,7 +12,6 @@ if ($ === undefined) {
   };
 }
 
-
 (function ($) {
 
 /**
@@ -38,10 +37,15 @@ if ($ === undefined) {
  * loaded, feeding in an element to be processed, in order to attach all
  * behaviors to the new content.
  *
- * Behaviors should use a class in the form behaviorName-processed to ensure
- * the behavior is attached only once to a given element. (Doing so enables
- * the reprocessing of given elements, which may be needed on occasion despite
- * the ability to limit behavior attachment to a particular element.)
+ * Behaviors should use
+ * @code
+ *   $(selector).once('behavior-name', function () {
+ *     ...
+ *   });
+ * @endcode
+ * to ensure the behavior is attached only once to a given element. (Doing so
+ * enables the reprocessing of given elements, which may be needed on occasion
+ * despite the ability to limit behavior attachment to a particular element.)
  *
  * @param context
  *   An element to attach behaviors to. If none is given, the document element
@@ -294,9 +298,9 @@ Drupal.getSelection = function (element) {
 };
 
 /**
- * Build an error message from ahah response.
+ * Build an error message from an AJAX response.
  */
-Drupal.ahahError = function (xmlhttp, uri) {
+Drupal.ajaxError = function (xmlhttp, uri) {
   if (xmlhttp.status == 200 || (xmlhttp.status == 500 && xmlhttp.statusText == 'Service unavailable (with message)')) {
     if ($.trim(xmlhttp.responseText)) {
       var message = Drupal.t("An error occurred. \nPath: @uri\nMessage: !text", { '@uri': uri, '!text': xmlhttp.responseText });

@@ -29,12 +29,13 @@ function php_install() {
       ->fields(array(
         'format' => $format,
         'module' => 'php',
-        'delta' => 0,
+        'name' => 'php_code',
         'weight' => 0,
+        'status' => 1,
       ))
       ->execute();
 
-    drupal_set_message(t('A !php-code text format has been created.', array('!php-code' => l('PHP code', 'admin/settings/filter/' . $format))));
+    drupal_set_message(t('A !php-code text format has been created.', array('!php-code' => l('PHP code', 'admin/config/content/formats/' . $format))));
   }
 }
 

@@ -43,6 +43,9 @@ function theme_node_add_list($content) {
     }
     $output .= '</dl>';
   }
+  else {
+    $output = '<p>' . t('You have not created any content types yet. Please go to the <a href="@create-content">content type creation page</a> to add a new content type.', array('@create-content' => url('admin/structure/types/add'))) . '</p>';
+  }
   return $output;
 }
 
@@ -156,6 +159,7 @@ function node_form(&$form_state, $node) {
 
   $form['additional_settings'] = array(
     '#type' => 'vertical_tabs',
+    '#weight' => 99,
   );
 
   // Add a log field if the "Create new revision" option is checked, or if the
@@ -168,7 +172,9 @@ function node_form(&$form_state, $node) {
       // Collapsed by default when "Create new revision" is unchecked
       '#collapsed' => !$node->revision,
       '#group' => 'additional_settings',
-      '#attached_js' => array(drupal_get_path('module', 'node') . '/node.js'),
+      '#attached' => array(
+        'js' => array(drupal_get_path('module', 'node') . '/node.js'),
+      ),
       '#weight' => 20,
     );
     $form['revision_information']['revision'] = array(
@@ -194,7 +200,9 @@ function node_form(&$form_state, $node) {
     '#collapsible' => TRUE,
     '#collapsed' => TRUE,
     '#group' => 'additional_settings',
-    '#attached_js' => array(drupal_get_path('module', 'node') . '/node.js'),
+    '#attached' => array(
+      'js' => array(drupal_get_path('module', 'node') . '/node.js'),
+    ),
     '#weight' => 90,
   );
   $form['author']['name'] = array(
@@ -225,7 +233,9 @@ function node_form(&$form_state, $node) {
     '#collapsible' => TRUE,
     '#collapsed' => TRUE,
     '#group' => 'additional_settings',
-    '#attached_js' => array(drupal_get_path('module', 'node') . '/node.js'),
+    '#attached' => array(
+      'js' => array(drupal_get_path('module', 'node') . '/node.js'),
+    ),
     '#weight' => 95,
   );
   $form['options']['status'] = array(
@@ -281,7 +291,7 @@ function node_form(&$form_state, $node) {
   $form['#theme'] = array($node->type . '_node_form', 'node_form');
 
   $form['#builder_function'] = 'node_form_submit_build_node';
-  field_attach_form('node', $node, $form, $form_state);
+  field_attach_form('node', $node, $form, $form_state, $node->language);
 
   return $form;
 }
@@ -327,6 +337,7 @@ function theme_node_form($form) {
  */
 function node_preview($node) {
   if (node_access('create', $node) || node_access('update', $node)) {
+    _field_invoke_multiple('load', 'node', array($node->nid => $node));
     // Load the user's name when needed.
     if (isset($node->name)) {
       // The use of isset() is mandatory in the context of user IDs, because
@@ -495,13 +506,13 @@ function node_revision_overview($node) {
     $operations = array();
 
     if ($revision->current_vid > 0) {
-      $row[] = array('data' => t('!date by !username', array('!date' => l(format_date($revision->timestamp, 'small'), "node/$node->nid"), '!username' => theme('username', $revision)))
+      $row[] = array('data' => t('!date by !username', array('!date' => l(format_date($revision->timestamp, 'short'), "node/$node->nid"), '!username' => theme('username', $revision)))
                                . (($revision->log != '') ? '<p class="revision-log">' . filter_xss($revision->log) . '</p>' : ''),
-                     'class' => 'revision-current');
-      $operations[] = array('data' => theme('placeholder', t('current revision')), 'class' => 'revision-current', 'colspan' => 2);
+                     'class' => array('revision-current'));
+      $operations[] = array('data' => theme('placeholder', t('current revision')), 'class' => array('revision-current'), 'colspan' => 2);
     }
     else {
-      $row[] = t('!date by !username', array('!date' => l(format_date($revision->timestamp, 'small'), "node/$node->nid/revisions/$revision->vid/view"), '!username' => theme('username', $revision)))
+      $row[] = t('!date by !username', array('!date' => l(format_date($revision->timestamp, 'short'), "node/$node->nid/revisions/$revision->vid/view"), '!username' => theme('username', $revision)))
                . (($revision->log != '') ? '<p class="revision-log">' . filter_xss($revision->log) . '</p>' : '');
       if ($revert_permission) {
         $operations[] = l(t('revert'), "node/$node->nid/revisions/$revision->vid/revert");
@@ -512,8 +523,14 @@ function node_revision_overview($node) {
     }
     $rows[] = array_merge($row, $operations);
   }
+  
+  $build['node_revisions_table'] = array(
+    '#theme' => 'table',
+    '#rows' => $rows,
+    '#header' => $header,
+  );
 
-  return theme('table', $header, $rows);
+  return $build;
 }
 
 /**

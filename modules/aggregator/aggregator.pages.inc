@@ -242,7 +242,7 @@ function theme_aggregator_categorize_items($form) {
     foreach (element_children($form['items']) as $key) {
       $rows[] = array(
         drupal_render($form['items'][$key]),
-        array('data' => drupal_render($form['categories'][$key]), 'class' => 'categorize-item'),
+        array('data' => drupal_render($form['categories'][$key]), 'class' => array('categorize-item')),
       );
     }
   }
@@ -499,6 +499,6 @@ function template_preprocess_aggregator_feed_source(&$variables) {
   }
 
   if (user_access('administer news feeds')) {
-    $variables['last_checked'] = l($variables['last_checked'], 'admin/content/aggregator');
+    $variables['last_checked'] = l($variables['last_checked'], 'admin/config/services/aggregator');
   }
 }

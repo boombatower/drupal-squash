@@ -29,7 +29,7 @@ function statistics_recent_hits() {
   $rows = array();
   foreach ($result as $log) {
     $rows[] = array(
-      array('data' => format_date($log->timestamp, 'small'), 'class' => 'nowrap'),
+      array('data' => format_date($log->timestamp, 'short'), 'class' => array('nowrap')),
       _statistics_format_item($log->title, $log->path),
       theme('username', $log),
       l(t('details'), "admin/reports/access/$log->aid"));
@@ -39,9 +39,13 @@ function statistics_recent_hits() {
     $rows[] = array(array('data' => t('No statistics available.'), 'colspan' => 4));
   }
 
-  $output = theme('table', $header, $rows);
-  $output .= theme('pager', NULL);
-  return $output;
+  $build['statistics_table'] = array(
+    '#theme' => 'table', 
+    '#header' => $header, 
+    '#rows' => $rows,
+  );
+  $build['statistics_pager'] = array('#theme' => 'pager');
+  return $build;
 }
 
 /**
@@ -83,9 +87,13 @@ function statistics_top_pages() {
   }
 
   drupal_set_title(t('Top pages in the past %interval', array('%interval' => format_interval(variable_get('statistics_flush_accesslog_timer', 259200)))), PASS_THROUGH);
-  $output = theme('table', $header, $rows);
-  $output .= theme('pager', NULL);
-  return $output;
+  $build['statistics_top_pages_table'] = array(
+    '#theme' => 'table', 
+    '#header' => $header, 
+    '#rows' => $rows,
+  );
+  $build['statistics_top_pages_pager'] = array('#theme' => 'pager');
+  return $build;
 }
 
 /**
@@ -124,7 +132,7 @@ function statistics_top_visitors() {
   $rows = array();
   foreach ($result as $account) {
     $qs = drupal_get_destination();
-    $ban_link =  $account->iid ? l(t('unblock IP address'), "admin/settings/ip-blocking/delete/$account->iid", array('query' => $qs)) : l(t('block IP address'), "admin/settings/ip-blocking/$account->hostname", array('query' => $qs));
+    $ban_link =  $account->iid ? l(t('unblock IP address'), "admin/config/people/ip-blocking/delete/$account->iid", array('query' => $qs)) : l(t('block IP address'), "admin/config/people/ip-blocking/$account->hostname", array('query' => $qs));
     $rows[] = array($account->hits, ($account->uid ? theme('username', $account) : $account->hostname), format_interval(round($account->total / 1000)), (user_access('block IP addresses') && !$account->uid) ? $ban_link : '');
   }
 
@@ -133,9 +141,13 @@ function statistics_top_visitors() {
   }
 
   drupal_set_title(t('Top visitors in the past %interval', array('%interval' => format_interval(variable_get('statistics_flush_accesslog_timer', 259200)))), PASS_THROUGH);
-  $output = theme('table', $header, $rows);
-  $output .= theme('pager', NULL);
-  return $output;
+  $build['statistics_top_visitors_table'] = array(
+    '#theme' => 'table', 
+    '#header' => $header, 
+    '#rows' => $rows,
+  );
+  $build['statistics_top_visitors_pager'] = array('#theme' => 'pager');
+  return $build;
 }
 
 /**
@@ -178,9 +190,13 @@ function statistics_top_referrers() {
     $rows[] = array(array('data' => t('No statistics available.'), 'colspan' => 3));
   }
 
-  $output = theme('table', $header, $rows);
-  $output .= theme('pager', NULL);
-  return $output;
+  $build['statistics_top_referrers_table'] = array(
+    '#theme' => 'table', 
+    '#header' => $header, 
+    '#rows' => $rows,
+  );
+  $build['statistics_top_referrers_pager'] = array('#theme' => 'pager');
+  return $build;
 }
 
 /**
@@ -205,7 +221,7 @@ function statistics_access_log($aid) {
     );
     $rows[] = array(
       array('data' => t('Date'), 'header' => TRUE),
-      format_date($access->timestamp, 'large')
+      format_date($access->timestamp, 'long')
     );
     $rows[] = array(
       array('data' => t('User'), 'header' => TRUE),
@@ -216,7 +232,11 @@ function statistics_access_log($aid) {
       check_plain($access->hostname)
     );
 
-    return theme('table', array(), $rows);
+    $build['statistics_table'] = array(
+      '#theme' => 'table', 
+      '#rows' => $rows,
+    );
+    return $build;
   }
   else {
     drupal_not_found();
@@ -245,7 +265,7 @@ function statistics_settings_form() {
     '#type' => 'select',
     '#title' => t('Discard access logs older than'),
     '#default_value' => 259200,
-    '#options' => drupal_map_assoc(array(3600, 10800, 21600, 32400, 43200, 86400, 172800, 259200, 604800, 1209600, 2419200, 4838400, 9676800), 'format_interval'),
+    '#options' => array(0 => t('Never')) + drupal_map_assoc(array(3600, 10800, 21600, 32400, 43200, 86400, 172800, 259200, 604800, 1209600, 2419200, 4838400, 9676800), 'format_interval'),
     '#description' => t('Older access log entries (including referrer statistics) will be automatically discarded. (Requires a correctly configured <a href="@cron">cron maintenance task</a>.)', array('@cron' => url('admin/reports/status'))),
   );
 

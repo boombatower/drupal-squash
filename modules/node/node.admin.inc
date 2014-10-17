@@ -30,32 +30,32 @@ function node_node_operations() {
     'publish' => array(
       'label' => t('Publish'),
       'callback' => 'node_mass_update',
-      'callback arguments' => array('updates' => array('status' => 1)),
+      'callback arguments' => array('updates' => array('status' => NODE_PUBLISHED)),
     ),
     'unpublish' => array(
       'label' => t('Unpublish'),
       'callback' => 'node_mass_update',
-      'callback arguments' => array('updates' => array('status' => 0)),
+      'callback arguments' => array('updates' => array('status' => NODE_NOT_PUBLISHED)),
     ),
     'promote' => array(
       'label' => t('Promote to front page'),
       'callback' => 'node_mass_update',
-      'callback arguments' => array('updates' => array('status' => 1, 'promote' => 1)),
+      'callback arguments' => array('updates' => array('status' => NODE_PUBLISHED, 'promote' => NODE_PROMOTED)),
     ),
     'demote' => array(
       'label' => t('Demote from front page'),
       'callback' => 'node_mass_update',
-      'callback arguments' => array('updates' => array('promote' => 0)),
+      'callback arguments' => array('updates' => array('promote' => NODE_NOT_PROMOTED)),
     ),
     'sticky' => array(
       'label' => t('Make sticky'),
       'callback' => 'node_mass_update',
-      'callback arguments' => array('updates' => array('status' => 1, 'sticky' => 1)),
+      'callback arguments' => array('updates' => array('status' => NODE_PUBLISHED, 'sticky' => NODE_STICKY)),
     ),
     'unsticky' => array(
       'label' => t('Remove stickiness'),
       'callback' => 'node_mass_update',
-      'callback arguments' => array('updates' => array('sticky' => 0)),
+      'callback arguments' => array('updates' => array('sticky' => NODE_NOT_STICKY)),
     ),
     'delete' => array(
       'label' => t('Delete'),
@@ -145,7 +145,6 @@ function node_filter_form() {
     '#title' => t('Show only items where'),
     '#theme' => 'node_filters',
   );
-  $form['#submit'][] = 'node_filter_form_submit';
   foreach ($session as $filter) {
     list($type, $value) = $filter;
     if ($type == 'term') {
@@ -160,10 +159,10 @@ function node_filter_form() {
       $value = $filters[$type]['options'][$value];
     }
     if ($i++) {
-      $form['filters']['current'][] = array('#markup' => t('<em>and</em> where <strong>%a</strong> is <strong>%b</strong>', array('%a' => $filters[$type]['title'], '%b' => $value)));
+      $form['filters']['current'][] = array('#markup' => t('<em>and</em> where <strong>%type</strong> is <strong>%value</strong>', array('%type' => $filters[$type]['title'], '%value' => $value)));
     }
     else {
-      $form['filters']['current'][] = array('#markup' => t('<strong>%a</strong> is <strong>%b</strong>', array('%a' => $filters[$type]['title'], '%b' => $value)));
+      $form['filters']['current'][] = array('#markup' => t('<strong>%type</strong> is <strong>%value</strong>', array('%type' => $filters[$type]['title'], '%value' => $value)));
     }
     if (in_array($type, array('type', 'language'))) {
       // Remove the option if it is already being filtered on.
@@ -371,16 +370,13 @@ function node_admin_content($form_state) {
   if (isset($form_state['values']['operation']) && $form_state['values']['operation'] == 'delete') {
     return node_multiple_delete_confirm($form_state, array_filter($form_state['values']['nodes']));
   }
-  $form = array();
   // Show the 'add new content' link.
-  if (_node_add_access()) {
-    $form['add_content'] = array(
-      '#type' => 'markup',
-      '#markup' => l(t('Add new content'), 'node/add', array('attributes' => array('class' => 'node-admin-add-content'))),
-    );
-  }
+  $form['add_content'] = array(
+    '#access' => _node_add_access(),
+    '#markup' => theme('links', array(array('title' => t('Add new content'), 'href' => 'node/add')), array('class' => array('action-links'))),
+  );
   $form[] = node_filter_form();
-
+  $form['#submit'][] = 'node_filter_form_submit';
   $form['#theme'] = 'node_filter_form';
   $form['admin'] = node_admin_nodes();
 
@@ -455,7 +451,7 @@ function node_admin_nodes() {
     $form['name'][$node->nid] =  array('#markup' => check_plain(node_type_get_name($node)));
     $form['username'][$node->nid] = array('#markup' => theme('username', $node));
     $form['status'][$node->nid] =  array('#markup' => ($node->status ? t('published') : t('not published')));
-    $form['changed'][$node->nid] = array('#markup' => format_date($node->changed, 'small'));
+    $form['changed'][$node->nid] = array('#markup' => format_date($node->changed, 'short'));
     if ($multilanguage) {
       $form['language'][$node->nid] = array('#markup' => empty($node->language) ? t('Language neutral') : t($languages[$node->language]->name));
     }
@@ -578,7 +574,7 @@ function node_multiple_delete_confirm(&$form_state, $nodes) {
                                   'Are you sure you want to delete these items?');
   return confirm_form($form,
                     $confirm_question,
-                    'admin/content/node', t('This action cannot be undone.'),
+                    'admin/content', t('This action cannot be undone.'),
                     t('Delete'), t('Cancel'));
 }
 
@@ -589,7 +585,7 @@ function node_multiple_delete_confirm_submit($form, &$form_state) {
     watchdog('content', 'Deleted @count posts.', array('@count' => $count));
     drupal_set_message(t('Deleted @count posts.', array('@count' => $count)));
   }
-  $form_state['redirect'] = 'admin/content/node';
+  $form_state['redirect'] = 'admin/content';
   return;
 }
 

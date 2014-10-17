@@ -28,6 +28,23 @@ function system_requirements($phase) {
       'severity' => REQUIREMENT_INFO,
       'weight' => -10,
     );
+
+    // Display the currently active install profile, if the site
+    // is not running the default install profile.
+    $profile = drupal_get_profile();
+    if ($profile != 'default') {
+      $info = install_profile_info($profile);
+      $requirements['install_profile'] = array(
+        'title' => $t('Install profile'),
+        'value' => $t('%profile_name (%profile-%version)', array(
+          '%profile_name' => $info['name'],
+          '%profile' => $profile,
+          '%version' => $info['version']
+        )),
+        'severity' => REQUIREMENT_INFO,
+        'weight' => -9
+      );
+    }
   }
 
   // Web server information.
@@ -176,49 +193,55 @@ function system_requirements($phase) {
     );
   }
 
-  // Test files directory
-  $directory = file_directory_path();
+  // Test files directories.
+  $directories = array(
+    variable_get('file_public_path', conf_path() . '/files'),
+    variable_get('file_private_path', conf_path() . '/private/files'),
+    variable_get('file_temporary_path', conf_path() . '/private/temp'),
+  );
   $requirements['file system'] = array(
     'title' => $t('File system'),
   );
 
-  // For installer, create the directory if possible.
-  if ($phase == 'install' && !is_dir($directory) && @mkdir($directory)) {
-    @chmod($directory, 0775); // Necessary for non-webserver users.
-  }
-
-  $is_writable = is_writable($directory);
-  $is_directory = is_dir($directory);
-  if (!$is_writable || !$is_directory) {
-    $description = '';
-    $requirements['file system']['value'] = $t('Not writable');
-    if (!$is_directory) {
-      $error = $t('The directory %directory does not exist.', array('%directory' => $directory));
+  $error = '';
+  // For installer, create the directories if possible.
+  foreach ($directories as $directory) {
+    if ($phase == 'install') {
+      file_prepare_directory($directory, FILE_CREATE_DIRECTORY);
+    }
+    $is_writable = is_writable($directory);
+    $is_directory = is_dir($directory);
+    if (!$is_writable || !$is_directory) {
+      $description = '';
+      $requirements['file system']['value'] = $t('Not writable');
+      if (!$is_directory) {
+        $error .= $t('The directory %directory does not exist.', array('%directory' => $directory)) . ' ';
+      }
+      else {
+        $error .= $t('The directory %directory is not writable.', array('%directory' => $directory)) . ' ';
+      }
+      // The files directory requirement check is done only during install and runtime.
+      if ($phase == 'runtime') {
+        $description = $error . $t('You may need to set the correct directory at the <a href="@admin-file-system">file system settings page</a> or change the current directory\'s permissions so that it is writable.', array('@admin-file-system' => url('admin/config/media/file-system')));
+      }
+      elseif ($phase == 'install') {
+        // For the installer UI, we need different wording. 'value' will
+        // be treated as version, so provide none there.
+        $description = $error . $t('An automated attempt to create this directory failed, possibly due to a permissions problem. To proceed with the installation, either create the directory and modify its permissions manually, or ensure that the installer has the permissions to create it automatically. For more information, please see INSTALL.txt or the <a href="@handbook_url">online handbook</a>.', array('@handbook_url' => 'http://drupal.org/server-permissions'));
+        $requirements['file system']['value'] = '';
+      }
+      if (!empty($description)) {
+        $requirements['file system']['description'] = $description;
+        $requirements['file system']['severity'] = REQUIREMENT_ERROR;
+      }
     }
     else {
-      $error = $t('The directory %directory is not writable.', array('%directory' => $directory));
-    }
-    // The files directory requirement check is done only during install and runtime.
-    if ($phase == 'runtime') {
-      $description = $error . ' ' . $t('You may need to set the correct directory at the <a href="@admin-file-system">file system settings page</a> or change the current directory\'s permissions so that it is writable.', array('@admin-file-system' => url('admin/settings/file-system')));
-    }
-    elseif ($phase == 'install') {
-      // For the installer UI, we need different wording. 'value' will
-      // be treated as version, so provide none there.
-      $description = $error . ' ' . $t('An automated attempt to create this directory failed, possibly due to a permissions problem. To proceed with the installation, either create the directory and modify its permissions manually, or ensure that the installer has the permissions to create it automatically. For more information, please see INSTALL.txt or the <a href="@handbook_url">online handbook</a>.', array('@handbook_url' => 'http://drupal.org/server-permissions'));
-      $requirements['file system']['value'] = '';
-    }
-    if (!empty($description)) {
-      $requirements['file system']['description'] = $description;
-      $requirements['file system']['severity'] = REQUIREMENT_ERROR;
-    }
-  }
-  else {
-    if (variable_get('file_downloads', FILE_DOWNLOADS_PUBLIC) == FILE_DOWNLOADS_PUBLIC) {
-      $requirements['file system']['value'] = $t('Writable (<em>public</em> download method)');
-    }
-    else {
-      $requirements['file system']['value'] = $t('Writable (<em>private</em> download method)');
+      if (variable_get('file_default_scheme', 'public') == 'public') {
+        $requirements['file system']['value'] = $t('Writable (<em>public</em> download method)');
+      }
+      else {
+        $requirements['file system']['value'] = $t('Writable (<em>private</em> download method)');
+      }
     }
   }
 
@@ -266,13 +289,24 @@ function system_requirements($phase) {
   include_once DRUPAL_ROOT . '/includes/unicode.inc';
   $requirements = array_merge($requirements, unicode_requirements());
 
+  // Verify if the DOM PHP 5 extension is available.
+  $has_dom = class_exists('DOMDocument');
+  if (!$has_dom) {
+    $requirements['php_dom'] = array(
+      'title' => $t('PHP DOM Extension'),
+      'value' => $t('Not found'),
+      'severity' => REQUIREMENT_ERROR,
+      'description' => $t("The DOM extension is part of PHP 5 core, but doesn't seem to be enabled on your system. You need to enable the DOM extension on your PHP installation."),
+    );
+  }
+
   if ($phase == 'runtime') {
     // Check for update status module.
     if (!module_exists('update')) {
       $requirements['update status'] = array(
         'value' => $t('Not enabled'),
         'severity' => REQUIREMENT_WARNING,
-        'description' => $t('Update notifications are not enabled. It is <strong>highly recommended</strong> that you enable the update status module from the <a href="@module">module administration page</a> in order to stay up-to-date on new releases. For more information please read the <a href="@update">Update status handbook page</a>.', array('@update' => 'http://drupal.org/handbook/modules/update', '@module' => url('admin/structure/modules'))),
+        'description' => $t('Update notifications are not enabled. It is <strong>highly recommended</strong> that you enable the update status module from the <a href="@module">module administration page</a> in order to stay up-to-date on new releases. For more information please read the <a href="@update">Update status handbook page</a>.', array('@update' => 'http://drupal.org/handbook/modules/update', '@module' => url('admin/config/modules'))),
       );
     }
     else {
@@ -300,56 +334,13 @@ function system_requirements($phase) {
  * Implement hook_install().
  */
 function system_install() {
-  if (db_driver() == 'pgsql') {
-    // We create some functions using global names instead of prefixing them
-    // like we do with table names. If this function is ever called again (for
-    // example, by the test framework when creating prefixed test databases),
-    // the global names will already exist. We therefore avoid trying to create
-    // them again in that case.
-
-    // Create functions.
-    db_query('CREATE OR REPLACE FUNCTION "greatest"(numeric, numeric) RETURNS numeric AS
-      \'SELECT CASE WHEN (($1 > $2) OR ($2 IS NULL)) THEN $1 ELSE $2 END;\'
-      LANGUAGE \'sql\''
-    );
-    db_query('CREATE OR REPLACE FUNCTION "greatest"(numeric, numeric, numeric) RETURNS numeric AS
-      \'SELECT greatest($1, greatest($2, $3));\'
-      LANGUAGE \'sql\''
-    );
-    // Don't use {} around pg_proc table.
-    if (!db_query("SELECT COUNT(*) FROM pg_proc WHERE proname = 'rand'")->fetchField()) {
-      db_query('CREATE OR REPLACE FUNCTION "rand"() RETURNS float AS
-        \'SELECT random();\'
-        LANGUAGE \'sql\''
-      );
-    }
-
-    // Don't use {} around pg_proc table.
-    if (!db_query("SELECT COUNT(*) FROM pg_proc WHERE proname = 'concat'")->fetchField()) {
-      db_query('CREATE OR REPLACE FUNCTION "concat"(text, text) RETURNS text AS
-        \'SELECT $1 || $2;\'
-        LANGUAGE \'sql\''
-      );
-    }
-    db_query('CREATE OR REPLACE FUNCTION "if"(boolean, text, text) RETURNS text AS
-      \'SELECT CASE WHEN $1 THEN $2 ELSE $3 END;\'
-      LANGUAGE \'sql\''
-    );
-    db_query('CREATE OR REPLACE FUNCTION "if"(boolean, integer, integer) RETURNS integer AS
-      \'SELECT CASE WHEN $1 THEN $2 ELSE $3 END;\'
-      LANGUAGE \'sql\''
-    );
-
-    db_query('CREATE OR REPLACE FUNCTION "substring_index"(text, text, integer) RETURNS text AS
-      \'SELECT array_to_string((string_to_array($1, $2)) [1:$3], $2);\'
-      LANGUAGE \'sql\''
-    );
-  }
-
   // Create tables.
   $modules = array('system', 'filter', 'user', 'node');
   foreach ($modules as $module) {
     drupal_install_schema($module);
+    $versions = drupal_get_schema_versions($module);
+    $version = $versions ? max($versions) : SCHEMA_INSTALLED;
+    drupal_set_installed_schema_version($module, $version);
   }
 
   // Load system theme data appropriately.
@@ -373,13 +364,11 @@ function system_install() {
 
   // Built-in roles.
   $rid_anonymous = db_insert('role')
-    ->fields(array('name'))
-    ->values(array('name' => 'anonymous user'))
+    ->fields(array('name' => 'anonymous user'))
     ->execute();
 
   $rid_authenticated = db_insert('role')
-    ->fields(array('name'))
-    ->values(array('name' => 'authenticated user'))
+    ->fields(array('name' => 'authenticated user'))
     ->execute();
 
   // Sanity check to ensure the anonymous and authenticated role IDs are the
@@ -399,21 +388,6 @@ function system_install() {
       ->execute();
   }
 
-  $query = db_insert('role_permission')->fields(array('rid', 'permission'));
-  // Anonymous role permissions.
-  $query->values(array(
-    'rid' => DRUPAL_ANONYMOUS_RID,
-    'permission' => 'access content',
-  ));
-
-  // Authenticated role permissions.
-  foreach (array('access comments', 'access content', 'post comments', 'post comments without approval', 'view own unpublished content') as $permission) {
-    $query->values(array(
-      'rid' => DRUPAL_AUTHENTICATED_RID,
-      'permission' => $permission,
-    ));
-  }
-  $query->execute();
 
   variable_set('theme_default', 'garland');
 
@@ -454,63 +428,68 @@ function system_install() {
 
   // Filtered HTML:
   db_insert('filter')
-    ->fields(array('format', 'module', 'delta', 'weight'))
+    ->fields(array('format', 'module', 'name', 'weight', 'status'))
     // URL filter.
     ->values(array(
       'format' => $filtered_html_format,
       'module' => 'filter',
-      'delta' => 2,
+      'name' => 'filter_url',
       'weight' => 0,
+      'status' => 1,
     ))
     // HTML filter.
     ->values(array(
       'format' => $filtered_html_format,
       'module' => 'filter',
-      'delta' => 0,
+      'name' => 'filter_html',
       'weight' => 1,
+      'status' => 1,
     ))
     // Line break filter.
     ->values(array(
       'format' => $filtered_html_format,
       'module' => 'filter',
-      'delta' => 1,
+      'name' => 'filter_autop',
       'weight' => 2,
+      'status' => 1,
     ))
     // HTML corrector filter.
     ->values(array(
       'format' => $filtered_html_format,
       'module' => 'filter',
-      'delta' => 3,
+      'name' => 'filter_htmlcorrector',
       'weight' => 10,
+      'status' => 1,
     ))
   // Full HTML:
     // URL filter.
     ->values(array(
       'format' => $full_html_format,
       'module' => 'filter',
-      'delta' => 2,
+      'name' => 'filter_url',
       'weight' => 0,
+      'status' => 1,
     ))
     // Line break filter.
     ->values(array(
       'format' => $full_html_format,
       'module' => 'filter',
-      'delta' => 1,
+      'name' => 'filter_autop',
       'weight' => 1,
+      'status' => 1,
     ))
     // HTML corrector filter.
     ->values(array(
       'format' => $full_html_format,
       'module' => 'filter',
-      'delta' => 3,
+      'name' => 'filter_htmlcorrector',
       'weight' => 10,
+      'status' => 1,
     ))
     ->execute();
 
   // Set the default input format to Filtered HTML.
   variable_set('filter_default_format', $filtered_html_format);
-
-  variable_set('node_options_forum', array(0 => 'status'));
 
   $cron_key = md5(mt_rand());
 
@@ -712,7 +691,7 @@ function system_schema() {
   $schema['cache_registry'] = $schema['cache'];
   $schema['cache_registry']['description'] = 'Cache table for the code registry system to remember what code files need to be loaded on any given page.';
 
-  $schema['files'] = array(
+  $schema['file'] = array(
     'description' => 'Stores information for uploaded files.',
     'fields' => array(
       'fid' => array(
@@ -735,7 +714,7 @@ function system_schema() {
         'not null' => TRUE,
         'default' => '',
       ),
-      'filepath' => array(
+      'uri' => array(
         'description' => 'Path of the file relative to Drupal root.',
         'type' => 'varchar',
         'length' => 255,
@@ -775,6 +754,9 @@ function system_schema() {
       'status' => array('status'),
       'timestamp' => array('timestamp'),
     ),
+    'unique keys' => array(
+      'uri' => array('uri'),
+    ),
     'primary key' => array('fid'),
     'foreign keys' => array(
       'uid' => array('users' => 'uid'),
@@ -796,8 +778,8 @@ function system_schema() {
         'not null' => TRUE,
         'default' => '',
       ),
-      'hostname' => array(
-        'description' => 'Hostname of the visitor.',
+      'identifier' => array(
+        'description' => 'Identifier of the visitor, such as an IP address or hostname.',
         'type' => 'varchar',
         'length' => 128,
         'not null' => TRUE,
@@ -812,7 +794,7 @@ function system_schema() {
     ),
     'primary key' => array('fid'),
     'indexes' => array(
-      'allow' => array('event', 'hostname', 'timestamp'),
+      'allow' => array('event', 'identifier', 'timestamp'),
     ),
   );
 
@@ -966,10 +948,16 @@ function system_schema() {
         'not null' => TRUE,
         'default' => 0,
       ),
+      'file' => array(
+        'description' => 'The file to include for this element, usually the page callback function lives in this file.',
+        'type' => 'text',
+        'size' => 'medium'
+      ),
     ),
     'indexes' => array(
       'fit' => array('fit'),
       'tab_parent' => array('tab_parent'),
+      'tab_root_weight_title' => array(array('tab_root', 64), 'weight', 'title'),
     ),
     'primary key' => array('path'),
   );
@@ -1249,13 +1237,6 @@ function system_schema() {
         'not null' => TRUE,
         'default' => ''
       ),
-      'suffix' => array(
-        'description' => "The part of the function name after the module, which is the hook this function implements, if any.",
-        'type' => 'varchar',
-        'length' => 68,
-        'not null' => TRUE,
-        'default' => ''
-      ),
       'weight' => array(
         'description' => "The order in which this module's hooks should be invoked relative to other modules. Equal-weighted modules are ordered by name.",
         'type' => 'int',
@@ -1265,7 +1246,7 @@ function system_schema() {
     ),
     'primary key' => array('name', 'type'),
     'indexes' => array(
-      'hook' => array('type', 'suffix', 'weight', 'module'),
+      'hook' => array('type', 'weight', 'module'),
     ),
   );
 
@@ -1278,14 +1259,48 @@ function system_schema() {
         'length' => 255,
         'not null' => TRUE,
       ),
-      'md5'  => array(
-        'description' => "Md5 hash of the file's contents when last parsed.",
-        'type' => 'varchar',
-        'length' => 32,
+      'filectime'  => array(
+        'description' => "The creation time of the file when last parsed.",
+        'type' => 'int',
         'not null' => TRUE,
+        'default' => 0,
+      ),
+      'filemtime'  => array(
+        'description' => "The modification time of the file when last parsed.",
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
       ),
     ),
     'primary key' => array('filename'),
+  );
+
+  $schema['semaphore'] = array(
+    'description' => 'Table for holding semaphores, locks, flags, etc. that cannot be stored as Drupal variables since they must not be cached.',
+    'fields' => array(
+      'name' => array(
+        'description' => 'Primary Key: Unique name.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => ''
+      ),
+      'value' => array(
+        'description' => 'A value for the semaphore.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => ''
+      ),
+      'expire' => array(
+        'description' => 'A Unix timestamp with microseconds indicating when the semaphore should expire.',
+        'type' => 'float',
+        'size' => 'big',
+        'not null' => TRUE
+      ),
+    ),
+    'indexes' => array('value' => array('value')),
+    'primary key' => array('name'),
   );
 
   $schema['sessions'] = array(
@@ -1303,6 +1318,13 @@ function system_schema() {
         'length' => 64,
         'not null' => TRUE,
         'default' => '',
+      ),
+      'ssid' => array(
+        'description' => "Unique key: Secure session ID. The value is generated by PHP's Session API.",
+        'type' => 'varchar',
+        'length' => 64,
+        'not null' => FALSE,
+        'default' => NULL,
       ),
       'hostname' => array(
         'description' => 'The IP address that last used this session ID (sid).',
@@ -1334,6 +1356,9 @@ function system_schema() {
     'indexes' => array(
       'timestamp' => array('timestamp'),
       'uid' => array('uid'),
+    ),
+    'unique keys' => array(
+      'ssid' => array('ssid'),
     ),
     'foreign keys' => array(
       'uid' => array('users' => 'uid'),
@@ -1377,6 +1402,12 @@ function system_schema() {
         'not null' => TRUE,
         'default' => 0,
       ),
+      'bootstrap' => array(
+        'description' => "Boolean indicating whether this module is loaded during Drupal's early bootstrapping phase (e.g. even before the page cache is consulted).",
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
       'schema_version' => array(
         'description' => "The module's database schema version number. -1 if the module is not installed (its tables do not exist); 0 or the largest N of the module's hook_update_N() function that has either been run or existed when the module was first installed.",
         'type' => 'int',
@@ -1398,7 +1429,8 @@ function system_schema() {
     ),
     'primary key' => array('filename'),
     'indexes' => array(
-      'modules' => array('type', 'status', 'weight', 'filename'),
+      'modules' => array('type', 'status', 'weight', 'name'),
+      'bootstrap' => array('type', 'status', 'bootstrap', 'weight', 'name'),
       'type_name' => array('type', 'name'),
     ),
   );
@@ -1538,7 +1570,7 @@ function system_update_7003() {
     ':status' => 0,
     ':type' => $type,
   ));
-  while ($blocked = db_fetch_object($result)) {
+  foreach ($result as $blocked) {
     if (filter_var($blocked->mask, FILTER_VALIDATE_IP, FILTER_FLAG_NO_RES_RANGE) !== FALSE) {
       $ret[] = update_sql("INSERT INTO {blocked_ips} (ip) VALUES ('$blocked->mask')");
     }
@@ -1689,25 +1721,24 @@ function system_update_7005() {
  */
 function system_update_7006() {
   $ret = array();
-  db_drop_field($ret, 'menu_router', 'file');
   $schema['registry'] = array(
     'fields' => array(
       'name'   => array('type' => 'varchar', 'length' => 255, 'not null' => TRUE, 'default' => ''),
       'type'   => array('type' => 'varchar', 'length' => 9, 'not null' => TRUE, 'default' => ''),
       'filename'   => array('type' => 'varchar', 'length' => 255, 'not null' => TRUE, 'default' => ''),
       'module'   => array('type' => 'varchar', 'length' => 255, 'not null' => TRUE, 'default' => ''),
-      'suffix'   => array('type' => 'varchar', 'length' => 68, 'not null' => TRUE, 'default' => ''),
       'weight'   => array('type' => 'int', 'not null' => TRUE, 'default' => 0),
     ),
     'primary key' => array('name', 'type'),
     'indexes' => array(
-      'hook' => array('type', 'suffix', 'weight', 'module'),
+      'hook' => array('type', 'weight', 'module'),
     ),
   );
   $schema['registry_file'] = array(
     'fields' => array(
-      'filename'   => array('type' => 'varchar', 'length' => 255, 'not null' => TRUE, 'default' => ''),
-      'md5'   => array('type' => 'varchar', 'length' => 32, 'not null' => TRUE, 'default' => ''),
+      'filename'   => array('type' => 'varchar', 'length' => 255, 'not null' => TRUE),
+      'filectime'  => array('type' => 'int', 'not null' => TRUE, 'default' => 0),
+      'filemtime'  => array('type' => 'int', 'not null' => TRUE, 'default' => 0),
     ),
     'primary key' => array('filename'),
   );
@@ -1891,16 +1922,15 @@ function system_update_7013() {
     $timezone = 'UTC';
   }
   variable_set('date_default_timezone', $timezone);
-  drupal_set_message('The default time zone has been set to <em>' . check_plain($timezone) . '</em>. Please check the ' . l('date and time configuration page', 'admin/settings/regional-settings') . ' to configure it correctly.', 'warning');
+  drupal_set_message('The default time zone has been set to <em>' . check_plain($timezone) . '</em>. Please check the ' . l('date and time configuration page', 'admin/config/regional/settings') . ' to configure it correctly.', 'warning');
   return $ret;
 }
 
 /**
- * Drop the bootstrap column from the {system} table.
+ * Drop the bootstrap column from the {system} table. This was reverted.
  */
 function system_update_7014() {
   $ret = array();
-  db_drop_field($ret, 'system', 'bootstrap');
   return $ret;
 }
 
@@ -1984,7 +2014,7 @@ function system_update_7018() {
   $ret = array();
   db_drop_index($ret, 'system', 'modules');
   db_change_field($ret, 'system', 'type', 'type', array('type' => 'varchar', 'length' => 12, 'not null' => TRUE, 'default' => ''));
-  db_add_index($ret, 'system', 'modules', array('type', 'status', 'weight', 'filename'));
+  db_add_index($ret, 'system', 'modules', array('type', 'status', 'weight', 'name'));
   db_add_index($ret, 'system', 'type_name', array('type', 'name'));
   return $ret;
 }
@@ -2016,6 +2046,10 @@ function system_update_7021() {
     // Add new system generated main page content block.
     $ret[] = update_sql("INSERT INTO {block} (module, delta, theme, status, weight, region, pages, cache) VALUES ('system', 'main', '" . $theme->name . "', 1, 0, 'content', '', -1)");
   }
+
+  // Migrate blocks from left/right regions to first/second regions.
+  $ret[] = update_sql("UPDATE {block} SET region = 'sidebar_first' WHERE region = 'left'");
+  $ret[] = update_sql("UPDATE {block} SET region = 'sidebar_second' WHERE region = 'right'");
 
   // Migrate contact form information.
   if ($contact_help = variable_get('contact_form_information', '')) {
@@ -2237,6 +2271,203 @@ function system_update_7029() {
       'permission' => 'view own unpublished content',
     ))
     ->execute();
+  return $ret;
+}
+
+/**
+ * Add an index to node_comment_statistics on comment_count.
+ */
+function system_update_7030() {
+  $ret = array();
+  db_add_index($ret, 'node_comment_statistics', 'comment_count', array('comment_count'));
+  return $ret;
+}
+
+/**
+ * Add a missing index on the {menu_router} table.
+ */
+function system_update_7031() {
+  $ret = array();
+  db_add_index($ret, 'menu_router', 'tab_root_weight_title', array(array('tab_root', 64), 'weight', 'title'));
+  return $ret;
+}
+
+/**
+* Alter field hostname to identifier in the {flood} table.
+ */
+function system_update_7032() {
+  $ret = array();
+  db_drop_index($ret, 'flood', 'allow');
+  db_change_field($ret, 'flood', 'hostname', 'identifier', array('type' => 'varchar', 'length' => 128, 'not null' => TRUE, 'default' => ''));
+  db_add_index($ret, 'flood', 'allow', array('event', 'identifier', 'timestamp'));
+  return $ret;
+}
+
+/**
+ * Move CACHE_AGGRESSIVE to CACHE_NORMAL.
+ */
+function system_update_7033() {
+  $ret = array();
+  if (variable_get('cache') == 2) {
+    variable_set('cache', CACHE_NORMAL);
+    $ret[] = array('success' => TRUE, 'query' => "Aggressive caching was disabled and replaced with normal caching, please read the page caching section in default.settings.php for more information on how to enable similar functionality.");
+  }
+  return $ret;
+}
+
+/**
+ * Migrate the file_downloads setting and create the new {file} table.
+ */
+function system_update_7034() {
+  $ret = array();
+  $files_directory = variable_get('file_directory_path', NULL);
+  if (variable_get('file_downloads', 1) == 1) {
+    // Our default is public, so we don't need to set anything.
+    if (!empty($files_directory)) {
+      variable_set('file_public_path', $files_directory);
+    }
+  }
+  elseif (variable_get('file_downloads', 1) == 2) {
+    variable_set('file_default_scheme', 'private');
+    if (!empty($files_directory)) {
+      variable_set('file_private_path', $files_directory);
+    }
+  }
+  variable_del('file_downloads');
+
+  $schema['file'] = array(
+    'description' => 'Stores information for uploaded files.',
+    'fields' => array(
+      'fid' => array(
+        'description' => 'File ID.',
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'uid' => array(
+        'description' => 'The {user}.uid of the user who is associated with the file.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'filename' => array(
+        'description' => 'Name of the file with no path components. This may differ from the basename of the filepath if the file is renamed to avoid overwriting an existing file.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'uri' => array(
+        'description' => 'URI of file.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'filemime' => array(
+        'description' => "The file's MIME type.",
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'filesize' => array(
+        'description' => 'The size of the file in bytes.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'status' => array(
+        'description' => 'A bitmapped field indicating the status of the file the least sigifigant bit indicates temporary (1) or permanent (0). Temporary files older than DRUPAL_MAXIMUM_TEMP_FILE_AGE will be removed during a cron run.',
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'timestamp' => array(
+        'description' => 'UNIX timestamp for when the file was added.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+    ),
+    'indexes' => array(
+      'uid' => array('uid'),
+      'status' => array('status'),
+      'timestamp' => array('timestamp'),
+    ),
+    'unique keys' => array(
+      'uri' => array('uri'),
+    ),
+    'primary key' => array('fid'),
+  );
+  db_create_table($ret, 'file', $schema['file']);
+  return $ret;
+}
+
+/**
+ * Migrate upload module files to the new {file} table.
+ */
+function system_update_7035() {
+  $ret = array();
+  if (!db_table_exists('upload')) {
+    return $ret;
+  }
+  // The old {files} tables still exists.  We migrate core data from upload
+  // module, but any contrib module using it will need to do its own update.
+  $result = db_query('SELECT fid, uid, filename, filepath AS uri, filemime, filesize, status, timestamp FROM {files} f INNER JOIN {upload} u ON u.fid = f.fid', array(), array('fetch' => PDO::FETCH_ASSOC));
+
+  // We will convert filepaths to uri using the default schmeme
+  // and stripping off the existing file directory path.
+  $basename = variable_get('file_directory_path', conf_path() . '/files');
+  $scheme = variable_get('file_default_scheme', 'public') . '://';
+  $fids = array();
+  // TODO: does this function need to run in batch mode?
+  foreach ($result as $file) {
+    $file['uri'] = $scheme . str_replace($basename, '', $file['uri']);
+    $file['uri'] = file_stream_wrapper_uri_normalize($file['uri']);
+    db_insert('file')->fields($file)->execute();
+    $fids[] = $file['fid'];
+  }
+  // TODO: delete the found fids from {files}?
+  return $ret;
+}
+
+/**
+ * Split the 'access site in maintenance mode' permission from 'administer site configuration'.
+ */
+function system_update_7036() {
+  $ret = array();
+  // Get existing roles that can 'administer site configuration'.
+  $rids = db_query("SELECT rid FROM {role_permission} WHERE permission = :perm", array(':perm' => 'administer site configuration'))->fetchCol();
+  // None found.
+  if (empty($rids)) {
+    return $ret;
+  }
+  $insert = db_insert('role_permission')->fields(array('rid', 'permission'));
+  foreach ($rids as $rid) {
+    $insert->values(array(
+      'rid' => $rid,
+      'permission' => 'access site in maintenance mode',
+    ));
+  }
+  $insert->execute();
+
+  // Remove obsolete variable 'site_offline_message'.
+  // @see update_fix_d7_requirements().
+  variable_del('site_offline_message');
+
+  return $ret;
+}
+
+/**
+ * Rename {box} table to {block_custom}.
+ */
+function system_update_7037() {
+  $ret = array();
+  db_rename_table($ret, 'box', 'block_custom');
   return $ret;
 }
 

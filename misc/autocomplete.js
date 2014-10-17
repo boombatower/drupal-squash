@@ -7,7 +7,7 @@
 Drupal.behaviors.autocomplete = {
   attach: function (context, settings) {
     var acdb = [];
-    $('input.autocomplete:not(.autocomplete-processed)', context).each(function () {
+    $('input.autocomplete', context).once('autocomplete', function () {
       var uri = this.value;
       if (!acdb[uri]) {
         acdb[uri] = new Drupal.ACDB(uri);
@@ -16,7 +16,6 @@ Drupal.behaviors.autocomplete = {
         .attr('autocomplete', 'OFF')[0];
       $(input.form).submit(Drupal.autocompleteSubmit);
       new Drupal.jsAC(input, acdb[uri]);
-      $(this).addClass('autocomplete-processed');
     });
   }
 };
@@ -257,7 +256,8 @@ Drupal.ACDB.prototype.search = function (searchString) {
 
   // See if this string needs to be searched for anyway.
   searchString = searchString.replace(/^\s+|\s+$/, '');
-  if (searchString.charAt(searchString.length - 1) == ',') {
+  if (searchString.length <= 0 ||
+    searchString.charAt(searchString.length - 1) == ',') {
     return;
   }
 
@@ -289,7 +289,7 @@ Drupal.ACDB.prototype.search = function (searchString) {
         }
       },
       error: function (xmlhttp) {
-        alert(Drupal.ahahError(xmlhttp, db.uri));
+        alert(Drupal.ajaxError(xmlhttp, db.uri));
       }
     });
   }, this.delay);

@@ -28,7 +28,7 @@ function taxonomy_overview_vocabularies() {
     $form[$vocabulary->vid]['weight'] = array('#type' => 'weight', '#delta' => 10, '#default_value' => $vocabulary->weight);
     $form[$vocabulary->vid]['edit'] = array('#markup' => l(t('edit vocabulary'), "admin/structure/taxonomy/$vocabulary->vid"));
     $form[$vocabulary->vid]['list'] = array('#markup' => l(t('list terms'), "admin/structure/taxonomy/$vocabulary->vid/list"));
-    $form[$vocabulary->vid]['add'] = array('#markup' => l(t('add terms'), "admin/structure/taxonomy/$vocabulary->vid/add"));
+    $form[$vocabulary->vid]['add'] = array('#markup' => l(t('add terms'), "admin/structure/taxonomy/$vocabulary->vid/list/add"));
   }
 
   // Only make this form include a submit button and weight if more than one
@@ -73,13 +73,13 @@ function theme_taxonomy_overview_vocabularies($form) {
       $row[] = drupal_render($vocabulary['name']);
       $row[] = drupal_render($vocabulary['types']);
       if (isset($vocabulary['weight'])) {
-        $vocabulary['weight']['#attributes']['class'] = 'vocabulary-weight';
+        $vocabulary['weight']['#attributes']['class'] = array('vocabulary-weight');
         $row[] = drupal_render($vocabulary['weight']);
       }
       $row[] = drupal_render($vocabulary['edit']);
       $row[] = drupal_render($vocabulary['list']);
       $row[] = drupal_render($vocabulary['add']);
-      $rows[] = array('data' => $row, 'class' => 'draggable');
+      $rows[] = array('data' => $row, 'class' => array('draggable'));
     }
   }
 
@@ -103,7 +103,6 @@ function theme_taxonomy_overview_vocabularies($form) {
  * @see taxonomy_form_vocabulary_submit()
  */
 function taxonomy_form_vocabulary(&$form_state, $edit = array()) {
-  drupal_add_js(drupal_get_path('module', 'taxonomy') . '/vocabulary.js');
   if (!is_array($edit)) {
     $edit = (array)$edit;
   }
@@ -114,7 +113,6 @@ function taxonomy_form_vocabulary(&$form_state, $edit = array()) {
     'help' => '',
     'nodes' => array(),
     'hierarchy' => 0,
-    'relations' => 0,
     'tags' => 0,
     'multiple' => 0,
     'required' => 0,
@@ -131,7 +129,20 @@ function taxonomy_form_vocabulary(&$form_state, $edit = array()) {
     '#default_value' => $edit['name'],
     '#maxlength' => 255,
     '#required' => TRUE,
-    '#field_suffix' => ' <small id="vocabulary-name-suffix">&nbsp;</small>',
+    '#field_suffix' => ' <small id="edit-name-suffix">&nbsp</small>',
+  );
+  $js_settings = array(
+    'type' => 'setting',
+    'data' => array(
+      'machineReadableValue' => array(
+        'name' => array(
+          'text' => t('Machine name'),
+          'target' => 'machine-name',
+          'searchPattern' => '[^a-z0-9]+',
+          'replaceToken' => '_',
+        ),
+      ),
+    ),
   );
   $form['machine_name'] = array(
     '#type' => 'textfield',
@@ -140,6 +151,9 @@ function taxonomy_form_vocabulary(&$form_state, $edit = array()) {
     '#maxlength' => 255,
     '#description' => t('The unique machine readable name for this vocabulary, used for theme templates, can only contain lowercase letters, numbers and underscores.'),
     '#required' => TRUE,
+    '#attached' => array(
+      'js' => array(drupal_get_path('module', 'system') . '/system.js', $js_settings),
+    ),
   );
   $form['help'] = array(
     '#type' => 'textfield',
@@ -187,11 +201,6 @@ function taxonomy_form_vocabulary(&$form_state, $edit = array()) {
   $form['hierarchy'] = array(
     '#type' => 'value',
     '#value' => '0',
-  );
-  // Enable "related terms" by default.
-  $form['relations'] = array(
-    '#type' => 'value',
-    '#value' => '1',
   );
 
   $form['submit'] = array('#type' => 'submit', '#value' => t('Save'));
@@ -451,7 +460,7 @@ function taxonomy_overview_terms(&$form_state, $vocabulary) {
   $form['#page_entries'] = $page_entries;
   $form['#back_peddle'] = $back_peddle;
   $form['#forward_peddle'] = $forward_peddle;
-  $form['#empty_text'] = t('No terms available. <a href="@link">Add term</a>.', array('@link' => url('admin/structure/taxonomy/' . $vocabulary->vid . '/add')));
+  $form['#empty_text'] = t('No terms available. <a href="@link">Add term</a>.', array('@link' => url('admin/structure/taxonomy/' . $vocabulary->vid . '/list/add')));
 
   if (!$vocabulary->tags && $vocabulary->hierarchy < 2 && count($tree) > 1) {
     $form['submit'] = array(
@@ -607,9 +616,9 @@ function theme_taxonomy_overview_terms($form) {
       $row = array();
       $row[] = (isset($term['#term']['depth']) && $term['#term']['depth'] > 0 ? theme('indentation', $term['#term']['depth']) : '') . drupal_render($term['view']);
       if ($form['#parent_fields']) {
-        $term['tid']['#attributes']['class'] = 'term-id';
-        $term['parent']['#attributes']['class'] = 'term-parent';
-        $term['depth']['#attributes']['class'] = 'term-depth';
+        $term['tid']['#attributes']['class'] = array('term-id');
+        $term['parent']['#attributes']['class'] = array('term-parent');
+        $term['depth']['#attributes']['class'] = array('term-depth');
         $row[0] .= drupal_render($term['parent']) . drupal_render($term['tid']) . drupal_render($term['depth']);
       }
       $row[] = drupal_render($term['edit']);
@@ -622,32 +631,31 @@ function theme_taxonomy_overview_terms($form) {
   // Add necessary classes to rows.
   $row_position = 0;
   foreach ($rows as $key => $row) {
-    $classes = array();
+    $rows[$key]['class'] = array();
     if (isset($form['#parent_fields'])) {
-      $classes[] = 'draggable';
+      $rows[$key]['class'][] = 'draggable';
     }
 
     // Add classes that mark which terms belong to previous and next pages.
     if ($row_position < $back_peddle || $row_position >= $page_entries - $forward_peddle) {
-      $classes[] = 'taxonomy-term-preview';
+      $rows[$key]['class'][] = 'taxonomy-term-preview';
     }
 
     if ($row_position !== 0 && $row_position !== count($rows) - 1) {
       if ($row_position == $back_peddle - 1 || $row_position == $page_entries - $forward_peddle - 1) {
-        $classes[] = 'taxonomy-term-divider-top';
+        $rows[$key]['class'][] = 'taxonomy-term-divider-top';
       }
       elseif ($row_position == $back_peddle || $row_position == $page_entries - $forward_peddle) {
-        $classes[] = 'taxonomy-term-divider-bottom';
+        $rows[$key]['class'][] = 'taxonomy-term-divider-bottom';
       }
     }
 
     // Add an error class if this row contains a form error.
     foreach ($errors as $error_key => $error) {
       if (strpos($error_key, $key) === 0) {
-        $classes[] = 'error';
+        $rows[$key]['class'][] = 'error';
       }
     }
-    $rows[$key]['class'] = implode(' ', $classes);
     $row_position++;
   }
 
@@ -745,7 +753,6 @@ function taxonomy_form_term(&$form_state, $vocabulary, $edit = array()) {
     $exclude[] = $edit['tid'];
 
     $form['advanced']['parent'] = _taxonomy_term_select(t('Parents'), $parent, $vocabulary->vid, t('Parent terms') . '.', 1, '<' . t('root') . '>', $exclude);
-    $form['advanced']['relations'] = _taxonomy_term_select(t('Related terms'), array_keys(taxonomy_get_related($edit['tid'])), $vocabulary->vid, NULL, 1, '<' . t('none') . '>', array($edit['tid']));
   }
   $form['advanced']['synonyms'] = array(
     '#type' => 'textarea',

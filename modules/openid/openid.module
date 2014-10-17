@@ -15,6 +15,7 @@ function openid_menu() {
     'page callback' => 'openid_authentication_page',
     'access callback' => 'user_is_anonymous',
     'type' => MENU_CALLBACK,
+    'file' => 'openid.pages.inc',
   );
   $items['user/%user/openid'] = array(
     'title' => 'OpenID identities',
@@ -23,6 +24,7 @@ function openid_menu() {
     'access callback' => 'user_edit_access',
     'access arguments' => array(1),
     'type' => MENU_LOCAL_TASK,
+    'file' => 'openid.pages.inc',
   );
   $items['user/%user/openid/delete'] = array(
     'title' => 'Delete OpenID',
@@ -31,6 +33,7 @@ function openid_menu() {
     'access callback' => 'user_edit_access',
     'access arguments' => array(1),
     'type' => MENU_CALLBACK,
+    'file' => 'openid.pages.inc',
   );
   return $items;
 }
@@ -59,7 +62,7 @@ function openid_help($path, $arg) {
 /**
  * Implement hook_user_insert().
  */
-function openid_user_insert(&$edit, &$account, $category = NULL) {
+function openid_user_insert(&$edit, $account, $category) {
   if (isset($_SESSION['openid']['values'])) {
     // The user has registered after trying to login via OpenID.
     if (variable_get('user_email_verification', TRUE)) {
@@ -96,11 +99,11 @@ function _openid_user_login_form_alter(&$form, &$form_state) {
   $items = array();
   $items[] = array(
     'data' => l(t('Log in using OpenID'), '#'),
-    'class' => 'openid-link',
+    'class' => array('openid-link'),
   );
   $items[] = array(
     'data' => l(t('Cancel OpenID login'), '#'),
-    'class' => 'user-link',
+    'class' => array('user-link'),
   );
 
   $form['openid_links'] = array(
@@ -415,6 +418,8 @@ function openid_authentication($response) {
         // Load global $user and perform final login tasks.
         $form_state['uid'] = $account->uid;
         user_login_submit(array(), $form_state);
+        // Let other modules act on OpenID login
+        module_invoke_all('openid_response', $response, $account);
       }
     }
     else {
@@ -455,6 +460,8 @@ function openid_authentication($response) {
       // Load global $user and perform final login tasks.
       $form_state['uid'] = $account->uid;
       user_login_submit(array(), $form_state);
+      // Let other modules act on OpenID login
+      module_invoke_all('openid_response', $response, $account);
     }
     drupal_redirect_form($form, $form_state['redirect']);
   }

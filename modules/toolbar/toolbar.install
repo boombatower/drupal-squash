@@ -25,8 +25,8 @@ function toolbar_install() {
   // Add starter convenience shortcuts.
   menu_rebuild();
   $items = array(
-    'node/add' => 'Add',
-    'admin/content/node' => 'Find content',
+    'node/add' => 'Add content',
+    'admin/content' => 'Find content',
     'admin' => 'Dashboard',
   );
   $weight = -20;

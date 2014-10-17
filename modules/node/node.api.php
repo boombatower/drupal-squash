@@ -219,7 +219,7 @@ function hook_node_grants_alter(&$grants, $account, $op) {
  * Add mass node operations.
  *
  * This hook enables modules to inject custom operations into the mass operations
- * dropdown found at admin/content/node, by associating a callback function with
+ * dropdown found at admin/content, by associating a callback function with
  * the operation, which is called when the form is submitted. The callback function
  * receives one initial argument, which is an array of the checked nodes.
  *
@@ -342,6 +342,67 @@ function hook_node_load($nodes, $types) {
 }
 
 /**
+ * Control access to a node.
+ *
+ * Modules may implement this hook if they want to have a say in whether or not
+ * a given user has access to perform a given operation on a node.
+ *
+ * The administrative account (user ID #1) always passes any access check,
+ * so this hook is not called in that case. Users with the "bypass node access"
+ * permission may always view and edit content through the administrative
+ * interface.
+ *
+ * Note that not all modules will want to influence access on all
+ * node types. If your module does not want to actively grant or
+ * block access, return NODE_ACCESS_IGNORE or simply return nothing.
+ * Blindly returning FALSE will break other node access modules.
+ *
+ * @link http://api.drupal.org/api/group/node_access/7 More on the node access system @endlink
+ * @ingroup node_access
+ * @param $node
+ *   The node on which the operation is to be performed, or, if it does
+ *   not yet exist, the type of node to be created.
+ * @param $op
+ *   The operation to be performed. Possible values:
+ *   - "create"
+ *   - "delete"
+ *   - "update"
+ *   - "view"
+ * @param $account
+ *   A user object representing the user for whom the operation is to be
+ *   performed.
+ * @return
+ *   NODE_ACCESS_ALLOW if the operation is to be allowed;
+ *   NODE_ACCESS_DENY if the operation is to be denied;
+ *   NODE_ACCESSS_IGNORE to not affect this operation at all.
+ */
+function hook_node_access($node, $op, $account) {
+  $type = is_string($node) ? $node : (is_array($node) ? $node['type'] : $node->type);
+
+  if (in_array($type, nodeperms_get_configured_types())) {
+    if ($op == 'create' && user_access('create ' . $type . ' content', $account)) {
+      return NODE_ACCESS_ALLOW;
+    }
+
+    if ($op == 'update') {
+      if (user_access('edit any ' . $type . ' content', $account) || (user_access('edit own ' . $type . ' content', $account) && ($account->uid == $node->uid))) {
+        return NODE_ACCESS_ALLOW;
+      }
+    }
+
+    if ($op == 'delete') {
+      if (user_access('delete any ' . $type . ' content', $account) || (user_access('delete own ' . $type . ' content', $account) && ($account->uid == $node->uid))) {
+        return NODE_ACCESS_ALLOW;
+      }
+    }
+  }
+
+  // Returning nothing from this function would have the same effect.
+  return NODE_ACCESS_IGNORE;
+}
+
+
+/**
  * The node is about to be shown on the add/edit form.
  *
  * @param $node
@@ -425,7 +486,7 @@ function hook_node_update_index($node) {
   $text = '';
   $comments = db_query('SELECT subject, comment, format FROM {comment} WHERE nid = :nid AND status = :status', array(':nid' => $node->nid, ':status' => COMMENT_PUBLISHED));
   foreach ($comments as $comment) {
-    $text .= '<h2>' . check_plain($comment->subject) . '</h2>' . check_markup($comment->comment, $comment->format, '', FALSE);
+    $text .= '<h2>' . check_plain($comment->subject) . '</h2>' . check_markup($comment->comment, $comment->format);
   }
   return $text;
 }
@@ -509,42 +570,43 @@ function hook_node_build_alter($node, $build_mode) {
 }
 
 /**
- * Define module-provided node types.
+ * Defines module-provided node types.
  *
- * This is a hook used by node modules. This hook is required for modules to
- * define one or more node types. It is called to determine the names and the
- * attributes of a module's node types.
- *
+ * This hook allows a module to define one or more of its own node types. For
+ * example, the blog module uses it to define a blog node-type named "Blog
+ * entry." The name and attributes of each desired node type are specified in
+ * an array returned by the hook.
+ * 
  * Only module-provided node types should be defined through this hook. User-
  * provided (or 'custom') node types should be defined only in the 'node_type'
  * database table, and should be maintained by using the node_type_save() and
  * node_type_delete() functions.
  *
  * @return
- *   An array of information on the module's node types. The array contains a
- *   sub-array for each node type, with the machine-readable type name as the
- *   key. Each sub-array has up to 10 attributes. Possible attributes:
+ *   An array of information defining the module's node types. The array
+ *   contains a sub-array for each node type, with the machine-readable type
+ *   name as the key. Each sub-array has up to 10 attributes. Possible
+ *   attributes:
  *   - "name": the human-readable name of the node type. Required.
- *   - "module": a string telling Drupal how a module's functions map to hooks
- *      (i.e. if module is defined as example_foo, then example_foo_insert will
+ *   - "base": the base string used to construct callbacks corresponding to
+ *      this node type.
+ *      (i.e. if base is defined as example_foo, then example_foo_insert will
  *      be called when inserting a node of that type). This string is usually
- *      the name of the module in question, but not always. Required.
+ *      the name of the module, but not always. Required.
  *   - "description": a brief description of the node type. Required.
- *   - "help": text that will be displayed at the top of the submission form for
- *      this content type. Optional (defaults to '').
+ *   - "help": help information shown to the user when creating a node of
+ *      this type.. Optional (defaults to '').
  *   - "has_title": boolean indicating whether or not this node type has a title
  *      field. Optional (defaults to TRUE).
  *   - "title_label": the label for the title field of this content type.
  *      Optional (defaults to 'Title').
- *   - "has_body": boolean indicating whether or not this node type has a  body
+ *   - "has_body": boolean indicating whether or not this node type has a body
  *      field. Optional (defaults to TRUE).
  *   - "body_label": the label for the body field of this content type. Optional
  *      (defaults to 'Body').
- *   - "min_word_count": the minimum number of words for the body field to be
- *      considered valid for this content type. Optional (defaults to 0).
- *   - "locked": boolean indicating whether the machine-readable name of this
- *      content type can (FALSE) or cannot (TRUE) be edited by a site
- *      administrator. Optional (defaults to TRUE).
+ *   - "locked": boolean indicating whether the administrator can change the
+ *      machine name of this type. FALSE = changable (not locked),
+ *      TRUE = unchangable (locked). Optional (defaults to TRUE).
  *
  * The machine-readable name of a node type should contain only letters,
  * numbers, and underscores. Underscores will be converted into hyphens for the
@@ -558,12 +620,84 @@ function hook_node_build_alter($node, $build_mode) {
  */
 function hook_node_info() {
   return array(
-    'book' => array(
-      'name' => t('book page'),
-      'module' => 'book',
-      'description' => t("A book is a collaborative writing effort: users can collaborate writing the pages of the book, positioning the pages in the right order, and reviewing or modifying pages previously written. So when you have some information to share or when you read a page of the book and you didn't like it, or if you think a certain page could have been written better, you can do something about it."),
+    'blog' => array(
+      'name' => t('Blog entry'),
+      'base' => 'blog',
+      'description' => t('Use for multi-user blogs. Every user gets a personal blog.'),
     )
   );
+}
+
+/**
+ * Provide additional methods of scoring for core search results for nodes.
+ *
+ * A node's search score is used to rank it among other nodes matched by the
+ * search, with the highest-ranked nodes appearing first in the search listing.
+ *
+ * For example, a module allowing users to vote on content could expose an
+ * option to allow search results' rankings to be influenced by the average
+ * voting score of a node.
+ *
+ * All scoring mechanisms are provided as options to site administrators, and
+ * may be tweaked based on individual sites or disabled altogether if they do
+ * not make sense. Individual scoring mechanisms, if enabled, are assigned a
+ * weight from 1 to 10. The weight represents the factor of magnification of
+ * the ranking mechanism, with higher-weighted ranking mechanisms having more
+ * influence. In order for the weight system to work, each scoring mechanism
+ * must return a value between 0 and 1 for every node. That value is then
+ * multiplied by the administrator-assigned weight for the ranking mechanism,
+ * and then the weighted scores from all ranking mechanisms are added, which
+ * brings about the same result as a weighted average.
+ *
+ * @return
+ *   An associative array of ranking data. The keys should be strings,
+ *   corresponding to the internal name of the ranking mechanism, such as
+ *   'recent', or 'comments'. The values should be arrays themselves, with the
+ *   following keys available:
+ *   - "title": the human readable name of the ranking mechanism. Required.
+ *   - "join": part of a query string to join to any additional necessary
+ *     table. This is not necessary if the table required is already joined to
+ *     by the base query, such as for the {node} table. Other tables should use
+ *     the full table name as an alias to avoid naming collisions. Optional.
+ *   - "score": part of a query string to calculate the score for the ranking
+ *     mechanism based on values in the database. This does not need to be
+ *     wrapped in parentheses, as it will be done automatically; it also does
+ *     not need to take the weighted system into account, as it will be done
+ *     automatically. It does, however, need to calculate a decimal between
+ *     0 and 1; be careful not to cast the entire score to an integer by
+ *     inadvertantly introducing a variable argument. Required.
+ *   - "arguments": if any arguments are required for the score, they can be
+ *     specified in an array here.
+ */
+function hook_ranking() {
+  // If voting is disabled, we can avoid returning the array, no hard feelings.
+  if (variable_get('vote_node_enabled', TRUE)) {
+    return array(
+      'vote_average' => array(
+        'title' => t('Average vote'),
+        // Note that we use i.sid, the search index's search item id, rather than
+        // n.nid.
+        'join' => 'LEFT JOIN {vote_node_data} vote_node_data ON vote_node_data.nid = i.sid',
+        // The highest possible score should be 1, and the lowest possible score,
+        // always 0, should be 0.
+        'score' => 'vote_node_data.average / CAST(%f AS DECIMAL)',
+        // Pass in the highest possible voting score as a decimal argument.
+        'arguments' => array(variable_get('vote_score_max', 5)),
+      ),
+    );
+  }
+}
+
+
+/**
+ * Act on node type creation.
+ *
+ * This hook allows modules to take action when a node type is created.
+ *
+ * @param $info
+ *   The node type object which is being created.
+ */
+function hook_node_type_insert($info) {
 }
 
 /**
@@ -571,76 +705,27 @@ function hook_node_info() {
  *
  * This hook allows modules to take action when a node type is modified.
  *
- * @param $op
- *   What is being done to $info. Possible values:
- *   - "delete"
- *   - "insert"
- *   - "update"
  * @param $info
- *   The node type object on which $op is being performed.
+ *   The node type object which is being modified.
  */
-function hook_node_type($op, $info) {
-
-  switch ($op) {
-    case 'delete':
-      variable_del('comment_' . $info->type);
-      break;
-    case 'update':
-      if (!empty($info->old_type) && $info->old_type != $info->type) {
-        $setting = variable_get('comment_' . $info->old_type, COMMENT_NODE_OPEN);
-        variable_del('comment_' . $info->old_type);
-        variable_set('comment_' . $info->type, $setting);
-      }
-      break;
+function hook_node_type_update($info) {
+  if (!empty($info->old_type) && $info->old_type != $info->type) {
+    $setting = variable_get('comment_' . $info->old_type, COMMENT_NODE_OPEN);
+    variable_del('comment_' . $info->old_type);
+    variable_set('comment_' . $info->type, $setting);
   }
 }
 
 /**
- * Define access restrictions.
+ * Act on node type deletion.
  *
- * This hook allows node modules to limit access to the node types they
- * define.
+ * This hook allows modules to take action when a node type is deleted.
  *
- * @param $op
- *   The operation to be performed. Possible values:
- *   - "create"
- *   - "delete"
- *   - "update"
- *   - "view"
- * @param $node
- *   The node on which the operation is to be performed, or, if it does
- *   not yet exist, the type of node to be created.
- * @param $account
- *   A user object representing the user for whom the operation is to be
- *   performed.
- * @return
- *   TRUE if the operation is  to be allowed;
- *   FALSE if the operation is to be denied;
- *   NULL to not override the settings in the node_access table, or access
- *     control modules.
- *
- * The administrative account (user ID #1) always passes any access check,
- * so this hook is not called in that case. If this hook is not defined for
- * a node type, all access checks will fail, so only the administrator will
- * be able to see content of that type. However, users with the "administer
- * nodes" permission may always view and edit content through the
- * administrative interface.
- * @see http://api.drupal.org/api/group/node_access/7
- *
- * For a detailed usage example, see node_example.module.
- *
- * @ingroup node_access
+ * @param $info
+ *   The node type object which is being deleted.
  */
-function hook_access($op, $node, $account) {
-  if ($op == 'create') {
-    return user_access('create stories', $account);
-  }
-
-  if ($op == 'update' || $op == 'delete') {
-    if (user_access('edit own stories', $account) && ($account->uid == $node->uid)) {
-      return TRUE;
-    }
-  }
+function hook_node_type_delete($info) {
+  variable_del('comment_' . $info->type);
 }
 
 /**
@@ -677,7 +762,7 @@ function hook_prepare($node) {
   if ($file = file_check_upload($field_name)) {
     $file = file_save_upload($field_name, _image_filename($file->filename, NULL, TRUE));
     if ($file) {
-      if (!image_get_info($file->filepath)) {
+      if (!image_get_info($file->uri)) {
         form_set_error($field_name, t('Uploaded file is not a valid image'));
         return;
       }
@@ -685,7 +770,7 @@ function hook_prepare($node) {
     else {
       return;
     }
-    $node->images['_original'] = $file->filepath;
+    $node->images['_original'] = $file->uri;
     _image_build_derivatives($node, TRUE);
     $node->new_file = TRUE;
   }
@@ -764,8 +849,12 @@ function hook_form($node, $form_state) {
  * For a detailed usage example, see node_example.module.
  */
 function hook_insert($node) {
-  db_query("INSERT INTO {mytable} (nid, extra)
-    VALUES (%d, '%s')", $node->nid, $node->extra);
+  db_insert('mytable')
+    ->fields(array(
+      'nid' => $node->nid,
+      'extra' => $node->extra,
+    ))
+    ->execute();
 }
 
 /**
@@ -806,8 +895,10 @@ function hook_load($nodes) {
  * For a detailed usage example, see node_example.module.
  */
 function hook_update($node) {
-  db_query("UPDATE {mytable} SET extra = '%s' WHERE nid = %d",
-    $node->extra, $node->nid);
+  db_update('mytable')
+    ->fields(array('extra' => $node->extra))
+    ->condition('nid', $node->nid)
+    ->execute();
 }
 
 /**
@@ -848,20 +939,20 @@ function hook_validate($node, &$form) {
  * information particular to that node type.
  *
  * @param $node
- *   The node to be displayed.
+ *   The node to be displayed, as returned by node_load().
  * @param $build_mode
- *   Build mode, e.g. 'full', 'teaser'...
+ *   Build mode, e.g. 'full', 'teaser', ...
  * @return
  *   $node. The passed $node parameter should be modified as necessary and
  *   returned so it can be properly presented. Nodes are prepared for display
- *   by assembling a structured array in $node->content, rather than directly
- *   manipulating $node->body and $node->teaser. The format of this array is
- *   the same used by the Forms API. As with FormAPI arrays, the #weight
- *   property can be used to control the relative positions of added elements.
- *   If for some reason you need to change the body or teaser returned by
- *   node_prepare(), you can modify $node->content['body']['#value']. Note
- *   that this will be the un-rendered content. To modify the rendered output,
- *   see hook_node($op = 'alter').
+ *   by assembling a structured array, formatted as in the Form API, in
+ *   $node->content. As with Form API arrays, the #weight property can be
+ *   used to control the relative positions of added elements. After this
+ *   hook is invoked, node_build() calls field_attach_view() to add field
+ *   views to $node->content, and then invokes hook_node_view() and
+ *   hook_node_build_alter(), so if you want to affect the final
+ *   view of the node, you might consider implementing one of these hooks
+ *   instead.
  *
  * For a detailed usage example, see node_example.module.
  */

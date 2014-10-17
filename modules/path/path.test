@@ -37,7 +37,7 @@ class PathTestCase extends DrupalWebTestCase {
     $edit = array();
     $edit['src'] = 'node/' . $node1->nid;
     $edit['dst'] = $this->randomName(8);
-    $this->drupalPost('admin/settings/path/add', $edit, t('Create new alias'));
+    $this->drupalPost('admin/config/search/path/add', $edit, t('Create new alias'));
 
     // Visit the system path for the node and confirm a cache entry is
     // created.
@@ -62,7 +62,7 @@ class PathTestCase extends DrupalWebTestCase {
     $edit = array();
     $edit['src'] = 'node/' . $node1->nid;
     $edit['dst'] = $this->randomName(8);
-    $this->drupalPost('admin/settings/path/add', $edit, t('Create new alias'));
+    $this->drupalPost('admin/config/search/path/add', $edit, t('Create new alias'));
 
     // Confirm that the alias works.
     $this->drupalGet($edit['dst']);
@@ -73,7 +73,7 @@ class PathTestCase extends DrupalWebTestCase {
 
     $previous = $edit['dst'];
     $edit['dst'] = $this->randomName(8);
-    $this->drupalPost('admin/settings/path/edit/' . $pid, $edit, t('Update alias'));
+    $this->drupalPost('admin/config/search/path/edit/' . $pid, $edit, t('Update alias'));
 
     // Confirm that the alias works.
     $this->drupalGet($edit['dst']);
@@ -90,13 +90,13 @@ class PathTestCase extends DrupalWebTestCase {
     // Set alias to second test node.
     $edit['src'] = 'node/' . $node2->nid;
     // leave $edit['dst'] the same
-    $this->drupalPost('admin/settings/path/add', $edit, t('Create new alias'));
+    $this->drupalPost('admin/config/search/path/add', $edit, t('Create new alias'));
 
     // Confirm no duplicate was created.
     $this->assertRaw(t('The alias %alias is already in use in this language.', array('%alias' => $edit['dst'])), 'Attempt to move alias was rejected.');
 
     // Delete alias.
-    $this->drupalPost('admin/settings/path/delete/' . $pid, array(), t('Confirm'));
+    $this->drupalPost('admin/config/search/path/delete/' . $pid, array(), t('Confirm'));
 
     // Confirm that the alias no longer works.
     $this->drupalGet($edit['dst']);
@@ -179,7 +179,8 @@ class PathLanguageTestCase extends DrupalWebTestCase {
     $edit = array();
     $edit['langcode'] = 'fr';
 
-    $this->drupalPost('admin/international/language/add', $edit, t('Add language'));
+    $this->drupalPost('admin/config/regional/language/add', $edit, t('Add language'));
+    drupal_static_reset('language_list');
 
     // Set language negotiation to "Path prefix with fallback".
     variable_set('language_negotiation', LANGUAGE_NEGOTIATION_PATH);
@@ -212,7 +213,8 @@ class PathLanguageTestCase extends DrupalWebTestCase {
     $this->clickLink(t('add translation'));
     $edit = array();
     $edit['title'] = $this->randomName();
-    $edit['body[0][value]'] = $this->randomName();
+    $langcode = FIELD_LANGUAGE_NONE;
+    $edit["body[$langcode][0][value]"] = $this->randomName();
     $edit['path'] = $this->randomName();
     $this->drupalPost(NULL, $edit, t('Save'));
 

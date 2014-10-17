@@ -46,10 +46,10 @@
  *   - node-type-[node type]: When viewing a single node, the type of that node.
  *     For example, if the node is a "Blog entry" it would result in "node-type-blog".
  *     Note that the machine name will often be in a short form of the human readable label.
- *   The following only apply with the default 'left' and 'right' block regions:
+ *   The following only apply with the default 'sidebar_first' and 'sidebar_second' block regions:
  *     - two-sidebars: When both sidebars have content.
  *     - no-sidebars: When no sidebar content exists.
- *     - one-sidebar and sidebar-left or sidebar-right: A combination of the two classes
+ *     - one-sidebar and sidebar-first or sidebar-second: A combination of the two classes
  *       when only one of the two sidebars have content.
  *
  * Site identity:
@@ -68,6 +68,8 @@
  * - $secondary_menu (array): An array containing the Secondary menu links for
  *   the site, if they have been configured.
  * - $breadcrumb: The breadcrumb trail for the current page.
+ * - $action_links: Actions local to the page, such as 'Add menu' on the menu
+ *   administration interface.
  *
  * Page content (in order of occurrence in the default page.tpl.php):
  * - $title: The page title, for use in the actual HTML content.
@@ -77,14 +79,18 @@
  * - $help: Dynamic help text, mostly for admin pages.
  * - $content: The main content of the current page.
  * - $feed_icons: A string of all feed icons for the current page.
- * - $left: Items for the left sidebar.
- * - $right: Items for the right sidebar.
+ * - $sidebar_first: Items for the first sidebar.
+ * - $sidebar_second: Items for the second sidebar.
  * - $highlight: Items for the highlighted content region.
  *
- * Footer/closing data:
+ * Opening and closing data:
+ * - $page_top: Initial markup from any modules that have altered the
+ *   page. This variable should always be output first, before all other dynamic
+ *   content.
  * - $footer : The footer region.
- * - $closure: Final closing markup from any modules that have altered the page.
- *   This variable should always be output last, after all other dynamic content.
+ * - $page_bottom: Final closing markup from any modules that have altered the
+ *   page. This variable should always be output last, after all other dynamic
+ *   content.
  *
  * @see template_preprocess()
  * @see template_preprocess_page()
@@ -104,11 +110,8 @@
 </head>
 <body class="<?php print $classes; ?>">
 
-  <?php if ($page_top): ?>
-    <div id="page-top-region" class="clearfix">
-      <?php print $page_top; ?>
-    </div>
-  <?php endif; ?>
+  <?php print $page_top; ?>
+
   <div id="page-wrapper"><div id="page">
 
     <div id="header"><div class="section clearfix">
@@ -153,7 +156,7 @@
 
     <?php if ($main_menu): ?>
       <div id="navigation"><div class="section">
-        <?php print theme('links', $main_menu, array('id' => 'main-menu', 'class' => 'links clearfix')); ?>
+        <?php print theme('links', $main_menu, array('id' => 'main-menu', 'class' => array('links', 'clearfix')), t('Main menu')); ?>
       </div></div> <!-- /.section, /#navigation -->
     <?php endif; ?>
 
@@ -170,34 +173,35 @@
         <?php if ($title): ?><h1 class="title" id="page-title"><?php print $title; ?></h1><?php endif; ?>
         <?php if ($tabs): ?><div class="tabs"><?php print $tabs; ?></div><?php endif; ?>
         <?php print $help; ?>
+        <?php if ($action_links): ?><ul class="action-links"><?php print $action_links; ?></ul><?php endif; ?>
         <div id="content-area" class="region">
           <?php print $content; ?>
         </div> <!-- /#content-area -->
         <?php print $feed_icons; ?>
       </div></div> <!-- /.section, /#content -->
 
-      <?php if ($left): ?>
-        <div id="sidebar-left" class="column sidebar"><div class="section region">
-          <?php print $left; ?>
-        </div></div> <!-- /.section, /#sidebar-left -->
+      <?php if ($sidebar_first): ?>
+        <div id="sidebar-first" class="column sidebar"><div class="section region">
+          <?php print $sidebar_first; ?>
+        </div></div> <!-- /.section, /#sidebar-first -->
       <?php endif; ?>
 
-      <?php if ($right): ?>
-        <div id="sidebar-right" class="column sidebar"><div class="section region">
-          <?php print $right; ?>
-        </div></div> <!-- /.section, /#sidebar-right -->
+      <?php if ($sidebar_second): ?>
+        <div id="sidebar-second" class="column sidebar"><div class="section region">
+          <?php print $sidebar_second; ?>
+        </div></div> <!-- /.section, /#sidebar-second -->
       <?php endif; ?>
 
     </div></div> <!-- /#main, /#main-wrapper -->
 
     <div id="footer"><div class="section">
-      <?php print theme('links', $secondary_menu, array('id' => 'secondary-menu', 'class' => 'links clearfix')); ?>
+      <?php print theme('links', $secondary_menu, array('id' => 'secondary-menu', 'class' => array('links', 'clearfix')), t('Secondary menu')); ?>
       <?php if ($footer): ?><div id="footer-region" class="region"><?php print $footer; ?></div><?php endif; ?>
     </div></div> <!-- /.section, /#footer -->
 
   </div></div> <!-- /#page, /#page-wrapper -->
 
-  <?php print $closure; ?>
+  <?php print $page_bottom; ?>
 
 </body>
 </html>

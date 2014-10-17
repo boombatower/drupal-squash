@@ -10,15 +10,26 @@
  * implementation during normal operations would have a negative impact
  * on performance.
  */
+class DrupalFakeCache implements DrupalCacheInterface {
+  function __construct($bin) {
+  }
 
-function cache_get($key, $table = 'cache') {
-  return FALSE;
-}
+  function get($cid) {
+    return FALSE;
+  }
 
-function cache_set($cid, $data, $table = 'cache', $expire = CACHE_PERMANENT, $headers = NULL) {
-  return;
-}
+  function getMultiple(&$cids) {
+    return array();
+  }
 
-function cache_clear_all($cid = NULL, $table = NULL, $wildcard = FALSE) {
-  return;
+
+  function set($cid, $data, $expire = CACHE_PERMANENT, array $headers = NULL) {
+  }
+
+  function clear($cid = NULL, $wildcard = FALSE) {
+  }
+
+  function isEmpty() {
+    return TRUE;
+  }
 }

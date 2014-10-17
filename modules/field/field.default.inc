@@ -11,17 +11,17 @@
  * the corresponding field_attach_[operation]() function.
  */
 
-function field_default_extract_form_values($obj_type, $object, $field, $instance, &$items, $form, &$form_state) {
+function field_default_extract_form_values($obj_type, $object, $field, $instance, $langcode, &$items, $form, &$form_state) {
   $field_name = $field['field_name'];
 
-  if (isset($form_state['values'][$field_name])) {
-    $items = $form_state['values'][$field_name];
+  if (isset($form_state['values'][$field_name][$langcode])) {
+    $items = $form_state['values'][$field_name][$langcode];
     // Remove the 'value' of the 'add more' button.
     unset($items[$field_name . '_add_more']);
   }
 }
 
-function field_default_submit($obj_type, $object, $field, $instance, &$items, $form, &$form_state) {
+function field_default_submit($obj_type, $object, $field, $instance, $langcode, &$items, $form, &$form_state) {
   $field_name = $field['field_name'];
 
   // Reorder items to account for drag-n-drop reordering.
@@ -40,84 +40,31 @@ function field_default_submit($obj_type, $object, $field, $instance, &$items, $f
  * This can happen with programmatic saves, or on form-based creation where
  * the current user doesn't have 'edit' permission for the field.
  */
-function field_default_insert($obj_type, $object, $field, $instance, &$items) {
+function field_default_insert($obj_type, $object, $field, $instance, $langcode, &$items) {
   // _field_invoke() populates $items with an empty array if the $object has no
   // entry for the field, so we check on the $object itself.
-  if (!property_exists($object, $field['field_name']) && !empty($instance['default_value_function'])) {
-    $function = $instance['default_value_function'];
-    if (drupal_function_exists($function)) {
-      $items = $function($obj_type, $object, $field, $instance);
-    }
+  // We also check that the current field translation is actually defined before
+  // assigning it a default value. This way we ensure that only the intended
+  // languages get a default value. Otherwise we could have default values for
+  // not yet open languages.
+  if (empty($object) || !property_exists($object, $field['field_name']) ||
+    (isset($object->{$field['field_name']}[$langcode]) && count($object->{$field['field_name']}[$langcode]) == 0)) {
+    $items = field_get_default_value($obj_type, $object, $field, $instance, $langcode);
   }
 }
 
 /**
- * The 'view' operation constructs the $object in a way that you can use
- * drupal_render() to display the formatted output for an individual field.
- * i.e. print drupal_render($object->content['field_foo']);
+ * Default field 'view' operation.
  *
- * The code supports both single value formatters, which theme an individual
- * item value, and multiple value formatters, which theme all values for the
- * field in a single theme. The multiple value formatters could be used, for
- * instance, to plot field values on a single map or display them in a graph.
- * Single value formatters are the default, multiple value formatters can be
- * designated as such in formatter_info().
- *
- * The $object array will look like:
- *   $object->content['field_foo'] = array(
- *     '#theme' => 'field',
- *     '#title' => 'label'
- *     '#field_name' => 'field_name',
- *     '#object' => $object,
- *     '#object_type' => $obj_type,
- *     // Value of the $build_mode param of hook_node('view').
- *     '#build_mode' => $build_mode,
- *     'items' =>
- *       0 => array(
- *         '#item' => $items[0],
- *         // Only for 'single-value' formatters
- *         '#theme' => $theme,
- *         '#field_name' => 'field_name',
- *         '#bundle' => $bundle,
- *         '#formatter' => $formatter_name,
- *         '#settings' => $formatter_settings,
- *         '#object' => $object,
- *         '#object_type' => $obj_type,
- *         '#delta' => 0,
- *       ),
- *       1 => array(
- *         '#item' => $items[1],
- *         // Only for 'single-value' formatters
- *         '#theme' => $theme,
- *         '#field_name' => 'field_name',
- *         '#bundle' => $bundle_name,
- *         '#formatter' => $formatter_name,
- *         '#settings' => $formatter_settings,
- *         '#object' => $object,
- *         '#object_type' => $obj_type,
- *         '#delta' => 1,
- *       ),
- *       // Only for 'multiple-value' formatters
- *       '#theme' => $theme,
- *       '#field_name' => 'field_name',
- *       '#bundle' => $bundle_name,
- *       '#formatter' => $formatter_name,
- *       '#settings' => $formatter_settings,
- *     ),
- *   );
+ * @see field_attach_view()
  */
-function field_default_view($obj_type, $object, $field, $instance, $items, $build_mode) {
-  list($id, $vid, $bundle) = field_attach_extract_ids($obj_type, $object);
+function field_default_view($obj_type, $object, $field, $instance, $langcode, $items, $build_mode) {
+  list($id, $vid, $bundle) = field_extract_ids($obj_type, $object);
 
   $addition = array();
+  $display = $instance['display'][$build_mode];
 
-  // If we don't have specific settings for the current build_mode, we use the
-  // (required) 'full' build_mode.
-  $display = isset($instance['display'][$build_mode]) ? $instance['display'][$build_mode] : $instance['display']['full'];
-  // Ensure we have a valid formatter and formatter settings.
-  $display = _field_get_formatter($display, $field);
-
-  if ($display['type'] && $display['type'] !== 'hidden') {
+  if ($display['type'] !== 'hidden') {
     $theme = 'field_formatter_' . $display['type'];
     $single = (field_behaviors_formatter('multiple values', $display) == FIELD_BEHAVIOR_DEFAULT);
 
@@ -135,12 +82,13 @@ function field_default_view($obj_type, $object, $field, $instance, $items, $buil
 
     $element = $info + array(
       '#theme' => 'field',
-      '#weight' => $instance['weight'],
+      '#weight' => $display['weight'],
       '#title' => check_plain(t($instance['label'])),
       '#access' => field_access('view', $field),
       '#label_display' => $label_display,
       '#build_mode' => $build_mode,
-      '#single' => $single,
+      '#language' => $langcode,
+      '#formatter_single' => $single,
       'items' => array(),
     );
 
@@ -155,9 +103,9 @@ function field_default_view($obj_type, $object, $field, $instance, $items, $buil
     // Append formatter information either on each item ('single-value' formatter)
     // or at the upper 'items' level ('multiple-value' formatter)
     $format_info = $info + array(
+      '#theme' => $theme,
       '#formatter' => $display['type'],
       '#settings' => $display['settings'],
-      '#theme' => $theme,
     );
 
     if ($single) {
@@ -172,10 +120,11 @@ function field_default_view($obj_type, $object, $field, $instance, $items, $buil
 
     $addition = array($field['field_name'] => $element);
   }
+
   return $addition;
 }
 
-function field_default_prepare_translation($obj_type, $object, $field, $instance, &$items) {
+function field_default_prepare_translation($obj_type, $object, $field, $instance, $langcode, &$items) {
   $addition = array();
   if (isset($object->translation_source->$field['field_name'])) {
     $addition[$field['field_name']] = $object->translation_source->$field['field_name'];

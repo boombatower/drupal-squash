@@ -11,15 +11,13 @@
  *   print a subset such as render($content['field_example']). Use
  *   hide($content['field_example']) to temporarily suppress the printing of a
  *   given element.
- * - $picture: The authors picture of the node output from
- *   theme_user_picture().
+ * - $user_picture: The node author's picture from user-picture.tpl.php.
  * - $date: Formatted creation date (use $created to reformat with
  *   format_date()).
  * - $name: Themed username of node author output from theme_username().
  * - $node_url: Direct url of the current node.
  * - $terms: the themed list of taxonomy term links output from theme_links().
- * - $submitted: themed submission information output from
- *   theme_node_submitted().
+ * - $display_submitted: whether submission information should be displayed.
  * - $classes: String of classes that can be used to style contextually through
  *   CSS. It can be manipulated through the variable $classes_array from
  *   preprocess functions. The default values can be one or more of the following:
@@ -60,28 +58,42 @@
  * - $logged_in: Flags true when the current user is a logged-in member.
  * - $is_admin: Flags true when the current user is an administrator.
  *
+ * Field variables: for each field instance attached to the node a corresponding
+ * variable is defined, e.g. $node->body becomes $body. When needing to access
+ * a field's raw values, developers/themers are strongly encouraged to use these
+ * variables. Otherwise they will have to explicitly specify the desired field
+ * language, e.g. $node->body['en'], thus overriding any language negotiation
+ * rule that was previously applied.
+ *
  * @see template_preprocess()
  * @see template_preprocess_node()
  * @see template_process()
  */
 ?>
-<div id="node-<?php print $node->nid; ?>" class="<?php print $classes ?> clearfix">
+<div id="node-<?php print $node->nid; ?>" class="<?php print $classes; ?> clearfix"<?php print $attributes; ?>>
 
-<?php print $picture ?>
+  <?php print $user_picture; ?>
 
-<?php if (!$page): ?>
-  <h2><a href="<?php print $node_url ?>"><?php print $title ?></a></h2>
-<?php endif; ?>
-
-  <div class="meta">
-  <?php if ($submitted): ?>
-    <span class="submitted"><?php print $submitted ?></span>
+  <?php if (!$page): ?>
+    <h2<?php print $title_attributes; ?>><a href="<?php print $node_url; ?>"><?php print $title; ?></a></h2>
   <?php endif; ?>
 
-  <?php if (!empty($content['links']['terms'])): ?>
-    <div class="terms terms-inline"><?php render($content['links']['terms']) ?></div>
-  <?php endif;?>
-  </div>
+  <?php if ($display_submitted || !empty($content['links']['terms'])): ?>
+    <div class="meta">
+      <?php if ($display_submitted): ?>
+        <span class="submitted">
+          <?php
+            print t('Submitted by !username on @datetime',
+              array('!username' => $name, '@datetime' => $date));
+          ?>
+        </span>
+      <?php endif; ?>
+
+      <?php if (!empty($content['links']['terms'])): ?>
+        <div class="terms terms-inline"><?php print render($content['links']['terms']); ?></div>
+      <?php endif; ?>
+    </div>
+  <?php endif; ?>
 
   <div class="content">
     <?php

@@ -31,7 +31,7 @@ function statistics_node_tracker() {
     $rows = array();
     foreach ($result as $log) {
       $rows[] = array(
-        array('data' => format_date($log->timestamp, 'small'), 'class' => 'nowrap'),
+        array('data' => format_date($log->timestamp, 'short'), 'class' => array('nowrap')),
         _statistics_link($log->url),
         theme('username', $log),
         l(t('details'), "admin/reports/access/$log->aid"),
@@ -43,9 +43,13 @@ function statistics_node_tracker() {
     }
 
     drupal_set_title($node->title);
-    $output = theme('table', $header, $rows);
-    $output .= theme('pager', NULL);
-    return $output;
+    $build['statistics_table'] = array(
+      '#theme' => 'table', 
+      '#header' => $header, 
+      '#rows' => $rows
+    );
+    $build['statistics_pager'] = array('#theme' => 'pager');
+    return $build;
   }
   else {
     drupal_not_found();
@@ -70,7 +74,7 @@ function statistics_user_tracker() {
     $rows = array();
     foreach ($result as $log) {
       $rows[] = array(
-        array('data' => format_date($log->timestamp, 'small'), 'class' => 'nowrap'),
+        array('data' => format_date($log->timestamp, 'short'), 'class' => array('nowrap')),
         _statistics_format_item($log->title, $log->path),
         l(t('details'), "admin/reports/access/$log->aid"));
     }
@@ -80,9 +84,13 @@ function statistics_user_tracker() {
     }
 
     drupal_set_title($account->name);
-    $output = theme('table', $header, $rows);
-    $output .= theme('pager', NULL);
-    return $output;
+    $build['statistics_table'] = array(
+      '#theme' => 'table', 
+      '#header' => $header, 
+      '#rows' => $rows
+    );
+    $build['statistics_pager'] = array('#theme' => 'pager');
+    return $build;
   }
   else {
     drupal_not_found();

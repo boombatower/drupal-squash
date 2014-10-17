@@ -9,11 +9,11 @@
 /**
  * Create a separate form element for each field.
  */
-function field_default_form($obj_type, $object, $field, $instance, $items, &$form, &$form_state, $get_delta = NULL) {
+function field_default_form($obj_type, $object, $field, $instance, $langcode, $items, &$form, &$form_state, $get_delta = NULL) {
   // This could be called with no object, as when a UI module creates a
   // dummy form to set default values.
   if ($object) {
-    list($id, , ) = field_attach_extract_ids($obj_type, $object);
+    list($id, , ) = field_extract_ids($obj_type, $object);
   }
   $addition = array();
 
@@ -36,16 +36,10 @@ function field_default_form($obj_type, $object, $field, $instance, $items, &$for
     'field' => $field,
     'instance' => $instance,
   );
-  // TODO : why do we need this ?
-  $form['#cache'] = FALSE;
 
-  // Populate widgets with default values if we're creating a new object.
-  if (empty($items) && empty($id) && !empty($instance['default_value_function'])) {
-    $items = array();
-    $function = $instance['default_value_function'];
-    if (drupal_function_exists($function)) {
-      $items = $function($obj_type, $object, $field, $instance);
-    }
+  // Populate widgets with default values when creating a new object.
+  if (empty($items) && empty($id)) {
+    $items = field_get_default_value($obj_type, $object, $field, $instance, $langcode);
   }
 
   $form_element = array();
@@ -54,7 +48,7 @@ function field_default_form($obj_type, $object, $field, $instance, $items, &$for
   // and we are displaying an individual element, process the multiple value
   // form.
   if (!isset($get_delta) && field_behaviors_widget('multiple values', $instance) == FIELD_BEHAVIOR_DEFAULT) {
-    $form_element = field_multiple_value_form($field, $instance, $items, $form, $form_state);
+    $form_element = field_multiple_value_form($field, $instance, $langcode, $items, $form, $form_state);
   }
   // If the widget is handling multiple values (e.g Options),
   // or if we are displaying an individual element, just get a single form
@@ -62,8 +56,8 @@ function field_default_form($obj_type, $object, $field, $instance, $items, &$for
   else {
     $delta = isset($get_delta) ? $get_delta : 0;
     $function = $instance['widget']['module'] . '_field_widget';
-    if (drupal_function_exists($function)) {
-      if ($element = $function($form, $form_state, $field, $instance, $items, $delta)) {
+    if (function_exists($function)) {
+      if ($element = $function($form, $form_state, $field, $instance, $langcode, $items, $delta)) {
         $defaults = array(
           '#required' => $get_delta > 0 ? FALSE : $instance['required'],
           '#columns'  => array_keys($field['columns']),
@@ -92,10 +86,23 @@ function field_default_form($obj_type, $object, $field, $instance, $items, &$for
     $defaults = array(
       '#field_name' => $field['field_name'],
       '#tree' => TRUE,
-      '#weight' => $instance['weight'],
+      '#weight' => $instance['widget']['weight'],
     );
 
-    $addition[$field['field_name']] = array_merge($form_element, $defaults);
+    $form_element = array_merge($form_element, $defaults);
+
+    // Add the field form element as a child keyed by language code to match the
+    // field data structure: $object->{$field_name}[$langcode][$delta][$column].
+    // The '#language' key can be used to access the field's form element when
+    // $langcode is unknown. The #weight property is inherited from the field's
+    // form element.
+    $addition[$field['field_name']] = array(
+      '#tree' => TRUE,
+      '#weight' => $form_element['#weight'],
+      '#language' => $langcode,
+      $langcode => $form_element,
+    );
+
     $form['#fields'][$field['field_name']]['form_path'] = array($field['field_name']);
   }
 
@@ -110,7 +117,7 @@ function field_default_form($obj_type, $object, $field, $instance, $items, &$for
  * - AHAH-'add more' button
  * - drag-n-drop value reordering
  */
-function field_multiple_value_form($field, $instance, $items, &$form, &$form_state) {
+function field_multiple_value_form($field, $instance, $langcode, $items, &$form, &$form_state) {
   $field = field_info_field($instance['field_name']);
   $field_name = $field['field_name'];
 
@@ -134,8 +141,7 @@ function field_multiple_value_form($field, $instance, $items, &$form, &$form_sta
   $title = check_plain(t($instance['label']));
   $description = field_filter_xss(t($instance['description']));
 
-  $bundle_name_url_css = str_replace('_', '-', $instance['bundle']);
-  $field_name_url_css = str_replace('_', '-', $field_name);
+  $wrapper_id = str_replace('_', '-', $field_name) . '-wrapper';
 
   $form_element = array(
     '#theme' => 'field_multiple_value_form',
@@ -143,14 +149,15 @@ function field_multiple_value_form($field, $instance, $items, &$form, &$form_sta
     '#title' => $title,
     '#required' => $instance['required'],
     '#description' => $description,
-    '#prefix' => '<div id="' . $field_name_url_css . '-wrapper">',
+    '#prefix' => '<div id="' . $wrapper_id . '">',
     '#suffix' => '</div>',
+    '#max_delta' => $max,
   );
 
   $function = $instance['widget']['module'] . '_field_widget';
-  if (drupal_function_exists($function)) {
+  if (function_exists($function)) {
     for ($delta = 0; $delta <= $max; $delta++) {
-      if ($element = $function($form, $form_state, $field, $instance, $items, $delta)) {
+      if ($element = $function($form, $form_state, $field, $instance, $langcode, $items, $delta)) {
         $multiple = $field['cardinality'] > 1 || $field['cardinality'] == FIELD_CARDINALITY_UNLIMITED;
         $defaults = array(
           // For multiple fields, title and description are handled by the wrapping table.
@@ -181,34 +188,30 @@ function field_multiple_value_form($field, $instance, $items, &$form, &$form_sta
       }
     }
 
-    // Add AHAH add more button, if not working with a programmed form.
+    // Add 'add more' button, if not working with a programmed form.
     if ($field['cardinality'] == FIELD_CARDINALITY_UNLIMITED && empty($form_state['programmed'])) {
-      // Make sure the form is cached so ahah can work.
-      $form['#cache'] = TRUE;
-      $bundle_name_url_str = str_replace('_', '-', $instance['bundle']);
-      $field_name_url_str = str_replace('_', '-', $field_name);
 
       $form_element[$field_name . '_add_more'] = array(
         '#type' => 'submit',
         '#name' => $field_name . '_add_more',
         '#value' => t('Add another item'),
-        '#weight' => $instance['weight'] + $max + 1,
+        '#attributes' => array('class' => array('field-add-more-submit')),
         // Submit callback for disabled JavaScript.
         '#submit' => array('field_add_more_submit'),
-        '#ahah' => array(
-          'path' => 'field/js_add_more/' . $bundle_name_url_css . '/' . $field_name_url_css,
-          'wrapper' => $field_name_url_css . '-wrapper',
+        '#ajax' => array(
+          'callback' => 'field_add_more_js',
+          'wrapper' => $wrapper_id,
           'method' => 'replace',
           'effect' => 'fade',
         ),
-        // When JS is disabled, the field_add_more_submit handler will find
-        // the relevant field using these entries.
+        // The field_add_more_submit() and field_add_more_js() handlers will
+        // find the relevant field using those entries.
         '#field_name' => $field_name,
-        '#bundle' => $instance['bundle'],
-        '#attributes' => array('class' => 'field-add-more-submit'),
+        '#language' => $langcode,
       );
     }
   }
+
   return $form_element;
 }
 
@@ -230,7 +233,7 @@ function theme_field_multiple_value_form($element) {
       array(
         'data' => '<label>' . t('!title: !required', array('!title' => $element['#title'], '!required' => $required)) . "</label>",
         'colspan' => 2,
-        'class' => 'field-label',
+        'class' => array('field-label'),
       ),
       t('Order'),
     );
@@ -251,21 +254,21 @@ function theme_field_multiple_value_form($element) {
 
     // Add the items as table rows.
     foreach ($items as $key => $item) {
-      $item['_weight']['#attributes']['class'] = $order_class;
+      $item['_weight']['#attributes']['class'] = array($order_class);
       $delta_element = drupal_render($item['_weight']);
       $cells = array(
-        array('data' => '', 'class' => 'field-multiple-drag'),
+        array('data' => '', 'class' => array('field-multiple-drag')),
         drupal_render($item),
-        array('data' => $delta_element, 'class' => 'delta-order'),
+        array('data' => $delta_element, 'class' => array('delta-order')),
       );
       $rows[] = array(
         'data' => $cells,
-        'class' => 'draggable',
+        'class' => array('draggable'),
       );
     }
 
     $output = '<div class="form-item">';
-    $output .= theme('table', $header, $rows, array('id' => $table_id, 'class' => 'field-multiple-table'));
+    $output .= theme('table', $header, $rows, array('id' => $table_id, 'class' => array('field-multiple-table')));
     $output .= $element['#description'] ? '<div class="description">' . $element['#description'] . '</div>' : '';
     $output .= '<div class="clearfix">' . drupal_render($add_more_button) . '</div>';
     $output .= '</div>';
@@ -285,11 +288,11 @@ function theme_field_multiple_value_form($element) {
 /**
  * Transfer field-level validation errors to widgets.
  */
-function field_default_form_errors($obj_type, $object, $field, $instance, $items, $form, $errors) {
+function field_default_form_errors($obj_type, $object, $field, $instance, $langcode, $items, $form, $errors) {
   $field_name = $field['field_name'];
-  if (!empty($errors[$field_name])) {
+  if (!empty($errors[$field_name][$langcode])) {
     $function = $instance['widget']['module'] . '_field_widget_error';
-    $function_exists = drupal_function_exists($function);
+    $function_exists = function_exists($function);
 
     // Walk the form down to where the widget lives.
     $form_path = $form['#fields'][$field_name]['form_path'];
@@ -299,10 +302,10 @@ function field_default_form_errors($obj_type, $object, $field, $instance, $items
     }
 
     $multiple_widget = field_behaviors_widget('multiple values', $instance) != FIELD_BEHAVIOR_DEFAULT;
-    foreach ($errors[$field_name] as $delta => $delta_errors) {
+    foreach ($errors[$field_name][$langcode] as $delta => $delta_errors) {
       // For multiple single-value widgets, pass errors by delta.
       // For a multiple-value widget, all errors are passed to the main widget.
-      $error_element = $multiple_widget ? $element : $element[$delta];
+      $error_element = $multiple_widget ? $element[$langcode] : $element[$langcode][$delta];
       foreach ($delta_errors as $error) {
         if ($function_exists) {
           $function($error_element, $error);
@@ -324,130 +327,44 @@ function field_default_form_errors($obj_type, $object, $field, $instance, $items
  */
 function field_add_more_submit($form, &$form_state) {
   // Set the form to rebuild and run submit handlers.
-  if (isset($form['#builder_function']) && drupal_function_exists($form['#builder_function'])) {
+  if (isset($form['#builder_function']) && function_exists($form['#builder_function'])) {
     $entity = $form['#builder_function']($form, $form_state);
 
     // Make the changes we want to the form state.
     $field_name = $form_state['clicked_button']['#field_name'];
+    $langcode = $form_state['clicked_button']['#language'];
     if ($form_state['values'][$field_name . '_add_more']) {
-      $form_state['field_item_count'][$field_name] = count($form_state['values'][$field_name]);
+      $form_state['field_item_count'][$field_name] = count($form_state['values'][$field_name][$langcode]);
     }
   }
 }
 
 /**
- * Menu callback for AHAH addition of new empty widgets.
+ * Ajax callback for addition of new empty widgets.
  */
-function field_add_more_js($bundle_name, $field_name) {
-  // Arguments are coming from the url, so we translate back dashes.
-  $field_name = str_replace('-', '_', $field_name);
-
-  $invalid = FALSE;
-  if (empty($_POST['form_build_id'])) {
-    // Invalid request.
-    $invalid = TRUE;
-  }
-
-  // Retrieve the cached form.
-  $form_state = form_state_defaults();
-  $form_build_id = $_POST['form_build_id'];
-  $form = form_get_cache($form_build_id, $form_state);
-  if (!$form) {
-    // Invalid form_build_id.
-    $invalid = TRUE;
-  }
-
+function field_add_more_js($form, $form_state) {
   // Retrieve field information.
+  $field_name = $form_state['clicked_button']['#field_name'];
   $field = $form['#fields'][$field_name]['field'];
-  $instance = $form['#fields'][$field_name]['instance'];
-  $form_path = $form['#fields'][$field_name]['form_path'];
   if ($field['cardinality'] != FIELD_CARDINALITY_UNLIMITED) {
-    // Ivnalid
-    $invalid = TRUE;
+    ajax_render(array());
   }
-
-  if ($invalid) {
-    drupal_json(array('data' => ''));
-    exit;
-  }
-
-  // We don't simply return a new empty widget row to append to existing ones,
-  // because:
-  // - ahah.js won't simply let us add a new row to a table
-  // - attaching the 'draggable' behavior won't be easy
-  // So we resort to rebuilding the whole table of widgets including the
-  // existing ones, which makes us jump through a few hoops.
-
-  // The form that we get from the cache is unbuilt. We need to build it so
-  // that _value callbacks can be executed and $form_state['values'] populated.
-  // We only want to affect $form_state['values'], not the $form itself
-  // (built forms aren't supposed to enter the cache) nor the rest of
-  // $form_state, so we use copies of $form and $form_state.
-  $form_copy = $form;
-  $form_state_copy = $form_state;
-  $form_state_copy['input'] = array();
-  form_builder($_POST['form_id'], $form_copy, $form_state_copy);
-  // Just grab the data we need.
-  $form_state['values'] = $form_state_copy['values'];
-  // Reset cached ids, so that they don't affect the actual form we output.
-  drupal_static_reset('form_clean_id');
-
-  // Sort the $form_state['values'] we just built *and* the incoming $_POST data
-  // according to d-n-d reordering.
-  unset($form_state['values'][$field_name][$field['field_name'] . '_add_more']);
-  foreach ($_POST[$field_name] as $delta => $item) {
-    $form_state['values'][$field_name][$delta]['_weight'] = $item['_weight'];
-  }
-  $form_state['values'][$field_name] = _field_sort_items($field, $form_state['values'][$field_name]);
-  $_POST[$field_name]                = _field_sort_items($field, $_POST[$field_name]);
-
-  // Build our new form element for the whole field, asking for one more element.
-  $form_state['field_item_count'] = array($field_name => count($_POST[$field_name]) + 1);
-  $items = $form_state['values'][$field_name];
-  $form_element = field_default_form(NULL, NULL, $field, $instance, $items, $form, $form_state);
-  // Let other modules alter it.
-  drupal_alter('form', $form_element, array(), 'field_add_more_js');
-
-  // Add the new element at the right location in the (original, unbuilt) form.
-  $target = &$form;
-  foreach ($form_path as $key) {
-    $target = &$target[$key];
-  }
-  $target = $form_element[$field_name];
-
-  // Save the new definition of the form.
-  $form_state['values'] = array();
-  form_set_cache($form_build_id, $form, $form_state);
-
-  // Build the new form against the incoming $_POST values so that we can
-  // render the new element.
-  $delta = max(array_keys($_POST[$field_name])) + 1;
-  $_POST[$field_name][$delta]['_weight'] = $delta;
-  $form_state = form_state_defaults();
-  $form_state['input'] = $_POST;
-  $form = form_builder($_POST['form_id'], $form, $form_state);
-
-  // Render the new output.
-  // We fetch the form element from the built $form.
+  // Navigate to the right part of the form.
+  $form_path = $form['#fields'][$field_name]['form_path'];
   $field_form = $form;
   foreach ($form_path as $key) {
     $field_form = $field_form[$key];
   }
-  // Add a div around the new field to receive the ahah effect.
-  $field_form[$delta]['#prefix'] = '<div class="ahah-new-content">' . (isset($field_form[$delta]['#prefix']) ? $field_form[$delta]['#prefix'] : '');
-  $field_form[$delta]['#suffix'] = (isset($field_form[$delta]['#suffix']) ? $field_form[$delta]['#suffix'] : '') . '</div>';
-  // Prevent duplicate wrapper.
-  unset($field_form['#prefix'], $field_form['#suffix']);
 
-  // If a newly inserted widget contains AHAH behaviors, they normally won't
-  // work because AHAH doesn't know about those - it just attaches to the exact
-  // form elements that were initially specified in the Drupal.settings object.
-  // The new ones didn't exist then, so we need to update Drupal.settings
-  // by ourselves in order to let AHAH know about those new form elements.
-  $javascript = drupal_add_js(NULL, NULL);
-  $output_js = isset($javascript['setting']) ? '<script type="text/javascript">jQuery.extend(Drupal.settings, ' . drupal_to_js(call_user_func_array('array_merge_recursive', $javascript['setting'])) . ');</script>' : '';
+  // Add a DIV around the new field to receive the AJAX effect.
+  $langcode = $field_form['#language'];
+  $delta = $field_form[$langcode]['#max_delta'];
+  $field_form[$langcode][$delta]['#prefix'] = '<div class="ajax-new-content">' . (isset($field_form[$langcode][$delta]['#prefix']) ? $field_form[$langcode][$delta]['#prefix'] : '');
+  $field_form[$langcode][$delta]['#suffix'] = (isset($field_form[$langcode][$delta]['#suffix']) ? $field_form[$langcode][$delta]['#suffix'] : '') . '</div>';
 
-  $output = theme('status_messages') . drupal_render($field_form) . $output_js;
-  drupal_json(array('status' => TRUE, 'data' => $output));
-  exit;
+  $output = theme('status_messages') . drupal_render($field_form);
+
+  $commands = array();
+  $commands[] = ajax_command_replace(NULL, $output);
+  ajax_render($commands);
 }

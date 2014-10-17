@@ -5,21 +5,15 @@
  * Implementation of Drupal.behaviors for admin.
  */
 Drupal.behaviors.admin = {
-  attach: function() {
+  attach: function(context) {
 
     // Set the intial state of the toolbar.
-    $('#toolbar:not(.processed)').each(function() {
-      Drupal.admin.toolbar.init();
-      $(this).addClass('processed');
-    });
+    $('#toolbar', context).once('toolbar', Drupal.admin.toolbar.init);
 
     // Toggling of admin shortcuts visibility.
-    $('#toolbar span.toggle:not(.processed)').each(function() {
-      $(this).click(function() {
-        Drupal.admin.toolbar.toggle();
-        return false;
-      });
-      $(this).addClass('processed');
+    $('#toolbar span.toggle', context).once('toolbar-toggle').click(function() {
+      Drupal.admin.toolbar.toggle();
+      return false;
     });
   }
 };

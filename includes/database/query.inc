@@ -111,8 +111,11 @@ interface QueryConditionInterface {
    *
    * @param $connection
    *   The database connection for which to compile the conditionals.
+   * @param $query
+   *   The query this condition belongs to. If not given, the current query is
+   *   used.
    */
-  public function compile(DatabaseConnection $connection);
+  public function compile(DatabaseConnection $connection, QueryPlaceholderInterface $queryPlaceholder = NULL);
 }
 
 
@@ -197,11 +200,21 @@ interface QueryAlterableInterface {
 }
 
 /**
+ * Interface for a query that accepts placeholders.
+ */
+interface QueryPlaceholderInterface {
+  /**
+   * Returns the next placeholder for the query.
+   */
+  function nextPlaceholder();
+}
+
+/**
  * Base class for the query builders.
  *
  * All query builders inherit from a common base class.
  */
-abstract class Query {
+abstract class Query implements QueryPlaceholderInterface {
 
   /**
    * The connection object on which to run this query.
@@ -216,6 +229,11 @@ abstract class Query {
    * @var array
    */
   protected $queryOptions;
+
+  /**
+   * The placeholder counter.
+   */
+  protected $nextPlaceholder = 0;
 
   public function __construct(DatabaseConnection $connection, $options) {
     $this->connection = $connection;
@@ -236,6 +254,10 @@ abstract class Query {
    *   A prepared statement query string for this object.
    */
   abstract public function __toString();
+
+  public function nextPlaceholder() {
+    return $this->nextPlaceholder++;
+  }
 }
 
 /**
@@ -433,6 +455,8 @@ class InsertQuery extends Query {
    *   in multi-insert loops.
    */
   public function execute() {
+    // If validation fails, simply return NULL.
+    // Note that validation routines in preExecute() may throw exceptions instead.
     if (!$this->preExecute()) {
       return NULL;
     }
@@ -489,7 +513,7 @@ class InsertQuery extends Query {
    * @return
    *   TRUE if the validation was successful, FALSE if not.
    */
-  protected function preExecute() {
+  public function preExecute() {
     // Confirm that the user did not try to specify an identical
     // field and default field.
     if (array_intersect($this->insertFields, $this->defaultFields)) {
@@ -721,11 +745,27 @@ class MergeQuery extends Query {
     return $this;
   }
 
-  public function execute() {
+  /**
+   * Generic preparation and validation for a MERGE query.
+   *
+   * @return
+   *   TRUE if the validation was successful, FALSE if not.
+   */
+  public function preExecute() {
 
     // A merge query without any key field is invalid.
     if (count($this->keyFields) == 0) {
       throw new InvalidMergeQueryException("You need to specify key fields before executing a merge query");
+    }
+
+    return TRUE;
+  }
+
+  public function execute() {
+    // If validation fails, simply return NULL.
+    // Note that validation routines in preExecute() may throw exceptions instead.
+    if (!$this->preExecute()) {
+      return NULL;
     }
 
     // In the degenerate case of this query type, we have to run multiple
@@ -848,14 +888,14 @@ class DeleteQuery extends Query implements QueryConditionInterface {
     return $this;
   }
 
-  public function compile(DatabaseConnection $connection) {
-    return $this->condition->compile($connection);
+  public function compile(DatabaseConnection $connection, QueryPlaceholderInterface $queryPlaceholder = NULL) {
+    return $this->condition->compile($connection, isset($queryPlaceholder) ? $queryPlaceholder : $this);
   }
 
   public function execute() {
     $values = array();
     if (count($this->condition)) {
-      $this->condition->compile($this->connection);
+      $this->condition->compile($this->connection, $this);
       $values = $this->condition->arguments();
     }
 
@@ -866,7 +906,7 @@ class DeleteQuery extends Query implements QueryConditionInterface {
     $query = 'DELETE FROM {' . $this->connection->escapeTable($this->table) . '} ';
 
     if (count($this->condition)) {
-      $this->condition->compile($this->connection);
+      $this->condition->compile($this->connection, $this);
       $query .= "\nWHERE " . $this->condition;
     }
 
@@ -893,8 +933,8 @@ class TruncateQuery extends Query {
     $this->table = $table;
   }
 
-  public function compile(DatabaseConnection $connection) {
-    return $this->condition->compile($connection);
+  public function compile(DatabaseConnection $connection, QueryPlaceholderInterface $queryPlaceholder = NULL) {
+    return $this->condition->compile($connection, isset($queryPlaceholder) ? $queryPlaceholder : $this);
   }
 
   public function execute() {
@@ -953,7 +993,6 @@ class UpdateQuery extends Query implements QueryConditionInterface {
    */
   protected $expressionFields = array();
 
-
   public function __construct(DatabaseConnection $connection, $table, array $options = array()) {
     $options['return'] = Database::RETURN_AFFECTED;
     parent::__construct($connection, $options);
@@ -990,8 +1029,8 @@ class UpdateQuery extends Query implements QueryConditionInterface {
     return $this;
   }
 
-  public function compile(DatabaseConnection $connection) {
-    return $this->condition->compile($connection);
+  public function compile(DatabaseConnection $connection, QueryPlaceholderInterface $queryPlaceholder = NULL) {
+    return $this->condition->compile($connection, isset($queryPlaceholder) ? $queryPlaceholder : $this);
   }
 
   /**
@@ -1055,7 +1094,7 @@ class UpdateQuery extends Query implements QueryConditionInterface {
     }
 
     if (count($this->condition)) {
-      $this->condition->compile($this->connection);
+      $this->condition->compile($this->connection, $this);
       $update_values = array_merge($update_values, $this->condition->arguments());
     }
 
@@ -1080,7 +1119,7 @@ class UpdateQuery extends Query implements QueryConditionInterface {
     $query = 'UPDATE {' . $this->connection->escapeTable($this->table) . '} SET ' . implode(', ', $update_fields);
 
     if (count($this->condition)) {
-      $this->condition->compile($this->connection);
+      $this->condition->compile($this->connection, $this);
       // There is an implicit string cast on $this->condition.
       $query .= "\nWHERE " . $this->condition;
     }
@@ -1160,17 +1199,8 @@ class DatabaseCondition implements QueryConditionInterface, Countable {
     return $this->arguments;
   }
 
-  public function compile(DatabaseConnection $connection) {
-    // This value is static, so it will increment across the entire request
-    // rather than just this query. That is OK, because we only need definitive
-    // placeholder names if we're going to use them for _alter hooks, which we
-    // are not. The alter hook would intervene before compilation.
-    // $next_placeholder does not use drupal_static as it increments and should
-    // never be reset during a request.
-    static $next_placeholder = 1;
-
+  public function compile(DatabaseConnection $connection, QueryPlaceholderInterface $queryPlaceholder = NULL) {
     if ($this->changed) {
-
       $condition_fragments = array();
       $arguments = array();
 
@@ -1187,7 +1217,7 @@ class DatabaseCondition implements QueryConditionInterface, Countable {
           // It's a structured condition, so parse it out accordingly.
           if ($condition['field'] instanceof QueryConditionInterface) {
             // Compile the sub-condition recursively and add it to the list.
-            $condition['field']->compile($connection);
+            $condition['field']->compile($connection, $queryPlaceholder);
             $condition_fragments[] = '(' . (string)$condition['field'] . ')';
             $arguments += $condition['field']->arguments();
           }
@@ -1220,7 +1250,7 @@ class DatabaseCondition implements QueryConditionInterface, Countable {
             }
             if ($operator['use_value']) {
               foreach ($condition['value'] as $value) {
-                $placeholder = ':db_condition_placeholder_' . $next_placeholder++;
+                $placeholder = ':db_condition_placeholder_' . $queryPlaceholder->nextPlaceholder();
                 $arguments[$placeholder] = $value;
                 $placeholders[] = $placeholder;
               }
@@ -1243,6 +1273,15 @@ class DatabaseCondition implements QueryConditionInterface, Countable {
       return NULL;
     }
     return $this->stringVersion;
+  }
+
+  function __clone() {
+    $this->changed = TRUE;
+    foreach ($this->conditions as $key => $condition) {
+      if ($condition['field'] instanceOf QueryConditionInterface) {
+        $this->conditions[$key]['field'] = clone($condition['field']);
+      }
+    }
   }
 
   /**
