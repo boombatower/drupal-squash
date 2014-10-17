@@ -7,8 +7,8 @@
 
 namespace Drupal\field_ui\Access;
 
-use Drupal\Core\Access\StaticAccessCheckInterface;
 use Drupal\Core\Entity\EntityManagerInterface;
+use Drupal\Core\Routing\Access\AccessInterface;
 use Drupal\Core\Session\AccountInterface;
 use Symfony\Component\Routing\Route;
 use Symfony\Component\HttpFoundation\Request;
@@ -16,7 +16,7 @@ use Symfony\Component\HttpFoundation\Request;
 /**
  * Allows access to routes to be controlled by an '_access' boolean parameter.
  */
-class FormModeAccessCheck implements StaticAccessCheckInterface {
+class FormModeAccessCheck implements AccessInterface {
 
   /**
    * The entity manager.
@@ -38,20 +38,13 @@ class FormModeAccessCheck implements StaticAccessCheckInterface {
   /**
    * {@inheritdoc}
    */
-  public function appliesTo() {
-    return array('_field_ui_form_mode_access');
-  }
-
-  /**
-   * {@inheritdoc}
-   */
   public function access(Route $route, Request $request, AccountInterface $account) {
     if ($entity_type = $route->getDefault('entity_type')) {
       $form_mode = $request->attributes->get('form_mode_name');
 
       if (!($bundle = $request->attributes->get('bundle'))) {
         $entity_info = $this->entityManager->getDefinition($entity_type);
-        $bundle = $request->attributes->get('_raw_variables')->get($entity_info['bundle_entity_type']);
+        $bundle = $request->attributes->get('_raw_variables')->get($entity_info->getBundleEntityType());
       }
 
       $visibility = FALSE;

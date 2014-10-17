@@ -26,23 +26,24 @@ class ContentTranslationLocalTasksTest extends LocalTaskIntegrationTest {
   }
 
   public function setUp() {
-    $this->moduleList = array(
-      'content_translation' => 'core/modules/content_translation/content_translation.module',
-      'node' => 'core/modules/node/node.module',
+    $this->directoryList = array(
+      'content_translation' => 'core/modules/content_translation',
+      'node' => 'core/modules/node',
     );
     parent::setUp();
 
+    $entity_type = $this->getMock('Drupal\Core\Entity\EntityTypeInterface');
+    $entity_type->expects($this->any())
+      ->method('getLinkTemplate')
+      ->will($this->returnValueMap(array(
+        array('canonical', 'node.view'),
+        array('drupal:content-translation-overview', 'content_translation.translation_overview_node'),
+      )));
     $content_translation_manager = $this->getMock('Drupal\content_translation\ContentTranslationManagerInterface');
     $content_translation_manager->expects($this->any())
       ->method('getSupportedEntityTypes')
       ->will($this->returnValue(array(
-        'node' => array(
-          'translatable' => TRUE,
-          'links' => array(
-            'canonical' => 'node.view',
-            'drupal:content-translation-overview' => 'content_translation.translation_overview_node',
-          ),
-        ),
+        'node' => $entity_type,
       )));
     \Drupal::getContainer()->set('content_translation.manager', $content_translation_manager);
   }

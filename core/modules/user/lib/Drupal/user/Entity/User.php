@@ -269,13 +269,6 @@ class User extends ContentEntityBase implements UserInterface {
   /**
    * {@inheritdoc}
    */
-  public function getDefaultTheme() {
-    return $this->get('theme')->value;
-  }
-
-  /**
-   * {@inheritdoc}
-   */
   public function getSignature() {
     return $this->get('signature')->value;
   }
@@ -452,6 +445,8 @@ class User extends ContentEntityBase implements UserInterface {
       ->setLabel(t('Preferred language code'))
       ->setDescription(t("The user's preferred language code for viewing administration pages."));
 
+    // The name should not vary per language. The username is the visual
+    // identifier for a user and needs to be consistent in all languages.
     $fields['name'] = FieldDefinition::create('string')
       ->setLabel(t('Name'))
       ->setDescription(t('The name of this user.'))
@@ -481,11 +476,6 @@ class User extends ContentEntityBase implements UserInterface {
     $fields['signature_format'] = FieldDefinition::create('string')
       ->setLabel(t('Signature format'))
       ->setDescription(t('The signature format of this user.'));
-
-    $fields['theme'] = FieldDefinition::create('string')
-      ->setLabel(t('Theme'))
-      ->setDescription(t('The default theme of this user.'))
-      ->setPropertyConstraints('value', array('Length' => array('max' => DRUPAL_EXTENSION_NAME_MAX_LENGTH)));
 
     $fields['timezone'] = FieldDefinition::create('string')
       ->setLabel(t('Timezone'))

@@ -33,7 +33,7 @@ class DisplayPageTest extends ViewUnitTestBase {
    *
    * @var array
    */
-  public static $modules = array('system', 'user', 'menu_link', 'field');
+  public static $modules = array('system', 'user', 'menu_link', 'field', 'entity');
 
   /**
    * The router dumper to get all routes.
@@ -59,7 +59,6 @@ class DisplayPageTest extends ViewUnitTestBase {
     // Setup the needed tables in order to make the drupal router working.
     $this->installSchema('system', array('router', 'menu_router', 'url_alias'));
     $this->installSchema('menu_link', 'menu_links');
-    $this->installSchema('user', 'users');
   }
 
   /**
@@ -113,27 +112,27 @@ class DisplayPageTest extends ViewUnitTestBase {
     $this->assertEqual($route->getPath(), '/test_route_without_arguments');
 
     $route = $collection->get('view.test_page_display_route.page_2');
-    $this->assertEqual($route->getPath(), '/test_route_with_argument/{arg_id}');
-    $this->assertTrue($route->hasDefault('arg_id'), 'A default value is set for the optional argument id.');
+    $this->assertEqual($route->getPath(), '/test_route_with_argument/{arg_0}');
+    $this->assertTrue($route->hasDefault('arg_0'), 'A default value is set for the optional argument id.');
 
     $route = $collection->get('view.test_page_display_route.page_3');
-    $this->assertEqual($route->getPath(), '/test_route_with_argument/{arg_id}/suffix');
-    $this->assertFalse($route->hasDefault('arg_id'), 'No default value is set for the required argument id.');
+    $this->assertEqual($route->getPath(), '/test_route_with_argument/{arg_0}/suffix');
+    $this->assertFalse($route->hasDefault('arg_0'), 'No default value is set for the required argument id.');
 
     $route = $collection->get('view.test_page_display_route.page_4');
-    $this->assertEqual($route->getPath(), '/test_route_with_argument/{arg_id}/suffix/{arg_id_2}');
-    $this->assertFalse($route->hasDefault('arg_id'), 'No default value is set for the required argument id.');
-    $this->assertTrue($route->hasDefault('arg_id_2'), 'A default value is set for the optional argument id_2.');
+    $this->assertEqual($route->getPath(), '/test_route_with_argument/{arg_0}/suffix/{arg_1}');
+    $this->assertFalse($route->hasDefault('arg_0'), 'No default value is set for the required argument id.');
+    $this->assertTrue($route->hasDefault('arg_1'), 'A default value is set for the optional argument id_2.');
 
     $route = $collection->get('view.test_page_display_route.page_5');
-    $this->assertEqual($route->getPath(), '/test_route_with_argument/{arg_id}/{arg_id_2}');
-    $this->assertTrue($route->hasDefault('arg_id'), 'A default value is set for the optional argument id.');
-    $this->assertTrue($route->hasDefault('arg_id_2'), 'A default value is set for the optional argument id_2.');
+    $this->assertEqual($route->getPath(), '/test_route_with_argument/{arg_0}/{arg_1}');
+    $this->assertTrue($route->hasDefault('arg_0'), 'A default value is set for the optional argument id.');
+    $this->assertTrue($route->hasDefault('arg_1'), 'A default value is set for the optional argument id_2.');
 
     $route = $collection->get('view.test_page_display_route.page_6');
-    $this->assertEqual($route->getPath(), '/test_route_with_argument/{arg_id}/{arg_id_2}');
-    $this->assertFalse($route->hasDefault('arg_id'), 'No default value is set for the required argument id.');
-    $this->assertFalse($route->hasDefault('arg_id_2'), 'No default value is set for the required argument id_2.');
+    $this->assertEqual($route->getPath(), '/test_route_with_argument/{arg_0}/{arg_1}');
+    $this->assertFalse($route->hasDefault('arg_0'), 'No default value is set for the required argument id.');
+    $this->assertFalse($route->hasDefault('arg_1'), 'No default value is set for the required argument id_2.');
   }
 
 }

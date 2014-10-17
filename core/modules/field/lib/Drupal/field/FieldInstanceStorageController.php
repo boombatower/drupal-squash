@@ -10,6 +10,7 @@ namespace Drupal\field;
 use Drupal\Core\Config\Config;
 use Drupal\Core\Config\Entity\ConfigStorageController;
 use Drupal\Core\Entity\EntityManagerInterface;
+use Drupal\Core\Entity\EntityTypeInterface;
 use Drupal\Core\Entity\Query\QueryFactory;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Drupal\Core\Config\ConfigFactory;
@@ -29,13 +30,6 @@ use Drupal\Core\KeyValueStore\StateInterface;
 class FieldInstanceStorageController extends ConfigStorageController {
 
   /**
-   * The module handler.
-   *
-   * @var \Drupal\Core\Extension\ModuleHandler
-   */
-  protected $moduleHandler;
-
-  /**
    * The entity manager.
    *
    * @var \Drupal\Core\Entity\EntityManagerInterface
@@ -52,10 +46,8 @@ class FieldInstanceStorageController extends ConfigStorageController {
   /**
    * Constructs a FieldInstanceStorageController object.
    *
-   * @param string $entity_type
-   *   The entity type for which the instance is created.
-   * @param array $entity_info
-   *   An array of entity info for the entity type.
+   * @param \Drupal\Core\Entity\EntityTypeInterface $entity_info
+   *   The entity info for the entity type.
    * @param \Drupal\Core\Config\ConfigFactory $config_factory
    *   The config factory service.
    * @param \Drupal\Core\Config\StorageInterface $config_storage
@@ -66,31 +58,26 @@ class FieldInstanceStorageController extends ConfigStorageController {
    *   The UUID service.
    * @param \Drupal\Core\Entity\EntityManagerInterface $entity_manager
    *   The entity manager.
-   * @param \Drupal\Core\Extension\ModuleHandler $module_handler
-   *   The module handler.
    * @param \Drupal\Core\KeyValueStore\StateInterface $state
    *   The state key value store.
    */
-  public function __construct($entity_type, array $entity_info, ConfigFactory $config_factory, StorageInterface $config_storage, QueryFactory $entity_query_factory, UuidInterface $uuid_service, EntityManagerInterface $entity_manager, ModuleHandler $module_handler, StateInterface $state) {
-    parent::__construct($entity_type, $entity_info, $config_factory, $config_storage, $entity_query_factory, $uuid_service);
+  public function __construct(EntityTypeInterface $entity_info, ConfigFactory $config_factory, StorageInterface $config_storage, QueryFactory $entity_query_factory, UuidInterface $uuid_service, EntityManagerInterface $entity_manager, StateInterface $state) {
+    parent::__construct($entity_info, $config_factory, $config_storage, $entity_query_factory, $uuid_service);
     $this->entityManager = $entity_manager;
-    $this->moduleHandler = $module_handler;
     $this->state = $state;
   }
 
   /**
    * {@inheritdoc}
    */
-  public static function createInstance(ContainerInterface $container, $entity_type, array $entity_info) {
+  public static function createInstance(ContainerInterface $container, EntityTypeInterface $entity_info) {
     return new static(
-      $entity_type,
       $entity_info,
       $container->get('config.factory'),
       $container->get('config.storage'),
       $container->get('entity.query'),
       $container->get('uuid'),
       $container->get('entity.manager'),
-      $container->get('module_handler'),
       $container->get('state')
     );
   }
@@ -163,8 +150,6 @@ class FieldInstanceStorageController extends ConfigStorageController {
           continue 2;
         }
       }
-
-      $this->moduleHandler->invokeAll('field_read_instance', $instance);
 
       $matching_instances[] = $instance;
     }

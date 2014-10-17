@@ -18,7 +18,9 @@ use Drupal\Core\Config\StorageInterface;
 use Drupal\Core\DrupalKernel;
 use Drupal\Core\Language\Language;
 use Drupal\Core\StreamWrapper\PublicStream;
+use Drupal\Core\Utility\Error;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\DependencyInjection\Reference;
 
 /**
  * Base class for Drupal tests.
@@ -397,7 +399,7 @@ abstract class TestBase {
       array_shift($backtrace);
     }
 
-    return _drupal_get_last_caller($backtrace);
+    return Error::getLastCaller($backtrace);
   }
 
   /**
@@ -968,8 +970,11 @@ abstract class TestBase {
 
     // Reset and create a new service container.
     $this->container = new ContainerBuilder();
-     // @todo Remove this once this class has no calls to t() and format_plural()
-    $this->container->register('string_translation', 'Drupal\Core\StringTranslation\TranslationManager');
+
+    // @todo Remove this once this class has no calls to t() and format_plural()
+    $this->container->register('language_manager', 'Drupal\Core\Language\LanguageManager');
+    $this->container->register('string_translation', 'Drupal\Core\StringTranslation\TranslationManager')
+      ->addArgument(new Reference('language_manager'));
 
     // Register info parser.
     $this->container->register('info_parser', 'Drupal\Core\Extension\InfoParser');
@@ -1012,14 +1017,14 @@ abstract class TestBase {
     include_once DRUPAL_ROOT . '/core/includes/install.inc';
     foreach (array(CONFIG_ACTIVE_DIRECTORY, CONFIG_STAGING_DIRECTORY) as $type) {
       // Assign the relative path to the global variable.
-      $path = 'simpletest/' . substr($this->databasePrefix, 10) . '/config_' . $type;
-      $GLOBALS['config_directories'][$type]['path'] = $path;
+      $path = conf_path() . '/files/simpletest/' . substr($this->databasePrefix, 10) . '/config_' . $type;
+      $GLOBALS['config_directories'][$type] = $path;
       // Ensure the directory can be created and is writeable.
       if (!install_ensure_config_directory($type)) {
         return FALSE;
       }
       // Provide the already resolved path for tests.
-      $this->configDirectories[$type] = $this->originalFileDirectory . '/' . $path;
+      $this->configDirectories[$type] = $path;
     }
   }
 
@@ -1075,7 +1080,7 @@ abstract class TestBase {
     drupal_static_reset();
 
     if ($this->container->has('state') && $state = $this->container->get('state')) {
-      $captured_emails = $state->get('system.test_email_collector') ?: array();
+      $captured_emails = $state->get('system.test_mail_collector') ?: array();
       $emailCount = count($captured_emails);
       if ($emailCount) {
         $message = format_plural($emailCount, '1 e-mail was sent during this test.', '@count e-mails were sent during this test.');
@@ -1177,10 +1182,10 @@ abstract class TestBase {
       if ($severity !== E_USER_NOTICE) {
         $verbose_backtrace = $backtrace;
         array_shift($verbose_backtrace);
-        $message .= '<pre class="backtrace">' . format_backtrace($verbose_backtrace) . '</pre>';
+        $message .= '<pre class="backtrace">' . Error::formatBacktrace($verbose_backtrace) . '</pre>';
       }
 
-      $this->error($message, $error_map[$severity], _drupal_get_last_caller($backtrace));
+      $this->error($message, $error_map[$severity], Error::getLastCaller($backtrace));
     }
     return TRUE;
   }
@@ -1199,14 +1204,15 @@ abstract class TestBase {
       'line' => $exception->getLine(),
       'file' => $exception->getFile(),
     ));
-    // The exception message is run through check_plain()
-    // by _drupal_decode_exception().
-    $decoded_exception = _drupal_decode_exception($exception);
+    // The exception message is run through
+    // \Drupal\Component\Utility\checkPlain() by
+    // \Drupal\Core\Utility\decodeException().
+    $decoded_exception = Error::decodeException($exception);
     unset($decoded_exception['backtrace']);
     $message = format_string('%type: !message in %function (line %line of %file). <pre class="backtrace">!backtrace</pre>', $decoded_exception + array(
-      '!backtrace' => format_backtrace($verbose_backtrace),
+      '!backtrace' => Error::formatBacktrace($verbose_backtrace),
     ));
-    $this->error($message, 'Uncaught exception', _drupal_get_last_caller($backtrace));
+    $this->error($message, 'Uncaught exception', Error::getLastCaller($backtrace));
   }
 
   /**
@@ -1390,17 +1396,18 @@ abstract class TestBase {
   public function configImporter() {
     if (!$this->configImporter) {
       // Set up the ConfigImporter object for testing.
-      $config_comparer = new StorageComparer(
+      $storage_comparer = new StorageComparer(
         $this->container->get('config.storage.staging'),
         $this->container->get('config.storage')
       );
       $this->configImporter = new ConfigImporter(
-        $config_comparer,
+        $storage_comparer,
         $this->container->get('event_dispatcher'),
         $this->container->get('config.factory'),
         $this->container->get('entity.manager'),
         $this->container->get('lock'),
-        $this->container->get('uuid')
+        $this->container->get('uuid'),
+        $this->container->get('config.typed')
       );
     }
     // Always recalculate the changelist when called.

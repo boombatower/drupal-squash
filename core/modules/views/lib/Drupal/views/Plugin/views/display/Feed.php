@@ -7,11 +7,10 @@
 
 namespace Drupal\views\Plugin\views\display;
 
+use Drupal\Component\Utility\String;
 use Drupal\views\ViewExecutable;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
-use Drupal\views\Annotation\ViewsDisplay;
-use Drupal\Core\Annotation\Translation;
 
 /**
  * The plugin that handles a feed, such as RSS or atom.
@@ -88,11 +87,17 @@ class Feed extends PathPluginBase {
    * Overrides \Drupal\views\Plugin\views\display\PathPluginBase::preview().
    */
   public function preview() {
+    $output = $this->view->render();
+
     if (!empty($this->view->live_preview)) {
-      return '<pre>' . check_plain($this->view->render()) . '</pre>';
+      $output = array(
+        '#prefix' => '<pre>',
+        '#markup' => String::checkPlain($output),
+        '#suffix' => '</pre>',
+      );
     }
 
-    return $this->view->render();
+    return $output;
   }
 
   /**

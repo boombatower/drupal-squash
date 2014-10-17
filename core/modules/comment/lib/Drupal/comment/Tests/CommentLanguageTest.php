@@ -76,14 +76,13 @@ class CommentLanguageTest extends WebTestBase {
     $field = field_info_field('comment', 'comment_body');
     $field->translatable = TRUE;
     $field->save();
-    $this->assertTrue(field_is_translatable('comment', $field), 'Comment body is translatable.');
+    $this->assertTrue($field->isTranslatable(), 'Comment body is translatable.');
   }
 
   /**
    * Test that comment language is properly set.
    */
   function testCommentLanguage() {
-    drupal_static_reset('language_list');
 
     // Create two nodes, one for english and one for french, and comment each
     // node using both english and french as content language by changing URL

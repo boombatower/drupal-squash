@@ -199,7 +199,7 @@ class Node extends ContentEntityBase implements NodeInterface {
       // Load languages the node exists in.
       $node_translations = $this->getTranslationLanguages();
       // Load the language from content negotiation.
-      $content_negotiation_langcode = \Drupal::languageManager()->getLanguage(Language::TYPE_CONTENT)->id;
+      $content_negotiation_langcode = \Drupal::languageManager()->getCurrentLanguage(Language::TYPE_CONTENT)->id;
       // If there is a translation available, use it.
       if (isset($node_translations[$content_negotiation_langcode])) {
         $langcode = $content_negotiation_langcode;
@@ -373,6 +373,8 @@ class Node extends ContentEntityBase implements NodeInterface {
       ->setDescription(t('The node language code.'));
 
     $fields['title'] = FieldDefinition::create('text')
+      // @todo Account for $node_type->title_label when per-bundle overrides are
+      //   possible - https://drupal.org/node/2114707.
       ->setLabel(t('Title'))
       ->setDescription(t('The title of this node, always treated as non-markup plain text.'))
       ->setClass('\Drupal\node\NodeTitleItemList')
@@ -382,7 +384,17 @@ class Node extends ContentEntityBase implements NodeInterface {
         'default_value' => '',
         'max_length' => 255,
         'text_processing' => 0,
-      ));
+      ))
+      ->setDisplayOptions('view', array(
+        'label' => 'hidden',
+        'type' => 'text_default',
+        'weight' => -5,
+      ))
+      ->setDisplayOptions('form', array(
+        'type' => 'text_textfield',
+        'weight' => -5,
+      ))
+      ->setDisplayConfigurable('form', TRUE);
 
     $fields['uid'] = FieldDefinition::create('entity_reference')
       ->setLabel(t('User ID'))

@@ -9,8 +9,6 @@ namespace Drupal\taxonomy\Entity;
 
 use Drupal\Core\Config\Entity\ConfigEntityBase;
 use Drupal\Core\Entity\EntityStorageControllerInterface;
-use Drupal\Core\Entity\Annotation\EntityType;
-use Drupal\Core\Annotation\Translation;
 use Drupal\taxonomy\VocabularyInterface;
 
 /**
@@ -110,7 +108,7 @@ class Vocabulary extends ConfigEntityBase implements VocabularyInterface {
     elseif ($this->getOriginalId() != $this->id()) {
       // Reflect machine name changes in the definitions of existing 'taxonomy'
       // fields.
-      $fields = field_read_fields();
+      $fields = entity_load_multiple('field_entity');
       foreach ($fields as $field) {
         $update_field = FALSE;
         if ($field->getType() == 'taxonomy_term_reference') {
@@ -153,7 +151,7 @@ class Vocabulary extends ConfigEntityBase implements VocabularyInterface {
     }
     // Load all Taxonomy module fields and delete those which use only this
     // vocabulary.
-    $taxonomy_fields = field_read_fields(array('module' => 'taxonomy'));
+    $taxonomy_fields = entity_load_multiple_by_properties('field_entity', array('module' => 'taxonomy'));
     foreach ($taxonomy_fields as $taxonomy_field) {
       $modified_field = FALSE;
       // Term reference fields may reference terms from more than one

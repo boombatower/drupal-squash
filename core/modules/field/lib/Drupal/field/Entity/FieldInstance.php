@@ -346,10 +346,6 @@ class FieldInstance extends ConfigEntityBase implements FieldInstanceInterface {
     $field_type_manager = \Drupal::service('plugin.manager.field.field_type');
 
     if ($this->isNew()) {
-      // Ensure the field instance is unique within the bundle.
-      if ($prior_instance = $storage_controller->load($this->id())) {
-        throw new FieldException(format_string('Attempt to create an instance of field %name on bundle @bundle that already has an instance of that field.', array('%name' => $this->field->name, '@bundle' => $this->bundle)));
-      }
       // Set the default instance settings.
       $this->settings += $field_type_manager->getDefaultInstanceSettings($this->field->type);
       // Notify the entity storage controller.
@@ -511,21 +507,25 @@ class FieldInstance extends ConfigEntityBase implements FieldInstanceInterface {
   /**
    * {@inheritdoc}
    */
-  public function uri() {
-    $path = \Drupal::entityManager()->getAdminPath($this->entity_type, $this->bundle);
-
-    // Use parent URI as fallback, if path is empty.
-    if (empty($path)) {
-      return parent::uri();
+  protected function linkTemplates() {
+    $link_templates = parent::linkTemplates();
+    if (\Drupal::moduleHandler()->moduleExists('field_ui')) {
+      $link_templates['edit-form'] = 'field_ui.instance_edit_' . $this->entity_type;
     }
+    return $link_templates;
+  }
 
-    return array(
-      'path' => $path . '/fields/' . $this->id(),
-      'options' => array(
-        'entity_type' => $this->entityType,
-        'entity' => $this,
-      ),
-    );
+  /**
+   * {@inheritdoc}
+   */
+  protected function uriPlaceholderReplacements() {
+    if (empty($this->uriPlaceholderReplacements)) {
+      parent::uriPlaceholderReplacements();
+      $entity_info = \Drupal::entityManager()->getDefinition($this->entity_type);
+      $key = '{' . $entity_info->getBundleEntityType() . '}';
+      $this->uriPlaceholderReplacements[$key] = $this->bundle;
+    }
+    return $this->uriPlaceholderReplacements;
   }
 
   /**
@@ -581,6 +581,21 @@ class FieldInstance extends ConfigEntityBase implements FieldInstanceInterface {
    */
   public function isConfigurable() {
     return TRUE;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function isDisplayConfigurable($context) {
+    return TRUE;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getDisplayOptions($display_context) {
+    // Hide configurable fields by default.
+    return array('type' => 'hidden');
   }
 
   /**
@@ -681,4 +696,19 @@ class FieldInstance extends ConfigEntityBase implements FieldInstanceInterface {
     }
     return $this->itemDefinition;
   }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getSchema() {
+    return $this->field->getSchema();
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getColumns() {
+    return $this->field->getColumns();
+  }
+
 }

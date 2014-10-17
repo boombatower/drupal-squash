@@ -15,7 +15,7 @@ use Drupal\Component\Utility\String;
 /**
  * Provides a generic implementation of an entity list controller.
  */
-class EntityListController implements EntityListControllerInterface, EntityControllerInterface {
+class EntityListController extends EntityControllerBase implements EntityListControllerInterface, EntityControllerInterface {
 
   /**
    * The entity storage controller class.
@@ -23,13 +23,6 @@ class EntityListController implements EntityListControllerInterface, EntityContr
    * @var \Drupal\Core\Entity\EntityStorageControllerInterface
    */
   protected $storage;
-
-  /**
-   * The module handler to invoke hooks on.
-   *
-   * @var \Drupal\Core\Extension\ModuleHandlerInterface
-   */
-  protected $moduleHandler;
 
   /**
    * The entity type name.
@@ -41,48 +34,32 @@ class EntityListController implements EntityListControllerInterface, EntityContr
   /**
    * The entity info array.
    *
-   * @var array
-   *
-   * @see entity_get_info()
+   * @var \Drupal\Core\Entity\EntityTypeInterface
    */
   protected $entityInfo;
 
   /**
-   * The translation manager service.
-   *
-   * @var \Drupal\Core\StringTranslation\TranslationInterface
-   */
-  protected $translationManager;
-
-  /**
    * {@inheritdoc}
    */
-  public static function createInstance(ContainerInterface $container, $entity_type, array $entity_info) {
+  public static function createInstance(ContainerInterface $container, EntityTypeInterface $entity_info) {
     return new static(
-      $entity_type,
       $entity_info,
-      $container->get('entity.manager')->getStorageController($entity_type),
-      $container->get('module_handler')
+      $container->get('entity.manager')->getStorageController($entity_info->id())
     );
   }
 
   /**
    * Constructs a new EntityListController object.
    *
-   * @param string $entity_type
-   *   The type of entity to be listed.
-   * @param array $entity_info
-   *   An array of entity info for the entity type.
+   * @param \Drupal\Core\Entity\EntityTypeInterface $entity_info
+   *   The entity info for the entity type.
    * @param \Drupal\Core\Entity\EntityStorageControllerInterface $storage
    *   The entity storage controller class.
-   * @param \Drupal\Core\Extension\ModuleHandlerInterface $module_handler
-   *   The module handler to invoke hooks on.
    */
-  public function __construct($entity_type, array $entity_info, EntityStorageControllerInterface $storage, ModuleHandlerInterface $module_handler) {
-    $this->entityType = $entity_type;
+  public function __construct(EntityTypeInterface $entity_info, EntityStorageControllerInterface $storage) {
+    $this->entityType = $entity_info->id();
     $this->storage = $storage;
     $this->entityInfo = $entity_info;
-    $this->moduleHandler = $module_handler;
   }
 
   /**
@@ -182,7 +159,7 @@ class EntityListController implements EntityListControllerInterface, EntityContr
   public function buildOperations(EntityInterface $entity) {
     // Retrieve and sort operations.
     $operations = $this->getOperations($entity);
-    $this->moduleHandler->alter('entity_operation', $operations, $entity);
+    $this->moduleHandler()->alter('entity_operation', $operations, $entity);
     uasort($operations, 'drupal_sort_weight');
     $build = array(
       '#type' => 'operations',
@@ -204,7 +181,7 @@ class EntityListController implements EntityListControllerInterface, EntityContr
       '#header' => $this->buildHeader(),
       '#title' => $this->getTitle(),
       '#rows' => array(),
-      '#empty' => $this->t('There is no @label yet.', array('@label' => $this->entityInfo['label'])),
+      '#empty' => $this->t('There is no @label yet.', array('@label' => $this->entityInfo->getLabel())),
     );
     foreach ($this->load() as $entity) {
       if ($row = $this->buildRow($entity)) {
@@ -221,33 +198,6 @@ class EntityListController implements EntityListControllerInterface, EntityContr
    */
   protected function t($string, array $args = array(), array $options = array()) {
     return $this->translationManager()->translate($string, $args, $options);
-  }
-
-  /**
-   * Gets the translation manager.
-   *
-   * @return \Drupal\Core\StringTranslation\TranslationInterface
-   *   The translation manager.
-   */
-  protected function translationManager() {
-    if (!$this->translationManager) {
-      $this->translationManager = \Drupal::translation();
-    }
-    return $this->translationManager;
-  }
-
-  /**
-   * Sets the translation manager for this form.
-   *
-   * @param \Drupal\Core\StringTranslation\TranslationInterface $translation_manager
-   *   The translation manager.
-   *
-   * @return self
-   *   The entity form.
-   */
-  public function setTranslationManager(TranslationInterface $translation_manager) {
-    $this->translationManager = $translation_manager;
-    return $this;
   }
 
   /**

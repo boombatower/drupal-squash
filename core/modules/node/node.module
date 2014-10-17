@@ -131,12 +131,12 @@ function node_help($path, $arg) {
     case 'node/%/edit':
       $node = node_load($arg[1]);
       $type = node_type_load($node->bundle());
-      return (!empty($type->help) ? '<p>' . filter_xss_admin($type->help) . '</p>' : '');
+      return (!empty($type->help) ? filter_xss_admin($type->help) : '');
   }
 
   if ($arg[0] == 'node' && $arg[1] == 'add' && $arg[2]) {
     $type = node_type_load($arg[2]);
-    return (!empty($type->help) ? '<p>' . filter_xss_admin($type->help) . '</p>' : '');
+    return (!empty($type->help) ? filter_xss_admin($type->help) : '');
   }
 }
 
@@ -159,12 +159,6 @@ function node_theme() {
     'node_preview' => array(
       'variables' => array('node' => NULL),
       'file' => 'node.pages.inc',
-    ),
-    'node_recent_block' => array(
-      'variables' => array('nodes' => NULL),
-    ),
-    'node_recent_content' => array(
-      'variables' => array('node' => NULL),
     ),
     'node_edit_form' => array(
       'render element' => 'form',
@@ -203,12 +197,6 @@ function node_entity_display_alter(EntityViewDisplayInterface $display, $context
         }
       }
     }
-    // @todo Manage base field displays in the YAML:
-    //   https://drupal.org/node/2144919.
-    $display->setComponent('title', array(
-      'label' => 'hidden',
-      'type' => 'text_default',
-    ));
   }
 }
 
@@ -217,16 +205,10 @@ function node_entity_display_alter(EntityViewDisplayInterface $display, $context
  */
 function node_entity_form_display_alter(EntityFormDisplayInterface $form_display, $context) {
   if ($context['entity_type'] == 'node') {
-    // @todo Manage base field displays in the YAML:
-    //   https://drupal.org/node/2144919.
     $node_type = node_type_load($context['bundle']);
-    if ($node_type->has_title) {
-      // Title is also registered in node_field_extra_fields().
-      $options = $form_display->getComponent('title') ?: array('weight' => -5);
-      $options['type'] = 'text_textfield';
-      $form_display->setComponent('title', $options);
-    }
-    else {
+    // @todo Reconsider when per-bundle overrides of field definitions are
+    //   possible - https://drupal.org/node/2114707.
+    if (!$node_type->has_title) {
       $form_display->removeComponent('title');
     }
   }
@@ -477,16 +459,8 @@ function node_field_extra_fields() {
   $description = t('Node module element');
 
   foreach (node_type_get_types() as $bundle) {
-    if ($bundle->has_title) {
-      $extra['node'][$bundle->type]['form']['title'] = array(
-        'label' => check_plain($bundle->title_label),
-        'description' => $description,
-        'weight' => -5,
-      );
-    }
-
-    // Add also the 'language' select if Language module is enabled and the
-    // bundle has multilingual support.
+    // Add the 'language' select if Language module is enabled and the bundle
+    // has multilingual support.
     // Visibility of the ordering of the language selector is the same as on the
     // node/add form.
     if ($module_language_enabled) {
@@ -626,9 +600,6 @@ function node_preprocess_block(&$variables) {
       case 'node_syndicate_block':
         $variables['attributes']['role'] = 'complementary';
         break;
-      case 'node_recent_block':
-        $variables['attributes']['role'] = 'navigation';
-        break;
     }
   }
 }
@@ -688,14 +659,12 @@ function template_preprocess_node(&$variables) {
     $variables['content'][$key] = $variables['elements'][$key];
   }
 
-  // Make the field variables available with the appropriate language.
-  field_attach_preprocess($node, $variables['content'], $variables);
-
   // Display post information only on certain node types.
-  // Avoid loading the entire node type config entity here.
-  $submitted = \Drupal::config('node.type.' . $node->bundle())->get('settings.node.submitted') ?: TRUE;
-  if ($submitted) {
-    $variables['display_submitted'] = TRUE;
+  // Avoid loading the entire node type config entity here that may not exist.
+  $node_type_config = \Drupal::config('node.type.' . $node->bundle());
+  // Display submitted by default.
+  $variables['display_submitted'] = $node_type_config->isNew() || $node_type_config->get('settings.node.submitted');
+  if ($variables['display_submitted']) {
     $variables['submitted'] = t('Submitted by !username on !datetime', array('!username' => $variables['name'], '!datetime' => $variables['date']));
     if (theme_get_setting('features.node_user_picture')) {
       // To change user picture settings (e.g. image style), edit the 'compact'
@@ -708,7 +677,6 @@ function template_preprocess_node(&$variables) {
     }
   }
   else {
-    $variables['display_submitted'] = FALSE;
     $variables['submitted'] = '';
     $variables['user_picture'] = '';
   }
@@ -911,7 +879,7 @@ function theme_node_search_admin($variables) {
 
   $output = drupal_render($form['info']);
 
-  $header = array(t('Factor'), t('Weight'));
+  $header = array(t('Factor'), t('Influence'));
   foreach (element_children($form['factors']) as $key) {
     $row = array();
     $row[] = $form['factors'][$key]['#title'];
@@ -956,21 +924,6 @@ function _node_revision_access(EntityInterface $node, $op = 'view', $account = N
     $account = \Drupal::currentUser();
   }
   return \Drupal::service('access_check.node.revision')->checkAccess($node, $account, $op, $langcode);
-}
-
-/**
- * Access callback: Checks whether the user has permission to add a node.
- *
- * @return
- *   TRUE if the user has add permission, otherwise FALSE.
- *
- * @see node_menu()
- *
- * @deprecated
- *   Use \Drupal::service('access_manager')->checkNamedRoute('node.add_page');
- */
-function _node_add_access() {
-  return \Drupal::service('access_manager')->checkNamedRoute('node.add_page', array(), \Drupal::currentUser());
 }
 
 /**
@@ -1133,94 +1086,6 @@ function node_get_recent($number = 10) {
   $nodes = node_load_multiple($nids);
 
   return $nodes ? $nodes : array();
-}
-
-/**
- * Returns HTML for a list of recent content.
- *
- * @param $variables
- *   An associative array containing:
- *   - nodes: An array of recent node entities.
- *
- * @ingroup themeable
- */
-function theme_node_recent_block($variables) {
-  $rows = array();
-  $output = '';
-
-  $l_options = array('query' => drupal_get_destination());
-  foreach ($variables['nodes'] as $node) {
-    $row = array();
-    $node_recent_content = array(
-      '#theme' => 'node_recent_content',
-      '#node' => $node,
-    );
-    $row[] = array(
-      'data' => drupal_render($node_recent_content),
-      'class' => 'title-author',
-    );
-    if ($node->access('update')) {
-      $row[] = array(
-        'data' => l(t('edit'), 'node/' . $node->id() . '/edit', $l_options),
-        'class' => 'edit',
-      );
-    }
-    if ($node->access('delete')) {
-      $row[] = array(
-        'data' => l(t('delete'), 'node/' . $node->id() . '/delete', $l_options),
-        'class' => 'delete',
-      );
-    }
-    $rows[] = $row;
-  }
-
-  if ($rows) {
-    $table = array(
-      '#theme' => 'table',
-      '#rows' => $rows,
-    );
-    $output = drupal_render($table);
-    if (user_access('access content overview')) {
-      $more_link = array(
-        '#theme' => 'more_link',
-        '#url' => 'admin/content',
-        '#title' => t('Show more content'),
-      );
-      $output .= drupal_render($more_link);
-    }
-  }
-
-  return $output;
-}
-
-/**
- * Returns HTML for a recent node to be displayed in the recent content block.
- *
- * @param $variable
- *   An associative array containing:
- *   - node: A node entity.
- *
- * @ingroup themeable
- */
-function theme_node_recent_content($variables) {
-  $node = $variables['node'];
-
-  $output = '<div class="node-title">';
-  $output .= l($node->label(), 'node/' . $node->id());
-  $mark = array(
-    '#theme' => 'mark',
-    '#status' => node_mark($node->id(), $node->getChangedTime()),
-  );
-  $output .= drupal_render($mark);
-  $output .= '</div><div class="node-author">';
-  $username = array(
-    '#theme' => 'username',
-    '#account' => $node->getAuthor(),
-  );
-  $output .= drupal_render($username);
-  $output .= '</div>';
-
-  return $output;
 }
 
 /**

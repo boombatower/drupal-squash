@@ -7,11 +7,9 @@
 
 namespace Drupal\field_test\Plugin\Field\FieldType;
 
-use Drupal\Core\Entity\Annotation\FieldType;
-use Drupal\Core\Annotation\Translation;
+use Drupal\Core\Field\FieldDefinitionInterface;
 use Drupal\Core\Field\PrepareCacheInterface;
 use Drupal\Core\TypedData\DataDefinition;
-use Drupal\field\FieldInterface;
 use Drupal\Core\Field\ConfigFieldItemBase;
 
 /**
@@ -59,7 +57,7 @@ class TestItem extends ConfigFieldItemBase implements PrepareCacheInterface {
   /**
    * {@inheritdoc}
    */
-  public static function schema(FieldInterface $field) {
+  public static function schema(FieldDefinitionInterface $field_definition) {
     return array(
       'columns' => array(
         'value' => array(
@@ -130,7 +128,7 @@ class TestItem extends ConfigFieldItemBase implements PrepareCacheInterface {
    * {@inheritdoc}
    */
   public function getConstraints() {
-    $constraint_manager = \Drupal::typedData()->getValidationConstraintManager();
+    $constraint_manager = \Drupal::typedDataManager()->getValidationConstraintManager();
     $constraints = parent::getConstraints();
 
     $constraints[] = $constraint_manager->create('ComplexData', array(

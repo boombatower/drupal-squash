@@ -49,16 +49,16 @@ class ConfigEntityUnitTest extends DrupalUnitTestBase {
    * Tests storage controller methods.
    */
   public function testStorageControllerMethods() {
-    $info = entity_get_info('config_test');
+    $info = \Drupal::entityManager()->getDefinition('config_test');
 
-    $expected = $info['config_prefix'] . '.';
+    $expected = $info->getConfigPrefix() . '.';
     $this->assertIdentical($this->storage->getConfigPrefix(), $expected);
 
     // Test the static extractID() method.
     $expected_id = 'test_id';
-    $config_name = $info['config_prefix'] . '.' . $expected_id;
+    $config_name = $info->getConfigPrefix() . '.' . $expected_id;
     $storage = $this->storage;
-    $this->assertIdentical($storage::getIDFromConfigName($config_name, $info['config_prefix']), $expected_id);
+    $this->assertIdentical($storage::getIDFromConfigName($config_name, $info->getConfigPrefix()), $expected_id);
 
     // Create three entities, two with the same style.
     $style = $this->randomName(8);
@@ -83,7 +83,11 @@ class ConfigEntityUnitTest extends DrupalUnitTestBase {
 
     $entities = $this->storage->loadByProperties(array('style' => $style));
     $this->assertEqual(count($entities), 2, 'Two entities are loaded when the style property is specified.');
-    $this->assertEqual(reset($entities)->get('style'), $style, 'The loaded entities have the style value specified.');
+
+    // Assert that both returned entities have a matching style property.
+    foreach ($entities as $entity) {
+      $this->assertIdentical($entity->get('style'), $style, 'The loaded entity has the correct style value specified.');
+    }
   }
 
   /**

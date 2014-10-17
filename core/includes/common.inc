@@ -354,7 +354,7 @@ function _drupal_default_html_head() {
 
 /**
  * Retrieves output to be displayed in the HEAD tag of the HTML page.
- */
+  */
 function drupal_get_html_head() {
   $elements = drupal_add_html_head();
   drupal_alter('html_head', $elements);
@@ -1402,7 +1402,7 @@ function drupal_add_html_head_link($attributes, $header = FALSE) {
 /**
  * Adds a cascading stylesheet to the stylesheet queue.
  *
- * Calling drupal_static_reset('drupal_add_css') will clear all cascading
+ * Calling drupal_static_reset('_drupal_add_css') will clear all cascading
  * stylesheets added so far.
  *
  * If CSS aggregation/compression is enabled, all cascading style sheets added
@@ -1421,7 +1421,7 @@ function drupal_add_html_head_link($attributes, $header = FALSE) {
  * all typical visitors and most pages of a site. It is critical that all
  * preprocessed files are added unconditionally on every page, even if the
  * files do not happen to be needed on a page. This is normally done by calling
- * drupal_add_css() in a hook_page_build() implementation.
+ * _drupal_add_css() in a hook_page_build() implementation.
  *
  * Non-preprocessed files should only be added to the page when they are
  * actually needed.
@@ -1494,9 +1494,9 @@ function drupal_add_html_head_link($attributes, $header = FALSE) {
  *     - Then by the 'every_page' flag, with TRUE coming before FALSE.
  *     - Then by weight.
  *     - Then by the order in which the CSS was added. For example, all else
- *       being the same, a stylesheet added by a call to drupal_add_css() that
+ *       being the same, a stylesheet added by a call to _drupal_add_css() that
  *       happened later in the page request gets added to the page after one for
- *       which drupal_add_css() happened earlier in the page request.
+ *       which _drupal_add_css() happened earlier in the page request.
  *     Available constants are:
  *     - CSS_BASE: Styles for HTML elements ("base" styles).
  *     - CSS_LAYOUT: Styles that layout a page.
@@ -1523,7 +1523,7 @@ function drupal_add_html_head_link($attributes, $header = FALSE) {
  *
  * @see drupal_get_css()
  */
-function drupal_add_css($data = NULL, $options = NULL) {
+function _drupal_add_css($data = NULL, $options = NULL) {
   $css = &drupal_static(__FUNCTION__, array());
 
   // Construct the options, taking the defaults into consideration.
@@ -1613,13 +1613,13 @@ function drupal_add_css($data = NULL, $options = NULL) {
  * @return
  *   A string of XHTML CSS tags.
  *
- * @see drupal_add_css()
+ * @see _drupal_add_css()
  */
 function drupal_get_css($css = NULL, $skip_alter = FALSE) {
   global $theme_info;
 
   if (!isset($css)) {
-    $css = drupal_add_css();
+    $css = _drupal_add_css();
   }
 
   // Allow modules and themes to alter the CSS items.
@@ -1672,12 +1672,12 @@ function drupal_get_css($css = NULL, $skip_alter = FALSE) {
  *
  * @param $a
  *   First item for comparison. The compared items should be associative arrays
- *   of member items from drupal_add_css() or drupal_add_js().
+ *   of member items from _drupal_add_css() or _drupal_add_js().
  * @param $b
  *   Second item for comparison.
  *
- * @see drupal_add_css()
- * @see drupal_add_js()
+ * @see _drupal_add_css()
+ * @see _drupal_add_js()
  */
 function drupal_sort_css_js($a, $b) {
   // First order by group, so that all items in the CSS_AGGREGATE_DEFAULT group
@@ -1759,7 +1759,7 @@ function drupal_sort_css_js($a, $b) {
  *
  * @param $element
  *   A render array containing:
- *   - '#items': The CSS items as returned by drupal_add_css() and altered by
+ *   - '#items': The CSS items as returned by _drupal_add_css() and altered by
  *     drupal_get_css().
  *
  * @return
@@ -1981,17 +1981,17 @@ function drupal_html_id($id) {
  *
  * Examples:
  * @code
- *   drupal_add_js('core/misc/collapse.js');
- *   drupal_add_js('core/misc/collapse.js', 'file');
- *   drupal_add_js('jQuery(document).ready(function () { alert("Hello!"); });', 'inline');
- *   drupal_add_js('jQuery(document).ready(function () { alert("Hello!"); });',
+ *   _drupal_add_js('core/misc/collapse.js');
+ *   _drupal_add_js('core/misc/collapse.js', 'file');
+ *   _drupal_add_js('jQuery(document).ready(function () { alert("Hello!"); });', 'inline');
+ *   _drupal_add_js('jQuery(document).ready(function () { alert("Hello!"); });',
  *     array('type' => 'inline', 'scope' => 'footer', 'weight' => 5)
  *   );
- *   drupal_add_js('http://example.com/example.js', 'external');
- *   drupal_add_js(array('myModule' => array('key' => 'value')), 'setting');
+ *   _drupal_add_js('http://example.com/example.js', 'external');
+ *   _drupal_add_js(array('myModule' => array('key' => 'value')), 'setting');
  * @endcode
  *
- * Calling drupal_static_reset('drupal_add_js') will clear all JavaScript added
+ * Calling drupal_static_reset('_drupal_add_js') will clear all JavaScript added
  * so far.
  *
  * If JavaScript aggregation is enabled, all JavaScript files added with
@@ -2008,7 +2008,7 @@ function drupal_html_id($id) {
  * all typical visitors and most pages of a site. It is critical that all
  * preprocessed files are added unconditionally on every page, even if the
  * files are not needed on a page. This is normally done by calling
- * drupal_add_js() in a hook_page_build() implementation.
+ * _drupal_add_js() in a hook_page_build() implementation.
  *
  * Non-preprocessed files should only be added to the page when they are
  * actually needed.
@@ -2085,9 +2085,9 @@ function drupal_html_id($id) {
  *     - Then by the 'every_page' flag, with TRUE coming before FALSE.
  *     - Then by weight.
  *     - Then by the order in which the JavaScript was added. For example, all
- *       else being the same, JavaScript added by a call to drupal_add_js() that
+ *       else being the same, JavaScript added by a call to _drupal_add_js() that
  *       happened later in the page request gets added to the page after one for
- *       which drupal_add_js() happened earlier in the page request.
+ *       which _drupal_add_js() happened earlier in the page request.
  *   - cache: If set to FALSE, the JavaScript file is loaded anew on every page
  *     call; in other words, it is not cached. Used only when 'type' references
  *     a JavaScript file. Defaults to TRUE.
@@ -2104,13 +2104,13 @@ function drupal_html_id($id) {
  * @return
  *   The current array of JavaScript files, settings, and in-line code,
  *   including Drupal defaults, anything previously added with calls to
- *   drupal_add_js(), and this function call's additions.
+ *   _drupal_add_js(), and this function call's additions.
  *
  * @deprecated as of Drupal 8.0. Use the #attached key in render arrays instead.
  *
  * @see drupal_get_js()
  */
-function drupal_add_js($data = NULL, $options = NULL) {
+function _drupal_add_js($data = NULL, $options = NULL) {
   $javascript = &drupal_static(__FUNCTION__, array());
 
   // Construct the options, taking the defaults into consideration.
@@ -2128,7 +2128,7 @@ function drupal_add_js($data = NULL, $options = NULL) {
   $options['preprocess'] = $options['cache'] && empty($options['attributes']) ? $options['preprocess'] : FALSE;
 
   // Tweak the weight so that files of the same weight are included in the
-  // order of the calls to drupal_add_js().
+  // order of the calls to _drupal_add_js().
   $options['weight'] += count($javascript) / 1000;
   if (isset($data)) {
     switch ($options['type']) {
@@ -2189,7 +2189,7 @@ function drupal_add_js($data = NULL, $options = NULL) {
  *   (optional) The default data parameter for the JavaScript item array.
  *
  * @see drupal_get_js()
- * @see drupal_add_js()
+ * @see _drupal_add_js()
  */
 function drupal_js_defaults($data = NULL) {
   return array(
@@ -2217,7 +2217,7 @@ function drupal_js_defaults($data = NULL) {
  *
  * Note that hook_js_alter(&$javascript) is called during this function call
  * to allow alterations of the JavaScript during its presentation. Calls to
- * drupal_add_js() from hook_js_alter() will not be added to the output
+ * _drupal_add_js() from hook_js_alter() will not be added to the output
  * presentation. The correct way to add JavaScript during hook_js_alter()
  * is to add another element to the $javascript array, deriving from
  * drupal_js_defaults(). See locale_js_alter() for an example of this.
@@ -2239,13 +2239,13 @@ function drupal_js_defaults($data = NULL) {
  * @return
  *   All JavaScript code segments and includes for the scope as HTML tags.
  *
- * @see drupal_add_js()
+ * @see _drupal_add_js()
  * @see locale_js_alter()
  * @see drupal_js_defaults()
  */
 function drupal_get_js($scope = 'header', $javascript = NULL, $skip_alter = FALSE, $is_ajax = FALSE) {
   if (!isset($javascript)) {
-    $javascript = drupal_add_js();
+    $javascript = _drupal_add_js();
   }
   if (empty($javascript)) {
     return '';
@@ -2294,17 +2294,17 @@ function drupal_get_js($scope = 'header', $javascript = NULL, $skip_alter = FALS
       // Skip if no files were added to the page otherwise jQuery.extend() will
       // overwrite the drupalSettings.ajaxPageState.css object with an empty
       // array.
-      $css = drupal_add_css();
+      $css = _drupal_add_css();
       if (!empty($css)) {
         // Cast the array to an object to be on the safe side even if not empty.
         $setting['ajaxPageState']['css'] = (object) array_fill_keys(array_keys($css), 1);
       }
 
-      drupal_add_js($setting, 'setting');
+      _drupal_add_js($setting, 'setting');
 
       // If we're outputting the header scope, then this might be the final time
       // that drupal_get_js() is running, so add the settings to this output as well
-      // as to the drupal_add_js() cache. If $items['settings'] doesn't exist, it's
+      // as to the _drupal_add_js() cache. If $items['settings'] doesn't exist, it's
       // because drupal_get_js() was intentionally passed a $javascript argument
       // stripped of settings, potentially in order to override how settings get
       // output, so in this case, do not add the setting to this output.
@@ -2356,7 +2356,7 @@ function drupal_get_js($scope = 'header', $javascript = NULL, $skip_alter = FALS
  *
  * By following jQuery.extend() merge logic rather than common PHP array merge
  * logic, the following are ensured:
- * - drupal_add_js() is idempotent: calling it twice with the same parameters
+ * - _drupal_add_js() is idempotent: calling it twice with the same parameters
  *   does not change the output sent to the browser.
  * - If pieces of the page are rendered in separate PHP requests and the
  *   returned settings are merged by JavaScript, the resulting settings are the
@@ -2365,7 +2365,7 @@ function drupal_get_js($scope = 'header', $javascript = NULL, $skip_alter = FALS
  * @param $settings_items
  *   An array of settings arrays, as returned by:
  *   @code
- *     $js = drupal_add_js();
+ *     $js = _drupal_add_js();
  *     $settings_items = $js['settings']['data'];
  *   @endcode
  *
@@ -2373,7 +2373,7 @@ function drupal_get_js($scope = 'header', $javascript = NULL, $skip_alter = FALS
  *   A merged $settings array, suitable for JSON encoding and returning to the
  *   browser.
  *
- * @see drupal_add_js()
+ * @see _drupal_add_js()
  * @see drupal_pre_render_scripts()
  */
 function drupal_merge_js_settings($settings_items) {
@@ -2406,7 +2406,7 @@ function drupal_merge_attached(array $a, array $b) {
  *
  * @param $element
  *   A render array containing:
- *   - #items: The JavaScript items as returned by drupal_add_js() and
+ *   - #items: The JavaScript items as returned by _drupal_add_js() and
  *     altered by drupal_get_js().
  *   - #group_callback: A function to call to group #items. Following
  *     this function, #aggregate_callback is called to aggregate items within
@@ -2437,6 +2437,7 @@ function drupal_pre_render_scripts($elements) {
  * to elements using the #attached property. The #attached property is an
  * associative array, where the keys are the the attachment types and the values
  * are the attached data. For example:
+ *
  * @code
  * $build['#attached'] = array(
  *   'library' => array(array('taxonomy', 'taxonomy')),
@@ -2474,8 +2475,8 @@ function drupal_pre_render_scripts($elements) {
  *   dependencies were met.
  *
  * @see drupal_add_library()
- * @see drupal_add_js()
- * @see drupal_add_css()
+ * @see _drupal_add_js()
+ * @see _drupal_add_css()
  * @see drupal_render()
  */
 function drupal_process_attached($elements, $dependency_check = FALSE) {
@@ -2500,7 +2501,7 @@ function drupal_process_attached($elements, $dependency_check = FALSE) {
   unset($elements['#attached']['library']);
 
   // Add both the JavaScript and the CSS.
-  // The parameters for drupal_add_js() and drupal_add_css() require special
+  // The parameters for _drupal_add_js() and _drupal_add_css() require special
   // handling.
   foreach (array('js', 'css') as $type) {
     foreach ($elements['#attached'][$type] as $data => $options) {
@@ -2516,7 +2517,7 @@ function drupal_process_attached($elements, $dependency_check = FALSE) {
         $data = $options['data'];
         unset($options['data']);
       }
-      call_user_func('drupal_add_' . $type, $data, $options);
+      call_user_func('_drupal_add_' . $type, $data, $options);
     }
     unset($elements['#attached'][$type]);
   }
@@ -2782,7 +2783,6 @@ function drupal_get_library($module, $name = NULL) {
             // key.
             unset($module_libraries[$key]['js'][$file]);
             $file = $options;
-            $options = array();
           }
           $module_libraries[$key]['js'][$file]['version'] = $module_libraries[$key]['version'];
         }
@@ -2800,7 +2800,7 @@ function drupal_get_library($module, $name = NULL) {
 }
 
 /**
- * Assists in adding the tableDrag JavaScript behavior to a themed table.
+ * Assists in attaching the tableDrag JavaScript behavior to a themed table.
  *
  * Draggable tables should be used wherever an outline or list of sortable items
  * needs to be arranged by an end-user. Draggable tables are very flexible and
@@ -2839,9 +2839,13 @@ function drupal_get_library($module, $name = NULL) {
  * - Rows with the 'tabledrag-leaf' class cannot have child rows.
  * - Rows with the 'tabledrag-root' class cannot be nested under a parent row.
  *
- * Calling drupal_add_tabledrag() would then be written as such:
+ * Calling drupal_attach_tabledrag() would then be written as such:
  * @code
- * drupal_add_tabledrag('my-module-table', 'order', 'sibling', 'my-elements-weight');
+ * drupal_attach_tabledrag('my-module-table', array(
+ *   'action' => 'order',
+ *   'relationship' => 'sibling',
+ *   'group' => 'my-elements-weight',
+ * );
  * @endcode
  *
  * In a more complex case where there are several groups in one column (such as
@@ -2851,13 +2855,19 @@ function drupal_get_library($module, $name = NULL) {
  * $form['my_elements'][$region][$delta]['weight']['#attributes']['class'] = array('my-elements-weight', 'my-elements-weight-' . $region);
  * @endcode
  *
- * $group is still 'my-element-weight', and the additional $subgroup variable
- * will be passed in as 'my-elements-weight-' . $region. This also means that
- * you'll need to call drupal_add_tabledrag() once for every region added.
+ * The 'group' option is still 'my-element-weight', and the additional
+ * 'subgroup' option will be passed in as 'my-elements-weight-' . $region. This
+ * also means that you'll need to call drupal_attach_tabledrag() once for every
+ * region added.
  *
  * @code
  * foreach ($regions as $region) {
- *   drupal_add_tabledrag('my-module-table', 'order', 'sibling', 'my-elements-weight', 'my-elements-weight-' . $region);
+ *   drupal_attach_tabledrag('my-module-table', array(
+ *     'action' => 'order',
+ *     'relationship' => sibling',
+ *     'group' => 'my-elements-weight',
+ *     'subgroup' => my-elements-weight-' . $region,
+ *   ));
  * }
  * @endcode
  *
@@ -2867,69 +2877,71 @@ function drupal_get_library($module, $name = NULL) {
  * theme_menu_overview_form() for an example creating a table containing parent
  * relationships.
  *
- * Note that this function should be called from the theme layer, such as in a
- * .html.twig file, theme_ function, or in a template_preprocess function, not
- * in a form declaration. Though the same JavaScript could be added to the page
- * using drupal_add_js() directly, this function helps keep template files
- * clean and readable. It also prevents tabledrag.js from being added twice
- * accidentally.
+ * @param $element
+ *   A form element to attach the tableDrag behavior to.
+ * @param array $options
+ *   These options are used to generate JavaScript settings necessary to
+ *   configure the tableDrag behavior appropriately for this particular table.
+ *   An associative array containing the following keys:
+ *   - 'table_id': String containing the target table's id attribute.
+ *     If the table does not have an id, one will need to be set,
+ *     such as <table id="my-module-table">.
+ *   - 'action': String describing the action to be done on the form item.
+ *      Either 'match' 'depth', or 'order':
+ *     - 'match' is typically used for parent relationships.
+ *     - 'order' is typically used to set weights on other form elements with
+ *       the same group.
+ *     - 'depth' updates the target element with the current indentation.
+ *   - 'relationship': String describing where the "action" option
+ *     should be performed. Either 'parent', 'sibling', 'group', or 'self':
+ *     - 'parent' will only look for fields up the tree.
+ *     - 'sibling' will look for fields in the same group in rows above and
+ *       below it.
+ *     - 'self' affects the dragged row itself.
+ *     - 'group' affects the dragged row, plus any children below it (the entire
+ *       dragged group).
+ *   - 'group': A class name applied on all related form elements for this action.
+ *   - 'subgroup': (optional) If the group has several subgroups within it, this
+ *     string should contain the class name identifying fields in the same
+ *     subgroup.
+ *   - 'source': (optional) If the $action is 'match', this string should contain
+ *     the classname identifying what field will be used as the source value
+ *     when matching the value in $subgroup.
+ *   - 'hidden': (optional) The column containing the field elements may be
+ *     entirely hidden from view dynamically when the JavaScript is loaded. Set
+ *     to FALSE if the column should not be hidden.
+ *   - 'limit': (optional) Limit the maximum amount of parenting in this table.
  *
- * @param $table_id
- *   String containing the target table's id attribute. If the table does not
- *   have an id, one will need to be set, such as <table id="my-module-table">.
- * @param $action
- *   String describing the action to be done on the form item. Either 'match'
- *   'depth', or 'order'. Match is typically used for parent relationships.
- *   Order is typically used to set weights on other form elements with the same
- *   group. Depth updates the target element with the current indentation.
- * @param $relationship
- *   String describing where the $action variable should be performed. Either
- *   'parent', 'sibling', 'group', or 'self'. Parent will only look for fields
- *   up the tree. Sibling will look for fields in the same group in rows above
- *   and below it. Self affects the dragged row itself. Group affects the
- *   dragged row, plus any children below it (the entire dragged group).
- * @param $group
- *   A class name applied on all related form elements for this action.
- * @param $subgroup
- *   (optional) If the group has several subgroups within it, this string should
- *   contain the class name identifying fields in the same subgroup.
- * @param $source
- *   (optional) If the $action is 'match', this string should contain the class
- *   name identifying what field will be used as the source value when matching
- *   the value in $subgroup.
- * @param $hidden
- *   (optional) The column containing the field elements may be entirely hidden
- *   from view dynamically when the JavaScript is loaded. Set to FALSE if the
- *   column should not be hidden.
- * @param $limit
- *   (optional) Limit the maximum amount of parenting in this table.
  * @see theme_menu_overview_form()
  */
-function drupal_add_tabledrag($table_id, $action, $relationship, $group, $subgroup = NULL, $source = NULL, $hidden = TRUE, $limit = 0) {
-  $js_added = &drupal_static(__FUNCTION__, FALSE);
-  $tabledrag_id = &drupal_static(__FUNCTION__  . '_setting', FALSE);
+function drupal_attach_tabledrag(&$element, array $options) {
+  // Add default values to elements.
+  $options = $options + array(
+    'subgroup' => NULL,
+    'source' => NULL,
+    'hidden' => TRUE,
+    'limit' => 0
+  );
+
+  $group = $options['group'];
+
+  $tabledrag_id = &drupal_static(__FUNCTION__);
   $tabledrag_id = (!isset($tabledrag_id)) ? 0 : $tabledrag_id + 1;
 
-  if (!$js_added) {
-    // Add the table drag JavaScript to the page before the module JavaScript
-    // to ensure that table drag behaviors are registered before any module
-    // uses it.
-    drupal_add_library('system', 'drupal.tabledrag');
-    $js_added = TRUE;
-  }
-
   // If a subgroup or source isn't set, assume it is the same as the group.
-  $target = isset($subgroup) ? $subgroup : $group;
-  $source = isset($source) ? $source : $target;
-  $settings['tableDrag'][$table_id][$group][$tabledrag_id] = array(
+  $target = isset($options['subgroup']) ? $options['subgroup'] : $group;
+  $source = isset($options['source']) ? $options['source'] : $target;
+  $settings['tableDrag'][$options['table_id']][$group][$tabledrag_id] = array(
     'target' => $target,
     'source' => $source,
-    'relationship' => $relationship,
-    'action' => $action,
-    'hidden' => $hidden,
-    'limit' => $limit,
+    'relationship' => $options['relationship'],
+    'action' => $options['action'],
+    'hidden' => $options['hidden'],
+    'limit' => $options['limit'],
   );
-  drupal_add_js($settings, 'setting');
+
+  $element['#attached']['library'][] = array('system', 'drupal.tabledrag');
+  $element['#attached']['js'][] = array('data' => $settings, 'type' => 'setting');
 }
 
 /**
@@ -3229,8 +3241,15 @@ function drupal_cron_run() {
       $end = time() + (isset($info['cron']['time']) ? $info['cron']['time'] : 15);
       $queue = \Drupal::queue($queue_name);
       while (time() < $end && ($item = $queue->claimItem())) {
-        call_user_func_array($callback, array($item->data));
-        $queue->deleteItem($item);
+        try {
+          call_user_func_array($callback, array($item->data));
+          $queue->deleteItem($item);
+        }
+        catch (Exception $e) {
+          // In case of exception log it and leave the item in the queue
+          // to be processed again later.
+          watchdog_exception('cron', $e);
+        }
       }
     }
   }
@@ -3397,7 +3416,12 @@ function drupal_pre_render_html_tag($element) {
     }
     $markup .= '</' . $element['#tag'] . ">\n";
   }
-  $element['#markup'] = $markup;
+  if (!empty($element['#noscript'])) {
+    $element['#markup'] = '<noscript>' . $markup . '</noscript>';
+  }
+  else {
+    $element['#markup'] = $markup;
+  }
   return $element;
 }
 
@@ -3581,7 +3605,7 @@ function drupal_pre_render_dropbutton($element) {
 }
 
 /**
- * Renders the page, including all theming.
+ * Processes the page render array, enhancing it as necessary.
  *
  * @param $page
  *   A string or array representing the content of a page. The array consists of
@@ -3591,10 +3615,13 @@ function drupal_pre_render_dropbutton($element) {
  *   - #show_messages: Suppress drupal_get_message() items. Used by Batch
  *     API (optional).
  *
+ * @return array
+ *   The processed render array for the page.
+ *
  * @see hook_page_alter()
  * @see element_info()
  */
-function drupal_render_page($page) {
+function drupal_prepare_page($page) {
   $main_content_display = &drupal_static('system_main_content_added', FALSE);
 
   // Pull out the page title to set it back later.
@@ -3631,6 +3658,28 @@ function drupal_render_page($page) {
     $page['#title'] = $title;
   }
 
+  return $page;
+}
+
+/**
+ * Renders the page, including all theming.
+ *
+ * @param string|array $page
+ *   A string or array representing the content of a page. The array consists of
+ *   the following keys:
+ *   - #type: Value is always 'page'. This pushes the theming through
+ *     the page template (required).
+ *   - #show_messages: Suppress drupal_get_message() items. Used by Batch
+ *     API (optional).
+ *
+ * @return string
+ *   Returns the rendered string.
+ *
+ * @see hook_page_alter()
+ * @see element_info()
+ */
+function drupal_render_page($page) {
+  $page = drupal_prepare_page($page);
   return drupal_render($page);
 }
 
@@ -3920,14 +3969,18 @@ function drupal_render(&$elements, $is_recursive_call = FALSE) {
   $suffix = isset($elements['#suffix']) ? $elements['#suffix'] : '';
   $elements['#markup'] = $prefix . $elements['#children'] . $suffix;
 
-  // Cache the processed element if #cache is set.
-  if (isset($elements['#cache'])) {
-    // Collect all #post_render_cache callbacks associated with this element.
+  // Collect all #post_render_cache callbacks associated with this element when:
+  // - about to store this element in the render cache, or when;
+  // - about to apply #post_render_cache callbacks.
+  if (isset($elements['#cache']) || !$is_recursive_call) {
     $post_render_cache = drupal_render_collect_post_render_cache($elements);
     if ($post_render_cache) {
       $elements['#post_render_cache'] = $post_render_cache;
     }
+  }
 
+  // Cache the processed element if #cache is set.
+  if (isset($elements['#cache'])) {
     drupal_render_cache_set($elements['#markup'], $elements);
   }
 
@@ -3951,14 +4004,16 @@ function drupal_render(&$elements, $is_recursive_call = FALSE) {
 /**
  * Renders children of an element and concatenates them.
  *
- * This renders all children of an element using drupal_render() and then
- * joins them together into a single string.
- *
- * @param $element
+ * @param array $element
  *   The structured array whose children shall be rendered.
- * @param $children_keys
- *   If the keys of the element's children are already known, they can be passed
- *   in to save another run of element_children().
+ * @param array $children_keys
+ *   (optional) If the keys of the element's children are already known, they
+ *   can be passed in to save another run of element_children().
+ *
+ * @return string
+ *   The rendered HTML of all children of the element.
+
+ * @see drupal_render()
  */
 function drupal_render_children(&$element, $children_keys = NULL) {
   if ($children_keys === NULL) {
@@ -4480,11 +4535,12 @@ function drupal_render_cid_parts($granularity = NULL) {
   global $theme, $base_root, $user;
 
   $cid_parts[] = $theme;
-  // If Locale is enabled but we have only one language we do not need it as cid
-  // part.
-  if (language_multilingual()) {
-    foreach (language_types_get_configurable() as $language_type) {
-      $cid_parts[] = language($language_type)->id;
+
+  // If we have only one language enabled we do not need it as cid part.
+  $language_manager = \Drupal::languageManager();
+  if ($language_manager->isMultilingual()) {
+    foreach ($language_manager->getLanguageTypes() as $type) {
+      $cid_parts[] = $language_manager->getCurrentLanguage($type)->id;
     }
   }
 

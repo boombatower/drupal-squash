@@ -46,7 +46,7 @@ class FieldEditForm extends FormBase {
    *
    * @var \Drupal\Core\TypedData\TypedDataManager
    */
-  protected $typedData;
+  protected $typedDataManager;
 
   /**
    * {@inheritdoc}
@@ -62,13 +62,13 @@ class FieldEditForm extends FormBase {
    *   The entity manager.
    * @param \Drupal\field\FieldInfo $field_info
    *   The field info service.
-   * @param \Drupal\Core\TypedData\TypedDataManager $typed_data
+   * @param \Drupal\Core\TypedData\TypedDataManager $typed_data_manager
    *   The typed data manager.
    */
-  public function __construct(EntityManagerInterface $entity_manager, FieldInfo $field_info, TypedDataManager $typed_data) {
+  public function __construct(EntityManagerInterface $entity_manager, FieldInfo $field_info, TypedDataManager $typed_data_manager) {
     $this->entityManager = $entity_manager;
     $this->fieldInfo = $field_info;
-    $this->typedData = $typed_data;
+    $this->typedDataManager = $typed_data_manager;
   }
 
   /**
@@ -78,7 +78,7 @@ class FieldEditForm extends FormBase {
     return new static(
       $container->get('entity.manager'),
       $container->get('field.info'),
-      $container->get('typed_data')
+      $container->get('typed_data_manager')
     );
   }
 
@@ -202,11 +202,18 @@ class FieldEditForm extends FormBase {
     try {
       $field->save();
       drupal_set_message($this->t('Updated field %label field settings.', array('%label' => $this->instance->label())));
-      if ($next_destination = FieldUI::getNextDestination($this->getRequest())) {
-        $form_state['redirect'] = $next_destination;
+      $request = $this->getRequest();
+      if (($destinations = $request->query->get('destinations')) && $next_destination = FieldUI::getNextDestination($destinations)) {
+        $request->query->remove('destinations');
+        if (isset($next_destination['route_name'])) {
+          $form_state['redirect_route'] = $next_destination;
+        }
+        else {
+          $form_state['redirect'] = $next_destination;
+        }
       }
       else {
-        $form_state['redirect_route'] = $this->entityManager->getAdminRouteInfo($this->instance->entity_type, $this->instance->bundle);
+        $form_state['redirect_route'] = FieldUI::getOverviewRouteInfo($this->instance->entity_type, $this->instance->bundle);
       }
     }
     catch (\Exception $e) {

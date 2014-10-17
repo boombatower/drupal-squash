@@ -9,6 +9,8 @@ namespace Drupal\locale\ParamConverter;
 
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Route;
+use Drupal\Core\Config\ConfigFactory;
+use Drupal\Core\Entity\EntityManagerInterface;
 use Drupal\Core\ParamConverter\EntityConverter;
 use Drupal\Core\ParamConverter\ParamConverterInterface;
 
@@ -29,17 +31,33 @@ use Drupal\Core\ParamConverter\ParamConverterInterface;
 class LocaleAdminPathConfigEntityConverter extends EntityConverter {
 
   /**
+   * The config factory.
+   *
+   * @var \Drupal\Core\Config\ConfigFactory
+   */
+  protected $configFactory;
+
+  /**
+   * Constructs a new EntityConverter.
+   *
+   * @param \Drupal\Core\Entity\EntityManagerInterface $entityManager
+   *   The entity manager.
+   */
+  public function __construct(EntityManagerInterface $entity_manager, ConfigFactory $config_factory) {
+    $this->configFactory = $config_factory;
+    parent::__construct($entity_manager);
+  }
+
+  /**
    * {@inheritdoc}
    */
   public function convert($value, $definition, $name, array $defaults, Request $request) {
     $entity_type = substr($definition['type'], strlen('entity:'));
     if ($storage = $this->entityManager->getStorageController($entity_type)) {
-      // Enter the override-free context, so we can ensure no overrides are
-      // applied.
-      config_context_enter('config.context.free');
+      // Make sure no overrides are loaded.
+      $this->configFactory->disableOverrides();
       $entity = $storage->load($value);
-      // Leave the override-free context.
-      config_context_leave();
+      $this->configFactory->enableOverrides();
       return $entity;
     }
   }
@@ -53,7 +71,7 @@ class LocaleAdminPathConfigEntityConverter extends EntityConverter {
       // out whether the current entity is a ConfigEntity.
       $entity_type = substr($definition['type'], strlen('entity:'));
       $info = $this->entityManager->getDefinition($entity_type);
-      if (is_subclass_of($info['class'], '\Drupal\Core\Config\Entity\ConfigEntityInterface')) {
+      if ($info->isSubclassOf('\Drupal\Core\Config\Entity\ConfigEntityInterface')) {
         // path_is_admin() needs the path without the leading slash.
         $path = ltrim($route->getPath(), '/');
         return path_is_admin($path);

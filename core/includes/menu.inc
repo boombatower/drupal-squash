@@ -480,6 +480,7 @@ function menu_get_item($path = NULL, $router_item = NULL) {
     if (\Drupal::state()->get('menu_rebuild_needed') || !\Drupal::state()->get('menu.masks')) {
       menu_router_rebuild();
       \Drupal::service('router.builder')->rebuild();
+      \Drupal::cache()->deleteTags(array('local_task' => 1));
     }
     $original_map = arg(NULL, $path);
 
@@ -1107,14 +1108,8 @@ function menu_tree_output($tree) {
 
   $router_item = menu_get_item();
   $num_items = count($items);
-  foreach ($items as $i => $data) {
+  foreach ($items as $data) {
     $class = array();
-    if ($i == 0) {
-      $class[] = 'first';
-    }
-    if ($i == $num_items - 1) {
-      $class[] = 'last';
-    }
     // Set a class for the <li>-tag. Since $data['below'] may contain local
     // tasks, only set 'expanded' class if the link also has children within
     // the current menu.
@@ -2563,7 +2558,7 @@ function menu_router_rebuild() {
 function menu_router_build($save = FALSE) {
   // Ensure that all configuration used to build the menu items are loaded
   // without overrides.
-  config_context_enter('config.context.free');
+  \Drupal::configFactory()->disableOverrides();
   // We need to manually call each module so that we can know which module
   // a given item came from.
   $callbacks = array();
@@ -2578,8 +2573,8 @@ function menu_router_build($save = FALSE) {
   }
   // Alter the menu as defined in modules, keys are like user/%user.
   drupal_alter('menu', $callbacks);
-  // Return to the original context before menu building.
-  config_context_leave();
+  // Re-enable configuration overrides.
+  \Drupal::configFactory()->enableOverrides();
   foreach ($callbacks as $path => $router_item) {
     // If the menu item is a default local task and incorrectly references a
     // route, remove it.
@@ -3092,7 +3087,7 @@ function _menu_router_build($callbacks, $save = FALSE) {
     // if the list has changed.
     if ($path_roots != \Drupal::state()->get('menu_path_roots')) {
       \Drupal::state()->set('menu_path_roots', array_values($path_roots));
-      drupal_container()->get('path.alias_manager')->cacheClear();
+      \Drupal::service('path.alias_manager')->cacheClear();
     }
     _menu_router_save($menu, $masks);
   }

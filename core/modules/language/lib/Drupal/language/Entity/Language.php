@@ -7,11 +7,8 @@
 
 namespace Drupal\language\Entity;
 
-use Drupal\Core\Entity\Annotation\EntityType;
-use Drupal\Core\Annotation\Translation;
 use Drupal\Core\Config\Entity\ConfigEntityBase;
 use Drupal\Core\Entity\EntityStorageControllerInterface;
-use Drupal\Core\Language\LanguageManager;
 use Drupal\language\LanguageInterface;
 
 /**

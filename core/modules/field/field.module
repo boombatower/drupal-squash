@@ -7,8 +7,6 @@
 use Drupal\Core\Entity\ContentEntityInterface;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Template\Attribute;
-use Drupal\field\FieldInterface;
-use Drupal\field\FieldInstanceInterface;
 
 /*
  * Load all public Field API functions. Drupal currently has no
@@ -16,7 +14,6 @@ use Drupal\field\FieldInstanceInterface;
  * every page request.
  */
 require_once __DIR__ . '/field.info.inc';
-require_once __DIR__ . '/field.multilingual.inc';
 require_once __DIR__ . '/field.attach.inc';
 require_once __DIR__ . '/field.form.inc';
 require_once __DIR__ . '/field.purge.inc';
@@ -153,9 +150,10 @@ function field_cron() {
  * required if there are any active fields of that type.
  */
 function field_system_info_alter(&$info, $file, $type) {
-  // It is not safe to call field_read_fields() during maintenance mode.
+  // It is not safe to call entity_load_multiple_by_properties() during
+  // maintenance mode.
   if ($type == 'module' && !defined('MAINTENANCE_MODE')) {
-    $fields = field_read_fields(array('module' => $file->name), array('include_deleted' => TRUE));
+    $fields = entity_load_multiple_by_properties('field_entity', array('module' => $file->name, 'include_deleted' => TRUE));
     if ($fields) {
       $info['required'] = TRUE;
 
@@ -222,10 +220,10 @@ function field_entity_bundle_create($entity_type, $bundle) {
  * Implements hook_entity_bundle_rename().
  */
 function field_entity_bundle_rename($entity_type, $bundle_old, $bundle_new) {
-  $instances = field_read_instances();
+  $instances = entity_load_multiple_by_properties('field_instance', array('entity_type' => $entity_type, 'bundle' => $bundle_old));
   foreach ($instances as $instance) {
     if ($instance->entity_type == $entity_type && $instance->bundle == $bundle_old) {
-      $id_new = $instance->entity_type . '.' . $bundle_new . '.' . $instance->getName();
+      $id_new = $instance->entity_type . '.' . $bundle_new . '.' . $instance->field_name;
       $instance->id = $id_new;
       $instance->bundle = $bundle_new;
       $instance->allowBundleRename();
@@ -248,10 +246,10 @@ function field_entity_bundle_rename($entity_type, $bundle_old, $bundle_new) {
  * simple DELETE query).
  */
 function field_entity_bundle_delete($entity_type, $bundle) {
-  // Get the instances on the bundle. field_read_instances() must be used
-  // here since field_info_instances() does not return instances for disabled
-  // entity types or bundles.
-  $instances = field_read_instances(array('entity_type' => $entity_type, 'bundle' => $bundle));
+  // Get the instances on the bundle. entity_load_multiple_by_properties() must
+  // be used here since field_info_instances() does not return instances for
+  // disabled entity types or bundles.
+  $instances = entity_load_multiple_by_properties('field_instance', array('entity_type' => $entity_type, 'bundle' => $bundle));
   foreach ($instances as $instance) {
     $instance->delete();
   }
@@ -347,13 +345,15 @@ function field_view_value(EntityInterface $entity, $field_name, $item, $display 
   $output = array();
 
   if ($field = field_info_field($entity->entityType(), $field_name)) {
-    // Determine the langcode that will be used by language fallback.
-    $langcode = field_language($entity, $field_name, $langcode);
+    // Clone the entity since we are going to modify field values.
+    $clone = clone $entity;
+
+    // Apply language fallback.
+    $clone = \Drupal::entityManager()->getTranslationFromContext($clone, $langcode);
 
     // Push the item as the single value for the field, and defer to
     // field_view_field() to build the render array for the whole field.
-    $clone = clone $entity;
-    $clone->getTranslation($langcode)->{$field_name}->setValue(array($item));
+    $clone->{$field_name}->setValue(array($item));
     $elements = field_view_field($clone, $field_name, $display, $langcode);
 
     // Extract the part of the render array we need.
@@ -418,8 +418,6 @@ function field_view_value(EntityInterface $entity, $field_name, $item, $display 
  */
 function field_view_field(ContentEntityInterface $entity, $field_name, $display_options = array(), $langcode = NULL) {
   $output = array();
-  $bundle = $entity->bundle();
-  $entity_type = $entity->entityType();
 
   // Return nothing if the field doesn't exist.
   if (!$entity->hasField($field_name)) {
@@ -447,10 +445,11 @@ function field_view_field(ContentEntityInterface $entity, $field_name, $display_
   }
 
   if ($formatter) {
-    $display_langcode = field_language($entity, $field_name, $langcode);
+    // Apply language fallback.
+    $entity = \Drupal::entityManager()->getTranslationFromContext($entity, $langcode);
+    $items = $entity->get($field_name);
 
-    // Invoke the formatter's prepareView() and view() methods.
-    $items = $entity->getTranslation($display_langcode)->get($field_name);
+    // Run the formatter.
     $formatter->prepareView(array($entity->id() => $items));
     $result = $formatter->view($items);
 
@@ -460,7 +459,7 @@ function field_view_field(ContentEntityInterface $entity, $field_name, $display_
       'entity' => $entity,
       'view_mode' => $view_mode,
       'display_options' => $display_options,
-      'langcode' => $display_langcode,
+      'langcode' => $entity->language()->id,
     );
     drupal_alter('field_attach_view', $result, $context);
 
@@ -489,9 +488,9 @@ function field_extract_bundle($entity_type, $bundle) {
     return $bundle;
   }
 
-  $info = entity_get_info($entity_type);
-  if (is_object($bundle) && isset($info['bundle_keys']['bundle']) && isset($bundle->{$info['bundle_keys']['bundle']})) {
-    return $bundle->{$info['bundle_keys']['bundle']};
+  $info = \Drupal::entityManager()->getDefinition($entity_type);
+  if (is_object($bundle) && ($bundle_key = $info->getBundleKey('bundle')) && isset($bundle->{$bundle_key})) {
+    return $bundle->{$bundle_key};
   }
 }
 
@@ -678,8 +677,7 @@ function theme_field($variables) {
   // Render the items.
   $output .= '<div class="field-items"' . $variables['content_attributes'] . '>';
   foreach ($variables['items'] as $delta => $item) {
-    $classes = 'field-item ' . ($delta % 2 ? 'odd' : 'even');
-    $output .= '<div class="' . $classes . '"' . $variables['item_attributes'][$delta] . '>' . drupal_render($item) . '</div>';
+    $output .= '<div class="field-item"' . $variables['item_attributes'][$delta] . '>' . drupal_render($item) . '</div>';
   }
   $output .= '</div>';
 
@@ -701,15 +699,15 @@ function theme_field($variables) {
  */
 function _field_create_entity_from_ids($ids) {
   $id_properties = array();
-  $info = entity_get_info($ids->entity_type);
-  if (isset($info['entity_keys']['id'])) {
-    $id_properties[$info['entity_keys']['id']] = $ids->entity_id;
+  $info = \Drupal::entityManager()->getDefinition($ids->entity_type);
+  if ($id_key = $info->getKey('id')) {
+    $id_properties[$id_key] = $ids->entity_id;
   }
-  if (!empty($info['entity_keys']['revision']) && isset($ids->revision_id)) {
-    $id_properties[$info['entity_keys']['revision']] = $ids->revision_id;
+  if (isset($ids->revision_id) && $revision_key = $info->getKey('revision')) {
+    $id_properties[$revision_key] = $ids->revision_id;
   }
-  if (!empty($info['entity_keys']['bundle']) && isset($ids->bundle)) {
-    $id_properties[$info['entity_keys']['bundle']] = $ids->bundle;
+  if (isset($ids->bundle) && $bundle_key = $info->getKey('bundle')) {
+    $id_properties[$bundle_key] = $ids->bundle;
   }
   return entity_create($ids->entity_type, $id_properties);
 }

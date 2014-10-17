@@ -8,8 +8,6 @@
 namespace Drupal\editor\Entity;
 
 use Drupal\Core\Config\Entity\ConfigEntityBase;
-use Drupal\Core\Entity\Annotation\EntityType;
-use Drupal\Core\Annotation\Translation;
 use Drupal\editor\EditorInterface;
 
 /**
@@ -64,14 +62,6 @@ class Editor extends ConfigEntityBase implements EditorInterface {
    */
   public function id() {
     return $this->format;
-  }
-
-  /**
-   * Overrides Drupal\Core\Entity\Entity::label().
-   */
-  public function label($langcode = NULL) {
-    $format = entity_load('filter_format', $this->format);
-    return $format->name;
   }
 
   /**

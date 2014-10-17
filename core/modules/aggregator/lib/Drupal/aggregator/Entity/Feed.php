@@ -11,8 +11,6 @@ use Drupal\Core\Entity\ContentEntityBase;
 use Drupal\Core\Field\FieldDefinition;
 use Symfony\Component\DependencyInjection\Container;
 use Drupal\Core\Entity\EntityStorageControllerInterface;
-use Drupal\Core\Entity\Annotation\EntityType;
-use Drupal\Core\Annotation\Translation;
 use Drupal\aggregator\FeedInterface;
 
 /**
@@ -27,7 +25,7 @@ use Drupal\aggregator\FeedInterface;
  *     "form" = {
  *       "default" = "Drupal\aggregator\FeedFormController",
  *       "delete" = "Drupal\aggregator\Form\FeedDeleteForm",
- *       "remove_items" = "Drupal\aggregator\Form\FeedItemsRemoveForm"
+ *       "remove_items" = "Drupal\aggregator\Form\FeedItemsRemoveForm",
  *     }
  *   },
  *   base_table = "aggregator_feed",
@@ -35,6 +33,7 @@ use Drupal\aggregator\FeedInterface;
  *   entity_keys = {
  *     "id" = "fid",
  *     "label" = "title",
+ *     "uuid" = "uuid",
  *   }
  * )
  */
@@ -165,7 +164,7 @@ class Feed extends ContentEntityBase implements FeedInterface {
   /**
    * Implements Drupal\Core\Entity\EntityInterface::label().
    */
-  public function label($langcode = NULL) {
+  public function label() {
     return $this->get('title')->value;
   }
 
@@ -235,8 +234,10 @@ class Feed extends ContentEntityBase implements FeedInterface {
       ->setDescription(t('The ID of the aggregator feed.'))
       ->setReadOnly(TRUE);
 
-    // @todo Add a UUID field for this entity type in
-    // https://drupal.org/node/2149841.
+    $fields['uuid'] = FieldDefinition::create('uuid')
+      ->setLabel(t('UUID'))
+      ->setDescription(t('The aggregator feed UUID.'))
+      ->setReadOnly(TRUE);
 
     $fields['title'] = FieldDefinition::create('string')
       ->setLabel(t('Title'))

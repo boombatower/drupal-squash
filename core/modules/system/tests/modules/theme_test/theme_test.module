@@ -26,6 +26,10 @@ function theme_test_theme($existing, $type, $theme, $path) {
     'template' => 'theme-test-suggestions',
     'variables' => array(),
   );
+  $items['theme_test_general_suggestions'] = array(
+    'template' => 'theme-test-general-suggestions',
+    'variables' => array(),
+  );
   $items['theme_test_function_suggestions'] = array(
     'variables' => array(),
   );
@@ -87,10 +91,7 @@ function theme_test_preprocess_html(&$variables) {
   $variables['html_attributes']['theme_test_html_attribute'] = 'theme test html attribute value';
   $variables['attributes']['theme_test_body_attribute'] = 'theme test body attribute value';
 
-  // Check that the page variable is not flattened yet.
-  if (is_array($variables['page'])) {
-    $variables['attributes']['theme_test_page_variable'] = 'Page variable is an array.';
-  }
+  $variables['attributes']['theme_test_page_variable'] = 'Page variable is an array.';
 }
 
 /**
@@ -154,4 +155,18 @@ function theme_theme_test_function_suggestions($variables) {
  */
 function theme_test_theme_suggestions_theme_test_suggestion_provided(array $variables) {
   return array('theme_test_suggestion_provided__' . 'foo');
+}
+
+/**
+ * Implements hook_theme_suggestions_alter().
+ */
+function theme_test_theme_suggestions_alter(array &$suggestions, array $variables, $hook) {
+  drupal_set_message(__FUNCTION__ . '() executed.');
+}
+
+/**
+ * Implements hook_theme_suggestions_HOOK_alter().
+ */
+function theme_test_theme_suggestions_theme_test_suggestions_alter(array &$suggestions, array $variables) {
+  drupal_set_message(__FUNCTION__ . '() executed.');
 }

@@ -36,9 +36,11 @@ use Drupal\entity\Entity\EntityFormDisplay;
  *
  * The Field API reads the bundle name for a given entity from a particular
  * property of the entity object, and hook_entity_info_alter() defines which
- * property to use. For instance, node_entity_info_alter() specifies:
+ * property to use. For instance, \Drupal\node\Entity\Node specifies:
  * @code
- *   $info['entity_keys']['bundle'] = 'type'
+ *   entity_keys = {
+ *     "bundle" = "type"
+ *   }
  * @endcode
  * This indicates that for a particular node object, the bundle name can be
  * found in $node->type. This property can be omitted if the entity type only
@@ -261,38 +263,6 @@ function _field_invoke_widget_target($form_display) {
   return function (FieldDefinitionInterface $field_definition) use ($form_display) {
     return $form_display->getRenderer($field_definition->getName());
   };
-}
-
-/**
- * Populates the template variables with the available field values.
- *
- * The $variables array will be populated with all the field instance values
- * associated with the given entity type, keyed by field name; in case of
- * translatable fields the language currently chosen for display will be
- * selected.
- *
- * @param \Drupal\Core\Entity\EntityInterface $entity
- *   The entity with fields to render.
- * @param $element
- *   The structured array containing the values ready for rendering.
- * @param $variables
- *   The variables array is passed by reference and will be populated with field
- *   values.
- */
-function field_attach_preprocess(EntityInterface $entity, $element, &$variables) {
-  foreach (field_info_instances($entity->entityType(), $entity->bundle()) as $field_name => $instance) {
-    if (isset($element[$field_name]['#language'])) {
-      $langcode = $element[$field_name]['#language'];
-      $variables[$field_name] = $entity->getTranslation($langcode)->{$field_name}->getValue();
-    }
-  }
-
-  // Let other modules make changes to the $variables array.
-  $context = array(
-    'entity' => $entity,
-    'element' => $element,
-  );
-  drupal_alter('field_attach_preprocess', $variables, $context);
 }
 
 /**

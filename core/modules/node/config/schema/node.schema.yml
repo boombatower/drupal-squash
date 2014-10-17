@@ -61,17 +61,29 @@ node.settings.node:
       label: 'Publishing options'
       mapping:
         status:
-          type: string
+          type: boolean
           label: 'Published'
         promote:
-          type: string
+          type: boolean
           label: 'Promoted to front page'
         sticky:
-          type: string
+          type: boolean
           label: 'Sticky at top of lists'
         revision:
-          type: string
+          type: boolean
           label: 'Create new revision'
     submitted:
       type: boolean
       label: 'Display setting for author and date Submitted by post information'
+
+# Plugin \Drupal\node\Plugin\Search\NodeSearch
+search.plugin.node_search:
+  type: mapping
+  label: 'Content search'
+  mapping:
+    rankings:
+      type: sequence
+      label: 'Content ranking'
+      sequence:
+        - type: integer
+          label: 'Influence'

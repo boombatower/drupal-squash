@@ -175,6 +175,19 @@ class DisplayBlockTest extends ViewTestBase {
   }
 
   /**
+   * Tests views block plugin definitions.
+   */
+  public function testViewsBlockPlugins() {
+    // Ensures that the cache setting gets to the block settings.
+    $instance = $this->container->get('plugin.manager.block')->createInstance('views_block:test_view_block2-block_2');
+    $configuration = $instance->getConfiguration();
+    $this->assertEqual($configuration['cache'], DRUPAL_NO_CACHE);
+    $instance = $this->container->get('plugin.manager.block')->createInstance('views_block:test_view_block2-block_3');
+    $configuration = $instance->getConfiguration();
+    $this->assertEqual($configuration['cache'], DRUPAL_CACHE_PER_USER);
+  }
+
+  /**
    * Test the block form for a Views block.
    */
   public function testViewsBlockForm() {
@@ -252,6 +265,14 @@ class DisplayBlockTest extends ViewTestBase {
     $this->drupalGet('');
     $result = $this->xpath('//div[contains(@class, "region-sidebar-first")]/div[contains(@class, "block-views")]/h2');
     $this->assertEqual((string) $result[0], 'test_view_block');
+
+    // Hide the title.
+    $block->getPlugin()->setConfigurationValue('label_display', FALSE);
+    $block->save();
+
+    $this->drupalGet('');
+    $result = $this->xpath('//div[contains(@class, "region-sidebar-first")]/div[contains(@class, "block-views")]/h2');
+    $this->assertTrue(empty($result), 'The title is not visible.');
   }
 
   /**
@@ -272,7 +293,7 @@ class DisplayBlockTest extends ViewTestBase {
     $response = $this->drupalPost('contextual/render', 'application/json', $post, array('query' => array('destination' => 'test-page')));
     $this->assertResponse(200);
     $json = drupal_json_decode($response);
-    $this->assertIdentical($json[$id], '<ul class="contextual-links"><li class="block-configure odd first"><a href="' . base_path() . 'admin/structure/block/manage/' . $block->id() . '?destination=test-page">Configure block</a></li><li class="views-uiedit even last"><a href="' . base_path() . 'admin/structure/views/view/test_view_block/edit/block_1?destination=test-page">Edit view</a></li></ul>');
+    $this->assertIdentical($json[$id], '<ul class="contextual-links"><li class="block-configure"><a href="' . base_path() . 'admin/structure/block/manage/' . $block->id() . '?destination=test-page">Configure block</a></li><li class="views-uiedit"><a href="' . base_path() . 'admin/structure/views/view/test_view_block/edit/block_1?destination=test-page">Edit view</a></li></ul>');
   }
 
 }

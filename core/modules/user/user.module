@@ -25,11 +25,6 @@ use Drupal\menu_link\Entity\MenuLink;
 const USERNAME_MAX_LENGTH = 60;
 
 /**
- * Maximum length of user e-mail text field.
- */
-const EMAIL_MAX_LENGTH = 255;
-
-/**
  * Only administrators can create user accounts.
  */
 const USER_REGISTER_ADMINISTRATORS_ONLY = 'admin_only';
@@ -132,9 +127,13 @@ function user_js_alter(&$javascript) {
   // Provide the user ID in drupalSettings to allow JavaScript code to customize
   // the experience for the end user, rather than the server side, which would
   // break the render cache.
+  // Similarly, provide a permissions hash, so that permission-dependent data
+  // can be reliably cached on the client side.
+  $user = \Drupal::currentUser();
   $javascript['settings']['data'][] = array(
     'user' => array(
-      'uid' => \Drupal::currentUser()->id(),
+      'uid' => $user->id(),
+      'permissionsHash' => \Drupal::service('user.permissions_hash')->generate($user),
     ),
   );
 }
@@ -333,7 +332,7 @@ function user_load_by_name($name) {
 function user_validate_name($name) {
   $definition = DataDefinition::create('string')
     ->setConstraints(array('UserName' => array()));
-  $data = \Drupal::typedData()->create($definition);
+  $data = \Drupal::typedDataManager()->create($definition);
   $data->setValue($name);
   $violations = $data->validate();
   if (count($violations) > 0) {
@@ -547,9 +546,6 @@ function user_preprocess_block(&$variables) {
     switch ($variables['elements']['#plugin_id']) {
       case 'user_login_block':
         $variables['attributes']['role'] = 'form';
-        break;
-      case 'user_new_block':
-        $variables['attributes']['role'] = 'complementary';
         break;
     }
   }
@@ -1338,12 +1334,10 @@ function user_mail($key, &$message, $params) {
   $langcode = $message['langcode'];
   $variables = array('user' => $params['account']);
 
-  // Get configuration objects customized for the user specified in $params as
-  // this user is not necessarily the same as the one triggering the mail. This
-  // allows the configuration objects to be localized for the user's language if
-  // the locale module is enabled.
-  $user_config_context = config_context_enter('Drupal\user\UserConfigContext');
-  $user_config_context->setAccount($params['account']);
+  $original_language = \Drupal::configFactory()->getLanguage();
+
+  $language = language_load($params['account']->getPreferredLangcode());
+  \Drupal::configFactory()->setLanguage($language);
   $mail_config = \Drupal::config('user.mail');
 
    // We do not sanitize the token replacement, since the output of this
@@ -1352,8 +1346,7 @@ function user_mail($key, &$message, $params) {
   $message['subject'] .= $token_service->replace($mail_config->get($key . '.subject'), $variables, $token_options);
   $message['body'][] = $token_service->replace($mail_config->get($key . '.body'), $variables, $token_options);
 
-  // Return the previous config context.
-  config_context_leave();
+  \Drupal::configFactory()->setLanguage($original_language);
 }
 
 /**
@@ -1746,29 +1739,6 @@ function user_form_process_password_confirm($element) {
   }
 
   return $element;
-}
-
-/**
- * Implements hook_node_load().
- *
- * @todo Deprecated by $node->author, attached in
- *   \Drupal\node\NodeViewBuilder::buildContent(). Update code that
- *   depends on these properties.
- */
-function user_node_load($nodes) {
-  // Build an array of all uids for node authors, keyed by nid.
-  $uids = array();
-  foreach ($nodes as $nid => $node) {
-    $uids[$nid] = $node->getAuthorId();
-  }
-
-  // Fetch name and data for these users.
-  $user_names = db_query("SELECT uid, name FROM {users} WHERE uid IN (:uids)", array(':uids' => $uids))->fetchAllKeyed();
-
-  // Add these values back into the node objects.
-  foreach ($uids as $nid => $uid) {
-    $nodes[$nid]->name = $user_names[$uid];
-  }
 }
 
 /**

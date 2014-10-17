@@ -44,7 +44,7 @@ class NodeFormController extends ContentEntityFormController {
       foreach (array('status', 'promote', 'sticky') as $key) {
         // Multistep node forms might have filled in something already.
         if ($node->$key->isEmpty()) {
-          $node->$key = (int) in_array($key, $this->settings['options']);
+          $node->$key = (int) !empty($this->settings['options'][$key]);
         }
       }
       $node->setAuthorId(\Drupal::currentUser()->id());
@@ -56,7 +56,7 @@ class NodeFormController extends ContentEntityFormController {
       $node->log = NULL;
     }
     // Always use the default revision setting.
-    $node->setNewRevision(in_array('revision', $this->settings['options']));
+    $node->setNewRevision(!empty($this->settings['options']['revision']));
   }
 
   /**
@@ -388,7 +388,6 @@ class NodeFormController extends ContentEntityFormController {
     // @todo Remove this: we should not have explicit includes in autoloaded
     //   classes.
     module_load_include('inc', 'node', 'node.pages');
-    drupal_set_title(t('Preview'), PASS_THROUGH);
     $form_state['node_preview'] = node_preview($this->entity, $form_state);
     $form_state['rebuild'] = TRUE;
   }

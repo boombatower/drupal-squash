@@ -4,6 +4,9 @@ system.site:
   type: mapping
   label: 'Site information'
   mapping:
+    uuid:
+      type: string
+      label: 'Site UUID'
     name:
       type: label
       label: 'Site name'
@@ -97,7 +100,7 @@ system.date:
         default:
           type: string
           label: 'Default time zone'
-      user:
+        user:
           type: mapping
           label: 'User'
           mapping:
@@ -172,23 +175,6 @@ system.filter:
         - type: string
           label: 'Protocol'
 
-system.language.types:
-  type: mapping
-  label: 'Language types'
-  mapping:
-    all:
-      type: sequence
-      label: 'All language types'
-      sequence:
-        - type: string
-          label: 'Language type'
-    configurable:
-      type: sequence
-      label: 'Configurable language types'
-      sequence:
-        - type: string
-          label: 'Language type'
-
 system.logging:
   type: mapping
   label: 'Logging settings'
@@ -220,7 +206,7 @@ system.performance:
           type: mapping
           label: 'Page cache'
           mapping:
-            enabled:
+            use_internal:
               type: boolean
               label: 'Cache pages for anonymous users'
             max_age:
@@ -236,6 +222,22 @@ system.performance:
         gzip:
           type: boolean
           label: 'Compress CSS files'
+    fast_404:
+      type: mapping
+      label: 'Fast 404 settings'
+      mapping:
+        enabled:
+          type: boolean
+          label: 'Fast 404 enabled'
+        paths:
+          type: string
+          label: 'Regular expression to match'
+        exclude_paths:
+          type: string
+          label: 'Regular expression to not match'
+        html:
+          type: string
+          label: 'Fast 404 page html'
     js:
       type: mapping
       label: 'JavaScript performance settings'
@@ -295,6 +297,9 @@ system.theme:
       sequence:
         - type: string
           label: 'Theme'
+    default:
+      type: string
+      label: 'Default theme'
 
 system.menu.*:
   type: mapping
@@ -303,6 +308,9 @@ system.menu.*:
     id:
       type: string
       label: 'Menu identifier'
+    uuid:
+      type: string
+      label: 'UUID'
     label:
       type: label
       label: 'Menu label'
@@ -312,3 +320,9 @@ system.menu.*:
     langcode:
       type: string
       label: 'Default language'
+    locked:
+      type: boolean
+      label: ''
+    status:
+      type: boolean
+      label: ''

@@ -13,14 +13,17 @@ use Drupal\Tests\UnitTestCase;
 /**
  * Tests the entity view controller.
  *
+ * @group Drupal
+ * @group Entity
+ *
  * @see \Drupal\Core\Entity\Controller\EntityViewController
  */
 class EntityViewControllerTest extends UnitTestCase{
 
   public static function getInfo() {
     return array(
-      'name' => 'Entity route enhancer test',
-      'description' => 'Tests the entity route enhancer.',
+      'name' => 'Entity view controller test',
+      'description' => 'Tests the entity view controller.',
       'group' => 'Entity'
     );
   }

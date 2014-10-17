@@ -9,7 +9,7 @@ namespace Drupal\telephone\Plugin\Field\FieldType;
 
 use Drupal\Core\Field\ConfigFieldItemBase;
 use Drupal\Core\TypedData\DataDefinition;
-use Drupal\field\FieldInterface;
+use Drupal\Core\Field\FieldDefinitionInterface;
 
 /**
  * Plugin implementation of the 'telephone' field type.
@@ -34,7 +34,7 @@ class TelephoneItem extends ConfigFieldItemBase {
   /**
    * {@inheritdoc}
    */
-  public static function schema(FieldInterface $field) {
+  public static function schema(FieldDefinitionInterface $field_definition) {
     return array(
       'columns' => array(
         'value' => array(
@@ -69,7 +69,7 @@ class TelephoneItem extends ConfigFieldItemBase {
    * {@inheritdoc}
    */
   public function getConstraints() {
-    $constraint_manager = \Drupal::typedData()->getValidationConstraintManager();
+    $constraint_manager = \Drupal::typedDataManager()->getValidationConstraintManager();
     $constraints = parent::getConstraints();
 
     $max_length = 256;

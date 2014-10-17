@@ -8,7 +8,6 @@
 namespace Drupal\system\Form;
 
 use Drupal\Core\Config\ConfigFactory;
-use Drupal\Core\Config\Context\ContextInterface;
 use Drupal\Core\Form\ConfigFormBase;
 use Drupal\Core\ImageToolkit\ImageToolkitManager;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -30,13 +29,11 @@ class ImageToolkitForm extends ConfigFormBase {
    *
    * @param \Drupal\Core\Config\ConfigFactory $config_factory
    *   The factory for configuration objects.
-   * @param \Drupal\Core\Config\Context\ContextInterface $context
-   *   The configuration context used for this configuration object.
    * @param \Drupal\Core\ImageToolkit\ImageToolkitManager $manager
    *   The image toolkit plugin manager.
    */
-  public function __construct(ConfigFactory $config_factory, ContextInterface $context, ImageToolkitManager $manager) {
-    parent::__construct($config_factory, $context);
+  public function __construct(ConfigFactory $config_factory, ImageToolkitManager $manager) {
+    parent::__construct($config_factory);
 
     foreach ($manager->getAvailableToolkits() as $id => $definition) {
       $this->availableToolkits[$id] = $manager->createInstance($id);
@@ -49,7 +46,6 @@ class ImageToolkitForm extends ConfigFormBase {
   public static function create(ContainerInterface $container) {
     return new static(
       $container->get('config.factory'),
-      $container->get('config.context.free'),
       $container->get('image.toolkit.manager')
     );
   }
@@ -69,22 +65,26 @@ class ImageToolkitForm extends ConfigFormBase {
 
     $form['image_toolkit'] = array(
       '#type' => 'radios',
-      '#title' => t('Select an image processing toolkit'),
+      '#title' => $this->t('Select an image processing toolkit'),
       '#default_value' => $current_toolkit,
       '#options' => array(),
     );
 
-    // If we have available toolkits, allow the user to select the image toolkit
-    // to use and load the settings forms.
+    // If we have more than one image toolkit, allow the user to select the one
+    // to use, and load each of the toolkits' settings form.
     foreach ($this->availableToolkits as $id => $toolkit) {
       $definition = $toolkit->getPluginDefinition();
       $form['image_toolkit']['#options'][$id] = $definition['title'];
       $form['image_toolkit_settings'][$id] = array(
-        '#type' => 'fieldset',
-        '#title' => t('@toolkit settings', array('@toolkit' => $definition['title'])),
-        '#collapsible' => TRUE,
-        '#collapsed' => ($id == $current_toolkit) ? FALSE : TRUE,
+        '#type' => 'details',
+        '#title' => $this->t('@toolkit settings', array('@toolkit' => $definition['title'])),
+        '#collapsed' => FALSE,
         '#tree' => TRUE,
+        '#states' => array(
+          'visible' => array(
+            ':radio[name="image_toolkit"]' => array('value' => $id),
+          ),
+        ),
       );
       $form['image_toolkit_settings'][$id] += $toolkit->settingsForm();
     }
@@ -101,7 +101,6 @@ class ImageToolkitForm extends ConfigFormBase {
       ->save();
 
     // Call the form submit handler for each of the toolkits.
-    // Get the toolkit settings forms.
     foreach ($this->availableToolkits as $toolkit) {
       $toolkit->settingsFormSubmit($form, $form_state);
     }

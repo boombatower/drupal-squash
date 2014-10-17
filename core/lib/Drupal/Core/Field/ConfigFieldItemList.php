@@ -7,7 +7,7 @@
 
 namespace Drupal\Core\Field;
 
-use Drupal\Core\Field\Plugin\DataType\FieldInstanceInterface;
+use Drupal\field\FieldInstanceInterface;
 use Drupal\Core\TypedData\TypedDataInterface;
 use Drupal\field\Field;
 
@@ -19,7 +19,7 @@ class ConfigFieldItemList extends FieldItemList implements ConfigFieldItemListIn
   /**
    * The Field instance definition.
    *
-   * @var \Drupal\field\Entity\FieldInstance
+   * @var \Drupal\field\FieldInstanceInterface
    */
   protected $instance;
 
@@ -66,7 +66,7 @@ class ConfigFieldItemList extends FieldItemList implements ConfigFieldItemListIn
     // widgets.
     $cardinality = $this->getFieldDefinition()->getCardinality();
     if ($cardinality != FieldDefinitionInterface::CARDINALITY_UNLIMITED) {
-      $constraints[] = \Drupal::typedData()
+      $constraints[] = \Drupal::typedDataManager()
         ->getValidationConstraintManager()
         ->create('Count', array(
           'max' => $cardinality,

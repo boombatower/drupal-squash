@@ -43,6 +43,12 @@ class LocaleImportFunctionalTest extends WebTestBase {
 
     $this->admin_user = $this->drupalCreateUser(array('administer languages', 'translate interface', 'access administration pages'));
     $this->drupalLogin($this->admin_user);
+
+    // Enable import of translations. By default this is disabled for automated
+    // tests.
+    \Drupal::config('locale.settings')
+      ->set('translation.import_enabled', TRUE)
+      ->save();
   }
 
   /**
@@ -150,7 +156,7 @@ class LocaleImportFunctionalTest extends WebTestBase {
 
     // The database should now contain 6 customized strings (two imported
     // strings are not translated).
-    $count = db_query('SELECT lid FROM {locales_target} WHERE customized = :custom', array(':custom' => 1))->rowCount();
+    $count = db_query('SELECT COUNT(*) FROM {locales_target} WHERE customized = :custom', array(':custom' => 1))->fetchField();
     $this->assertEqual($count, 6, 'Customized translations successfully imported.');
 
     // Try importing a .po file with overriding strings, and ensure existing

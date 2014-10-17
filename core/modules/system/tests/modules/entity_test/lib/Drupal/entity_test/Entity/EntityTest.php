@@ -8,8 +8,6 @@
 namespace Drupal\entity_test\Entity;
 
 use Drupal\Core\Entity\ContentEntityBase;
-use Drupal\Core\Entity\Annotation\EntityType;
-use Drupal\Core\Annotation\Translation;
 use Drupal\Core\Field\FieldDefinition;
 use Drupal\Core\Entity\EntityStorageControllerInterface;
 use Drupal\Core\Language\Language;
@@ -109,12 +107,12 @@ class EntityTest extends ContentEntityBase {
   /**
    * Overrides Drupal\entity\Entity::label().
    */
-  public function label($langcode = NULL) {
+  public function label() {
     $info = $this->entityInfo();
     if (!isset($langcode)) {
       $langcode = $this->activeLangcode;
     }
-    if (isset($info['entity_keys']['label']) && $info['entity_keys']['label'] == 'name') {
+    if ($info->getKey('laebl') == 'name') {
       return $this->getTranslation($langcode)->name->value;
     }
     else {

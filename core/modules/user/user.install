@@ -58,13 +58,6 @@ function user_schema() {
         'default' => '',
         'description' => "User's e-mail address.",
       ),
-      'theme' => array(
-        'type' => 'varchar',
-        'length' => DRUPAL_EXTENSION_NAME_MAX_LENGTH,
-        'not null' => TRUE,
-        'default' => '',
-        'description' => "User's default theme.",
-      ),
       'signature' => array(
         'type' => 'varchar',
         'length' => 255,
@@ -231,18 +224,19 @@ function user_install() {
   db_insert('users')
     ->fields(array(
       'uid' => 0,
+      'uuid' => \Drupal::service('uuid')->generate(),
       'name' => '',
       'mail' => '',
       'langcode' => language_default()->id,
     ))
     ->execute();
 
-  // We need some placeholders here as name and mail are uniques and data is
-  // presumed to be a serialized array. This will be changed by the settings
-  // form in the installer.
+  // We need some placeholders here as name and mail are uniques.
+  // This will be changed by the settings form in the installer.
   db_insert('users')
     ->fields(array(
       'uid' => 1,
+      'uuid' => \Drupal::service('uuid')->generate(),
       'name' => 'placeholder-for-uid-1',
       'mail' => 'placeholder-for-uid-1',
       'created' => REQUEST_TIME,
@@ -561,7 +555,8 @@ function user_update_8011() {
         'langcode' => Language::LANGCODE_NOT_SPECIFIED,
         'filesize' => filesize($destination),
         'filemime' => file_get_mimetype($destination),
-        'timestamp' => REQUEST_TIME,
+        'created' => REQUEST_TIME,
+        'changed' => REQUEST_TIME,
       ))
       ->execute();
     $default_image_fid = db_query('SELECT fid FROM {file_managed} WHERE uri = :uri', array(':uri' => $destination))->fetchField();
@@ -690,9 +685,7 @@ function user_update_8011() {
       'weight' => 0,
     ))
     ->set('status', 1)
-    ->set('content.member_for', array(
-      'visible' => FALSE,
-    ));
+    ->set('hidden.member_for', TRUE);
   $display->save();
 
   // Add file usage for the default field.
@@ -997,16 +990,6 @@ function user_update_8019() {
     db_change_field('users_data', 'module', 'module', $spec);
   }
 
-  if (db_field_exists('users', 'theme')) {
-    $spec = array(
-      'type' => 'varchar',
-      'length' => 50,
-      'not null' => TRUE,
-      'default' => '',
-      'description' => "User's default theme.",
-    );
-    db_change_field('users', 'theme', 'theme', $spec);
-  }
 }
 
 /**

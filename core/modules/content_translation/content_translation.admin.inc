@@ -76,7 +76,7 @@ function _content_translation_form_language_content_settings_form_alter(array &$
   $dependent_options_settings = array();
   $entity_manager = Drupal::entityManager();
   foreach ($form['#labels'] as $entity_type => $label) {
-    $entity_info = entity_get_info($entity_type);
+    $entity_info = \Drupal::entityManager()->getDefinition($entity_type);
     foreach (entity_get_bundles($entity_type) as $bundle => $bundle_info) {
       // Here we do not want the widget to be altered and hold also the "Enable
       // translation" checkbox, which would be redundant. Hence we add this key
@@ -85,7 +85,7 @@ function _content_translation_form_language_content_settings_form_alter(array &$
 
       // Only show the checkbox to enable translation if the bundles in the
       // entity might have fields and if there are fields to translate.
-      if (!empty($entity_info['fieldable'])) {
+      if ($entity_info->isFieldable()) {
         $fields = $entity_manager->getFieldDefinitions($entity_type, $bundle);
         if ($fields) {
           $form['settings'][$entity_type][$bundle]['translatable'] = array(
@@ -275,7 +275,7 @@ function content_translation_form_language_content_settings_validate(array $form
         }
 
         $values = $bundle_settings['settings']['language'];
-        if (language_is_locked($values['langcode']) && empty($values['language_show'])) {
+        if (empty($values['language_show']) && \Drupal::languageManager()->isLanguageLocked($values['langcode'])) {
           foreach (language_list(Language::STATE_LOCKED) as $language) {
             $locked_languages[] = $language->name;
           }
@@ -299,7 +299,7 @@ function content_translation_form_language_content_settings_submit(array $form, 
   // marked as non-translatable. Similarly, if a bundle is made non-translatable
   // all of its fields will be not translatable.
   foreach ($settings as $entity_type => &$entity_settings) {
-    foreach ($entity_settings as $bundle => &$bundle_settings) {
+    foreach ($entity_settings as &$bundle_settings) {
       if (!empty($bundle_settings['translatable'])) {
         $bundle_settings['translatable'] = $bundle_settings['translatable'] && $entity_types[$entity_type];
       }
@@ -338,7 +338,7 @@ function _content_translation_update_field_translatability($settings) {
   //   track translatability. See https://drupal.org/node/2018685.
   foreach ($settings as $entity_type => $entity_settings) {
     $fields = array();
-    foreach ($entity_settings as $bundle => $bundle_settings) {
+    foreach ($entity_settings as $bundle_settings) {
       // Collapse field settings since here we have per instance settings, but
       // translatability has per-field scope. We assume that all the field
       // instances have the same value.

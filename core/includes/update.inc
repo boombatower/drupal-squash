@@ -14,6 +14,7 @@ use Drupal\Component\Utility\String;
 use Drupal\Core\Config\FileStorage;
 use Drupal\Core\Config\ConfigException;
 use Drupal\Core\DrupalKernel;
+use Drupal\Core\Utility\Error;
 use Drupal\Component\Uuid\Uuid;
 use Drupal\Component\Utility\NestedArray;
 use Symfony\Component\HttpFoundation\Request;
@@ -107,6 +108,7 @@ function update_prepare_d8_bootstrap() {
   // Enable UpdateServiceProvider service overrides.
   // @see update_flush_all_caches()
   $GLOBALS['conf']['container_service_providers']['UpdateServiceProvider'] = 'Drupal\Core\DependencyInjection\UpdateServiceProvider';
+  $GLOBALS['conf']['update_service_provider_overrides'] = TRUE;
 
   // Check whether settings.php needs to be rewritten.
   $settings_exist = !empty($GLOBALS['config_directories']);
@@ -142,7 +144,7 @@ function update_prepare_d8_bootstrap() {
   }
 
   // Bootstrap the database.
-  drupal_bootstrap(DRUPAL_BOOTSTRAP_DATABASE);
+  require_once __DIR__ . '/database.inc';
 
   // module.inc is not yet loaded but there are calls to module_config_sort()
   // below.
@@ -323,7 +325,7 @@ function update_prepare_d8_bootstrap() {
       // Required to run before drupal_install_config_directories(), since that
       // triggers a call into system_stream_wrappers(), which calls t(), which
       // calls into language_default().
-      $language_default = variable_get('language_default');
+      $language_default = update_variable_get('language_default');
       if (!empty($language_default) && (isset($language_default->id) || isset($language_default->language))) {
         if (!isset($language_default->id)) {
           $language_default->id = $language_default->language;
@@ -332,7 +334,7 @@ function update_prepare_d8_bootstrap() {
         // In D8, the 'language_default' is not anymore an object, but an array,
         // so make sure that the new value that is saved into this variable is an
         // array.
-        variable_set('language_default', (array) $language_default);
+        update_variable_set('language_default', (array) $language_default);
       }
 
       $module_config = \Drupal::config('system.module');
@@ -477,9 +479,7 @@ function update_prepare_stored_includes() {
   foreach ($language_types as $language_type) {
     $negotiation = update_variable_get("language_negotiation_$language_type", array());
     foreach ($negotiation as &$method) {
-      if (isset($method['file']) && $method['file'] == 'includes/locale.inc') {
-        $method['file'] = 'core/modules/language/language.negotiation.inc';
-      }
+      unset($method['file']);
     }
     update_variable_set("language_negotiation_$language_type", $negotiation);
   }
@@ -524,9 +524,6 @@ function update_prepare_d8_language() {
     db_drop_field('languages', 'native');
     db_drop_field('languages', 'enabled');
 
-    // Update language count.
-    \Drupal::state()->set('language_count', db_query('SELECT COUNT(language) FROM {languages}')->fetchField());
-
     // Rename the languages table to language.
     db_rename_table('languages', 'language');
 
@@ -555,7 +552,7 @@ function update_prepare_d8_language() {
       db_add_field('language', 'locked', $locked_spec);
 
       $max_language_weight = db_query('SELECT MAX(weight) FROM {language}')->fetchField();
-      $languages = language_default_locked_languages($max_language_weight);
+      $languages = \Drupal::languageManager()->getDefaultLockedLanguages($max_language_weight);
       foreach ($languages as $language) {
         db_insert('language')
           ->fields(array(
@@ -570,7 +567,7 @@ function update_prepare_d8_language() {
     }
 
     // Update the 'language_default' system variable with the langcode change.
-    $language_default = variable_get('language_default');
+    $language_default = update_variable_get('language_default');
     if (!empty($language_default)) {
       if (isset($language_default->language)) {
         $language_default->id = $language_default->language;
@@ -582,7 +579,7 @@ function update_prepare_d8_language() {
       // array.
       $language_default = (array) $language_default;
       $language_default['langcode'] = 'en';
-      variable_set('language_default', $language_default);
+      update_variable_set('language_default', $language_default);
     }
 
     // Convert languages to config entities.
@@ -815,12 +812,11 @@ function update_do_one($module, $number, $dependency_map, &$context) {
     catch (Exception $e) {
       watchdog_exception('update', $e);
 
-      require_once __DIR__ . '/errors.inc';
-      $variables = _drupal_decode_exception($e);
+      $variables = Error::decodeException($e);
       unset($variables['backtrace']);
       // The exception message is run through
       // \Drupal\Component\Utility\String::checkPlain() by
-      // _drupal_decode_exception().
+      // \Drupal\Core\Utility\Error::decodeException().
       $ret['#abort'] = array('success' => FALSE, 'query' => t('%type: !message in %function (line %line of %file).', $variables));
     }
   }
@@ -1640,10 +1636,10 @@ function update_language_list($flags = Language::STATE_CONFIGURABLE) {
 
     // Fill in master language list based on current configuration.
     $default = language_default();
-    if (language_multilingual() || \Drupal::moduleHandler()->moduleExists('language')) {
+    if (\Drupal::languageManager()->isMultilingual() || \Drupal::moduleHandler()->moduleExists('language')) {
       // Use language module configuration if available. We can not use
       // entity_load_multiple() because this breaks during updates.
-      $language_entities = config_get_storage_names_with_prefix('language.entity');
+      $language_entities = config_get_storage_names_with_prefix('language.entity.');
 
       // Initialize default property so callers have an easy reference and can
       // save the same object without data loss.
@@ -1665,7 +1661,7 @@ function update_language_list($flags = Language::STATE_CONFIGURABLE) {
       // No language module, so use the default language only.
       $languages = array($default->id => $default);
       // Add the special languages, they will be filtered later if needed.
-      $languages += language_default_locked_languages($default->weight);
+      $languages += \Drupal::languageManager()->getDefaultLockedLanguages($default->weight);
     }
   }
 

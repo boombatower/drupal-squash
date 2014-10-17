@@ -557,7 +557,7 @@ function system_requirements($phase) {
 function system_install() {
   // Enable and set the default theme. Can't use theme_enable() this early in
   // installation.
-  config_install_default_config('theme', 'stark');
+  \Drupal::service('config.installer')->installDefaultConfig('theme', 'stark');
   \Drupal::config('system.theme')
     ->set('default', 'stark')
     ->save();
@@ -565,6 +565,11 @@ function system_install() {
   // Populate the cron key state variable.
   $cron_key = Crypt::randomStringHashed(55);
   \Drupal::state()->set('system.cron_key', $cron_key);
+
+  // Populate the site UUID.
+  \Drupal::config('system.site')
+    ->set('uuid', \Drupal::service('uuid')->generate())
+    ->save();
 }
 
 /**
@@ -2247,7 +2252,7 @@ function system_update_8058() {
  * @ingroup config_upgrade
  */
 function system_update_8059() {
-  update_variables_to_config('system.language.types', array(
+  update_variables_to_config('language.types', array(
     'language_interface' => 'configurable.language_interface',
     'language_content' => 'configurable.language_content',
     'language_url' => 'configurable.language_content',

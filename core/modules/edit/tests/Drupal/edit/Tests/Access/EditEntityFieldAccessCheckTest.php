@@ -5,7 +5,7 @@
  * Contains \Drupal\edit\Tests\Access\EditEntityFieldAccessCheckTest.
  */
 
-namespace Drupal\edit\Tests\Access {
+namespace Drupal\edit\Tests\Access;
 
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Route;
@@ -68,13 +68,6 @@ class EditEntityFieldAccessCheckTest extends UnitTestCase {
   }
 
   /**
-   * Tests the appliesTo method for the access checker.
-   */
-  public function testAppliesTo() {
-    $this->assertEquals($this->editAccessCheck->appliesTo(), array('_access_edit_entity_field'), 'Access checker returned the expected appliesTo() array.');
-  }
-
-  /**
    * Provides test data for testAccess().
    *
    * @see \Drupal\edit\Tests\edit\Access\EditEntityFieldAccessCheckTest::testAccess()
@@ -133,6 +126,10 @@ class EditEntityFieldAccessCheckTest extends UnitTestCase {
       ->method('get')
       ->with('valid')
       ->will($this->returnValue($field));
+    $entity_with_field->expects($this->once())
+      ->method('hasTranslation')
+      ->with(Language::LANGCODE_NOT_SPECIFIED)
+      ->will($this->returnValue(TRUE));
 
     // Prepare the request to be valid.
     $request->attributes->set('entity_type', 'test_entity');
@@ -242,10 +239,16 @@ class EditEntityFieldAccessCheckTest extends UnitTestCase {
    * @expectedException \Symfony\Component\HttpKernel\Exception\NotFoundHttpException
    */
   public function testAccessWithInvalidLanguage() {
+    $entity = $this->createMockEntity();
+    $entity->expects($this->once())
+      ->method('hasTranslation')
+      ->with('xx-lolspeak')
+      ->will($this->returnValue(FALSE));
+
     $route = new Route('/edit/form/test_entity/1/body/und/full', array(), array('_access_edit_entity_field' => 'TRUE'));
     $request = new Request();
     $request->attributes->set('entity_type', 'entity_test');
-    $request->attributes->set('entity', $this->createMockEntity());
+    $request->attributes->set('entity', $entity);
     $request->attributes->set('field_name', 'valid');
     $request->attributes->set('langcode', 'xx-lolspeak');
 
@@ -269,21 +272,6 @@ class EditEntityFieldAccessCheckTest extends UnitTestCase {
       )));
 
     return $entity;
-  }
-
-}
-
-}
-
-// @todo remove once field_access() and field_valid_language() can be injected.
-namespace {
-
-  use Drupal\Core\Language\Language;
-
-  if (!function_exists('field_valid_language')) {
-    function field_valid_language($langcode, $default = TRUE) {
-      return $langcode == Language::LANGCODE_NOT_SPECIFIED ? Language::LANGCODE_NOT_SPECIFIED : 'en';
-    }
   }
 
 }

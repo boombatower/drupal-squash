@@ -96,16 +96,17 @@ function menu_menu() {
  * Implements hook_entity_info().
  */
 function menu_entity_info(&$entity_info) {
-  $entity_info['menu']['controllers']['list'] = 'Drupal\menu\MenuListController';
-  $entity_info['menu']['links']['edit-form'] = 'menu.menu_edit';
-  $entity_info['menu']['controllers']['form'] = array(
-    'add' => 'Drupal\menu\MenuFormController',
-    'edit' => 'Drupal\menu\MenuFormController',
-    'delete' => 'Drupal\menu\Form\MenuDeleteForm',
-  );
+  /** @var $entity_info \Drupal\Core\Entity\EntityTypeInterface[] */
+  $entity_info['menu']
+    ->setFormClass('add', 'Drupal\menu\MenuFormController')
+    ->setFormClass('edit', 'Drupal\menu\MenuFormController')
+    ->setFormClass('delete', 'Drupal\menu\Form\MenuDeleteForm')
+    ->setListClass('Drupal\menu\MenuListController')
+    ->setLinkTemplate('edit-form', 'menu.menu_edit');
 
-  $entity_info['menu_link']['controllers']['form']['delete'] = 'Drupal\menu\Form\MenuLinkDeleteForm';
-  $entity_info['menu_link']['controllers']['form']['reset'] = 'Drupal\menu\Form\MenuLinkResetForm';
+  $entity_info['menu_link']
+    ->setFormClass('delete', 'Drupal\menu\Form\MenuLinkDeleteForm')
+    ->setFormClass('reset', 'Drupal\menu\Form\MenuLinkResetForm');
 }
 
 /**
@@ -315,8 +316,7 @@ function _menu_parents_recurse($tree, $menu_name, $indent, &$options, $exclude, 
 function menu_block_view_system_menu_block_alter(array &$build, BlockPluginInterface $block) {
   // Add contextual links for system menu blocks.
   $menus = menu_list_system_menus();
-  // @todo Clean up when http://drupal.org/node/1874498 lands.
-  list(, $menu_name) = explode(':', $block->getPluginId());
+  $menu_name = $block->getDerivativeId();
   if (isset($menus[$menu_name]) && isset($build['content'])) {
     foreach (element_children($build['content']) as $key) {
       $build['content']['#contextual_links']['menu'] = array(
@@ -564,7 +564,7 @@ function menu_form_node_form_alter(&$form, $form_state) {
     '#title' => t('Weight'),
     '#delta' => $delta,
     '#default_value' => $link['weight'],
-    '#description' => t('Menu links with smaller weights are displayed before links with larger weights.'),
+    '#description' => t('Menu links with lower weights are displayed before links with higher weights.'),
   );
 }
 
@@ -631,13 +631,6 @@ function menu_form_node_type_form_alter(&$form, $form_state) {
     '#options' => $options,
     '#description' => t('Choose the menu item to be the default parent for a new link in the content authoring form.'),
     '#attributes' => array('class' => array('menu-title-select')),
-  );
-
-  // Call Drupal.menuUpdateParentList() to filter the list of
-  // available default parent menu items based on the selected menus.
-  drupal_add_js(
-    '(function ($) { Drupal.menuUpdateParentList(); })(jQuery);',
-    array('scope' => 'footer', 'type' => 'inline')
   );
 
   $form['actions']['submit']['#submit'][] = 'menu_form_node_type_form_submit';
