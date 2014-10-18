@@ -12,10 +12,14 @@ const TAG_FILE = 'tags.newest';
 $tags = json_decode(`curl --silent "https://api.github.com/repos/drupal/drupal/tags?page=1&per_page=100"`, true);
 $tag_newest = false;
 foreach ($tags as $tag) {
-  if (strpos($tag['name'], '7') === 0) { // Starts with '7'.
+  if (isset($tag['name']) && strpos($tag['name'], '7') === 0) { // Starts with '7'.
     $tag_newest = $tag['name'];
     break;
   }
+}
+if ($tag_newest === false) {
+  echo "Github is being mean...exiting.\n";
+  exit;
 }
 echo "Newest tag: $tag_newest\n";
 
