@@ -1,21 +1,29 @@
 <?php
 
 /**
- * Executed on cron to auto trigger build when upstream changes are made.
+ * Executed on cron to auto trigger build when new upstream tags are pushed.
  */
 
-// For some reason github blocks file_get_contents() calls, perhaps http version?
-$mirror = json_decode(`curl --silent https://api.github.com/repos/boombatower/drupal-squash/commits/8.0.x`, true);
-$origin = json_decode(`curl --silent https://api.github.com/repos/drupal/drupal/commits/8.0.x`, true);
+const TAG_FILE = 'tags.newest';
 
-$mirror = new DateTime($mirror['commit']['author']['date']);
-$origin = new DateTime($origin['commit']['author']['date']);
+// Tags are already sorted properly by github so first one should be newest. Eventually this will
+// need to paginate and will probably be best achomplished using one of the API clients.
+// For some reason github blocks file_get_contents() calls even when User-Agent is set so use curl.
+$tags = json_decode(`curl --silent "https://api.github.com/repos/drupal/drupal/tags?page=1&per_page=100"`, true);
+$tag_newest = false;
+foreach ($tags as $tag) {
+  if (strpos($tag['name'], '8.0') === 0) { // Starts with '8.0'.
+    $tag_newest = $tag['name'];
+    break;
+  }
+}
+echo "Newest tag: $tag_newest\n";
 
-if ($mirror < $origin) {
+if (!file_exists(TAG_FILE) || $tag_newest != trim(file_get_contents(TAG_FILE))) {
   echo "Triggering build...\n";
   passthru('git pull origin 8.0.x');
-  passthru('date > date');
-  passthru('git commit -am "Upstream changes, trigger build."');
+  file_put_contents(TAG_FILE, $tag_newest . "\n");
+  passthru('git add ' . TAG_FILE . ' && git commit -m "New tag pushed upstream, trigger build."');
   passthru('git push origin 8.0.x');
 }
 else {
