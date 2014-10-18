@@ -12,7 +12,10 @@ const TAG_FILE = 'tags.newest';
 $tags = json_decode(`curl --silent "https://api.github.com/repos/drupal/drupal/tags?page=1&per_page=100"`, true);
 $tag_newest = false;
 foreach ($tags as $tag) {
-  if (isset($tag['name']) && strpos($tag['name'], '8.0') === 0) { // Starts with '8.0'.
+  // Starts with '8.0.'. The tag format was changed starting with beta so this ignores alpha tags
+  // so only beta and greater which should be newer, but not sorted as such. Squash script still
+  // looks at all '8.0*' tags.
+  if (isset($tag['name']) && strpos($tag['name'], '8.0.') === 0) {
     $tag_newest = $tag['name'];
     break;
   }
