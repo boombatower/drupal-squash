@@ -32,22 +32,12 @@ use Drupal\user\UserInterface;
  *   entity_keys = {
  *     "id" = "fid",
  *     "label" = "filename",
+ *     "langcode" = "langcode",
  *     "uuid" = "uuid"
  *   }
  * )
  */
 class File extends ContentEntityBase implements FileInterface {
-
-  /**
-   * The plain data values of the contained properties.
-   *
-   * Define default values.
-   *
-   * @var array
-   */
-  protected $values = array(
-    'langcode' => array(LanguageInterface::LANGCODE_DEFAULT => array(0 => array('value' => LanguageInterface::LANGCODE_NOT_SPECIFIED))),
-  );
 
   /**
    * {@inheritdoc}
@@ -195,7 +185,7 @@ class File extends ContentEntityBase implements FileInterface {
 
     // Automatically detect filemime if not set.
     if (!isset($values['filemime']) && isset($values['uri'])) {
-      $values['filemime'] = file_get_mimetype($values['uri']);
+      $values['filemime'] = \Drupal::service('file.mime_type.guesser')->guess($values['uri']);
     }
   }
 
@@ -275,7 +265,8 @@ class File extends ContentEntityBase implements FileInterface {
 
     $fields['status'] = BaseFieldDefinition::create('boolean')
       ->setLabel(t('Status'))
-      ->setDescription(t('The status of the file, temporary (FALSE) and permanent (TRUE).'));
+      ->setDescription(t('The status of the file, temporary (FALSE) and permanent (TRUE).'))
+      ->setDefaultValue(FALSE);
 
     $fields['created'] = BaseFieldDefinition::create('created')
       ->setLabel(t('Created'))

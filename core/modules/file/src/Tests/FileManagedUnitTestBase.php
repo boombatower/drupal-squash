@@ -92,7 +92,7 @@ abstract class FileManagedUnitTestBase extends KernelTestBase {
         $message = format_string('hook_file_@name was called correctly.', array('@name' => $hook));
       }
       elseif ($expected_count == 0) {
-        $message = format_plural($actual_count, 'hook_file_@name was not expected to be called but was actually called once.', 'hook_file_@name was not expected to be called but was actually called @count times.', array('@name' => $hook, '@count' => $actual_count));
+        $message = \Drupal::translation()->formatPlural($actual_count, 'hook_file_@name was not expected to be called but was actually called once.', 'hook_file_@name was not expected to be called but was actually called @count times.', array('@name' => $hook, '@count' => $actual_count));
       }
       else {
         $message = format_string('hook_file_@name was expected to be called %expected times but was called %actual times.', array('@name' => $hook, '%expected' => $expected_count, '%actual' => $actual_count));
@@ -151,7 +151,8 @@ abstract class FileManagedUnitTestBase extends KernelTestBase {
    *
    * @param $filepath
    *   Optional string specifying the file path. If none is provided then a
-   *   randomly named file will be created in the site's files directory.
+   *   randomly named file with the extension .txt will be created in the site's
+   *   files directory.
    * @param $contents
    *   Optional contents to save into the file. If a NULL value is provided an
    *   arbitrary string will be used.
@@ -182,7 +183,8 @@ abstract class FileManagedUnitTestBase extends KernelTestBase {
    *
    * @param string $filepath
    *   Optional string specifying the file path. If none is provided then a
-   *   randomly named file will be created in the site's files directory.
+   *   randomly named file with the extension .txt will be created in the site's
+   *   files directory.
    * @param string $contents
    *   Optional contents to save into the file. If a NULL value is provided an
    *   arbitrary string will be used.
@@ -202,7 +204,7 @@ abstract class FileManagedUnitTestBase extends KernelTestBase {
     if (!isset($scheme)) {
       $scheme = file_default_scheme();
     }
-    $filepath = $scheme . '://' . $filepath;
+    $filepath = $scheme . '://' . $filepath . '.txt';
 
     if (!isset($contents)) {
       $contents = "file_put_contents() doesn't seem to appreciate empty strings so let's put in some data.";
