@@ -9,10 +9,11 @@ const TAG_FILE = 'tags.newest';
 // Tags are already sorted properly by github so first one should be newest. Eventually this will
 // need to paginate and will probably be best achomplished using one of the API clients.
 // For some reason github blocks file_get_contents() calls even when User-Agent is set so use curl.
-$tags = json_decode(`curl --silent "https://api.github.com/repos/drupal/drupal/tags?page=1&per_page=100"`, true);
+// Note: Update the page argument as the number of drupal 8 tags increases.
+$tags = json_decode(`curl --silent "https://api.github.com/repos/drupal/drupal/tags?page=2&per_page=100"`, true);
 $tag_newest = false;
 foreach ($tags as $tag) {
-  if (isset($tag['name']) && strpos($tag['name'], '7') === 0) { // Starts with '7'.
+  if (isset($tag['name']) && strpos($tag['name'], '7') === 0) {
     $tag_newest = $tag['name'];
     break;
   }
