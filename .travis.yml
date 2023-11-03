@@ -15,7 +15,7 @@ script:
   - git config --global user.email "thor@boombatower.com"
   - git config --global user.name "Supreme Commander Thor"
   - git clone https://github.com/boombatower/git-squash-tags.git
-  - git clone --branch 7.x https://github.com/drupal/drupal.git
+  - git clone --branch 7.x https://git.drupalcode.org/project/drupal.git
   - cd drupal
   - git remote add boombatower https://github.com/boombatower/drupal-squash.git
   - git fetch boombatower 7.x-squash
