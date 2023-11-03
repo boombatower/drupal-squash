@@ -10,7 +10,8 @@ const TAG_FILE = 'tags.newest';
 // need to paginate and will probably be best achomplished using one of the API clients.
 // For some reason github blocks file_get_contents() calls even when User-Agent is set so use curl.
 // Note: Update the page argument as the number of drupal 8 tags increases.
-$tags = json_decode(`curl --silent "https://api.github.com/repos/drupal/drupal/tags?page=2&per_page=100"`, true);
+// $tags = json_decode(`curl --silent "https://api.github.com/repos/drupal/drupal/tags?page=2&per_page=100"`, true);
+$tags = json_decode(`curl --silent "https://git.drupalcode.org/project/drupal/-/tags?sort=updated_desc&search=7."`, true);
 $tag_newest = false;
 foreach ($tags as $tag) {
   if (isset($tag['name']) && strpos($tag['name'], '7') === 0) {
