@@ -386,11 +386,6 @@ parameters:
 			path: lib/Drupal/Core/Entity/KeyValueStore/KeyValueContentEntityStorage.php
 
 		-
-			message: "#^Relying on entity queries to check access by default is deprecated in drupal\\:9\\.2\\.0 and an error will be thrown from drupal\\:10\\.0\\.0\\. Call \\\\Drupal\\\\Core\\\\Entity\\\\Query\\\\QueryInterface\\:\\:accessCheck\\(\\) with TRUE or FALSE to specify whether access should be checked\\.$#"
-			count: 1
-			path: lib/Drupal/Core/Entity/Plugin/EntityReferenceSelection/DefaultSelection.php
-
-		-
 			message: "#^Variable \\$selected_bundles might not be defined\\.$#"
 			count: 2
 			path: lib/Drupal/Core/Entity/Plugin/EntityReferenceSelection/DefaultSelection.php
@@ -1376,16 +1371,6 @@ parameters:
 			path: modules/language/src/Plugin/LanguageNegotiation/LanguageNegotiationContentEntity.php
 
 		-
-			message: "#^Relying on entity queries to check access by default is deprecated in drupal\\:9\\.2\\.0 and an error will be thrown from drupal\\:10\\.0\\.0\\. Call \\\\Drupal\\\\Core\\\\Entity\\\\Query\\\\QueryInterface\\:\\:accessCheck\\(\\) with TRUE or FALSE to specify whether access should be checked\\.$#"
-			count: 1
-			path: modules/layout_builder/src/Entity/LayoutBuilderEntityViewDisplay.php
-
-		-
-			message: "#^Relying on entity queries to check access by default is deprecated in drupal\\:9\\.2\\.0 and an error will be thrown from drupal\\:10\\.0\\.0\\. Call \\\\Drupal\\\\Core\\\\Entity\\\\Query\\\\QueryInterface\\:\\:accessCheck\\(\\) with TRUE or FALSE to specify whether access should be checked\\.$#"
-			count: 1
-			path: modules/layout_builder/src/Form/LayoutBuilderEntityViewDisplayForm.php
-
-		-
 			message: "#^Constructor of class Drupal\\\\link\\\\Plugin\\\\migrate\\\\process\\\\FieldLink has an unused parameter \\$migration\\.$#"
 			count: 1
 			path: modules/link/src/Plugin/migrate/process/FieldLink.php
@@ -1521,11 +1506,6 @@ parameters:
 			path: modules/menu_ui/src/MenuForm.php
 
 		-
-			message: "#^Relying on entity queries to check access by default is deprecated in drupal\\:9\\.2\\.0 and an error will be thrown from drupal\\:10\\.0\\.0\\. Call \\\\Drupal\\\\Core\\\\Entity\\\\Query\\\\QueryInterface\\:\\:accessCheck\\(\\) with TRUE or FALSE to specify whether access should be checked\\.$#"
-			count: 1
-			path: modules/menu_ui/src/MenuForm.php
-
-		-
 			message: "#^Constructor of class Drupal\\\\migrate\\\\MigrateException has an unused parameter \\$code\\.$#"
 			count: 1
 			path: modules/migrate/src/MigrateException.php
@@ -1594,11 +1574,6 @@ parameters:
 			message: "#^Constructor of class Drupal\\\\migrate_drupal\\\\Plugin\\\\migrate\\\\EntityReferenceTranslationDeriver has an unused parameter \\$base_plugin_id\\.$#"
 			count: 1
 			path: modules/migrate_drupal/src/Plugin/migrate/EntityReferenceTranslationDeriver.php
-
-		-
-			message: "#^Relying on entity queries to check access by default is deprecated in drupal\\:9\\.2\\.0 and an error will be thrown from drupal\\:10\\.0\\.0\\. Call \\\\Drupal\\\\Core\\\\Entity\\\\Query\\\\QueryInterface\\:\\:accessCheck\\(\\) with TRUE or FALSE to specify whether access should be checked\\.$#"
-			count: 1
-			path: modules/migrate_drupal/src/Plugin/migrate/source/ContentEntity.php
 
 		-
 			message: "#^Constructor of class Drupal\\\\migrate_drupal\\\\Plugin\\\\migrate\\\\source\\\\ContentEntityDeriver has an unused parameter \\$base_plugin_id\\.$#"
@@ -2004,11 +1979,6 @@ parameters:
 			message: "#^Variable \\$messages might not be defined\\.$#"
 			count: 1
 			path: modules/system/tests/modules/batch_test/batch_test.callbacks.inc
-
-		-
-			message: "#^File core/modules/system/tests/modules/entity_test/entity_test\\.inc could not be loaded from Drupal\\\\Core\\\\Extension\\\\ModuleHandlerInterface\\:\\:loadInclude$#"
-			count: 2
-			path: modules/system/tests/modules/entity_test/entity_test.install
 
 		-
 			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:11\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
@@ -2781,14 +2751,24 @@ parameters:
 			path: tests/Drupal/KernelTests/Core/Database/DriverSpecificKernelTestBase.php
 
 		-
+			message: "#^\\#date_date_callbacks callback array\\{\\$this\\(Drupal\\\\KernelTests\\\\Core\\\\Datetime\\\\DatelistElementFormTest\\), string\\} at key '0' is not callable\\.$#"
+			count: 1
+			path: tests/Drupal/KernelTests/Core/Datetime/DatelistElementFormTest.php
+
+		-
+			message: "#^\\#date_date_callbacks callback array\\{\\$this\\(Drupal\\\\KernelTests\\\\Core\\\\Datetime\\\\DatetimeElementFormTest\\), string\\} at key '0' is not callable\\.$#"
+			count: 1
+			path: tests/Drupal/KernelTests/Core/Datetime/DatetimeElementFormTest.php
+
+		-
+			message: "#^\\#date_time_callbacks callback array\\{\\$this\\(Drupal\\\\KernelTests\\\\Core\\\\Datetime\\\\DatetimeElementFormTest\\), string\\} at key '0' is not callable\\.$#"
+			count: 1
+			path: tests/Drupal/KernelTests/Core/Datetime/DatetimeElementFormTest.php
+
+		-
 			message: "#^Missing call to parent\\:\\:setUp\\(\\) method\\.$#"
 			count: 1
 			path: tests/Drupal/KernelTests/Core/DrupalKernel/DrupalKernelTest.php
-
-		-
-			message: "#^Relying on entity queries to check access by default is deprecated in drupal\\:9\\.2\\.0 and an error will be thrown from drupal\\:10\\.0\\.0\\. Call \\\\Drupal\\\\Core\\\\Entity\\\\Query\\\\QueryInterface\\:\\:accessCheck\\(\\) with TRUE or FALSE to specify whether access should be checked\\.$#"
-			count: 2
-			path: tests/Drupal/KernelTests/Core/Entity/ConfigEntityQueryTest.php
 
 		-
 			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:11\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
@@ -2886,11 +2866,6 @@ parameters:
 			path: tests/Drupal/Tests/BrowserTestBase.php
 
 		-
-			message: "#^Array has 2 duplicate keys with value 'ClassWithConstants\\.SOME_KEY' \\(\\\\Drupal\\\\Tests\\\\Component\\\\Annotation\\\\Doctrine\\\\Fixtures\\\\ClassWithConstants\\:\\:SOME_KEY, \\\\Drupal\\\\Tests\\\\Component\\\\Annotation\\\\Doctrine\\\\Fixtures\\\\ClassWithConstants\\:\\:SOME_KEY\\)\\.$#"
-			count: 1
-			path: tests/Drupal/Tests/Component/Annotation/Doctrine/DocParserTest.php
-
-		-
 			message: "#^Constructor of class Symfony\\\\Component\\\\ExpressionLanguage\\\\Expression has an unused parameter \\$expression\\.$#"
 			count: 1
 			path: tests/Drupal/Tests/Component/DependencyInjection/Dumper/OptimizedPhpArrayDumperTest.php
@@ -2969,6 +2944,16 @@ parameters:
 			message: "#^Class Drupal\\\\Driver\\\\Database\\\\fake\\\\Install\\\\Tasks not found\\.$#"
 			count: 1
 			path: tests/Drupal/Tests/Core/Database/InstallerObjectTest.php
+
+		-
+			message: "#^Trying to mock an undefined method getRevisionId\\(\\) on class Drupal\\\\Tests\\\\Core\\\\Entity\\\\UrlTestEntity\\.$#"
+			count: 1
+			path: tests/Drupal/Tests/Core/Entity/EntityUrlTest.php
+
+		-
+			message: "#^Trying to mock an undefined method isDefaultRevision\\(\\) on class Drupal\\\\Tests\\\\Core\\\\Entity\\\\UrlTestEntity\\.$#"
+			count: 1
+			path: tests/Drupal/Tests/Core/Entity/EntityUrlTest.php
 
 		-
 			message: "#^Call to method getDefinitions\\(\\) on an unknown class Drupal\\\\Core\\\\Plugin\\\\CategorizingPluginManagerTrait\\.$#"

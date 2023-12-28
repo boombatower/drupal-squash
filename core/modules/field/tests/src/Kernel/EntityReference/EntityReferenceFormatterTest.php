@@ -54,8 +54,7 @@ class EntityReferenceFormatterTest extends EntityKernelTestBase {
   protected $referencedEntity;
 
   /**
-   * The entity that is not yet saved to its persistent storage to be referenced
-   * in this test.
+   * An entity that is not yet saved to its persistent storage.
    *
    * @var \Drupal\Core\Entity\EntityInterface
    */
@@ -377,6 +376,7 @@ class EntityReferenceFormatterTest extends EntityKernelTestBase {
     // lacking any URL info.
     $expected_item_2 = [
       '#plain_text' => $this->unsavedReferencedEntity->label(),
+      '#entity' => $this->unsavedReferencedEntity,
       '#cache' => [
         'contexts' => [
           'user.permissions',
@@ -409,7 +409,9 @@ class EntityReferenceFormatterTest extends EntityKernelTestBase {
   }
 
   /**
-   * Sets field values and returns a render array as built by
+   * Sets field values and returns a render array.
+   *
+   * The render array structure is as built by
    * \Drupal\Core\Field\FieldItemListInterface::view().
    *
    * @param \Drupal\Core\Entity\EntityInterface[] $referenced_entities

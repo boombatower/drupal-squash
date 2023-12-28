@@ -5,7 +5,7 @@
   "private": true,
   "engines": {
     "yarn": ">= 1.6",
-    "node": ">= 16.0"
+    "node": ">= 18.0"
   },
   "scripts": {
     "build": "yarn build:css & yarn build:ckeditor5 & yarn vendor-update",
@@ -33,6 +33,7 @@
   },
   "devDependencies": {
     "@ckeditor/ckeditor5-alignment": "~37.1.0",
+    "@ckeditor/ckeditor5-autoformat": "~37.1.0",
     "@ckeditor/ckeditor5-basic-styles": "~37.1.0",
     "@ckeditor/ckeditor5-block-quote": "~37.1.0",
     "@ckeditor/ckeditor5-code-block": "~37.1.0",
@@ -80,7 +81,7 @@
     "postcss": "^8.4.16",
     "postcss-header": "^3.0.2",
     "postcss-import": "^15.0.0",
-    "postcss-preset-env": "^7.8.1",
+    "postcss-preset-env": "^8.3.2",
     "postcss-pxtorem": "^6.0.0",
     "postcss-url": "^10.1.3",
     "prettier": "^2.1.2",

@@ -354,7 +354,7 @@ function node_entity_extra_field_info() {
  * @see https://www.drupal.org/node/3323340
  */
 function node_type_update_nodes($old_id, $new_id) {
-  @trigger_error(__METHOD__ . ' is deprecated in drupal:10.1.0 and is removed from drupal:11.0.0. Use \Drupal\Core\Entity\EntityStorageInterface::updateType instead. See https://www.drupal.org/node/3323340', E_USER_DEPRECATED);
+  @trigger_error(__METHOD__ . ' is deprecated in drupal:10.1.0 and is removed from drupal:11.0.0. Use \Drupal\Core\Entity\EntityStorageInterface::updateType instead. See https://www.drupal.org/node/3294237', E_USER_DEPRECATED);
   return \Drupal::entityTypeManager()->getStorage('node')->updateType($old_id, $new_id);
 }
 
@@ -368,12 +368,12 @@ function node_type_update_nodes($old_id, $new_id) {
  *   A fully-populated node entity, or NULL if the node is not found.
  *
  * @deprecated in drupal:10.1.0 and is removed from drupal:11.0.0. Use
- *   \Drupal\Core\Entity\EntityStorageInterface::loadRevision instead.
+ *   \Drupal\Core\Entity\RevisionableStorageInterface::loadRevision instead.
  *
  * @see https://www.drupal.org/node/3323340
  */
 function node_revision_load($vid = NULL) {
-  @trigger_error(__METHOD__ . ' is deprecated in drupal:10.1.0 and is removed from drupal:11.0.0. Use \Drupal\Core\Entity\EntityStorageInterface::loadRevision instead. See https://www.drupal.org/node/3323340', E_USER_DEPRECATED);
+  @trigger_error(__METHOD__ . ' is deprecated in drupal:10.1.0 and is removed from drupal:11.0.0. Use \Drupal\Core\Entity\RevisionableStorageInterface::loadRevision instead. See https://www.drupal.org/node/3294237', E_USER_DEPRECATED);
   return \Drupal::entityTypeManager()->getStorage('node')->loadRevision($vid);
 }
 
@@ -384,12 +384,12 @@ function node_revision_load($vid = NULL) {
  *   The revision ID to delete.
  *
  * @deprecated in drupal:10.1.0 and is removed from drupal:11.0.0. Use
- *   \Drupal\Core\Entity\EntityStorageInterface::deleteRevision instead.
+ *   \Drupal\Core\Entity\RevisionableStorageInterface::deleteRevision instead.
  *
  * @see https://www.drupal.org/node/3323340
  */
 function node_revision_delete($revision_id) {
-  @trigger_error(__METHOD__ . ' is deprecated in drupal:10.1.0 and is removed from drupal:11.0.0. Use \Drupal\Core\Entity\EntityStorageInterface::deleteRevision instead. See https://www.drupal.org/node/3323340', E_USER_DEPRECATED);
+  @trigger_error(__METHOD__ . ' is deprecated in drupal:10.1.0 and is removed from drupal:11.0.0. Use \Drupal\Core\Entity\RevisionableStorageInterface::deleteRevision instead. See https://www.drupal.org/node/3294237', E_USER_DEPRECATED);
   \Drupal::entityTypeManager()->getStorage('node')->deleteRevision($revision_id);
 }
 
@@ -593,8 +593,6 @@ function template_preprocess_node(&$variables) {
     }
   }
 
-  // Add article ARIA role.
-  $variables['attributes']['role'] = 'article';
 }
 
 /**
@@ -856,11 +854,11 @@ function node_form_system_themes_admin_form_submit($form, FormStateInterface $fo
 /**
  * Implements hook_ENTITY_TYPE_access().
  */
-function node_node_access(NodeInterface $node, $op, AccountInterface $account) {
+function node_node_access(NodeInterface $node, $operation, AccountInterface $account) {
   $type = $node->bundle();
 
   // Note create access is handled by hook_ENTITY_TYPE_create_access().
-  switch ($op) {
+  switch ($operation) {
     case 'update':
       $access = AccessResult::allowedIfHasPermission($account, 'edit any ' . $type . ' content');
       if (!$access->isAllowed() && $account->hasPermission('edit own ' . $type . ' content')) {
@@ -893,7 +891,7 @@ function node_node_access(NodeInterface $node, $op, AccountInterface $account) {
  * grants array by reference. This hook allows for complex business logic to be
  * applied when integrating multiple node access modules.
  *
- * @param string $op
+ * @param string $operation
  *   The operation that the user is trying to perform.
  * @param \Drupal\Core\Session\AccountInterface $account
  *   The account object for the user performing the operation.
@@ -902,11 +900,11 @@ function node_node_access(NodeInterface $node, $op, AccountInterface $account) {
  *   An associative array in which the keys are realms, and the values are
  *   arrays of grants for those realms.
  */
-function node_access_grants($op, AccountInterface $account) {
+function node_access_grants($operation, AccountInterface $account) {
   // Fetch node access grants from other modules.
-  $grants = \Drupal::moduleHandler()->invokeAll('node_grants', [$account, $op]);
+  $grants = \Drupal::moduleHandler()->invokeAll('node_grants', [$account, $operation]);
   // Allow modules to alter the assigned grants.
-  \Drupal::moduleHandler()->alter('node_grants', $grants, $account, $op);
+  \Drupal::moduleHandler()->alter('node_grants', $grants, $account, $operation);
 
   return array_merge(['all' => [0]], $grants);
 }

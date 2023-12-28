@@ -19,6 +19,7 @@ use Drupal\Tests\node\Traits\NodeCreationTrait;
 use Drupal\Tests\Traits\PhpUnitWarnings;
 use Drupal\Tests\user\Traits\UserCreationTrait;
 use Drupal\TestTools\Comparator\MarkupInterfaceComparator;
+use Drupal\TestTools\Random;
 use Drupal\TestTools\TestVarDumper;
 use GuzzleHttp\Cookie\CookieJar;
 use PHPUnit\Framework\TestCase;
@@ -320,9 +321,11 @@ abstract class BrowserTestBase extends TestCase {
   }
 
   /**
-   * Get the Mink driver args from an environment variable, if it is set. Can
-   * be overridden in a derived class so it is possible to use a different
-   * value for a subset of tests, e.g. the JavaScript tests.
+   * Gets the Mink driver args from an environment variable.
+   *
+   * The environment variable can be overridden in a derived class so it is
+   * possible to use a different value for a subset of tests, e.g. the
+   * JavaScript tests.
    *
    * @return string|false
    *   The JSON-encoded argument string. False if it is not set.
@@ -373,6 +376,15 @@ abstract class BrowserTestBase extends TestCase {
     // PHPUnit 6 tests that only make assertions using $this->assertSession()
     // can be marked as risky.
     $this->addToAssertionCount(1);
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function __get(string $name) {
+    if ($name === 'randomGenerator') {
+      return Random::getGenerator();
+    }
   }
 
   /**
