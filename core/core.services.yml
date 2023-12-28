@@ -716,7 +716,7 @@ services:
     class: Drupal\Core\Menu\StaticMenuLinkOverrides
     arguments: ['@config.factory']
   request_stack:
-    class: Drupal\Core\Http\RequestStack
+    class: Symfony\Component\HttpFoundation\RequestStack
     tags:
       - { name: persist }
   current_route_match:
@@ -1630,6 +1630,8 @@ services:
   update.post_update_registry:
     class: Drupal\Core\Update\UpdateRegistry
     factory: ['@update.post_update_registry_factory', create]
+    tags:
+      - { name: event_subscriber }
   update.post_update_registry_factory:
     class: Drupal\Core\Update\UpdateRegistryFactory
     parent: container.trait

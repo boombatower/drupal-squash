@@ -8,6 +8,13 @@
 ((Drupal, once) => {
   Drupal.behaviors.allowedTagsListener = {
     attach: function attach(context) {
+      once('ajax-conflict-prevention', '[data-drupal-selector="filter-format-edit-form"], [data-drupal-selector="filter-format-add-form"]', context).forEach(form => {
+        form.addEventListener('submit', () => {
+          once.filter('drupal-ajax', '[data-drupal-selector="filter-format-edit-form"] [disabled], [data-drupal-selector="filter-format-add-form"] [disabled]').forEach(disabledElement => {
+            disabledElement.removeAttribute('disabled');
+          });
+        });
+      });
       once('allowed-tags-listener', context.querySelector('[data-drupal-selector="edit-filters-filter-html-settings-allowed-html"]')).forEach(textarea => {
         const editorSelect = document.querySelector('[data-drupal-selector="edit-editor-editor"]');
         const filterCheckbox = document.querySelector('[data-drupal-selector="edit-filters-filter-html-status"]');
@@ -71,11 +78,15 @@
   };
   const originalAjaxEventResponse = Drupal.Ajax.prototype.eventResponse;
 
-  Drupal.Ajax.prototype.eventResponse = function ckeditor5AjaxEventResponse(...args) {
+  Drupal.Ajax.prototype.eventResponse = function ckeditor5AjaxEventResponse() {
     if (this.ckeditor5_only) {
       if (this.$form[0].querySelector('#edit-editor-editor').value !== 'ckeditor5') {
         return;
       }
+    }
+
+    for (var _len = arguments.length, args = new Array(_len), _key = 0; _key < _len; _key++) {
+      args[_key] = arguments[_key];
     }
 
     originalAjaxEventResponse.apply(this, args);

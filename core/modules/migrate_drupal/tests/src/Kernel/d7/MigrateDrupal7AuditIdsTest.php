@@ -127,8 +127,6 @@ class MigrateDrupal7AuditIdsTest extends MigrateDrupal7TestBase {
     );
 
     $expected = [
-      'd7_aggregator_feed',
-      'd7_aggregator_item',
       'd7_comment',
       'd7_custom_block',
       'd7_file',

@@ -9,16 +9,16 @@
         "chat": "https://www.drupal.org/node/314178"
     },
     "require": {
-        "composer/installers": "^1.9",
+        "composer/installers": "^2.0",
         "drupal/core": "self.version",
         "drupal/core-project-message": "self.version",
         "drupal/core-vendor-hardening": "self.version"
     },
     "require-dev": {
-        "friends-of-behat/mink": "^1.10",
-        "friends-of-behat/mink-browserkit-driver": "^1.4",
+        "behat/mink": "^1.10",
+        "behat/mink-browserkit-driver": "^2.1",
         "behat/mink-selenium2-driver": "^1.4",
-        "composer/composer": "^2.2.4",
+        "composer/composer": "^2.3.0",
         "drupal/coder": "^8.3.10",
         "instaclick/php-webdriver": "^1.4.1",
         "mglaman/phpstan-drupal": "^1.1.9",

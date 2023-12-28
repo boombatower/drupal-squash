@@ -22,7 +22,6 @@ export default class DrupalMediaEditing extends Plugin {
   init() {
     this.attrs = {
       drupalMediaAlt: 'alt',
-      drupalMediaCaption: 'data-caption',
       drupalMediaEntityType: 'data-entity-type',
       drupalMediaEntityUuid: 'data-entity-uuid',
       drupalMediaViewMode: 'data-view-mode',
@@ -91,8 +90,13 @@ export default class DrupalMediaEditing extends Plugin {
       allowWhere: '$block',
       isObject: true,
       isContent: true,
+      isBlock: true,
       allowAttributes: Object.keys(this.attrs),
     });
+    // Register `<drupal-media>` as a block element in the DOM converter. This
+    // ensures that the DOM converter knows to handle the `<drupal-media>` as a
+    // block element.
+    this.editor.editing.view.domConverter.blockElements.push('drupal-media');
   }
 
   _defineConverters() {
@@ -116,7 +120,7 @@ export default class DrupalMediaEditing extends Plugin {
       .elementToElement({
         model: 'drupalMedia',
         view: (modelElement, { writer }) => {
-          const container = writer.createContainerElement('div', {
+          const container = writer.createContainerElement('figure', {
             class: 'drupal-media',
           });
           if (!this.previewUrl) {
@@ -248,7 +252,7 @@ export default class DrupalMediaEditing extends Plugin {
 
     // Set attributeToAttribute conversion for all supported attributes.
     Object.keys(this.attrs).forEach((modelKey) => {
-      conversion.attributeToAttribute({
+      const attributeMapping = {
         model: {
           key: modelKey,
           name: 'drupalMedia',
@@ -257,7 +261,11 @@ export default class DrupalMediaEditing extends Plugin {
           name: 'drupal-media',
           key: this.attrs[modelKey],
         },
-      });
+      };
+      // Attributes should be rendered only in dataDowncast to avoid having
+      // unfiltered data-attributes on the Drupal Media widget.
+      conversion.for('dataDowncast').attributeToAttribute(attributeMapping);
+      conversion.for('upcast').attributeToAttribute(attributeMapping);
     });
   }
 
@@ -270,21 +278,30 @@ export default class DrupalMediaEditing extends Plugin {
    *   The drupalMedia model element to be converted.
    * @return {string}
    *   The model element converted into HTML.
-   *
-   * @todo: is there a better way to get the rendered dataDowncast string
-   *   https://www.drupal.org/project/ckeditor5/issues/3231337?
    */
   _renderElement(modelElement) {
-    const attrs = modelElement.getAttributes();
-    let element = '<drupal-media';
-    Array.from(attrs).forEach((attr) => {
-      if (this.attrs[attr[0]] && attr[0] !== 'drupalMediaCaption') {
-        element += ` ${this.attrs[attr[0]]}="${attr[1]}"`;
-      }
-    });
-    element += '></drupal-media>';
+    // Create model document fragment which contains the model element so that
+    // it can be stringified using the dataDowncast.
+    const modelDocumentFragment = this.editor.model.change((writer) => {
+      const modelDocumentFragment = writer.createDocumentFragment();
+      // Create shallow clone of the model element to ensure that the original
+      // model element remains untouched and that the caption is not rendered
+      // into the preview.
+      const clonedModelElement = writer.cloneElement(modelElement, false);
+      // Remove attributes from the model element to ensure they are not
+      // downcast into the preview request. For example, the `linkHref` model
+      // attribute would downcast into a wrapping `<a>` element, which the
+      // preview endpoint would not be able to handle.
+      const attributeIgnoreList = ['linkHref'];
+      attributeIgnoreList.forEach((attribute) => {
+        writer.removeAttribute(attribute, clonedModelElement);
+      });
+      writer.append(clonedModelElement, modelDocumentFragment);
 
-    return element;
+      return modelDocumentFragment;
+    });
+
+    return this.editor.data.stringify(modelDocumentFragment);
   }
 
   /**

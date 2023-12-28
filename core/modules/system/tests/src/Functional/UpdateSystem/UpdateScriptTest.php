@@ -325,28 +325,6 @@ class UpdateScriptTest extends BrowserTestBase {
         ],
         'The following theme is installed, but it is incompatible with PHP ' . phpversion() . ":",
       ],
-      'module: core_version_requirement key missing' => [
-        [
-          'core_version_requirement' => '>= 8',
-          'type' => 'module',
-        ],
-        [
-          'core' => '8.x',
-          'type' => 'module',
-        ],
-        $incompatible_module_message,
-      ],
-      'theme: core_version_requirement key missing' => [
-        [
-          'core_version_requirement' => '>= 8',
-          'type' => 'theme',
-        ],
-        [
-          'core' => '8.x',
-          'type' => 'theme',
-        ],
-        $incompatible_theme_message,
-      ],
     ];
   }
 
@@ -661,6 +639,7 @@ class UpdateScriptTest extends BrowserTestBase {
     $this->drupalLogin($full_admin_user);
     $this->drupalGet($this->updateUrl, ['external' => TRUE]);
     $this->assertSession()->statusCodeEquals(200);
+    $this->updateRequirementsProblem();
     $this->clickLink('maintenance mode');
     $this->assertSession()->statusCodeEquals(200);
     $this->assertSession()->elementContains('css', 'main h1', 'Maintenance mode');
@@ -670,6 +649,7 @@ class UpdateScriptTest extends BrowserTestBase {
     $this->drupalLogin($this->updateUser);
     $this->drupalGet($this->updateUrl, ['external' => TRUE]);
     $this->assertSession()->statusCodeEquals(200);
+    $this->updateRequirementsProblem();
     $this->clickLink('maintenance mode');
     $this->assertSession()->statusCodeEquals(200);
     $this->assertSession()->elementContains('css', 'main h1', 'Maintenance mode');

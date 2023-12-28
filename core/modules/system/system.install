@@ -167,7 +167,7 @@ function system_requirements($phase) {
       $requirements['obsolete_extensions'] = [
         'title' => t('Obsolete extensions enabled'),
         'value' => t('Obsolete extensions found: %extensions. Obsolete extensions are provided only so that they can be uninstalled cleanly. You should immediately uninstall these extensions since they may be removed in a future release.', [
-          '%extension_list' => Markup::create(implode(', ', $obsolete_extensions_link_list)),
+          '%extensions' => Markup::create(implode(', ', $obsolete_extensions_link_list)),
         ]),
         'severity' => REQUIREMENT_WARNING,
       ];
@@ -285,40 +285,30 @@ function system_requirements($phase) {
 
   // Check if the PHP version is below what Drupal supports.
   if (version_compare($phpversion, \Drupal::MINIMUM_SUPPORTED_PHP) < 0) {
-    $requirements['php']['description'] = t('Your PHP installation is too old. Drupal requires at least PHP %version. It is recommended to upgrade to PHP version %recommended or higher for the best ongoing support. See <a href="http://php.net/supported-versions.php">PHP\'s version support documentation</a> and the <a href=":php_requirements">Environment requirements of Drupal 9</a> page for more information.',
+    $requirements['php']['description'] = t('Your PHP installation is too old. Drupal requires at least PHP %version. It is recommended to upgrade to PHP version %recommended or higher for the best ongoing support. See <a href="http://php.net/supported-versions.php">PHP\'s version support documentation</a> and the <a href=":php_requirements">Drupal PHP requirements</a> page for more information.',
       [
         '%version' => \Drupal::MINIMUM_SUPPORTED_PHP,
         '%recommended' => \Drupal::RECOMMENDED_PHP,
-        ':php_requirements' => 'https://www.drupal.org/docs/9/how-drupal-9-is-made-and-what-is-included/environment-requirements-of-drupal-9#s-php-version-requirement',
+        ':php_requirements' => 'https://www.drupal.org/docs/system-requirements/php-requirements',
       ]
     );
-    $requirements['php']['severity'] = REQUIREMENT_ERROR;
 
     // If the PHP version is also below the absolute minimum allowed, it's not
-    // safe to continue with the requirements check.
+    // safe to continue with the requirements check, and should always be an
+    // error.
     if (version_compare($phpversion, \Drupal::MINIMUM_PHP) < 0) {
+      $requirements['php']['severity'] = REQUIREMENT_ERROR;
       return $requirements;
     }
-    // Otherwise downgrade the error to a warning during updates. Even if there
-    // are some problems with the site's PHP version, it's still better for the
-    // site to keep its Drupal codebase up to date.
-    elseif ($phase === 'update') {
-      $requirements['php']['severity'] = REQUIREMENT_WARNING;
-    }
-    // Since we allow sites with unsupported PHP versions to still run Drupal
-    // updates, we also need to be able to run tests with those PHP versions,
-    // which requires the ability to install test sites. Not all tests are
-    // required to pass on these PHP versions, but we want to monitor which
-    // ones do and don't.
-    elseif ($phase === 'install' && drupal_valid_test_ua()) {
-      $requirements['php']['severity'] = REQUIREMENT_INFO;
-    }
+    // Otherwise, the message should be an error at runtime, and a warning
+    // during installation or update.
+    $requirements['php']['severity'] = ($phase === 'runtime') ? REQUIREMENT_ERROR : REQUIREMENT_WARNING;
   }
   // For PHP versions that are still supported but no longer recommended,
   // inform users of what's recommended, allowing them to take action before it
   // becomes urgent.
   elseif ($phase === 'runtime' && version_compare($phpversion, \Drupal::RECOMMENDED_PHP) < 0) {
-    $requirements['php']['description'] = t('It is recommended to upgrade to PHP version %recommended or higher for the best ongoing support.  See <a href="http://php.net/supported-versions.php">PHP\'s version support documentation</a> and the <a href=":php_requirements">Drupal 8 PHP requirements handbook page</a> for more information.', ['%recommended' => \Drupal::RECOMMENDED_PHP, ':php_requirements' => 'https://www.drupal.org/docs/8/system-requirements/php']);
+    $requirements['php']['description'] = t('It is recommended to upgrade to PHP version %recommended or higher for the best ongoing support.  See <a href="http://php.net/supported-versions.php">PHP\'s version support documentation</a> and the <a href=":php_requirements">Drupal PHP requirements</a> page for more information.', ['%recommended' => \Drupal::RECOMMENDED_PHP, ':php_requirements' => 'https://www.drupal.org/docs/system-requirements/php-requirements']);
     $requirements['php']['severity'] = REQUIREMENT_INFO;
   }
 
@@ -454,7 +444,7 @@ function system_requirements($phase) {
         }
       }
       $args = [
-        ':drupal-php' => 'https://www.drupal.org/docs/8/system-requirements/php-requirements',
+        ':drupal-php' => 'https://www.drupal.org/docs/system-requirements/php-requirements',
         '%exception_message' => $e->getMessage(),
       ];
       if ($open_basedir_blocks_urandom) {
@@ -1316,7 +1306,7 @@ function system_requirements($phase) {
     $requirements['limited_date_range'] = [
       'title' => t('Limited date range'),
       'value' => t('Your PHP installation has a limited date range.'),
-      'description' => t('You are running on a system where PHP is compiled or limited to using 32-bit integers. This will limit the range of dates and timestamps to the years 1901-2038. Read about the <a href=":url">limitations of 32-bit PHP</a>.', [':url' => 'https://www.drupal.org/docs/8/system-requirements/limitations-of-32-bit-php']),
+      'description' => t('You are running on a system where PHP is compiled or limited to using 32-bit integers. This will limit the range of dates and timestamps to the years 1901-2038. Read about the <a href=":url">limitations of 32-bit PHP</a>.', [':url' => 'https://www.drupal.org/docs/system-requirements/limitations-of-32-bit-php']),
       'severity' => REQUIREMENT_WARNING,
     ];
   }
@@ -1356,19 +1346,22 @@ function system_requirements($phase) {
     /** @var \Drupal\Core\Update\UpdateHookRegistry $update_registry */
     $update_registry = \Drupal::service('update.update_hook_registry');
     $module_list = [];
-    foreach ($module_handler->getImplementations('update_last_removed') as $module) {
-      $last_removed = $module_handler->invoke($module, 'update_last_removed');
-      if ($last_removed && $last_removed > $update_registry->getInstalledVersion($module)) {
+    $module_handler->invokeAllWith(
+      'update_last_removed',
+      function (callable $hook, string $module) use (&$module_list, $update_registry, $module_extension_list) {
+        $last_removed = $hook();
+        if ($last_removed && $last_removed > $update_registry->getInstalledVersion($module)) {
 
-        /** @var \Drupal\Core\Extension\Extension $module_info */
-        $module_info = $module_extension_list->get($module);
-        $module_list[$module] = [
-          'name' => $module_info->info['name'],
-          'last_removed' => $last_removed,
-          'installed_version' => $update_registry->getInstalledVersion($module),
-        ];
+          /** @var \Drupal\Core\Extension\Extension $module_info */
+          $module_info = $module_extension_list->get($module);
+          $module_list[$module] = [
+            'name' => $module_info->info['name'],
+            'last_removed' => $last_removed,
+            'installed_version' => $update_registry->getInstalledVersion($module),
+          ];
+        }
       }
-    }
+    );
 
     // If system or workspaces is in the list then only show a specific message
     // for Drupal core.

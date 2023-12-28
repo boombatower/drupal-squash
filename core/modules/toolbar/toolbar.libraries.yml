@@ -24,9 +24,9 @@ toolbar:
     - core/drupalSettings
     - core/drupal.ajax
     - core/drupal.announce
-    - core/backbone
+    # @todo Remove this in https://www.drupal.org/project/drupal/issues/3204015
+    - core/internal.backbone
     - core/once
-    - core/jquery.once.bc
     - core/drupal.displace
     - toolbar/toolbar.menu
 
@@ -41,7 +41,6 @@ toolbar.menu:
     - core/jquery
     - core/drupal
     - core/once
-    - core/jquery.once.bc
 
 toolbar.escapeAdmin:
   version: VERSION
@@ -52,4 +51,3 @@ toolbar.escapeAdmin:
     - core/drupal
     - core/drupalSettings
     - core/once
-    - core/jquery.once.bc

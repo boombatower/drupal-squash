@@ -26,7 +26,6 @@ class MigrationPluginListTest extends KernelTestBase {
     'migrate',
     // Test with all modules containing Drupal migrations.
     'action',
-    'aggregator',
     'ban',
     'block',
     'block_content',

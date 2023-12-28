@@ -179,7 +179,7 @@ function update_do_one($module, $number, $dependency_map, &$context) {
 
       $variables = Error::decodeException($e);
       unset($variables['backtrace'], $variables['exception'], $variables['severity_level']);
-      $ret['#abort'] = ['success' => FALSE, 'query' => t('%type: @message in %function (line %line of %file).', $variables)];
+      $ret['#abort'] = ['success' => FALSE, 'query' => t(Error::DEFAULT_ERROR_MESSAGE, $variables)];
     }
   }
 
@@ -226,8 +226,10 @@ function update_invoke_post_update($function, &$context) {
     return;
   }
 
-  [$module, $name] = explode('_post_update_', $function, 2);
-  \Drupal::moduleHandler()->loadInclude($module, 'php', $module . '.post_update');
+  // Ensure extension post update code is loaded.
+  [$extension, $name] = explode('_post_update_', $function, 2);
+  \Drupal::service('update.post_update_registry')->getUpdateFunctions($extension);
+
   if (function_exists($function)) {
     try {
       $ret['results']['query'] = $function($context['sandbox']);
@@ -248,7 +250,7 @@ function update_invoke_post_update($function, &$context) {
       unset($variables['backtrace'], $variables['exception']);
       $ret['#abort'] = [
         'success' => FALSE,
-        'query' => t('%type: @message in %function (line %line of %file).', $variables),
+        'query' => t(Error::DEFAULT_ERROR_MESSAGE, $variables),
       ];
     }
   }
@@ -257,17 +259,17 @@ function update_invoke_post_update($function, &$context) {
     $context['finished'] = $context['sandbox']['#finished'];
     unset($context['sandbox']['#finished']);
   }
-  if (!isset($context['results'][$module][$name])) {
-    $context['results'][$module][$name] = [];
+  if (!isset($context['results'][$extension][$name])) {
+    $context['results'][$extension][$name] = [];
   }
-  $context['results'][$module][$name] = array_merge($context['results'][$module][$name], $ret);
+  $context['results'][$extension][$name] = array_merge($context['results'][$extension][$name], $ret);
 
   if (!empty($ret['#abort'])) {
     // Record this function in the list of updates that were aborted.
     $context['results']['#abort'][] = $function;
   }
 
-  $context['message'] = t('Post updating @module', ['@module' => $module]);
+  $context['message'] = t('Post updating @extension', ['@extension' => $extension]);
 }
 
 /**

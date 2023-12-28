@@ -2,6 +2,7 @@
 
 namespace Drupal\Core\Composer;
 
+use Composer\DependencyResolver\Operation\UpdateOperation;
 use Composer\Installer\PackageEvent;
 use Composer\Script\Event;
 use Composer\Semver\Constraint\Constraint;
@@ -16,21 +17,18 @@ use Drupal\Component\FileSecurity\FileSecurity;
 class Composer {
 
   protected static $packageToCleanup = [
+    'behat/mink' => ['tests'],
+    'behat/mink-browserkit-driver' => ['tests'],
     'behat/mink-selenium2-driver' => ['tests'],
     'composer/composer' => ['bin'],
     'drupal/coder' => ['coder_sniffer/Drupal/Test', 'coder_sniffer/DrupalPractice/Test'],
     'doctrine/instantiator' => ['tests'],
     'easyrdf/easyrdf' => ['scripts'],
     'egulias/email-validator' => ['documentation', 'tests'],
-    'friends-of-behat/mink' => ['tests'],
-    'friends-of-behat/mink-browserkit-driver' => ['tests'],
     'guzzlehttp/promises' => ['tests'],
     'guzzlehttp/psr7' => ['tests'],
     'instaclick/php-webdriver' => ['doc', 'test'],
     'justinrainbow/json-schema' => ['demo'],
-    'laminas/laminas-escaper' => ['doc'],
-    'laminas/laminas-feed' => ['doc'],
-    'laminas/laminas-stdlib' => ['doc'],
     'masterminds/html5' => ['bin', 'test'],
     'mikey179/vfsStream' => ['src/test'],
     'myclabs/deep-copy' => ['doc'],
@@ -181,7 +179,7 @@ class Composer {
     $vendor_dir = $event->getComposer()->getConfig()->get('vendor-dir');
     $io = $event->getIO();
     $op = $event->getOperation();
-    if ($op->getJobType() == 'update') {
+    if ($op instanceof UpdateOperation) {
       $package = $op->getTargetPackage();
     }
     else {

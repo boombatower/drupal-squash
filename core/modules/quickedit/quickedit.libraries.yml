@@ -29,9 +29,8 @@ quickedit:
   dependencies:
     - core/jquery
     - core/once
-    - core/jquery.once.bc
-    - core/underscore
-    - core/backbone
+    - core/internal.underscore
+    - core/internal.backbone
     - core/jquery.form
     - core/drupal
     - core/drupal.displace

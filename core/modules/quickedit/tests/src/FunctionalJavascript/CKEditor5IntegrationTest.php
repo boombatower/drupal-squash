@@ -205,9 +205,6 @@ class CKEditor5IntegrationTest extends QuickEditJavascriptTestBase {
 
     $this->drupalGet('node/' . $node->id());
 
-    // Confirm that the JavaScript that generates IE11 warnings loads.
-    $assert_session->elementExists('css', 'script[src*="ckeditor5/js/ie11.user.warnings.js"]');
-
     // Initial state.
     $this->awaitQuickEditForEntity('node', 1);
     $this->assertEntityInstanceStates([

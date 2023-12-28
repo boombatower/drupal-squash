@@ -6,6 +6,10 @@
 **/
 
 ((Drupal, debounce, CKEditor5, $, once) => {
+  if (!CKEditor5) {
+    return;
+  }
+
   Drupal.CKEditor5Instances = new Map();
   const callbacks = new Map();
   const required = new Set();
@@ -58,7 +62,9 @@
       });
     }
 
-    return Object.entries(config).reduce((processed, [key, value]) => {
+    return Object.entries(config).reduce((processed, _ref) => {
+      let [key, value] = _ref;
+
       if (typeof value === 'object') {
         if (!value) {
           return processed;
