@@ -21,6 +21,7 @@ drupal.ckeditor5:
       css/quickedit.css: { }
   dependencies:
     - core/jquery
+    - core/once
     - core/drupal
     - core/drupal.debounce
     - core/ckeditor5.editorClassic
@@ -52,9 +53,19 @@ drupal.ckeditor5.media:
   js:
     js/media_embed_ckeditor5.theme.js: {}
     js/build/drupalMedia.js: { preprocess: false, minified: true }
+  css:
+    theme:
+      css/drupalmedia.css: { }
   dependencies:
     - core/ckeditor5
     - core/drupal
+
+drupal.ckeditor5.mediaAlign:
+  css:
+    theme:
+      css/media-alignment.css: { }
+  dependencies:
+    - ckeditor5/drupal.ckeditor5.media
 
 ie11.user.warnings:
   js:

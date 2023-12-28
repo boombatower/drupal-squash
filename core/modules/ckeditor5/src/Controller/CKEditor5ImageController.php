@@ -164,20 +164,14 @@ class CKEditor5ImageController extends ControllerBase {
     $lock_id = $this->generateLockIdFromFileUri($file_uri);
 
     if (!$this->lock->acquire($lock_id)) {
-      throw new HttpException(503, sprintf('File "%s" is already locked for writing.'), NULL, ['Retry-After' => 1]);
+      throw new HttpException(503, sprintf('File "%s" is already locked for writing.', $file_uri), NULL, ['Retry-After' => 1]);
     }
 
     // Begin building file entity.
     $file = File::create([]);
     $file->setOwnerId($this->currentUser->id());
     $file->setFilename($prepared_filename);
-    if ($this->mimeTypeGuesser instanceof MimeTypeGuesserInterface) {
-      $file->setMimeType($this->mimeTypeGuesser->guessMimeType($prepared_filename));
-    }
-    else {
-      $file->setMimeType($this->mimeTypeGuesser->guess($prepared_filename));
-      @trigger_error('\Symfony\Component\HttpFoundation\File\MimeType\MimeTypeGuesserInterface is deprecated in drupal:9.1.0 and is removed from drupal:10.0.0. Implement \Symfony\Component\Mime\MimeTypeGuesserInterface instead. See https://www.drupal.org/node/3133341', E_USER_DEPRECATED);
-    }
+    $file->setMimeType($this->mimeTypeGuesser->guessMimeType($prepared_filename));
 
     $file->setFileUri($file_uri);
     $file->setSize(@filesize($temp_file_path));

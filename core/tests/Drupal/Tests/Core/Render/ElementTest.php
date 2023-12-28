@@ -35,11 +35,7 @@ class ElementTest extends UnitTestCase {
 
     $properties = Element::properties($element);
 
-    $this->assertCount(2, $properties);
-    $this->assertContains('#property1', $properties);
-    $this->assertContains('#property2', $properties);
-    $this->assertNotContains('property3', $properties);
-    $this->assertNotContains(0, $properties);
+    $this->assertSame(['#property1', '#property2'], $properties);
   }
 
   /**

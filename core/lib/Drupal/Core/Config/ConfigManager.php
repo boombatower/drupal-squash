@@ -264,9 +264,9 @@ class ConfigManager implements ConfigManagerInterface {
     }
     $dependencies = [];
     foreach ($names as $name) {
-      $dependencies = array_merge($dependencies, $dependency_manager->getDependentEntities($type, $name));
+      $dependencies[] = $dependency_manager->getDependentEntities($type, $name);
     }
-    return $dependencies;
+    return array_merge([], ...$dependencies);
   }
 
   /**
@@ -297,22 +297,6 @@ class ConfigManager implements ConfigManagerInterface {
       $entities_to_return = array_merge($entities_to_return, array_values($storage->loadMultiple($entities_to_load)));
     }
     return $entities_to_return;
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  public function findConfigEntityDependents($type, array $names, ConfigDependencyManager $dependency_manager = NULL) {
-    @trigger_error('ConfigManagerInterface::findConfigEntityDependents() is deprecated in drupal:9.3.0 and is removed from drupal:10.0.0. Instead you should use ConfigManagerInterface::findConfigEntityDependencies(). See https://www.drupal.org/node/3225357', E_USER_DEPRECATED);
-    return $this->findConfigEntityDependencies($type, $names, $dependency_manager);
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  public function findConfigEntityDependentsAsEntities($type, array $names, ConfigDependencyManager $dependency_manager = NULL) {
-    @trigger_error('ConfigManagerInterface::findConfigEntityDependentsAsEntities() is deprecated in drupal:9.3.0 and is removed from drupal:10.0.0. Instead you should use ConfigManagerInterface::findConfigEntityDependenciesAsEntities(). See https://www.drupal.org/node/3225357', E_USER_DEPRECATED);
-    return $this->findConfigEntityDependenciesAsEntities($type, $names, $dependency_manager);
   }
 
   /**

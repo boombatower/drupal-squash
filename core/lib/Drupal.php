@@ -75,7 +75,7 @@ class Drupal {
   /**
    * The current system version.
    */
-  const VERSION = '10.0.0-alpha1';
+  const VERSION = '10.0.0-alpha2';
 
   /**
    * Core API compatibility.
@@ -114,7 +114,7 @@ class Drupal {
    * - Once in the error message printed to the user immediately after.
    * Remember to update both whenever this constant is updated.
    */
-  const MINIMUM_PHP = '8.0.2';
+  const MINIMUM_PHP = '8.1.0';
 
   /**
    * Minimum recommended value of PHP memory_limit.
@@ -132,7 +132,7 @@ class Drupal {
    * message, but Drupal can still be installed. Used for (e.g.) PHP versions
    * that have reached their EOL or will in the near future.
    */
-  const RECOMMENDED_PHP = '8.0';
+  const RECOMMENDED_PHP = '8.1';
 
   /**
    * The currently active container object, or NULL if not initialized yet.

@@ -15,10 +15,10 @@
         "drupal/core-vendor-hardening": "self.version"
     },
     "require-dev": {
-        "behat/mink": "^1.8",
+        "friends-of-behat/mink": "^1.10",
         "friends-of-behat/mink-browserkit-driver": "^1.4",
         "behat/mink-selenium2-driver": "^1.4",
-        "composer/composer": "^2.0.2",
+        "composer/composer": "^2.2.4",
         "drupal/coder": "^8.3.10",
         "instaclick/php-webdriver": "^1.4.1",
         "mglaman/phpstan-drupal": "^1.1.9",
@@ -27,16 +27,16 @@
         "phpspec/prophecy-phpunit": "^2",
         "phpstan/extension-installer": "^1.1",
         "phpstan/phpstan": "^1.4.0",
-        "symfony/css-selector": "^5.4",
-        "symfony/phpunit-bridge": "^5.4",
-        "symfony/var-dumper": "^5.4",
-        "symfony/error-handler": "^5.4",
+        "symfony/css-selector": "^6.0",
+        "symfony/phpunit-bridge": "^6.0",
+        "symfony/var-dumper": "^6.0",
+        "symfony/error-handler": "^6.0",
         "justinrainbow/json-schema": "^5.2",
-        "symfony/filesystem": "^5.4",
-        "symfony/finder": "^5.4",
-        "symfony/lock": "^5.4",
-        "symfony/browser-kit": "^5.4",
-        "symfony/dom-crawler": "^5.4",
+        "symfony/filesystem": "^6.0",
+        "symfony/finder": "^6.0",
+        "symfony/lock": "^6.0",
+        "symfony/browser-kit": "^6.0",
+        "symfony/dom-crawler": "^6.0",
         "easyrdf/easyrdf": "^1.0"
     },
     "replace": {
@@ -47,9 +47,8 @@
     "prefer-stable": true,
     "config": {
         "preferred-install": "dist",
-        "autoloader-suffix": "Drupal9",
         "platform": {
-            "php": "8.0.2"
+            "php": "8.1.0"
         },
         "allow-plugins": {
             "composer/installers": true,
@@ -105,8 +104,7 @@
         "pre-autoload-dump": "Drupal\\Core\\Composer\\Composer::preAutoloadDump",
         "drupal-phpunit-upgrade-check": "Drupal\\Core\\Composer\\Composer::upgradePHPUnit",
         "drupal-phpunit-upgrade": [
-            "@composer update phpunit/phpunit --with-dependencies --no-progress",
-            "@composer require phpspec/prophecy-phpunit:^2 --no-progress --no-suggest"
+            "@composer update phpunit/phpunit --with-dependencies --no-progress"
         ],
         "post-update-cmd": [
             "Drupal\\Composer\\Composer::generateMetapackages"

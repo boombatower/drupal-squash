@@ -5,18 +5,19 @@ namespace Drupal\Tests\ckeditor5\FunctionalJavascript;
 use Drupal\editor\Entity\Editor;
 use Drupal\file\Entity\File;
 use Drupal\filter\Entity\FilterFormat;
-use Drupal\FunctionalJavascriptTests\WebDriverTestBase;
 use Drupal\Tests\TestFileCreationTrait;
 use Drupal\Tests\ckeditor5\Traits\CKEditor5TestTrait;
 use Drupal\ckeditor5\Plugin\Editor\CKEditor5;
 use Symfony\Component\Validator\ConstraintViolation;
+
+// cspell:ignore imageresize imageupload
 
 /**
  * @coversDefaultClass \Drupal\ckeditor5\Plugin\CKEditor5Plugin\ImageUpload
  * @group ckeditor5
  * @internal
  */
-class ImageTest extends WebDriverTestBase {
+class ImageTest extends CKEditor5TestBase {
 
   use CKEditor5TestTrait;
   use TestFileCreationTrait;
@@ -91,6 +92,9 @@ class ImageTest extends WebDriverTestBase {
           'ckeditor5_sourceEditing' => [
             'allowed_tags' => [],
           ],
+          'ckeditor5_imageResize' => [
+            'allow_resize' => TRUE,
+          ],
         ],
       ],
       'image_upload' => [
@@ -113,6 +117,7 @@ class ImageTest extends WebDriverTestBase {
     $this->adminUser = $this->drupalCreateUser([
       'use text format test_format',
       'bypass node access',
+      'administer filters',
     ]);
 
     // Create a sample host entity to embed images in.
@@ -120,9 +125,8 @@ class ImageTest extends WebDriverTestBase {
       'uri' => $this->getTestFiles('image')[0]->uri,
     ]);
     $this->file->save();
-    $this->drupalCreateContentType(['type' => 'blog']);
     $this->host = $this->createNode([
-      'type' => 'blog',
+      'type' => 'page',
       'title' => 'Animals with strange names',
       'body' => [
         'value' => '<p>The pirate is irate.</p>',
@@ -308,6 +312,148 @@ class ImageTest extends WebDriverTestBase {
       'INLINE image, restricted' => ['inline', FALSE],
       'INLINE image, unrestricted' => ['inline', TRUE],
     ];
+  }
+
+  /**
+   * Checks that width attribute is correct after upcasting, then downcasting.
+   *
+   * @param string $width
+   *   The width input for source editing.
+   *
+   * @dataProvider providerWidth
+   */
+  public function testWidth(string $width): void {
+    $page = $this->getSession()->getPage();
+    $assert_session = $this->assertSession();
+
+    $this->drupalGet('node/add');
+    $page->fillField('title[0][value]', 'My test content');
+    $this->assertNotEmpty($image_upload_field = $page->find('css', '.ck-file-dialog-button input[type="file"]'));
+    $image = $this->getTestFiles('image')[0];
+    $image_upload_field->attachFile($this->container->get('file_system')->realpath($image->uri));
+    $this->assertNotEmpty($assert_session->waitForElementVisible('css', 'figure.image'));
+
+    // Edit the source of the image through the UI.
+    $page->pressButton('Source');
+    // Get editor data.
+    $editor_data = $this->getEditorDataAsDom();
+    // Get the image element data from the editor then set the new width.
+    $image = $editor_data->getElementsByTagName('img')->item(0);
+    $image->setAttribute('width', $width);
+    $new_html = $image->C14N();
+    $text_area = $page->find('css', '.ck-source-editing-area > textarea');
+    // Set the value of the source code to the updated HTML that has the width
+    // attribute.
+    $text_area->setValue($new_html);
+    // Toggle source editing to force upcasting.
+    $page->pressButton('Source');
+    $assert_session->waitForElementVisible('css', 'img');
+    // Toggle source editing to force downcasting.
+    $page->pressButton('Source');
+    // Get editor data.
+    $editor_data = $this->getEditorDataAsDom();
+    $width_from_editor = $editor_data->getElementsByTagName('img')->item(0)->getAttribute('width');
+    // Check the contents of the source editing area.
+    $this->assertSame($width, $width_from_editor);
+  }
+
+  /**
+   * Data provider for ::testWidth().
+   *
+   * @return \string[][]
+   */
+  public function providerWidth(): array {
+    return [
+      'Image resize with percent unit (only allowed in HTML 4)' => [
+        'width' => '33%',
+      ],
+      'Image resize with (implied) px unit' => [
+        'width' => '100',
+      ],
+    ];
+  }
+
+  /**
+   * Tests the image resize plugin.
+   *
+   * Confirms that enabling the resize plugin introduces the resize class to
+   * images within CKEditor 5.
+   *
+   * @param bool $is_resize_enabled
+   *   Boolean flag to test enabled or disabled.
+   *
+   * @dataProvider providerResize
+   */
+  public function testResize(bool $is_resize_enabled): void {
+    // Disable resize plugin because it is enabled by default.
+    if (!$is_resize_enabled) {
+      Editor::load('test_format')->setSettings([
+        'toolbar' => [
+          'items' => [
+            'uploadImage',
+          ],
+        ],
+        'plugins' => [
+          'ckeditor5_imageResize' => [
+            'allow_resize' => FALSE,
+          ],
+        ],
+      ])->save();
+    }
+
+    $page = $this->getSession()->getPage();
+    $assert_session = $this->assertSession();
+    $this->drupalGet('node/add');
+    $page->fillField('title[0][value]', 'My test content');
+    $this->assertNotEmpty($image_upload_field = $page->find('css', '.ck-file-dialog-button input[type="file"]'));
+    $image = $this->getTestFiles('image')[0];
+    $image_upload_field->attachFile($this->container->get('file_system')->realpath($image->uri));
+    $image_figure = $assert_session->waitForElementVisible('css', 'figure');
+    $this->assertSame($is_resize_enabled, $image_figure->hasClass('ck-widget_with-resizer'));
+  }
+
+  /**
+   * Data provider for ::testResize().
+   *
+   * @return array
+   *   The test cases.
+   */
+  public function providerResize(): array {
+    return [
+      'Image resize is enabled' => [
+        'is_resize_enabled' => TRUE,
+      ],
+      'Image resize is disabled' => [
+        'is_resize_enabled' => FALSE,
+      ],
+    ];
+  }
+
+  /**
+   * Tests the ckeditor5_imageResize and ckeditor5_imageUpload settings forms.
+   */
+  public function testImageSettingsForm() {
+    $assert_session = $this->assertSession();
+
+    $this->drupalGet('admin/config/content/formats/manage/test_format');
+
+    // The image resize and upload plugin settings forms should be present.
+    $assert_session->elementExists('css', '[data-drupal-selector="edit-editor-settings-plugins-ckeditor5-imageresize"]');
+    $assert_session->elementExists('css', '[data-drupal-selector="edit-editor-settings-plugins-ckeditor5-imageupload"]');
+
+    // Removing the imageUpload button from the toolbar must remove the plugin
+    // settings forms too.
+    $this->triggerKeyUp('.ckeditor5-toolbar-item-uploadImage', 'ArrowUp');
+    $assert_session->assertWaitOnAjaxRequest();
+    $assert_session->elementNotExists('css', '[data-drupal-selector="edit-editor-settings-plugins-ckeditor5-imageresize"]');
+    $assert_session->elementNotExists('css', '[data-drupal-selector="edit-editor-settings-plugins-ckeditor5-imageupload"]');
+
+    // Re-adding the imageUpload button to the toolbar must re-add the plugin
+    // settings forms too.
+    $this->triggerKeyUp('.ckeditor5-toolbar-item-uploadImage', 'ArrowDown');
+    $assert_session->assertWaitOnAjaxRequest();
+    $assert_session->elementExists('css', '[data-drupal-selector="edit-editor-settings-plugins-ckeditor5-imageresize"]');
+    $assert_session->elementExists('css', '[data-drupal-selector="edit-editor-settings-plugins-ckeditor5-imageupload"]');
   }
 
 }
