@@ -17,12 +17,12 @@ class TwigSettingsTest extends BrowserTestBase {
    *
    * @var array
    */
-  public static $modules = array('theme_test');
+  public static $modules = ['theme_test'];
 
   /**
    * Ensures Twig template auto reload setting can be overridden.
    */
-  function testTwigAutoReloadOverride() {
+  public function testTwigAutoReloadOverride() {
     // Enable auto reload and rebuild the service container.
     $parameters = $this->container->getParameter('twig.config');
     $parameters['auto_reload'] = TRUE;
@@ -44,7 +44,7 @@ class TwigSettingsTest extends BrowserTestBase {
   /**
    * Ensures Twig engine debug setting can be overridden.
    */
-  function testTwigDebugOverride() {
+  public function testTwigDebugOverride() {
     // Enable debug and rebuild the service container.
     $parameters = $this->container->getParameter('twig.config');
     $parameters['debug'] = TRUE;
@@ -74,10 +74,10 @@ class TwigSettingsTest extends BrowserTestBase {
   /**
    * Ensures Twig template cache setting can be overridden.
    */
-  function testTwigCacheOverride() {
+  public function testTwigCacheOverride() {
     $extension = twig_extension();
     $theme_handler = $this->container->get('theme_handler');
-    $theme_handler->install(array('test_theme'));
+    $theme_handler->install(['test_theme']);
     $this->config('system.theme')->set('default', 'test_theme')->save();
 
     // The registry still works on theme globals, so set them here.

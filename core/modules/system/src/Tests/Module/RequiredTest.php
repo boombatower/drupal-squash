@@ -11,7 +11,7 @@ class RequiredTest extends ModuleTestBase {
   /**
    * Assert that core required modules cannot be disabled.
    */
-  function testDisableRequired() {
+  public function testDisableRequired() {
     $module_info = system_get_info('module');
     $this->drupalGet('admin/modules');
     foreach ($module_info as $module => $info) {
@@ -20,7 +20,7 @@ class RequiredTest extends ModuleTestBase {
       if (!empty($info['required'])) {
         $field_name = 'modules[' . $module . '][enable]';
         if (empty($info['hidden'])) {
-          $this->assertFieldByXPath("//input[@name='$field_name' and @disabled='disabled' and @checked='checked']", '', format_string('Field @name was disabled and checked.', array('@name' => $field_name)));
+          $this->assertFieldByXPath("//input[@name='$field_name' and @disabled='disabled' and @checked='checked']", '', format_string('Field @name was disabled and checked.', ['@name' => $field_name]));
         }
         else {
           $this->assertNoFieldByName($field_name);

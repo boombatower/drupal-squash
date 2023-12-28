@@ -16,7 +16,7 @@ abstract class FileTestBase extends KernelTestBase {
    *
    * @var array
    */
-  public static $modules = array('system');
+  public static $modules = ['system'];
 
   /**
    * A stream wrapper scheme to register for the test.
@@ -70,9 +70,9 @@ abstract class FileTestBase extends KernelTestBase {
 
     $this->setSetting('file_public_path', $public_file_directory);
 
-    $GLOBALS['config_directories'] = array(
+    $GLOBALS['config_directories'] = [
       CONFIG_SYNC_DIRECTORY => $this->siteDirectory . '/files/config/sync',
-    );
+    ];
   }
 
   /**
@@ -85,7 +85,7 @@ abstract class FileTestBase extends KernelTestBase {
    * @param $message
    *   Optional message.
    */
-  function assertFilePermissions($filepath, $expected_mode, $message = NULL) {
+  public function assertFilePermissions($filepath, $expected_mode, $message = NULL) {
     // Clear out PHP's file stat cache to be sure we see the current value.
     clearstatcache(TRUE, $filepath);
 
@@ -105,7 +105,7 @@ abstract class FileTestBase extends KernelTestBase {
     }
 
     if (!isset($message)) {
-      $message = t('Expected file permission to be %expected, actually were %actual.', array('%actual' => decoct($actual_mode), '%expected' => decoct($expected_mode)));
+      $message = t('Expected file permission to be %expected, actually were %actual.', ['%actual' => decoct($actual_mode), '%expected' => decoct($expected_mode)]);
     }
     $this->assertEqual($actual_mode, $expected_mode, $message);
   }
@@ -120,7 +120,7 @@ abstract class FileTestBase extends KernelTestBase {
    * @param $message
    *   Optional message.
    */
-  function assertDirectoryPermissions($directory, $expected_mode, $message = NULL) {
+  public function assertDirectoryPermissions($directory, $expected_mode, $message = NULL) {
     // Clear out PHP's file stat cache to be sure we see the current value.
     clearstatcache(TRUE, $directory);
 
@@ -141,7 +141,7 @@ abstract class FileTestBase extends KernelTestBase {
     }
 
     if (!isset($message)) {
-      $message = t('Expected directory permission to be %expected, actually were %actual.', array('%actual' => decoct($actual_mode), '%expected' => decoct($expected_mode)));
+      $message = t('Expected directory permission to be %expected, actually were %actual.', ['%actual' => decoct($actual_mode), '%expected' => decoct($expected_mode)]);
     }
     $this->assertEqual($actual_mode, $expected_mode, $message);
   }
@@ -155,7 +155,7 @@ abstract class FileTestBase extends KernelTestBase {
    * @return
    *   The path to the directory.
    */
-  function createDirectory($path = NULL) {
+  public function createDirectory($path = NULL) {
     // A directory to operate on.
     if (!isset($path)) {
       $path = file_default_scheme() . '://' . $this->randomMachineName();
@@ -179,7 +179,7 @@ abstract class FileTestBase extends KernelTestBase {
    * @return
    *   File URI.
    */
-  function createUri($filepath = NULL, $contents = NULL, $scheme = NULL) {
+  public function createUri($filepath = NULL, $contents = NULL, $scheme = NULL) {
     if (!isset($filepath)) {
       // Prefix with non-latin characters to ensure that all file-related
       // tests work with international filenames.

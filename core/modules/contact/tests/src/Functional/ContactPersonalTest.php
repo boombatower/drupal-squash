@@ -1,11 +1,13 @@
 <?php
 
-namespace Drupal\contact\Tests;
+namespace Drupal\Tests\contact\Functional;
 
 use Drupal\Component\Utility\SafeMarkup;
 use Drupal\Component\Render\PlainTextOutput;
 use Drupal\Core\Session\AccountInterface;
-use Drupal\simpletest\WebTestBase;
+use Drupal\Core\Test\AssertMailTrait;
+use Drupal\system\Tests\Cache\AssertPageCacheContextsAndTagsTrait;
+use Drupal\Tests\BrowserTestBase;
 use Drupal\user\RoleInterface;
 
 /**
@@ -13,14 +15,17 @@ use Drupal\user\RoleInterface;
  *
  * @group contact
  */
-class ContactPersonalTest extends WebTestBase {
+class ContactPersonalTest extends BrowserTestBase {
+
+  use AssertMailTrait;
+  use AssertPageCacheContextsAndTagsTrait;
 
   /**
    * Modules to enable.
    *
    * @var array
    */
-  public static $modules = array('contact', 'dblog');
+  public static $modules = ['contact', 'dblog'];
 
   /**
    * A user with some administrative permissions.
@@ -47,18 +52,18 @@ class ContactPersonalTest extends WebTestBase {
     parent::setUp();
 
     // Create an admin user.
-    $this->adminUser = $this->drupalCreateUser(array('administer contact forms', 'administer users', 'administer account settings', 'access site reports'));
+    $this->adminUser = $this->drupalCreateUser(['administer contact forms', 'administer users', 'administer account settings', 'access site reports']);
 
     // Create some normal users with their contact forms enabled by default.
     $this->config('contact.settings')->set('user_default_enabled', TRUE)->save();
-    $this->webUser = $this->drupalCreateUser(array('access user profiles', 'access user contact forms'));
+    $this->webUser = $this->drupalCreateUser(['access user profiles', 'access user contact forms']);
     $this->contactUser = $this->drupalCreateUser();
   }
 
   /**
    * Tests that mails for contact messages are correctly sent.
    */
-  function testSendPersonalContactMessage() {
+  public function testSendPersonalContactMessage() {
     // Ensure that the web user's email needs escaping.
     $mail = $this->webUser->getUsername() . '&escaped@example.com';
     $this->webUser->setEmail($mail)->save();
@@ -67,18 +72,18 @@ class ContactPersonalTest extends WebTestBase {
     $this->drupalGet('user/' . $this->contactUser->id() . '/contact');
     $this->assertEscaped($mail);
     $message = $this->submitPersonalContact($this->contactUser);
-    $mails = $this->drupalGetMails();
+    $mails = $this->getMails();
     $this->assertEqual(1, count($mails));
     $mail = $mails[0];
     $this->assertEqual($mail['to'], $this->contactUser->getEmail());
     $this->assertEqual($mail['from'], $this->config('system.site')->get('mail'));
     $this->assertEqual($mail['reply-to'], $this->webUser->getEmail());
     $this->assertEqual($mail['key'], 'user_mail');
-    $variables = array(
+    $variables = [
       '@site-name' => $this->config('system.site')->get('name'),
       '@subject' => $message['subject[0][value]'],
       '@recipient-name' => $this->contactUser->getDisplayName(),
-    );
+    ];
     $subject = PlainTextOutput::renderFromHtml(t('[@site-name] @subject', $variables));
     $this->assertEqual($mail['subject'], $subject, 'Subject is in sent message.');
     $this->assertTrue(strpos($mail['body'], 'Hello ' . $variables['@recipient-name']) !== FALSE, 'Recipient name is in sent message.');
@@ -90,11 +95,11 @@ class ContactPersonalTest extends WebTestBase {
     $this->drupalLogin($this->adminUser);
     // Verify that the correct watchdog message has been logged.
     $this->drupalGet('/admin/reports/dblog');
-    $placeholders = array(
+    $placeholders = [
       '@sender_name' => $this->webUser->username,
       '@sender_email' => $this->webUser->getEmail(),
       '@recipient_name' => $this->contactUser->getUsername()
-    );
+    ];
     $this->assertRaw(SafeMarkup::format('@sender_name (@sender_email) sent @recipient_name an email.', $placeholders));
     // Ensure an unescaped version of the email does not exist anywhere.
     $this->assertNoRaw($this->webUser->getEmail());
@@ -103,13 +108,13 @@ class ContactPersonalTest extends WebTestBase {
   /**
    * Tests access to the personal contact form.
    */
-  function testPersonalContactAccess() {
+  public function testPersonalContactAccess() {
     // Test allowed access to admin user's contact form.
     $this->drupalLogin($this->webUser);
     $this->drupalGet('user/' . $this->adminUser->id() . '/contact');
     $this->assertResponse(200);
     // Check the page title is properly displayed.
-    $this->assertRaw(t('Contact @username', array('@username' => $this->adminUser->getDisplayName())));
+    $this->assertRaw(t('Contact @username', ['@username' => $this->adminUser->getDisplayName()]));
 
     // Test denied access to admin user's own contact form.
     $this->drupalLogout();
@@ -149,7 +154,7 @@ class ContactPersonalTest extends WebTestBase {
 
     // Test that anonymous users can access the contact form.
     $this->drupalLogout();
-    user_role_grant_permissions(RoleInterface::ANONYMOUS_ID, array('access user contact forms'));
+    user_role_grant_permissions(RoleInterface::ANONYMOUS_ID, ['access user contact forms']);
     $this->drupalGet('user/' . $this->contactUser->id() . '/contact');
     $this->assertResponse(200);
 
@@ -159,7 +164,7 @@ class ContactPersonalTest extends WebTestBase {
     $this->assertCacheContext('user');
 
     // Revoke the personal contact permission for the anonymous user.
-    user_role_revoke_permissions(RoleInterface::ANONYMOUS_ID, array('access user contact forms'));
+    user_role_revoke_permissions(RoleInterface::ANONYMOUS_ID, ['access user contact forms']);
     $this->drupalGet('user/' . $this->contactUser->id() . '/contact');
     $this->assertResponse(403);
     $this->assertCacheContext('user');
@@ -168,7 +173,7 @@ class ContactPersonalTest extends WebTestBase {
 
     // Disable the personal contact form.
     $this->drupalLogin($this->adminUser);
-    $edit = array('contact_default_status' => FALSE);
+    $edit = ['contact_default_status' => FALSE];
     $this->drupalPostForm('admin/config/people/accounts', $edit, t('Save configuration'));
     $this->assertText(t('The configuration options have been saved.'), 'Setting successfully saved.');
     $this->drupalLogout();
@@ -206,7 +211,7 @@ class ContactPersonalTest extends WebTestBase {
     $this->drupalGet('user/' . $this->webUser->id() . '/edit');
     $this->assertNoFieldChecked('edit-contact--2');
     $this->assertFalse(\Drupal::service('user.data')->get('contact', $this->webUser->id(), 'enabled'), 'Personal contact form disabled');
-    $this->drupalPostForm(NULL, array('contact' => TRUE), t('Save'));
+    $this->drupalPostForm(NULL, ['contact' => TRUE], t('Save'));
     $this->assertFieldChecked('edit-contact--2');
     $this->assertTrue(\Drupal::service('user.data')->get('contact', $this->webUser->id(), 'enabled'), 'Personal contact form enabled');
 
@@ -223,7 +228,7 @@ class ContactPersonalTest extends WebTestBase {
   /**
    * Tests the personal contact form flood protection.
    */
-  function testPersonalContactFlood() {
+  public function testPersonalContactFlood() {
     $flood_limit = 3;
     $this->config('contact.settings')->set('flood.limit', $flood_limit)->save();
 
@@ -237,7 +242,7 @@ class ContactPersonalTest extends WebTestBase {
 
     // Submit contact form one over limit.
     $this->submitPersonalContact($this->contactUser);
-    $this->assertRaw(t('You cannot send more than %number messages in @interval. Try again later.', array('%number' => $flood_limit, '@interval' => \Drupal::service('date.formatter')->formatInterval($this->config('contact.settings')->get('flood.interval')))), 'Normal user denied access to flooded contact form.');
+    $this->assertRaw(t('You cannot send more than %number messages in @interval. Try again later.', ['%number' => $flood_limit, '@interval' => \Drupal::service('date.formatter')->formatInterval($this->config('contact.settings')->get('flood.interval'))]), 'Normal user denied access to flooded contact form.');
 
     // Test that the admin user can still access the contact form even though
     // the flood limit was reached.
@@ -248,8 +253,8 @@ class ContactPersonalTest extends WebTestBase {
   /**
    * Tests the personal contact form based access when an admin adds users.
    */
-  function testAdminContact() {
-    user_role_grant_permissions(RoleInterface::ANONYMOUS_ID, array('access user contact forms'));
+  public function testAdminContact() {
+    user_role_grant_permissions(RoleInterface::ANONYMOUS_ID, ['access user contact forms']);
     $this->checkContactAccess(200);
     $this->checkContactAccess(403, FALSE);
     $config = $this->config('contact.settings');
@@ -276,13 +281,13 @@ class ContactPersonalTest extends WebTestBase {
       $this->assertNoFieldChecked('edit-contact--2');
     }
     $name = $this->randomMachineName();
-    $edit = array(
+    $edit = [
       'name' => $name,
       'mail' => $this->randomMachineName() . '@example.com',
       'pass[pass1]' => $pass = $this->randomString(),
       'pass[pass2]' => $pass,
       'notify' => FALSE,
-    );
+    ];
     if (isset($contact_value)) {
       $edit['contact'] = $contact_value;
     }
@@ -306,11 +311,11 @@ class ContactPersonalTest extends WebTestBase {
    * @return array
    *   An array with the form fields being used.
    */
-  protected function submitPersonalContact(AccountInterface $account, array $message = array()) {
-    $message += array(
+  protected function submitPersonalContact(AccountInterface $account, array $message = []) {
+    $message += [
       'subject[0][value]' => $this->randomMachineName(16),
       'message[0][value]' => $this->randomMachineName(64),
-    );
+    ];
     $this->drupalPostForm('user/' . $account->id() . '/contact', $message, t('Send message'));
     return $message;
   }

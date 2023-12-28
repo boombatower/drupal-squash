@@ -16,12 +16,12 @@ class DrupalSetMessageTest extends BrowserTestBase {
    *
    * @var array
    */
-  public static $modules = array('system_test');
+  public static $modules = ['system_test'];
 
   /**
    * Tests drupal_set_message().
    */
-  function testDrupalSetMessage() {
+  public function testDrupalSetMessage() {
     // The page at system-test/drupal-set-message sets two messages and then
     // removes the first before it is displayed.
     $this->drupalGet('system-test/drupal-set-message');

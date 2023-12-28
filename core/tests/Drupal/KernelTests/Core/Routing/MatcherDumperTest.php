@@ -44,7 +44,7 @@ class MatcherDumperTest extends KernelTestBase {
   /**
    * Confirms that the dumper can be instantiated successfully.
    */
-  function testCreate() {
+  public function testCreate() {
     $connection = Database::getConnection();
     $dumper = new MatcherDumper($connection, $this->state);
 
@@ -55,7 +55,7 @@ class MatcherDumperTest extends KernelTestBase {
   /**
    * Confirms that we can add routes to the dumper.
    */
-  function testAddRoutes() {
+  public function testAddRoutes() {
     $connection = Database::getConnection();
     $dumper = new MatcherDumper($connection, $this->state);
 
@@ -76,7 +76,7 @@ class MatcherDumperTest extends KernelTestBase {
   /**
    * Confirms that we can add routes to the dumper when it already has some.
    */
-  function testAddAdditionalRoutes() {
+  public function testAddAdditionalRoutes() {
     $connection = Database::getConnection();
     $dumper = new MatcherDumper($connection, $this->state);
 
@@ -125,9 +125,9 @@ class MatcherDumperTest extends KernelTestBase {
 
     $this->fixtures->createTables($connection);
 
-    $dumper->dump(array('provider' => 'test'));
+    $dumper->dump(['provider' => 'test']);
 
-    $record = $connection->query("SELECT * FROM {test_routes} WHERE name= :name", array(':name' => 'test_route'))->fetchObject();
+    $record = $connection->query("SELECT * FROM {test_routes} WHERE name= :name", [':name' => 'test_route'])->fetchObject();
 
     $loaded_route = unserialize($record->route);
 
@@ -155,15 +155,15 @@ class MatcherDumperTest extends KernelTestBase {
 
     $this->fixtures->createTables($connection);
 
-    $dumper->dump(array('provider' => 'test'));
+    $dumper->dump(['provider' => 'test']);
     // Using binary for readability, we expect a 0 at any wildcard slug. They
     // should be ordered from longest to shortest.
-    $expected = array(
+    $expected = [
       bindec('1011111'),
       bindec('10111'),
       bindec('111'),
       bindec('101'),
-    );
+    ];
     $this->assertEqual($this->state->get('routing.menu_masks.test_routes'), $expected);
   }
 

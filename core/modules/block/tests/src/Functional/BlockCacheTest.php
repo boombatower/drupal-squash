@@ -17,7 +17,7 @@ class BlockCacheTest extends BrowserTestBase {
    *
    * @var array
    */
-  public static $modules = array('block', 'block_test', 'test_page_test');
+  public static $modules = ['block', 'block_test', 'test_page_test'];
 
   /**
    * A user with permission to create and edit books and to administer blocks.
@@ -51,7 +51,7 @@ class BlockCacheTest extends BrowserTestBase {
     parent::setUp();
 
     // Create an admin user, log in and enable test blocks.
-    $this->adminUser = $this->drupalCreateUser(array('administer blocks', 'access administration pages'));
+    $this->adminUser = $this->drupalCreateUser(['administer blocks', 'access administration pages']);
     $this->drupalLogin($this->adminUser);
 
     // Create additional users to test caching modes.
@@ -69,7 +69,7 @@ class BlockCacheTest extends BrowserTestBase {
   /**
    * Test "user.roles" cache context.
    */
-  function testCachePerRole() {
+  public function testCachePerRole() {
     \Drupal::state()->set('block_test.cache_contexts', ['user.roles']);
 
     // Enable our test block. Set some content for it to display.
@@ -87,7 +87,7 @@ class BlockCacheTest extends BrowserTestBase {
     $this->assertText($old_content, 'Block is served from the cache.');
 
     // Clear the cache and verify that the stale data is no longer there.
-    Cache::invalidateTags(array('block_view'));
+    Cache::invalidateTags(['block_view']);
     $this->drupalGet('');
     $this->assertNoText($old_content, 'Block cache clear removes stale cache data.');
     $this->assertText($current_content, 'Fresh block content is displayed after clearing the cache.');
@@ -116,7 +116,7 @@ class BlockCacheTest extends BrowserTestBase {
   /**
    * Test a cacheable block without any additional cache context.
    */
-  function testCachePermissions() {
+  public function testCachePermissions() {
     // user.permissions is a required context, so a user with different
     // permissions will see a different version of the block.
     \Drupal::state()->set('block_test.cache_contexts', []);
@@ -142,7 +142,7 @@ class BlockCacheTest extends BrowserTestBase {
   /**
    * Test non-cacheable block.
    */
-  function testNoCache() {
+  public function testNoCache() {
     \Drupal::state()->set('block_test.cache_max_age', 0);
 
     $current_content = $this->randomMachineName();
@@ -162,7 +162,7 @@ class BlockCacheTest extends BrowserTestBase {
   /**
    * Test "user" cache context.
    */
-  function testCachePerUser() {
+  public function testCachePerUser() {
     \Drupal::state()->set('block_test.cache_contexts', ['user']);
 
     $current_content = $this->randomMachineName();
@@ -191,7 +191,7 @@ class BlockCacheTest extends BrowserTestBase {
   /**
    * Test "url" cache context.
    */
-  function testCachePerPage() {
+  public function testCachePerPage() {
     \Drupal::state()->set('block_test.cache_contexts', ['url']);
 
     $current_content = $this->randomMachineName();

@@ -58,10 +58,10 @@ class TransactionTest extends DatabaseTestBase {
 
     // Insert a single row into the testing table.
     db_insert('test')
-      ->fields(array(
+      ->fields([
         'name' => 'David' . $suffix,
         'age' => '24',
-      ))
+      ])
       ->execute();
 
     $this->assertTrue($connection->inTransaction(), 'In transaction before calling nested transaction.');
@@ -108,25 +108,25 @@ class TransactionTest extends DatabaseTestBase {
 
     // Insert a single row into the testing table.
     db_insert('test')
-      ->fields(array(
+      ->fields([
         'name' => 'Daniel' . $suffix,
         'age' => '19',
-      ))
+      ])
       ->execute();
 
     $this->assertTrue($connection->inTransaction(), 'In transaction inside nested transaction.');
 
     if ($ddl_statement) {
-      $table = array(
-        'fields' => array(
-          'id' => array(
+      $table = [
+        'fields' => [
+          'id' => [
             'type' => 'serial',
             'unsigned' => TRUE,
             'not null' => TRUE,
-          ),
-        ),
-        'primary key' => array('id'),
-      );
+          ],
+        ],
+        'primary key' => ['id'],
+      ];
       db_create_table('database_test_1', $table);
 
       $this->assertTrue($connection->inTransaction(), 'In transaction inside nested transaction.');
@@ -146,7 +146,7 @@ class TransactionTest extends DatabaseTestBase {
    * If the active connection does not support transactions, this test does
    * nothing.
    */
-  function testTransactionRollBackSupported() {
+  public function testTransactionRollBackSupported() {
     // This test won't work right if transactions are not supported.
     if (!Database::getConnection()->supportsTransactions()) {
       return;
@@ -157,9 +157,9 @@ class TransactionTest extends DatabaseTestBase {
 
       // Neither of the rows we inserted in the two transaction layers
       // should be present in the tables post-rollback.
-      $saved_age = db_query('SELECT age FROM {test} WHERE name = :name', array(':name' => 'DavidB'))->fetchField();
+      $saved_age = db_query('SELECT age FROM {test} WHERE name = :name', [':name' => 'DavidB'])->fetchField();
       $this->assertNotIdentical($saved_age, '24', 'Cannot retrieve DavidB row after commit.');
-      $saved_age = db_query('SELECT age FROM {test} WHERE name = :name', array(':name' => 'DanielB'))->fetchField();
+      $saved_age = db_query('SELECT age FROM {test} WHERE name = :name', [':name' => 'DanielB'])->fetchField();
       $this->assertNotIdentical($saved_age, '19', 'Cannot retrieve DanielB row after commit.');
     }
     catch (\Exception $e) {
@@ -172,7 +172,7 @@ class TransactionTest extends DatabaseTestBase {
    *
    * If the active driver supports transactions, this test does nothing.
    */
-  function testTransactionRollBackNotSupported() {
+  public function testTransactionRollBackNotSupported() {
     // This test won't work right if transactions are supported.
     if (Database::getConnection()->supportsTransactions()) {
       return;
@@ -183,9 +183,9 @@ class TransactionTest extends DatabaseTestBase {
 
       // Because our current database claims to not support transactions,
       // the inserted rows should be present despite the attempt to roll back.
-      $saved_age = db_query('SELECT age FROM {test} WHERE name = :name', array(':name' => 'DavidB'))->fetchField();
+      $saved_age = db_query('SELECT age FROM {test} WHERE name = :name', [':name' => 'DavidB'])->fetchField();
       $this->assertIdentical($saved_age, '24', 'DavidB not rolled back, since transactions are not supported.');
-      $saved_age = db_query('SELECT age FROM {test} WHERE name = :name', array(':name' => 'DanielB'))->fetchField();
+      $saved_age = db_query('SELECT age FROM {test} WHERE name = :name', [':name' => 'DanielB'])->fetchField();
       $this->assertIdentical($saved_age, '19', 'DanielB not rolled back, since transactions are not supported.');
     }
     catch (\Exception $e) {
@@ -199,15 +199,15 @@ class TransactionTest extends DatabaseTestBase {
    * The behavior of this test should be identical for connections that support
    * transactions and those that do not.
    */
-  function testCommittedTransaction() {
+  public function testCommittedTransaction() {
     try {
       // Create two nested transactions. The changes should be committed.
       $this->transactionOuterLayer('A');
 
       // Because we committed, both of the inserted rows should be present.
-      $saved_age = db_query('SELECT age FROM {test} WHERE name = :name', array(':name' => 'DavidA'))->fetchField();
+      $saved_age = db_query('SELECT age FROM {test} WHERE name = :name', [':name' => 'DavidA'])->fetchField();
       $this->assertIdentical($saved_age, '24', 'Can retrieve DavidA row after commit.');
-      $saved_age = db_query('SELECT age FROM {test} WHERE name = :name', array(':name' => 'DanielA'))->fetchField();
+      $saved_age = db_query('SELECT age FROM {test} WHERE name = :name', [':name' => 'DanielA'])->fetchField();
       $this->assertIdentical($saved_age, '19', 'Can retrieve DanielA row after commit.');
     }
     catch (\Exception $e) {
@@ -218,7 +218,7 @@ class TransactionTest extends DatabaseTestBase {
   /**
    * Tests the compatibility of transactions with DDL statements.
    */
-  function testTransactionWithDdlStatement() {
+  public function testTransactionWithDdlStatement() {
     // First, test that a commit works normally, even with DDL statements.
     $transaction = db_transaction();
     $this->insertRow('row');
@@ -311,9 +311,9 @@ class TransactionTest extends DatabaseTestBase {
    */
   protected function insertRow($name) {
     db_insert('test')
-      ->fields(array(
+      ->fields([
         'name' => $name,
-      ))
+      ])
       ->execute();
   }
 
@@ -322,16 +322,16 @@ class TransactionTest extends DatabaseTestBase {
    */
   protected function executeDDLStatement() {
     static $count = 0;
-    $table = array(
-      'fields' => array(
-        'id' => array(
+    $table = [
+      'fields' => [
+        'id' => [
           'type' => 'serial',
           'unsigned' => TRUE,
           'not null' => TRUE,
-        ),
-      ),
-      'primary key' => array('id'),
-    );
+        ],
+      ],
+      'primary key' => ['id'],
+    ];
     db_create_table('database_test_' . ++$count, $table);
   }
 
@@ -351,11 +351,11 @@ class TransactionTest extends DatabaseTestBase {
    * @param $message
    *   The message to log for the assertion.
    */
-  function assertRowPresent($name, $message = NULL) {
+  public function assertRowPresent($name, $message = NULL) {
     if (!isset($message)) {
-      $message = format_string('Row %name is present.', array('%name' => $name));
+      $message = format_string('Row %name is present.', ['%name' => $name]);
     }
-    $present = (boolean) db_query('SELECT 1 FROM {test} WHERE name = :name', array(':name' => $name))->fetchField();
+    $present = (boolean) db_query('SELECT 1 FROM {test} WHERE name = :name', [':name' => $name])->fetchField();
     return $this->assertTrue($present, $message);
   }
 
@@ -367,18 +367,18 @@ class TransactionTest extends DatabaseTestBase {
    * @param $message
    *   The message to log for the assertion.
    */
-  function assertRowAbsent($name, $message = NULL) {
+  public function assertRowAbsent($name, $message = NULL) {
     if (!isset($message)) {
-      $message = format_string('Row %name is absent.', array('%name' => $name));
+      $message = format_string('Row %name is absent.', ['%name' => $name]);
     }
-    $present = (boolean) db_query('SELECT 1 FROM {test} WHERE name = :name', array(':name' => $name))->fetchField();
+    $present = (boolean) db_query('SELECT 1 FROM {test} WHERE name = :name', [':name' => $name])->fetchField();
     return $this->assertFalse($present, $message);
   }
 
   /**
    * Tests transaction stacking, commit, and rollback.
    */
-  function testTransactionStacking() {
+  public function testTransactionStacking() {
     // This test won't work right if transactions are not supported.
     if (!Database::getConnection()->supportsTransactions()) {
       return;
@@ -498,7 +498,7 @@ class TransactionTest extends DatabaseTestBase {
 
     // Test a failed query using the query() method.
     try {
-      $connection->query('SELECT age FROM {test} WHERE name = :name', array(':name' => 'David'))->fetchField();
+      $connection->query('SELECT age FROM {test} WHERE name = :name', [':name' => 'David'])->fetchField();
       $this->fail('Using the query method failed.');
     }
     catch (\Exception $e) {
@@ -594,16 +594,16 @@ class TransactionTest extends DatabaseTestBase {
     // Create the missing schema and insert a row.
     $this->installSchema('database_test', ['test']);
     $connection->insert('test')
-      ->fields(array(
+      ->fields([
         'name' => 'David',
         'age' => '24',
-      ))
+      ])
       ->execute();
 
     // Commit the transaction.
     unset($transaction);
 
-    $saved_age = $connection->query('SELECT age FROM {test} WHERE name = :name', array(':name' => 'David'))->fetchField();
+    $saved_age = $connection->query('SELECT age FROM {test} WHERE name = :name', [':name' => 'David'])->fetchField();
     $this->assertEqual('24', $saved_age);
   }
 

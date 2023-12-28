@@ -10,11 +10,6 @@ use Drupal\Core\Entity\Entity\EntityFormDisplay;
 use Drupal\Core\Entity\Entity\EntityViewDisplay;
 
 /**
- * @addtogroup updates-8.0.0-beta
- * @{
- */
-
-/**
  * Re-save all configuration entities to recalculate dependencies.
  */
 function system_post_update_recalculate_configuration_entity_dependencies(&$sandbox = NULL) {
@@ -43,10 +38,6 @@ function system_post_update_recalculate_configuration_entity_dependencies(&$sand
 }
 
 /**
- * @} End of "addtogroup updates-8.0.0-beta".
- */
-
-/**
  * Update entity displays to contain the region for each field.
  */
 function system_post_update_add_region_to_entity_displays() {
@@ -63,5 +54,14 @@ function system_post_update_add_region_to_entity_displays() {
  * Force caches using hashes to be cleared (Twig, render cache, etc.).
  */
 function system_post_update_hashes_clear_cache() {
+  // Empty post-update hook.
+}
+
+/**
+ * Force plugin definitions to be cleared.
+ *
+ * @see https://www.drupal.org/node/2802663
+ */
+function system_post_update_timestamp_plugins() {
   // Empty post-update hook.
 }

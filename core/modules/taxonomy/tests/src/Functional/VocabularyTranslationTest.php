@@ -14,7 +14,7 @@ class VocabularyTranslationTest extends TaxonomyTestBase {
   /**
    * {@inheritdoc}
    */
-  public static $modules = array('content_translation', 'language');
+  public static $modules = ['content_translation', 'language'];
 
   /**
    * {@inheritdoc}
@@ -32,7 +32,7 @@ class VocabularyTranslationTest extends TaxonomyTestBase {
   /**
    * Tests language settings for vocabularies.
    */
-  function testVocabularyLanguage() {
+  public function testVocabularyLanguage() {
     $this->drupalGet('admin/structure/taxonomy/add');
 
     // Check that the field to enable content translation is available.

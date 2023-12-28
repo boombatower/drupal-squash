@@ -16,12 +16,12 @@ class DisplayVariantTest extends BrowserTestBase {
    *
    * @var array
    */
-  public static $modules = array('display_variant_test');
+  public static $modules = ['display_variant_test'];
 
   /**
    * Tests selecting the variant and passing configuration.
    */
-  function testPageDisplayVariantSelectionEvent() {
+  public function testPageDisplayVariantSelectionEvent() {
     // Tests that our display variant was selected, and that its configuration
     // was passed correctly. If the configuration wasn't passed, we'd get an
     // error page here.

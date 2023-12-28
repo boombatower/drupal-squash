@@ -5,7 +5,6 @@ namespace Drupal\Tests\rest\Functional\EntityResource;
 use Drupal\Component\Utility\NestedArray;
 use Drupal\Core\Cache\Cache;
 use Drupal\Core\Config\Entity\ConfigEntityInterface;
-use Drupal\Core\Entity\EntityChangedInterface;
 use Drupal\Core\Entity\FieldableEntityInterface;
 use Drupal\Core\Url;
 use Drupal\field\Entity\FieldConfig;
@@ -132,22 +131,13 @@ abstract class EntityResourceTestBase extends ResourceTestBase {
   public static $modules = ['rest_test', 'text'];
 
   /**
-   * {@inheritdoc}
+   * Provides an entity resource.
    */
   protected function provisionEntityResource() {
     // It's possible to not have any authentication providers enabled, when
     // testing public (anonymous) usage of a REST resource.
     $auth = isset(static::$auth) ? [static::$auth] : [];
-    $this->provisionResource('entity.' . static::$entityTypeId, [static::$format], $auth);
-  }
-
-  /**
-   * Deprovisions the tested entity resource.
-   */
-  protected function deprovisionEntityResource() {
-    $this->resourceConfigStorage->load('entity.' . static::$entityTypeId)
-      ->delete();
-    $this->refreshTestStateAfterRestConfigChange();
+    $this->provisionResource([static::$format], $auth);
   }
 
   /**
@@ -155,6 +145,9 @@ abstract class EntityResourceTestBase extends ResourceTestBase {
    */
   public function setUp() {
     parent::setUp();
+
+    // Calculate REST Resource config entity ID.
+    static::$resourceConfigId = 'entity.' . static::$entityTypeId;
 
     $this->serializer = $this->container->get('serializer');
     $this->entityStorage = $this->container->get('entity_type.manager')
@@ -499,17 +492,29 @@ abstract class EntityResourceTestBase extends ResourceTestBase {
     $this->assertResourceResponse(200, FALSE, $response);
 
 
-    $this->deprovisionEntityResource();
+    $this->resourceConfigStorage->load(static::$resourceConfigId)->disable()->save();
+    $this->refreshTestStateAfterRestConfigChange();
 
 
-    // DX: upon deprovisioning, immediate 404 if no route, 406 otherwise.
+    // DX: upon disabling a resource, it's immediately no longer available.
+    $this->assertResourceNotAvailable($url, $request_options);
+
+
+    $this->resourceConfigStorage->load(static::$resourceConfigId)->enable()->save();
+    $this->refreshTestStateAfterRestConfigChange();
+
+
+    // DX: upon re-enabling a resource, immediate 200.
     $response = $this->request('GET', $url, $request_options);
-    if (!$has_canonical_url) {
-      $this->assertSame(404, $response->getStatusCode());
-    }
-    else {
-      $this->assert406Response($response);
-    }
+    $this->assertResourceResponse(200, FALSE, $response);
+
+
+    $this->resourceConfigStorage->load(static::$resourceConfigId)->delete();
+    $this->refreshTestStateAfterRestConfigChange();
+
+
+    // DX: upon deleting a resource, it's immediately no longer available.
+    $this->assertResourceNotAvailable($url, $request_options);
 
 
     $this->provisionEntityResource();
@@ -683,7 +688,7 @@ abstract class EntityResourceTestBase extends ResourceTestBase {
     // DX: 422 when invalid entity: multiple values sent for single-value field.
     $response = $this->request('POST', $url, $request_options);
     $label_field = $this->entity->getEntityType()->hasKey('label') ? $this->entity->getEntityType()->getKey('label') : static::$labelFieldName;
-    $label_field_capitalized = ucfirst($label_field);
+    $label_field_capitalized = $this->entity->getFieldDefinition($label_field)->getLabel();
     $this->assertResourceErrorResponse(422, "Unprocessable Entity: validation failed.\n$label_field: $label_field_capitalized: this field cannot hold more than 1 values.\n", $response);
 
 
@@ -872,7 +877,7 @@ abstract class EntityResourceTestBase extends ResourceTestBase {
     // DX: 422 when invalid entity: multiple values sent for single-value field.
     $response = $this->request('PATCH', $url, $request_options);
     $label_field = $this->entity->getEntityType()->hasKey('label') ? $this->entity->getEntityType()->getKey('label') : static::$labelFieldName;
-    $label_field_capitalized = ucfirst($label_field);
+    $label_field_capitalized = $this->entity->getFieldDefinition($label_field)->getLabel();
     $this->assertResourceErrorResponse(422, "Unprocessable Entity: validation failed.\n$label_field: $label_field_capitalized: this field cannot hold more than 1 values.\n", $response);
 
 
@@ -1029,7 +1034,10 @@ abstract class EntityResourceTestBase extends ResourceTestBase {
     // 204 for well-formed request.
     $response = $this->request('DELETE', $url, $request_options);
     $this->assertSame(204, $response->getStatusCode());
-    // @todo Uncomment the following line when https://www.drupal.org/node/2821711 is fixed.
+    // DELETE responses should not include a Content-Type header. But Apache
+    // sets it to 'text/html' by default. We also cannot detect the presence of
+    // Apache either here in the CLI. For now having this documented here is all
+    // we can do.
     // $this->assertSame(FALSE, $response->hasHeader('Content-Type'));
     $this->assertSame('', (string) $response->getBody());
     $this->assertFalse($response->hasHeader('X-Drupal-Cache'));
@@ -1176,6 +1184,25 @@ abstract class EntityResourceTestBase extends ResourceTestBase {
     else {
       // This is the desired response.
       $this->assertSame(406, $response->getStatusCode());
+    }
+  }
+
+  /**
+   * Asserts that a resource is unavailable: 404, 406 if it has canonical route.
+   *
+   * @param \Drupal\Core\Url $url
+   *   URL to request.
+   * @param array $request_options
+   *   Request options to apply.
+   */
+  protected function assertResourceNotAvailable(Url $url, array $request_options) {
+    $has_canonical_url = $this->entity->hasLinkTemplate('canonical');
+    $response = $this->request('GET', $url, $request_options);
+    if (!$has_canonical_url) {
+      $this->assertSame(404, $response->getStatusCode());
+    }
+    else {
+      $this->assert406Response($response);
     }
   }
 

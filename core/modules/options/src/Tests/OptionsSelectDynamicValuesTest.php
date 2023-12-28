@@ -11,12 +11,12 @@ class OptionsSelectDynamicValuesTest extends OptionsDynamicValuesTestBase {
   /**
    * Tests the 'options_select' widget (single select).
    */
-  function testSelectListDynamic() {
+  public function testSelectListDynamic() {
     // Create an entity.
     $this->entity->save();
 
     // Create a web user.
-    $web_user = $this->drupalCreateUser(array('view test entity', 'administer entity_test content'));
+    $web_user = $this->drupalCreateUser(['view test entity', 'administer entity_test content']);
     $this->drupalLogin($web_user);
 
     // Display form.

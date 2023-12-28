@@ -16,19 +16,19 @@ class FastTest extends BrowserTestBase {
    *
    * @var array
    */
-  public static $modules = array('theme_test');
+  public static $modules = ['theme_test'];
 
   protected function setUp() {
     parent::setUp();
-    $this->account = $this->drupalCreateUser(array('access user profiles'));
+    $this->account = $this->drupalCreateUser(['access user profiles']);
   }
 
   /**
    * Tests access to user autocompletion and verify the correct results.
    */
-  function testUserAutocomplete() {
+  public function testUserAutocomplete() {
     $this->drupalLogin($this->account);
-    $this->drupalGet('user/autocomplete', array('query' => array('q' => $this->account->getUsername())));
+    $this->drupalGet('user/autocomplete', ['query' => ['q' => $this->account->getUsername()]]);
     $this->assertRaw($this->account->getUsername());
     $this->assertNoText('registry initialized', 'The registry was not initialized');
   }

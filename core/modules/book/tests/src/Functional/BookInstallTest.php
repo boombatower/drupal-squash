@@ -1,8 +1,8 @@
 <?php
 
-namespace Drupal\book\Tests;
+namespace Drupal\Tests\book\Functional;
 
-use Drupal\simpletest\WebTestBase;
+use Drupal\Tests\BrowserTestBase;
 use Drupal\Core\Config\PreExistingConfigException;
 
 /**
@@ -10,14 +10,14 @@ use Drupal\Core\Config\PreExistingConfigException;
  *
  * @group book
  */
-class BookInstallTest extends WebTestBase {
+class BookInstallTest extends BrowserTestBase {
 
   /**
    * Modules to install.
    *
    * @var array
    */
-  public static $modules = array('node');
+  public static $modules = ['node'];
 
   /**
    * {@inheritdoc}

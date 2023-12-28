@@ -29,7 +29,7 @@ class GetFilenameTest extends KernelTestBase {
   /**
    * Tests that drupal_get_filename() works when the file is not in database.
    */
-  function testDrupalGetFilename() {
+  public function testDrupalGetFilename() {
     // Rebuild system.module.files state data.
     // @todo Remove as part of https://www.drupal.org/node/2186491
     drupal_static_reset('system_rebuild_module_data');
@@ -39,7 +39,7 @@ class GetFilenameTest extends KernelTestBase {
     $this->assertIdentical(drupal_get_filename('module', 'system'), 'core/modules/system/system.info.yml');
 
     // Retrieving the location of a theme.
-    \Drupal::service('theme_handler')->install(array('stark'));
+    \Drupal::service('theme_handler')->install(['stark']);
     $this->assertIdentical(drupal_get_filename('theme', 'stark'), 'core/themes/stark/stark.info.yml');
 
     // Retrieving the location of a theme engine.

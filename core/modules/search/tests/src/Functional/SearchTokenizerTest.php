@@ -18,7 +18,7 @@ class SearchTokenizerTest extends SearchTestBase {
    * character classes are tokenized properly. See PREG_CLASS_CKJ for more
    * information.
    */
-  function testTokenizer() {
+  public function testTokenizer() {
     // Set the minimum word size to 1 (to split all CJK characters) and make
     // sure CJK tokenizing is turned on.
     $this->config('search.settings')
@@ -31,7 +31,7 @@ class SearchTokenizerTest extends SearchTestBase {
     // the Unicode tables.
 
     // Beginnings of the character ranges.
-    $starts = array(
+    $starts = [
       'CJK unified' => 0x4e00,
       'CJK Ext A' => 0x3400,
       'CJK Compat' => 0xf900,
@@ -52,10 +52,10 @@ class SearchTokenizerTest extends SearchTestBase {
       'Bomofo Ext' => 0x31a0,
       'Lisu' => 0xa4d0,
       'Yi' => 0xa000,
-    );
+    ];
 
     // Ends of the character ranges.
-    $ends = array(
+    $ends = [
       'CJK unified' => 0x9fcf,
       'CJK Ext A' => 0x4dbf,
       'CJK Compat' => 0xfaff,
@@ -76,11 +76,11 @@ class SearchTokenizerTest extends SearchTestBase {
       'Bomofo Ext' => 0x31b7,
       'Lisu' => 0xa4fd,
       'Yi' => 0xa48f,
-    );
+    ];
 
     // Generate characters consisting of starts, midpoints, and ends.
-    $chars = array();
-    $charcodes = array();
+    $chars = [];
+    $charcodes = [];
     foreach ($starts as $key => $value) {
       $charcodes[] = $starts[$key];
       $chars[] = $this->code2utf($starts[$key]);
@@ -106,7 +106,7 @@ class SearchTokenizerTest extends SearchTestBase {
    * This is just a sanity check - it verifies that strings of letters are
    * not tokenized.
    */
-  function testNoTokenizer() {
+  public function testNoTokenizer() {
     // Set the minimum word size to 1 (to split all CJK characters) and make
     // sure CJK tokenizing is turned on.
     $this->config('search.settings')
@@ -128,7 +128,7 @@ class SearchTokenizerTest extends SearchTestBase {
    * converts a number to the corresponding unicode character. Adapted from
    * functions supplied in comments on several functions on php.net.
    */
-  function code2utf($num) {
+  public function code2utf($num) {
     if ($num < 128) {
       return chr($num);
     }

@@ -16,17 +16,17 @@ class TwigExtensionTest extends BrowserTestBase {
    *
    * @var array
    */
-  public static $modules = array('theme_test', 'twig_extension_test');
+  public static $modules = ['theme_test', 'twig_extension_test'];
 
   protected function setUp() {
     parent::setUp();
-    \Drupal::service('theme_handler')->install(array('test_theme'));
+    \Drupal::service('theme_handler')->install(['test_theme']);
   }
 
   /**
    * Tests that the provided Twig extension loads the service appropriately.
    */
-  function testTwigExtensionLoaded() {
+  public function testTwigExtensionLoaded() {
     $twigService = \Drupal::service('twig');
     $ext = $twigService->getExtension('twig_extension_test.test_extension');
     $this->assertEqual(get_class($ext), 'Drupal\twig_extension_test\TwigExtension\TestExtension', 'TestExtension loaded successfully.');
@@ -35,7 +35,7 @@ class TwigExtensionTest extends BrowserTestBase {
   /**
    * Tests that the Twig extension's filter produces expected output.
    */
-  function testTwigExtensionFilter() {
+  public function testTwigExtensionFilter() {
     $this->config('system.theme')
       ->set('default', 'test_theme')
       ->save();
@@ -49,7 +49,7 @@ class TwigExtensionTest extends BrowserTestBase {
   /**
    * Tests that the Twig extension's function produces expected output.
    */
-  function testTwigExtensionFunction() {
+  public function testTwigExtensionFunction() {
     $this->config('system.theme')
       ->set('default', 'test_theme')
       ->save();

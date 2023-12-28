@@ -12,12 +12,12 @@ use Drupal\Tests\BrowserTestBase;
  */
 class ConnectionFailureTest extends BrowserTestBase {
 
-  public static $modules = array('dblog');
+  public static $modules = ['dblog'];
 
   /**
    * Tests logging of connection failures.
    */
-  function testConnectionFailureLogging() {
+  public function testConnectionFailureLogging() {
     $logger = \Drupal::service('logger.factory');
 
     // MySQL errors like "1153 - Got a packet bigger than 'max_allowed_packet'

@@ -22,7 +22,7 @@ class BasicAuthTest extends WebTestBase {
    *
    * @var array
    */
-  public static $modules = array('basic_auth', 'router_test', 'locale', 'basic_auth_test');
+  public static $modules = ['basic_auth', 'router_test', 'locale', 'basic_auth_test'];
 
   /**
    * Test http basic authentication.
@@ -55,7 +55,7 @@ class BasicAuthTest extends WebTestBase {
     $this->drupalGet('admin');
     $this->assertResponse('403', 'No authentication prompt for routes not explicitly defining authentication providers.');
 
-    $account = $this->drupalCreateUser(array('access administration pages'));
+    $account = $this->drupalCreateUser(['access administration pages']);
 
     $this->basicAuthGet(Url::fromRoute('system.admin'), $account->getUsername(), $account->pass_raw);
     $this->assertNoLink('Log out', 'User is not logged in');
@@ -75,14 +75,14 @@ class BasicAuthTest extends WebTestBase {
   /**
    * Test the global login flood control.
    */
-  function testGlobalLoginFloodControl() {
+  public function testGlobalLoginFloodControl() {
     $this->config('user.flood')
       ->set('ip_limit', 2)
       // Set a high per-user limit out so that it is not relevant in the test.
       ->set('user_limit', 4000)
       ->save();
 
-    $user = $this->drupalCreateUser(array());
+    $user = $this->drupalCreateUser([]);
     $incorrect_user = clone $user;
     $incorrect_user->pass_raw .= 'incorrect';
     $url = Url::fromRoute('router_test.11');
@@ -100,17 +100,17 @@ class BasicAuthTest extends WebTestBase {
   /**
    * Test the per-user login flood control.
    */
-  function testPerUserLoginFloodControl() {
+  public function testPerUserLoginFloodControl() {
     $this->config('user.flood')
       // Set a high global limit out so that it is not relevant in the test.
       ->set('ip_limit', 4000)
       ->set('user_limit', 2)
       ->save();
 
-    $user = $this->drupalCreateUser(array());
+    $user = $this->drupalCreateUser([]);
     $incorrect_user = clone $user;
     $incorrect_user->pass_raw .= 'incorrect';
-    $user2 = $this->drupalCreateUser(array());
+    $user2 = $this->drupalCreateUser([]);
     $url = Url::fromRoute('router_test.11');
 
     // Try a failed login.
@@ -138,7 +138,7 @@ class BasicAuthTest extends WebTestBase {
   /**
    * Tests compatibility with locale/UI translation.
    */
-  function testLocale() {
+  public function testLocale() {
     ConfigurableLanguage::createFromLangcode('de')->save();
     $this->config('system.site')->set('default_langcode', 'de')->save();
 
@@ -154,7 +154,7 @@ class BasicAuthTest extends WebTestBase {
   /**
    * Tests if a comprehensive message is displayed when the route is denied.
    */
-  function testUnauthorizedErrorMessage() {
+  public function testUnauthorizedErrorMessage() {
     $account = $this->drupalCreateUser();
     $url = Url::fromRoute('router_test.11');
 

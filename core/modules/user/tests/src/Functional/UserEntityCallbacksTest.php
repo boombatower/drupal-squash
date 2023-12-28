@@ -18,7 +18,7 @@ class UserEntityCallbacksTest extends BrowserTestBase {
    *
    * @var array
    */
-  public static $modules = array('user', 'user_hooks_test');
+  public static $modules = ['user', 'user_hooks_test'];
 
   /**
    * An authenticated user to use for testing.
@@ -44,7 +44,7 @@ class UserEntityCallbacksTest extends BrowserTestBase {
   /**
    * Test label callback.
    */
-  function testLabelCallback() {
+  public function testLabelCallback() {
     $this->assertEqual($this->account->label(), $this->account->getUsername(), 'The username should be used as label');
 
     // Setup a random anonymous name to be sure the name is used.

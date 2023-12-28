@@ -13,7 +13,7 @@ class PageViewTest extends NodeTestBase {
   /**
    * Tests an anonymous and unpermissioned user attempting to edit the node.
    */
-  function testPageView() {
+  public function testPageView() {
     // Create a node to view.
     $node = $this->drupalCreateNode();
     $this->assertTrue(Node::load($node->id()), 'Node created.');
@@ -23,7 +23,7 @@ class PageViewTest extends NodeTestBase {
     $this->assertResponse(403);
 
     // Create a user without permission to edit node.
-    $web_user = $this->drupalCreateUser(array('access content'));
+    $web_user = $this->drupalCreateUser(['access content']);
     $this->drupalLogin($web_user);
 
     // Attempt to access edit page.
@@ -31,7 +31,7 @@ class PageViewTest extends NodeTestBase {
     $this->assertResponse(403);
 
     // Create user with permission to edit node.
-    $web_user = $this->drupalCreateUser(array('bypass node access'));
+    $web_user = $this->drupalCreateUser(['bypass node access']);
     $this->drupalLogin($web_user);
 
     // Attempt to access edit page.

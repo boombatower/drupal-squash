@@ -180,7 +180,7 @@ abstract class SqlBase extends SourcePluginBase implements ContainerFactoryPlugi
   /**
    * Wrapper for database select.
    */
-  protected function select($table, $alias = NULL, array $options = array()) {
+  protected function select($table, $alias = NULL, array $options = []) {
     $options['fetch'] = \PDO::FETCH_ASSOC;
     return $this->getDatabase()->select($table, $alias, $options);
   }
@@ -220,7 +220,7 @@ abstract class SqlBase extends SourcePluginBase implements ContainerFactoryPlugi
       $this->prepareQuery();
 
       // Get the key values, for potential use in joining to the map table.
-      $keys = array();
+      $keys = [];
 
       // The rules for determining what conditions to add to the query are as
       // follows (applying first applicable rule):
@@ -274,6 +274,7 @@ abstract class SqlBase extends SourcePluginBase implements ContainerFactoryPlugi
         $high_water_field = $this->getHighWaterField();
         $conditions->condition($high_water_field, $high_water, '>');
         $this->query->orderBy($high_water_field);
+        $condition_added = TRUE;
       }
       if ($condition_added) {
         $this->query->condition($conditions);
@@ -356,7 +357,7 @@ abstract class SqlBase extends SourcePluginBase implements ContainerFactoryPlugi
       return FALSE;
     }
 
-    foreach (array('username', 'password', 'host', 'port', 'namespace', 'driver') as $key) {
+    foreach (['username', 'password', 'host', 'port', 'namespace', 'driver'] as $key) {
       if (isset($source_database_options[$key])) {
         if ($id_map_database_options[$key] != $source_database_options[$key]) {
           return FALSE;

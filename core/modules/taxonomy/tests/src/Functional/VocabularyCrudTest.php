@@ -19,12 +19,12 @@ class VocabularyCrudTest extends TaxonomyTestBase {
    *
    * @var array
    */
-  public static $modules = array('field_test', 'taxonomy_crud');
+  public static $modules = ['field_test', 'taxonomy_crud'];
 
   protected function setUp() {
     parent::setUp();
 
-    $admin_user = $this->drupalCreateUser(array('create article content', 'administer taxonomy'));
+    $admin_user = $this->drupalCreateUser(['create article content', 'administer taxonomy']);
     $this->drupalLogin($admin_user);
     $this->vocabulary = $this->createVocabulary();
   }
@@ -32,7 +32,7 @@ class VocabularyCrudTest extends TaxonomyTestBase {
   /**
    * Test deleting a taxonomy that contains terms.
    */
-  function testTaxonomyVocabularyDeleteWithTerms() {
+  public function testTaxonomyVocabularyDeleteWithTerms() {
     // Delete any existing vocabularies.
     foreach (Vocabulary::loadMultiple() as $vocabulary) {
       $vocabulary->delete();
@@ -42,15 +42,15 @@ class VocabularyCrudTest extends TaxonomyTestBase {
     // Assert that there are no terms left.
     $this->assertEqual(0, $query->execute(), 'There are no terms remaining.');
 
-    $terms = array();
+    $terms = [];
     for ($i = 0; $i < 5; $i++) {
       $terms[$i] = $this->createTerm($vocabulary);
     }
 
     // Set up hierarchy. term 2 is a child of 1 and 4 a child of 1 and 2.
-    $terms[2]->parent = array($terms[1]->id());
+    $terms[2]->parent = [$terms[1]->id()];
     $terms[2]->save();
-    $terms[4]->parent = array($terms[1]->id(), $terms[2]->id());
+    $terms[4]->parent = [$terms[1]->id(), $terms[2]->id()];
     $terms[4]->save();
 
     // Assert that there are now 5 terms.
@@ -65,7 +65,7 @@ class VocabularyCrudTest extends TaxonomyTestBase {
   /**
    * Ensure that the vocabulary static reset works correctly.
    */
-  function testTaxonomyVocabularyLoadStaticReset() {
+  public function testTaxonomyVocabularyLoadStaticReset() {
     $original_vocabulary = Vocabulary::load($this->vocabulary->id());
     $this->assertTrue(is_object($original_vocabulary), 'Vocabulary loaded successfully.');
     $this->assertEqual($this->vocabulary->label(), $original_vocabulary->label(), 'Vocabulary loaded successfully.');
@@ -89,7 +89,7 @@ class VocabularyCrudTest extends TaxonomyTestBase {
   /**
    * Tests for loading multiple vocabularies.
    */
-  function testTaxonomyVocabularyLoadMultiple() {
+  public function testTaxonomyVocabularyLoadMultiple() {
 
     // Delete any existing vocabularies.
     foreach (Vocabulary::loadMultiple() as $vocabulary) {
@@ -119,45 +119,45 @@ class VocabularyCrudTest extends TaxonomyTestBase {
 
     // Fetch the vocabularies with entity_load_multiple(), specifying IDs.
     // Ensure they are returned in the same order as the original array.
-    $vocabularies = Vocabulary::loadMultiple(array($vocabulary3->id(), $vocabulary2->id(), $vocabulary1->id()));
+    $vocabularies = Vocabulary::loadMultiple([$vocabulary3->id(), $vocabulary2->id(), $vocabulary1->id()]);
     $loaded_order = array_keys($vocabularies);
-    $expected_order = array($vocabulary3->id(), $vocabulary2->id(), $vocabulary1->id());
+    $expected_order = [$vocabulary3->id(), $vocabulary2->id(), $vocabulary1->id()];
     $this->assertIdentical($loaded_order, $expected_order);
 
     // Test loading vocabularies by their properties.
     $controller = $this->container->get('entity.manager')->getStorage('taxonomy_vocabulary');
     // Fetch vocabulary 1 by name.
-    $vocabulary = current($controller->loadByProperties(array('name' => $vocabulary1->label())));
+    $vocabulary = current($controller->loadByProperties(['name' => $vocabulary1->label()]));
     $this->assertEqual($vocabulary->id(), $vocabulary1->id(), 'Vocabulary loaded successfully by name.');
 
     // Fetch vocabulary 2 by name and ID.
-    $vocabulary = current($controller->loadByProperties(array(
+    $vocabulary = current($controller->loadByProperties([
       'name' => $vocabulary2->label(),
       'vid' => $vocabulary2->id(),
-    )));
+    ]));
     $this->assertEqual($vocabulary->id(), $vocabulary2->id(), 'Vocabulary loaded successfully by name and ID.');
   }
 
   /**
    * Test uninstall and reinstall of the taxonomy module.
    */
-  function testUninstallReinstall() {
+  public function testUninstallReinstall() {
     // Field storages and fields attached to taxonomy term bundles should be
     // removed when the module is uninstalled.
     $field_name = Unicode::strtolower($this->randomMachineName() . '_field_name');
-    $storage_definition = array(
+    $storage_definition = [
       'field_name' => $field_name,
       'entity_type' => 'taxonomy_term',
       'type' => 'text',
       'cardinality' => 4
-    );
+    ];
     FieldStorageConfig::create($storage_definition)->save();
-    $field_definition = array(
+    $field_definition = [
       'field_name' => $field_name,
       'entity_type' => 'taxonomy_term',
       'bundle' => $this->vocabulary->id(),
       'label' => $this->randomMachineName() . '_label',
-    );
+    ];
     FieldConfig::create($field_definition)->save();
 
     // Remove the third party setting from the memory copy of the vocabulary.
@@ -166,8 +166,8 @@ class VocabularyCrudTest extends TaxonomyTestBase {
     $this->vocabulary->unsetThirdPartySetting('taxonomy_crud', 'foo');
 
     require_once \Drupal::root() . '/core/includes/install.inc';
-    $this->container->get('module_installer')->uninstall(array('taxonomy'));
-    $this->container->get('module_installer')->install(array('taxonomy'));
+    $this->container->get('module_installer')->uninstall(['taxonomy']);
+    $this->container->get('module_installer')->install(['taxonomy']);
 
     // Now create a vocabulary with the same name. All fields
     // connected to this vocabulary name should have been removed when the

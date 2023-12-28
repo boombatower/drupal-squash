@@ -17,7 +17,7 @@ class ConfigEntityListMultilingualTest extends BrowserTestBase {
    *
    * @var array
    */
-  public static $modules = array('config_test', 'language', 'block');
+  public static $modules = ['config_test', 'language', 'block'];
 
   /**
    * {@inheritdoc}
@@ -34,9 +34,9 @@ class ConfigEntityListMultilingualTest extends BrowserTestBase {
   /**
    * Tests the listing UI with different language scenarios.
    */
-  function testListUI() {
+  public function testListUI() {
     // Log in as an administrative user to access the full menu trail.
-    $this->drupalLogin($this->drupalCreateUser(array('access administration pages', 'administer site configuration')));
+    $this->drupalLogin($this->drupalCreateUser(['access administration pages', 'administer site configuration']));
 
     // Get the list page.
     $this->drupalGet('admin/structure/config_test');
@@ -44,11 +44,11 @@ class ConfigEntityListMultilingualTest extends BrowserTestBase {
 
     // Add a new entity using the action link.
     $this->clickLink('Add test configuration');
-    $edit = array(
+    $edit = [
       'label' => 'Antilop',
       'id' => 'antilop',
       'langcode' => 'hu',
-    );
+    ];
     $this->drupalPostForm(NULL, $edit, t('Save'));
     // Ensure that operations for editing the Hungarian entity appear in English.
     $this->assertLinkByHref('admin/structure/config_test/manage/antilop');

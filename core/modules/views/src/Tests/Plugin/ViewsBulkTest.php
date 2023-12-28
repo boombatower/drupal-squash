@@ -23,7 +23,7 @@ class ViewsBulkTest extends WebTestBase {
    *
    * @var array
    */
-  public static $modules = array('node', 'views');
+  public static $modules = ['node', 'views'];
 
   public function setUp() {
     parent::setUp();
@@ -64,7 +64,6 @@ class ViewsBulkTest extends WebTestBase {
 
     // Change the pager limit to 2.
     $this->config('views.view.content')->set('display.default.display_options.pager.options.items_per_page', 2)->save();
-    $this->drupalGet('admin/content');
 
     // Render the overview page again.
     $this->drupalGet('admin/content');

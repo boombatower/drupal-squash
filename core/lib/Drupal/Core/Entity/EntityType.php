@@ -43,7 +43,7 @@ class EntityType extends PluginDefinition implements EntityTypeInterface {
    *
    * @var array
    */
-  protected $entity_keys = array();
+  protected $entity_keys = [];
 
   /**
    * The unique identifier of this entity type.
@@ -66,7 +66,7 @@ class EntityType extends PluginDefinition implements EntityTypeInterface {
    *
    * @var array
    */
-  protected $handlers = array();
+  protected $handlers = [];
 
   /**
    * The name of the default administrative permission.
@@ -88,7 +88,7 @@ class EntityType extends PluginDefinition implements EntityTypeInterface {
    *
    * @var array
    */
-  protected $links = array();
+  protected $links = [];
 
   /**
    * The name of a callback that returns the label of the entity.
@@ -172,6 +172,8 @@ class EntityType extends PluginDefinition implements EntityTypeInterface {
    * The human-readable name of the type.
    *
    * @var string
+   *
+   * @see \Drupal\Core\Entity\EntityTypeInterface::getLabel()
    */
   protected $label = '';
 
@@ -179,6 +181,8 @@ class EntityType extends PluginDefinition implements EntityTypeInterface {
    * The human-readable label for a collection of entities of the type.
    *
    * @var string
+   *
+   * @see \Drupal\Core\Entity\EntityTypeInterface::getCollectionLabel()
    */
   protected $label_collection = '';
 
@@ -186,6 +190,8 @@ class EntityType extends PluginDefinition implements EntityTypeInterface {
    * The indefinite singular name of the type.
    *
    * @var string
+   *
+   * @see \Drupal\Core\Entity\EntityTypeInterface::getSingularLabel()
    */
   protected $label_singular = '';
 
@@ -193,6 +199,8 @@ class EntityType extends PluginDefinition implements EntityTypeInterface {
    * The indefinite plural name of the type.
    *
    * @var string
+   *
+   * @see \Drupal\Core\Entity\EntityTypeInterface::getPluralLabel()
    */
   protected $label_plural = '';
 
@@ -202,6 +210,8 @@ class EntityType extends PluginDefinition implements EntityTypeInterface {
    * Needed keys: "singular" and "plural".
    *
    * @var string[]
+   *
+   * @see \Drupal\Core\Entity\EntityTypeInterface::getCountLabel()
    */
   protected $label_count = [];
 
@@ -258,7 +268,7 @@ class EntityType extends PluginDefinition implements EntityTypeInterface {
    *
    * @var array[]
    */
-  protected $constraints = array();
+  protected $constraints = [];
 
   /**
    * Any additional properties and values.
@@ -287,15 +297,15 @@ class EntityType extends PluginDefinition implements EntityTypeInterface {
     }
 
     // Ensure defaults.
-    $this->entity_keys += array(
+    $this->entity_keys += [
       'revision' => '',
       'bundle' => '',
       'langcode' => '',
       'default_langcode' => 'default_langcode',
-    );
-    $this->handlers += array(
+    ];
+    $this->handlers += [
       'access' => 'Drupal\Core\Entity\EntityAccessControlHandler',
-    );
+    ];
     if (isset($this->handlers['storage'])) {
       $this->checkStorageClass($this->handlers['storage']);
     }
@@ -804,7 +814,7 @@ class EntityType extends PluginDefinition implements EntityTypeInterface {
    * {@inheritdoc}
    */
   public function getGroupLabel() {
-    return !empty($this->group_label) ? $this->group_label : $this->t('Other', array(), array('context' => 'Entity type group'));
+    return !empty($this->group_label) ? $this->group_label : $this->t('Other', [], ['context' => 'Entity type group']);
   }
 
   /**

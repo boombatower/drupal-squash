@@ -132,14 +132,12 @@ class DefaultPluginManager extends PluginManagerBase implements PluginManagerInt
   /**
    * Initialize the cache backend.
    *
-   * Plugin definitions are cached using the provided cache backend. The
-   * interface language is added as a suffix to the cache key.
+   * Plugin definitions are cached using the provided cache backend.
    *
    * @param \Drupal\Core\Cache\CacheBackendInterface $cache_backend
    *   Cache backend instance to use.
    * @param string $cache_key
-   *   Cache key prefix to use, the language code will be appended
-   *   automatically.
+   *   Cache key prefix to use.
    * @param array $cache_tags
    *   (optional) When providing a list of cache tags, the cached plugin
    *   definitions are tagged with the provided cache tags. These cache tags can
@@ -149,7 +147,7 @@ class DefaultPluginManager extends PluginManagerBase implements PluginManagerInt
    *   clearCachedDefinitions() method. Only use cache tags when cached plugin
    *   definitions should be cleared along with other, related cache entries.
    */
-  public function setCacheBackend(CacheBackendInterface $cache_backend, $cache_key, array $cache_tags = array()) {
+  public function setCacheBackend(CacheBackendInterface $cache_backend, $cache_key, array $cache_tags = []) {
     assert('\Drupal\Component\Assertion\Inspector::assertAllStrings($cache_tags)', 'Cache Tags must be strings.');
     $this->cacheBackend = $cache_backend;
     $this->cacheKey = $cache_key;
@@ -291,7 +289,7 @@ class DefaultPluginManager extends PluginManagerBase implements PluginManagerInt
     // plugin definition.
     foreach ($definitions as $plugin_id => $plugin_definition) {
       $provider = $this->extractProviderFromDefinition($plugin_definition);
-      if ($provider && !in_array($provider, array('core', 'component')) && !$this->providerExists($provider)) {
+      if ($provider && !in_array($provider, ['core', 'component']) && !$this->providerExists($provider)) {
         unset($definitions[$plugin_id]);
       }
     }

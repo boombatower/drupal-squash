@@ -21,7 +21,7 @@ class ClearTest extends CacheTestBase {
   /**
    * Tests drupal_flush_all_caches().
    */
-  function testFlushAllCaches() {
+  public function testFlushAllCaches() {
     // Create cache entries for each flushed cache bin.
     $bins = Cache::getBins();
     $this->assertTrue($bins, 'Cache::getBins() returned bins to flush.');
@@ -35,7 +35,7 @@ class ClearTest extends CacheTestBase {
 
     foreach ($bins as $bin => $cache_backend) {
       $cid = 'test_cid_clear' . $bin;
-      $this->assertFalse($this->checkCacheExists($cid, $this->defaultValue, $bin), format_string('All cache entries removed from @bin.', array('@bin' => $bin)));
+      $this->assertFalse($this->checkCacheExists($cid, $this->defaultValue, $bin), format_string('All cache entries removed from @bin.', ['@bin' => $bin]));
     }
   }
 

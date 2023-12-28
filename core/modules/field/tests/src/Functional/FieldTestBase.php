@@ -19,8 +19,8 @@ abstract class FieldTestBase extends BrowserTestBase {
    * @return
    *   An array of random values, in the format expected for field values.
    */
-  function _generateTestFieldValues($cardinality) {
-    $values = array();
+  public function _generateTestFieldValues($cardinality) {
+    $values = [];
     for ($i = 0; $i < $cardinality; $i++) {
       // field_test fields treat 0 as 'empty value'.
       $values[$i]['value'] = mt_rand(1, 127);
@@ -45,7 +45,7 @@ abstract class FieldTestBase extends BrowserTestBase {
    * @param $column
    *   (Optional) The name of the column to check. Defaults to 'value'.
    */
-  function assertFieldValues(EntityInterface $entity, $field_name, $expected_values, $langcode = LanguageInterface::LANGCODE_DEFAULT, $column = 'value') {
+  public function assertFieldValues(EntityInterface $entity, $field_name, $expected_values, $langcode = LanguageInterface::LANGCODE_DEFAULT, $column = 'value') {
     // Re-load the entity to make sure we have the latest changes.
     $storage = $this->container->get('entity_type.manager')
       ->getStorage($entity->getEntityTypeId());
@@ -58,7 +58,7 @@ abstract class FieldTestBase extends BrowserTestBase {
     $values = $field->getValue();
     $this->assertEqual(count($values), count($expected_values), 'Expected number of values were saved.');
     foreach ($expected_values as $key => $value) {
-      $this->assertEqual($values[$key][$column], $value, format_string('Value @value was saved correctly.', array('@value' => $value)));
+      $this->assertEqual($values[$key][$column], $value, format_string('Value @value was saved correctly.', ['@value' => $value]));
     }
   }
 

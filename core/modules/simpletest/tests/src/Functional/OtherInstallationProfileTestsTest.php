@@ -17,7 +17,7 @@ class OtherInstallationProfileTestsTest extends BrowserTestBase {
    *
    * @var array
    */
-  public static $modules = array('simpletest');
+  public static $modules = ['simpletest'];
 
   /**
    * Use the Minimal profile.
@@ -43,14 +43,14 @@ class OtherInstallationProfileTestsTest extends BrowserTestBase {
   protected function setUp() {
     parent::setUp();
 
-    $this->adminUser = $this->drupalCreateUser(array('administer unit tests'));
+    $this->adminUser = $this->drupalCreateUser(['administer unit tests']);
     $this->drupalLogin($this->adminUser);
   }
 
   /**
    * Tests that tests located in another installation profile appear.
    */
-  function testOtherInstallationProfile() {
+  public function testOtherInstallationProfile() {
     // Assert the existence of a test in a different installation profile than
     // the current.
     $this->drupalGet('admin/config/development/testing');

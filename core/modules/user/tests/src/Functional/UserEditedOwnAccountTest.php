@@ -16,19 +16,19 @@ class UserEditedOwnAccountTest extends BrowserTestBase {
    *
    * @var array
    */
-  public static $modules = array('user_form_test');
+  public static $modules = ['user_form_test'];
 
-  function testUserEditedOwnAccount() {
+  public function testUserEditedOwnAccount() {
     // Change account setting 'Who can register accounts?' to Administrators
     // only.
     $this->config('user.settings')->set('register', USER_REGISTER_ADMINISTRATORS_ONLY)->save();
 
     // Create a new user account and log in.
-    $account = $this->drupalCreateUser(array('change own username'));
+    $account = $this->drupalCreateUser(['change own username']);
     $this->drupalLogin($account);
 
     // Change own username.
-    $edit = array();
+    $edit = [];
     $edit['name'] = $this->randomMachineName();
     $this->drupalPostForm('user/' . $account->id() . '/edit', $edit, t('Save'));
 

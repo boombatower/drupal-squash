@@ -16,17 +16,17 @@ class EngineNyanCatTest extends BrowserTestBase {
    *
    * @var array
    */
-  public static $modules = array('theme_test');
+  public static $modules = ['theme_test'];
 
   protected function setUp() {
     parent::setUp();
-    \Drupal::service('theme_handler')->install(array('test_theme_nyan_cat_engine'));
+    \Drupal::service('theme_handler')->install(['test_theme_nyan_cat_engine']);
   }
 
   /**
    * Ensures a theme's template is overridable based on the 'template' filename.
    */
-  function testTemplateOverride() {
+  public function testTemplateOverride() {
     $this->config('system.theme')
       ->set('default', 'test_theme_nyan_cat_engine')
       ->save();

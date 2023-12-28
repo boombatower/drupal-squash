@@ -21,12 +21,12 @@ class TrackerNodeAccessTest extends BrowserTestBase {
    *
    * @var array
    */
-  public static $modules = array('node', 'comment', 'tracker', 'node_access_test');
+  public static $modules = ['node', 'comment', 'tracker', 'node_access_test'];
 
   protected function setUp() {
     parent::setUp();
     node_access_rebuild();
-    $this->drupalCreateContentType(array('type' => 'page'));
+    $this->drupalCreateContentType(['type' => 'page']);
     node_access_test_add_field(NodeType::load('page'));
     $this->addDefaultCommentField('node', 'page', 'comment', CommentItemInterface::OPEN);
     \Drupal::state()->set('node_access_test.private', TRUE);
@@ -35,24 +35,24 @@ class TrackerNodeAccessTest extends BrowserTestBase {
   /**
    * Ensure private node on /tracker is only visible to users with permission.
    */
-  function testTrackerNodeAccess() {
+  public function testTrackerNodeAccess() {
     // Create user with node test view permission.
-    $access_user = $this->drupalCreateUser(array('node test view', 'access user profiles'));
+    $access_user = $this->drupalCreateUser(['node test view', 'access user profiles']);
 
     // Create user without node test view permission.
-    $no_access_user = $this->drupalCreateUser(array('access user profiles'));
+    $no_access_user = $this->drupalCreateUser(['access user profiles']);
 
     $this->drupalLogin($access_user);
 
     // Create some nodes.
-    $private_node = $this->drupalCreateNode(array(
+    $private_node = $this->drupalCreateNode([
       'title' => t('Private node test'),
       'private' => TRUE,
-    ));
-    $public_node = $this->drupalCreateNode(array(
+    ]);
+    $public_node = $this->drupalCreateNode([
       'title' => t('Public node test'),
       'private' => FALSE,
-    ));
+    ]);
 
     // User with access should see both nodes created.
     $this->drupalGet('activity');
