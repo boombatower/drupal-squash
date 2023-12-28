@@ -358,24 +358,6 @@ function hook_field_attach_extract_form_values(\Drupal\Core\Entity\EntityInterfa
 }
 
 /**
- * Alter field_attach_preprocess() variables.
- *
- * This hook is invoked while preprocessing field templates in
- * field_attach_preprocess().
- *
- * @param $variables
- *   The variables array is passed by reference and will be populated with field
- *   values.
- * @param $context
- *   An associative array containing:
- *   - entity: The entity with fields to render.
- *   - element: The structured array containing the values ready for rendering.
- */
-function hook_field_attach_preprocess_alter(&$variables, $context) {
-  // @todo Needs function body.
-}
-
-/**
  * Perform alterations on field_attach_view() or field_view_field().
  *
  * This hook is invoked after the field module has performed the operation.
@@ -413,28 +395,6 @@ function hook_field_attach_view_alter(&$output, $context) {
       }
     }
   }
-}
-
-/**
- * Alter field_available_languages() values.
- *
- * This hook is invoked from field_available_languages() to allow modules to
- * alter the array of available language codes for the given field.
- *
- * @param $langcodes
- *   A reference to an array of language codes to be made available.
- * @param $context
- *   An associative array containing:
- *   - entity_type: The type of the entity the field is attached to.
- *   - field: A field data structure.
- */
-function hook_field_available_languages_alter(&$langcodes, $context) {
-  // Add an unavailable language code.
-  $langcodes[] = 'xx';
-
-  // Remove an available language code.
-  $index = array_search('yy', $langcodes);
-  unset($langcodes[$index]);
 }
 
 /**

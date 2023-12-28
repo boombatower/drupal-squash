@@ -9,8 +9,6 @@ namespace Drupal\views\Plugin\views\style;
 
 use Drupal\Component\Plugin\Discovery\DiscoveryInterface;
 use Drupal\views\Plugin\views\wizard\WizardInterface;
-use Drupal\views\Annotation\ViewsStyle;
-use Drupal\Core\Annotation\Translation;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\Request;
 
@@ -358,9 +356,9 @@ class Table extends StylePluginBase {
         '#default_value' => !empty($this->options['info'][$field]['align']) ? $this->options['info'][$field]['align'] : '',
         '#options' => array(
           '' => t('None'),
-          'views-align-left' => t('Left'),
-          'views-align-center' => t('Center'),
-          'views-align-right' => t('Right'),
+          'views-align-left' => t('Left', array(), array('context' => 'Text alignment')),
+          'views-align-center' => t('Center', array(), array('context' => 'Text alignment')),
+          'views-align-right' => t('Right', array(), array('context' => 'Text alignment')),
           ),
         '#states' => array(
           'visible' => array(

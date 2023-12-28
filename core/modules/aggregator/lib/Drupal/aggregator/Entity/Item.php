@@ -9,8 +9,6 @@ namespace Drupal\aggregator\Entity;
 
 use Drupal\Core\Entity\ContentEntityBase;
 use Drupal\Core\Entity\EntityStorageControllerInterface;
-use Drupal\Core\Entity\Annotation\EntityType;
-use Drupal\Core\Annotation\Translation;
 use Drupal\aggregator\ItemInterface;
 use Drupal\Core\Field\FieldDefinition;
 
@@ -44,7 +42,7 @@ class Item extends ContentEntityBase implements ItemInterface {
   /**
    * Implements Drupal\Core\Entity\EntityInterface::label().
    */
-  public function label($langcode = NULL) {
+  public function label() {
     return $this->get('title')->value;
   }
 

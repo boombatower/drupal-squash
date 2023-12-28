@@ -8,68 +8,17 @@
 namespace Drupal\Tests\Core\Form {
 
 use Drupal\Core\DependencyInjection\ContainerInjectionInterface;
-use Drupal\Core\Form\FormBuilder;
 use Drupal\Core\Form\FormInterface;
-use Drupal\Core\Session\AccountInterface;
-use Drupal\Tests\UnitTestCase;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\RedirectResponse;
-use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Tests the form builder.
+ *
+ * @group Drupal
+ * @group Form
  */
-class FormBuilderTest extends UnitTestCase {
-
-  /**
-   * The form builder being tested.
-   *
-   * @var \Drupal\Core\Form\FormBuilderInterface
-   */
-  protected $formBuilder;
-
-  /**
-   * The mocked URL generator.
-   *
-   * @var \PHPUnit_Framework_MockObject_MockObject|\Drupal\Core\Routing\UrlGeneratorInterface
-   */
-  protected $urlGenerator;
-
-  /**
-   * The mocked module handler.
-   *
-   * @var \PHPUnit_Framework_MockObject_MockObject|\Drupal\Core\Extension\ModuleHandlerInterface
-   */
-  protected $moduleHandler;
-
-  /**
-   * The expirable key value store used by form cache.
-   *
-   * @var \PHPUnit_Framework_MockObject_MockObject|\Drupal\Core\KeyValueStore\KeyValueStoreExpirableInterface
-   */
-  protected $formCache;
-
-  /**
-   * The expirable key value store used by form state cache.
-   *
-   * @var \PHPUnit_Framework_MockObject_MockObject|\Drupal\Core\KeyValueStore\KeyValueStoreExpirableInterface
-   */
-  protected $formStateCache;
-
-  /**
-   * The current user.
-   *
-   * @var \PHPUnit_Framework_MockObject_MockObject|\Drupal\Core\Session\AccountInterface
-   */
-  protected $account;
-
-  /**
-   * The CSRF token generator.
-   *
-   * @var \PHPUnit_Framework_MockObject_MockObject|\Drupal\Core\Access\CsrfTokenGenerator
-   */
-  protected $csrfToken;
+class FormBuilderTest extends FormTestBase {
 
   /**
    * {@inheritdoc}
@@ -80,39 +29,6 @@ class FormBuilderTest extends UnitTestCase {
       'description' => 'Tests the form builder.',
       'group' => 'Form API',
     );
-  }
-
-  public function setUp() {
-    $this->moduleHandler = $this->getMock('Drupal\Core\Extension\ModuleHandlerInterface');
-
-    $this->formCache = $this->getMock('Drupal\Core\KeyValueStore\KeyValueStoreExpirableInterface');
-    $this->formStateCache = $this->getMock('Drupal\Core\KeyValueStore\KeyValueStoreExpirableInterface');
-    $key_value_expirable_factory = $this->getMockBuilder('\Drupal\Core\KeyValueStore\KeyValueExpirableFactory')
-      ->disableOriginalConstructor()
-      ->getMock();
-    $key_value_expirable_factory->expects($this->any())
-      ->method('get')
-      ->will($this->returnValueMap(array(
-        array('form', $this->formCache),
-        array('form_state', $this->formStateCache),
-      )));
-
-    $event_dispatcher = $this->getMock('Symfony\Component\EventDispatcher\EventDispatcherInterface');
-    $this->urlGenerator = $this->getMock('Drupal\Core\Routing\UrlGeneratorInterface');
-    $translation_manager = $this->getStringTranslationStub();
-    $this->csrfToken = $this->getMockBuilder('Drupal\Core\Access\CsrfTokenGenerator')
-      ->disableOriginalConstructor()
-      ->getMock();
-    $http_kernel = $this->getMockBuilder('Drupal\Core\HttpKernel')
-      ->disableOriginalConstructor()
-      ->getMock();
-
-    $this->formBuilder = new TestFormBuilder($this->moduleHandler, $key_value_expirable_factory, $event_dispatcher, $this->urlGenerator, $translation_manager, $this->csrfToken, $http_kernel);
-    $this->formBuilder->setRequest(new Request());
-
-    $this->account = $this->getMock('Drupal\Core\Session\AccountInterface');
-    $this->formBuilder->setCurrentUser($this->account);
-
   }
 
   /**
@@ -354,18 +270,58 @@ class FormBuilderTest extends UnitTestCase {
   }
 
   /**
+   * Tests the getForm() method with a class name based form ID.
+   */
+  public function testGetFormWithClassString() {
+    $form_id = '\Drupal\Tests\Core\Form\TestForm';
+    $object = new TestForm();
+    $form = array();
+    $form_state = array();
+    $expected_form = $object->buildForm($form, $form_state);
+
+    $form = $this->formBuilder->getForm($form_id);
+    $this->assertFormElement($expected_form, $form, 'test');
+    $this->assertSame('test_form', $form['#id']);
+  }
+
+  /**
+   * Tests the buildForm() method with a string based form ID.
+   */
+  public function testBuildFormWithString() {
+    $form_id = 'test_form_id';
+    $expected_form = $form_id();
+
+    $form = $this->formBuilder->getForm($form_id);
+    $this->assertFormElement($expected_form, $form, 'test');
+    $this->assertSame($form_id, $form['#id']);
+  }
+
+  /**
+   * Tests the buildForm() method with a class name based form ID.
+   */
+  public function testBuildFormWithClassString() {
+    $form_id = '\Drupal\Tests\Core\Form\TestForm';
+    $object = new TestForm();
+    $form = array();
+    $form_state = array();
+    $expected_form = $object->buildForm($form, $form_state);
+
+    $form = $this->formBuilder->buildForm($form_id, $form_state);
+    $this->assertFormElement($expected_form, $form, 'test');
+    $this->assertSame('test_form', $form['#id']);
+  }
+
+  /**
    * Tests the buildForm() method with a form object.
    */
   public function testBuildFormWithObject() {
     $form_id = 'test_form_id';
     $expected_form = $form_id();
 
-    $form_arg = $this->getMockForm(NULL, $expected_form);
+    $form_arg = $this->getMockForm($form_id, $expected_form);
 
-    $form_state['build_info']['callback_object'] = $form_arg;
-    $form_state['build_info']['args'] = array();
-
-    $form = $this->formBuilder->buildForm($form_id, $form_state);
+    $form_state = array();
+    $form = $this->formBuilder->buildForm($form_arg, $form_state);
     $this->assertFormElement($expected_form, $form, 'test');
     $this->assertSame($form_id, $form_state['build_info']['form_id']);
     $this->assertSame($form_id, $form['#id']);
@@ -388,8 +344,7 @@ class FormBuilderTest extends UnitTestCase {
         ),
       )));
 
-    $form_state['build_info']['args'] = array();
-
+    $form_state = array();
     $form = $this->formBuilder->buildForm($form_id, $form_state);
     $this->assertFormElement($expected_form, $form, 'test');
     $this->assertSame($form_id, $form_state['build_info']['form_id']);
@@ -405,13 +360,17 @@ class FormBuilderTest extends UnitTestCase {
     $expected_form = $form_id();
 
     // The form will be built four times.
-    $form_arg = $this->getMockForm(NULL, $expected_form, 4);
+    $form_arg = $this->getMock('Drupal\Core\Form\FormInterface');
+    $form_arg->expects($this->exactly(2))
+      ->method('getFormId')
+      ->will($this->returnValue($form_id));
+    $form_arg->expects($this->exactly(4))
+      ->method('buildForm')
+      ->will($this->returnValue($expected_form));
 
     // Do an initial build of the form and track the build ID.
     $form_state = array();
-    $form_state['build_info']['callback_object'] = $form_arg;
-    $form_state['build_info']['args'] = array();
-    $form = $this->formBuilder->buildForm($form_id, $form_state);
+    $form = $this->formBuilder->buildForm($form_arg, $form_state);
     $original_build_id = $form['#build_id'];
 
     // Rebuild the form, and assert that the build ID has not changed.
@@ -423,7 +382,7 @@ class FormBuilderTest extends UnitTestCase {
 
     // Rebuild the form again, and assert that there is a new build ID.
     $form_state['rebuild_info'] = array();
-    $form = $this->formBuilder->buildForm($form_id, $form_state);
+    $form = $this->formBuilder->buildForm($form_arg, $form_state);
     $this->assertNotSame($original_build_id, $form['#build_id']);
   }
 
@@ -615,52 +574,54 @@ class FormBuilderTest extends UnitTestCase {
   public function testGetCache() {
     $form_id = 'test_form_id';
     $expected_form = $form_id();
+    $expected_form['#token'] = FALSE;
 
-    // FormBuilder::buildForm() will be called 3 times, but the form object will
-    // only be called twice due to caching.
-    $form_arg = $this->getMockForm(NULL, $expected_form, 2);
+    // FormBuilder::buildForm() will be called twice, but the form object will
+    // only be called once due to caching.
+    $form_arg = $this->getMockForm($form_id, $expected_form, 1);
 
-    // The CSRF token and the user authentication are checked each time.
-    $this->csrfToken->expects($this->exactly(3))
+    // The CSRF token is checked each time.
+    $this->csrfToken->expects($this->exactly(2))
       ->method('get')
       ->will($this->returnValue('csrf_token'));
+    // The CSRF token is validated only when retrieving from the cache.
+    $this->csrfToken->expects($this->once())
+      ->method('validate')
+      ->with('csrf_token')
+      ->will($this->returnValue(TRUE));
+    // The user is checked for authentication once for the form building and
+    // twice for each cache set.
     $this->account->expects($this->exactly(3))
       ->method('isAuthenticated')
       ->will($this->returnValue(TRUE));
 
     // Do an initial build of the form and track the build ID.
     $form_state = array();
-    $form_state['build_info']['callback_object'] = $form_arg;
     $form_state['build_info']['args'] = array();
     $form_state['build_info']['files'] = array(array('module' => 'node', 'type' => 'pages.inc'));
     $form_state['cache'] = TRUE;
-    $form = $this->formBuilder->buildForm($form_id, $form_state);
-
-    // Rebuild the form, this time setting it up to be cached.
-    $form_state['rebuild'] = TRUE;
-    $form_state['rebuild_info']['copy']['#build_id'] = TRUE;
-    $form_state['input']['form_token'] = $form['#token'];
-    $form_state['input']['form_id'] = $form_id;
-    $form_state['input']['form_build_id'] = $form['#build_id'];
-    $form = $this->formBuilder->buildForm($form_id, $form_state);
+    $form = $this->formBuilder->buildForm($form_arg, $form_state);
 
     $cached_form = $form;
     $cached_form['#cache_token'] = 'csrf_token';
     // The form cache, form_state cache, and CSRF token validation will only be
     // called on the cached form.
     $this->formCache->expects($this->once())
+      ->method('setWithExpire');
+    $this->formCache->expects($this->once())
       ->method('get')
       ->will($this->returnValue($cached_form));
     $this->formStateCache->expects($this->once())
       ->method('get')
       ->will($this->returnValue($form_state));
-    $this->csrfToken->expects($this->once())
-      ->method('validate')
-      ->will($this->returnValue(TRUE));
 
     // The final form build will not trigger any actual form building, but will
     // use the form cache.
+    $form_state['input']['form_id'] = $form_id;
+    $form_state['input']['form_build_id'] = $form['#build_id'];
     $this->formBuilder->buildForm($form_id, $form_state);
+    $errors = $this->formBuilder->getErrors($form_state);
+    $this->assertEmpty($errors);
   }
 
   /**
@@ -677,160 +638,11 @@ class FormBuilderTest extends UnitTestCase {
       ->method('prepare')
       ->will($this->returnValue($expected_form));
 
-    $form_arg = $this->getMockForm(NULL, $expected_form);
+    $form_arg = $this->getMockForm($form_id, $expected_form);
 
     // Do an initial build of the form and track the build ID.
     $form_state = array();
-    $form_state['build_info']['callback_object'] = $form_arg;
-    $form_state['build_info']['args'] = array();
-    $this->formBuilder->buildForm($form_id, $form_state);
-  }
-
-  /**
-   * Provides a mocked form object.
-   *
-   * @param string $form_id
-   *   (optional) The form ID to be used. If none is provided, the form will be
-   *   set to expect that getFormId() will never be called.
-   * @param mixed $expected_form
-   *   (optional) If provided, the expected form response for buildForm() to
-   *   return. Defaults to NULL.
-   * @param int $count
-   *   (optional) The number of times the form is expected to be built. Defaults
-   *   to 1.
-   *
-   * @return \PHPUnit_Framework_MockObject_MockObject|\Drupal\Core\Form\FormInterface
-   *   The mocked form object.
-   */
-  protected function getMockForm($form_id = NULL, $expected_form = NULL, $count = 1) {
-    $form = $this->getMock('Drupal\Core\Form\FormInterface');
-    if ($form_id) {
-      $form->expects($this->once())
-        ->method('getFormId')
-        ->will($this->returnValue($form_id));
-    }
-    else {
-      $form->expects($this->never())
-        ->method('getFormId');
-    }
-
-    if ($expected_form) {
-      $form->expects($this->exactly($count))
-        ->method('buildForm')
-        ->will($this->returnValue($expected_form));
-    }
-    return $form;
-  }
-
-  /**
-   * Asserts that the expected form structure is found in a form for a given key.
-   *
-   * @param array $expected_form
-   *   The expected form structure.
-   * @param array $actual_form
-   *   The actual form.
-   * @param string|null $form_key
-   *   (optional) The form key to look in. Otherwise the entire form will be
-   *   compared.
-   */
-  protected function assertFormElement(array $expected_form, array $actual_form, $form_key = NULL) {
-    $expected_element = $form_key ? $expected_form[$form_key] : $expected_form;
-    $actual_element = $form_key ? $actual_form[$form_key] : $actual_form;
-    $this->assertSame(array_intersect_key($expected_element, $actual_element), $expected_element);
-  }
-
-}
-
-/**
- * Provides a test form builder class.
- */
-class TestFormBuilder extends FormBuilder {
-
-  /**
-   * {@inheritdoc}
-   */
-  protected function sendResponse(Response $response) {
-    parent::sendResponse($response);
-    // Throw an exception instead of exiting.
-    throw new \Exception('exit');
-  }
-
-  /**
-   * @param \Drupal\Core\Session\AccountInterface $account
-   */
-  public function setCurrentUser(AccountInterface $account) {
-    $this->currentUser = $account;
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  protected function getElementInfo($type) {
-    $types['token'] = array(
-      '#input' => TRUE,
-    );
-    $types['value'] = array(
-      '#input' => TRUE,
-    );
-    $types['select'] = array(
-      '#input' => TRUE,
-      '#multiple' => FALSE,
-      '#empty_value' => '',
-    );
-    $types['radios'] = array(
-      '#input' => TRUE,
-    );
-    $types['textfield'] = array(
-      '#input' => TRUE,
-    );
-    $types['submit'] = array(
-      '#input' => TRUE,
-      '#name' => 'op',
-      '#is_button' => TRUE,
-    );
-    if (!isset($types[$type])) {
-      $types[$type] = array();
-    }
-    return $types[$type];
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  protected function drupalInstallationAttempted() {
-    return FALSE;
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  protected function drupalSetMessage($message = NULL, $type = 'status', $repeat = FALSE) {
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  protected function watchdog($type, $message, array $variables = NULL, $severity = WATCHDOG_NOTICE, $link = NULL) {
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  protected function drupalHtmlClass($class) {
-    return $class;
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  protected function drupalHtmlId($id) {
-    return $id;
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  protected function drupalStaticReset($name = NULL) {
+    $this->formBuilder->buildForm($form_arg, $form_state);
   }
 
 }
@@ -840,7 +652,9 @@ class TestForm implements FormInterface {
     return 'test_form';
   }
 
-  public function buildForm(array $form, array &$form_state) { }
+  public function buildForm(array $form, array &$form_state) {
+    return test_form_id();
+  }
   public function validateForm(array &$form, array &$form_state) { }
   public function submitForm(array &$form, array &$form_state) { }
 }
@@ -853,48 +667,9 @@ class TestFormInjected extends TestForm implements ContainerInjectionInterface {
 }
 
 namespace {
-  function test_form_id() {
-    $form['test'] = array(
-      '#type' => 'textfield',
-      '#title' => 'Test',
-    );
-    $form['select'] = array(
-      '#type' => 'select',
-      '#options' => array(
-        'foo' => 'foo',
-        'bar' => 'bar',
-      ),
-    );
-    $form['options'] = array(
-      '#type' => 'radios',
-      '#options' => array(
-        'foo' => 'foo',
-        'bar' => 'bar',
-      ),
-    );
-    $form['value'] = array(
-      '#type' => 'value',
-      '#value' => 'bananas',
-    );
-    $form['actions'] = array(
-      '#type' => 'actions',
-    );
-    $form['actions']['submit'] = array(
-      '#type' => 'submit',
-      '#value' => 'Submit',
-    );
-    return $form;
-  }
   function test_form_id_custom_submit(array &$form, array &$form_state) {
   }
-
   if (!defined('WATCHDOG_ERROR')) {
     define('WATCHDOG_ERROR', 3);
-  }
-  if (!function_exists('batch_get')) {
-    function &batch_get() {
-      $batch = array();
-      return $batch;
-    }
   }
 }

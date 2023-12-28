@@ -7,7 +7,7 @@
 
 namespace Drupal\Core\Config;
 
-use Drupal\Core\Config\Context\FreeConfigContext;
+use Drupal\Core\Config\TypedConfigManager;
 use Drupal\Core\Entity\EntityManagerInterface;
 use Drupal\Core\Lock\LockBackendInterface;
 use Drupal\Component\Uuid\UuidInterface;
@@ -54,13 +54,6 @@ class ConfigImporter {
   protected $eventDispatcher;
 
   /**
-   * The configuration context.
-   *
-   * @var \Drupal\Core\Config\Context\ContextInterface
-   */
-  protected $context;
-
-  /**
    * The configuration factory.
    *
    * @var \Drupal\Core\Config\ConfigFactory
@@ -103,6 +96,13 @@ class ConfigImporter {
   protected $uuidService;
 
   /**
+   * The typed config manager.
+   *
+   * @var \Drupal\Core\Config\TypedConfigManager
+   */
+  protected $typedConfigManager;
+
+  /**
    * Constructs a configuration import object.
    *
    * @param \Drupal\Core\Config\StorageComparerInterface $storage_comparer
@@ -118,19 +118,18 @@ class ConfigImporter {
    *   The lock backend to ensure multiple imports do not occur at the same time.
    * @param \Drupal\Component\Uuid\UuidInterface $uuid_service
    *   The UUID service.
+   * @param \Drupal\Core\Config\TypedConfigManager $typed_config
+   *   The typed configuration manager.
    */
-  public function __construct(StorageComparerInterface $storage_comparer, EventDispatcherInterface $event_dispatcher, ConfigFactory $config_factory, EntityManagerInterface $entity_manager, LockBackendInterface $lock, UuidInterface $uuid_service) {
+  public function __construct(StorageComparerInterface $storage_comparer, EventDispatcherInterface $event_dispatcher, ConfigFactory $config_factory, EntityManagerInterface $entity_manager, LockBackendInterface $lock, UuidInterface $uuid_service, TypedConfigManager $typed_config) {
     $this->storageComparer = $storage_comparer;
     $this->eventDispatcher = $event_dispatcher;
     $this->configFactory = $config_factory;
     $this->entityManager = $entity_manager;
     $this->lock = $lock;
     $this->uuidService = $uuid_service;
+    $this->typedConfigManager = $typed_config;
     $this->processed = $this->storageComparer->getEmptyChangelist();
-    // Use an override free context for importing so that overrides to do not
-    // pollute the imported data. The context is hard coded to ensure this is
-    // the case.
-    $this->context = new FreeConfigContext($this->eventDispatcher, $this->uuidService);
   }
 
   /**
@@ -224,7 +223,6 @@ class ConfigImporter {
       // Ensure that the changes have been validated.
       $this->validate();
 
-      $this->configFactory->enterContext($this->context);
       if (!$this->lock->acquire(static::ID)) {
         // Another process is synchronizing configuration.
         throw new ConfigImporterException(sprintf('%s is already importing', static::ID));
@@ -237,9 +235,6 @@ class ConfigImporter {
       // The import is now complete.
       $this->lock->release(static::ID);
       $this->reset();
-      // Leave the context used during import and clear the ConfigFactory's
-      // static cache.
-      $this->configFactory->leaveContext()->reset();
     }
     return $this;
   }
@@ -252,6 +247,9 @@ class ConfigImporter {
    */
   public function validate() {
     if (!$this->validated) {
+      if (!$this->storageComparer->validateSiteUuid()) {
+        throw new ConfigImporterException('Site UUID in source storage does not match the target storage.');
+      }
       $this->notify('validate');
       $this->validated = TRUE;
     }
@@ -264,7 +262,7 @@ class ConfigImporter {
   protected function importConfig() {
     foreach (array('delete', 'create', 'update') as $op) {
       foreach ($this->getUnprocessed($op) as $name) {
-        $config = new Config($name, $this->storageComparer->getTargetStorage(), $this->context);
+        $config = new Config($name, $this->storageComparer->getTargetStorage(), $this->eventDispatcher, $this->typedConfigManager);
         if ($op == 'delete') {
           $config->delete();
         }
@@ -297,11 +295,11 @@ class ConfigImporter {
         // Validate the configuration object name before importing it.
         // Config::validateName($name);
         if ($entity_type = config_get_entity_type_by_name($name)) {
-          $old_config = new Config($name, $this->storageComparer->getTargetStorage(), $this->context);
+          $old_config = new Config($name, $this->storageComparer->getTargetStorage(), $this->eventDispatcher, $this->typedConfigManager);
           $old_config->load();
 
           $data = $this->storageComparer->getSourceStorage()->read($name);
-          $new_config = new Config($name, $this->storageComparer->getTargetStorage(), $this->context);
+          $new_config = new Config($name, $this->storageComparer->getTargetStorage(), $this->eventDispatcher, $this->typedConfigManager);
           if ($data !== FALSE) {
             $new_config->setData($data);
           }

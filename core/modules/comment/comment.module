@@ -10,10 +10,10 @@
  * book page, user etc.
  */
 
+use Drupal\Component\Utility\Number;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Entity\EntityChangedInterface;
 use Drupal\comment\CommentInterface;
-use Drupal\comment\Entity\Comment;
 use Drupal\Core\Entity\Display\EntityViewDisplayInterface;
 use Drupal\field\FieldInstanceInterface;
 use Drupal\field\FieldInterface;
@@ -124,7 +124,7 @@ function comment_entity_bundle_info() {
 /**
  * Entity URI callback.
  */
-function comment_uri(Comment $comment) {
+function comment_uri(CommentInterface $comment) {
   return array(
     'path' => 'comment/' . $comment->id(),
     'options' => array('fragment' => 'comment-' . $comment->id()),
@@ -249,6 +249,9 @@ function comment_field_instance_create(FieldInstanceInterface $instance) {
 function comment_field_instance_update(FieldInstanceInterface $instance) {
   if ($instance->getType() == 'comment') {
     \Drupal::entityManager()->getViewBuilder($instance->entity_type)->resetCache();
+    // Comment field settings also affects the rendering of *comment* entities,
+    // not only the *commented* entities.
+    \Drupal::entityManager()->getViewBuilder('comment')->resetCache();
   }
 }
 
@@ -302,43 +305,6 @@ function comment_permission() {
 }
 
 /**
- * Finds the most recent comments that are available to the current user.
- *
- * @param integer $number
- *   (optional) The maximum number of comments to find. Defaults to 10.
- *
- * @return
- *   An array of comment objects or an empty array if there are no recent
- *   comments visible to the current user.
- */
-function comment_get_recent($number = 10) {
-  $query = db_select('comment', 'c');
-  $query->addMetaData('base_table', 'comment');
-  $query->fields('c')
-    ->condition('c.status', CommentInterface::PUBLISHED);
-  if (\Drupal::moduleHandler()->moduleExists('node')) {
-    // Special case to filter by published content.
-    $query->innerJoin('node_field_data', 'n', "n.nid = c.entity_id AND c.entity_type = 'node'");
-    $query->addTag('node_access');
-    // @todo This should be actually filtering on the desired node status field
-    //   language and just fall back to the default language.
-    $query
-      ->condition('n.status', NODE_PUBLISHED)
-      ->condition('n.default_langcode', 1);
-  }
-  $comments = $query
-    ->orderBy('c.created', 'DESC')
-    // Additionally order by cid to ensure that comments with the same timestamp
-    // are returned in the exact order posted.
-    ->orderBy('c.cid', 'DESC')
-    ->range(0, $number)
-    ->execute()
-    ->fetchAll();
-
-  return $comments ? $comments : array();
-}
-
-/**
  * Calculates the page number for the first new comment.
  *
  * @param int $num_comments
@@ -350,8 +316,8 @@ function comment_get_recent($number = 10) {
  * @param string $field_name
  *   The field name on the entity to which comments are attached to.
  *
- * @return
- *   "page=X" if the page number is greater than zero; empty string otherwise.
+ * @return array|null
+ *   An array "page=X" if the page number is greater than zero; NULL otherwise.
  */
 function comment_new_page_count($num_comments, $new_replies, EntityInterface $entity, $field_name = 'comment') {
   $instance = \Drupal::service('field.info')->getInstance($entity->entityType(), $entity->bundle(), $field_name);
@@ -414,6 +380,23 @@ function comment_new_page_count($num_comments, $new_replies, EntityInterface $en
   }
 
   return $pagenum;
+}
+
+/**
+ * Implements hook_entity_view_alter().
+ */
+function comment_entity_view_alter(&$build, EntityInterface $entity, EntityViewDisplayInterface $display) {
+  // Add the comment page number to the cache key if render caching is enabled.
+  if (isset($build['#cache']) && isset($build['#cache']['keys']) && \Drupal::request()->query->has('page')) {
+    foreach ($entity->getPropertyDefinitions() as $field_name => $definition) {
+      if (isset($build[$field_name]) && $definition->getType() === 'comment') {
+        $display_options = $display->getComponent($field_name);
+        $pager_id = $display_options['settings']['pager_id'];
+        $page = pager_find_page($pager_id);
+        $build['#cache']['keys'][] = $field_name . '-pager-' . $page;
+      }
+    }
+  }
 }
 
 /**
@@ -550,6 +533,14 @@ function comment_entity_view(EntityInterface $entity, EntityViewDisplayInterface
     );
     if ($view_mode == 'teaser' && \Drupal::moduleHandler()->moduleExists('history') && \Drupal::currentUser()->isAuthenticated()) {
       $entity->content['links']['#attached']['library'][] = array('comment', 'drupal.node-new-comments-link');
+
+      // Embed the metadata for the "X new comments" link (if any) on this node.
+      $entity->content['links']['#post_render_cache']['history_attach_timestamp'] = array(
+        array('node_id' => $entity->id()),
+      );
+      $entity->content['links']['#post_render_cache']['Drupal\comment\CommentViewBuilder::attachNewCommentsLinkMetadata'] = array(
+        array('entity_type' => $entity->entityType(), 'entity_id' => $entity->id(), 'field_name' => $field_name),
+      );
     }
   }
 }
@@ -603,7 +594,7 @@ function comment_add(EntityInterface $entity, $field_name = 'comment', $pid = NU
  *   (optional) Pager id to use in case of multiple pagers on the one page.
  *   Defaults to 0.
  *
- * @return
+ * @return int[]
  *   An array of the IDs of the comment to be displayed.
  *
  * To display threaded comments in the correct order we keep a 'thread' field
@@ -754,7 +745,7 @@ function comment_prepare_thread(&$comments) {
  *   (optional) A language code to use for rendering. Defaults to the global
  *   content language of the current request.
  *
- * @return
+ * @return array
  *   An array as expected by drupal_render().
  */
 function comment_view(CommentInterface $comment, $view_mode = 'full', $langcode = NULL) {
@@ -773,7 +764,7 @@ function comment_view(CommentInterface $comment, $view_mode = 'full', $langcode 
  *   in. If no language is provided the current content language is used.
  *   Defaults to NULL.
  *
- * @return
+ * @return array
  *   An array in the format expected by drupal_render().
  *
  * @see drupal_render()
@@ -1115,7 +1106,7 @@ function comment_load_multiple(array $cids = NULL, $reset = FALSE) {
  * @param bool $reset
  *   (optional) Whether to reset the internal static entity cache.
  *
- * @return
+ * @return \Drupal\comment\CommentInterface
  *   The comment object.
  */
 function comment_load($cid, $reset = FALSE) {
@@ -1132,10 +1123,9 @@ function comment_load($cid, $reset = FALSE) {
  * @param string $field_name
  *   (optional) The field_name to count comments for. Defaults to NULL.
  * @param $timestamp
- *   Time to count from (defaults to time of last user access
- *   to node).
+ *   Time to count from (defaults to time of last user access to node).
  *
- * @return
+ * @return int|false
  *   The number of new comments or FALSE if the user is not logged in.
  */
 function comment_num_new($entity_id, $entity_type, $field_name = NULL, $timestamp = 0) {
@@ -1191,7 +1181,7 @@ function comment_num_new($entity_id, $entity_type, $field_name = NULL, $timestam
  * @param array $instance
  *   Field instance as returned from field_info_instance().
  *
- * @return
+ * @return int
  *   The display ordinal for the comment.
  *
  * @see comment_get_display_page()
@@ -1230,12 +1220,12 @@ function comment_get_display_ordinal($cid, $instance) {
  * Finds the correct page number for a comment taking into account display
  * and paging settings.
  *
- * @param $cid
+ * @param int $cid
  *   The comment ID.
  * @param array $instance
  *   Field instance as returned from field_info_instance().
  *
- * @return
+ * @return int
  *   The page number.
  */
 function comment_get_display_page($cid, $instance) {
@@ -1248,6 +1238,10 @@ function comment_get_display_page($cid, $instance) {
  * Generates a comment preview.
  *
  * @param \Drupal\comment\CommentInterface $comment
+ *   The comment entity to preview.
+ *
+ * @return array
+ *   An array as expected by drupal_render().
  */
 function comment_preview(CommentInterface $comment, array &$form_state) {
   $preview_build = array();
@@ -1329,7 +1323,7 @@ function comment_preprocess_block(&$variables) {
  * @param \Drupal\comment\CommentInterface $comment
  *   The comment to which the author replied.
  *
- * @return \Drupal\user\Entity\User
+ * @return \Drupal\user\UserInterface
  *   A user account, for use with theme_username() or the user_picture template.
  */
 function comment_prepare_author(CommentInterface $comment) {
@@ -1392,7 +1386,7 @@ function template_preprocess_comment(&$variables) {
 
   $uri = $comment->uri();
   $permalink_uri = $comment->permalink();
-  $uri['options'] += array('attributes' => array('class' => 'permalink', 'rel' => 'bookmark'));
+  $uri['options'] += array('attributes' => array('class' => array('permalink'), 'rel' => 'bookmark'));
 
   $variables['title'] = l($comment->subject->value, $uri['path'], $uri['options']);
   $variables['permalink'] = l(t('Permalink'), $permalink_uri['path'], $permalink_uri['options']);
@@ -1433,9 +1427,6 @@ function template_preprocess_comment(&$variables) {
     $variables['parent_permalink'] = '';
     $variables['parent'] = '';
   }
-
-  // Preprocess fields.
-  field_attach_preprocess($comment, $variables['elements'], $variables);
 
   // Helpful $content variable for templates.
   foreach (element_children($variables['elements']) as $key) {
@@ -1553,19 +1544,6 @@ function template_preprocess_comment_wrapper(&$variables) {
 }
 
 /**
- * Returns an array of viewing modes for comment listings.
- *
- * We can't use a global variable array because the locale system
- * is not initialized yet when the Comment module is loaded.
- */
-function _comment_get_modes() {
-  return array(
-    COMMENT_MODE_FLAT => t('Flat list'),
-    COMMENT_MODE_THREADED => t('Threaded list')
-  );
-}
-
-/**
  * Returns an array of "comments per page" values that users can select from.
  */
 function _comment_per_page() {
@@ -1584,21 +1562,20 @@ function _comment_per_page() {
  * 110, 111, ... , 1zy, 1zz,
  * 2100, 2101, ..., 2zzy, 2zzz,
  * 31000, 31001, ...
+ *
+ * @deprecated Use \Drupal\Component\Utility\Number::intToAlphadecimal() instead.
  */
 function comment_int_to_alphadecimal($i = 0) {
-  $num = base_convert((int) $i, 10, 36);
-  $length = strlen($num);
-
-  return chr($length + ord('0') - 1) . $num;
+  return Number::alphadecimalToInt($i);
 }
 
 /**
  * Decodes a sorting code back to an integer.
  *
- * @see comment_int_to_alphadecimal()
+ * @deprecated Use \Drupal\Component\Utility\Number::alphadecimalToInt() instead.
  */
 function comment_alphadecimal_to_int($c = '00') {
-  return base_convert(substr($c, 1), 36, 10);
+  return Number::alphadecimalToInt($c);
 }
 
 /**

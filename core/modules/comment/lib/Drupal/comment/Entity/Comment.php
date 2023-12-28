@@ -7,9 +7,8 @@
 
 namespace Drupal\comment\Entity;
 
+use Drupal\Component\Utility\Number;
 use Drupal\Core\Entity\ContentEntityBase;
-use Drupal\Core\Entity\Annotation\EntityType;
-use Drupal\Core\Annotation\Translation;
 use Drupal\comment\CommentInterface;
 use Drupal\Core\Entity\EntityStorageControllerInterface;
 use Drupal\Core\Field\FieldDefinition;
@@ -55,6 +54,11 @@ use Drupal\Core\TypedData\DataDefinition;
  * )
  */
 class Comment extends ContentEntityBase implements CommentInterface {
+
+  /**
+   * The thread for which a lock was acquired.
+   */
+  protected $threadLock = '';
 
   /**
    * The comment ID.
@@ -242,7 +246,7 @@ class Comment extends ContentEntityBase implements CommentInterface {
           $max = rtrim($max, '/');
           // We need to get the value at the correct depth.
           $parts = explode('.', $max);
-          $n = comment_alphadecimal_to_int($parts[0]);
+          $n = Number::alphadecimalToInt($parts[0]);
           $prefix = '';
         }
         else {
@@ -269,16 +273,17 @@ class Comment extends ContentEntityBase implements CommentInterface {
             // Get the value at the correct depth.
             $parts = explode('.', $max);
             $parent_depth = count(explode('.', $parent->thread->value));
-            $n = comment_alphadecimal_to_int($parts[$parent_depth]);
+            $n = Number::alphadecimalToInt($parts[$parent_depth]);
           }
         }
         // Finally, build the thread field for this new comment. To avoid
-        // race conditions, get a lock on the thread. If aother process already
+        // race conditions, get a lock on the thread. If another process already
         // has the lock, just move to the next integer.
         do {
-          $thread = $prefix . comment_int_to_alphadecimal(++$n) . '/';
-        } while (!lock()->acquire("comment:{$this->entity_id->value}:$thread"));
-        $this->threadLock = $thread;
+          $thread = $prefix . Number::intToAlphadecimal(++$n) . '/';
+          $lock_name = "comment:{$this->entity_id->value}:$thread";
+        } while (!\Drupal::lock()->acquire($lock_name));
+        $this->threadLock = $lock_name;
       }
       if (empty($this->created->value)) {
         $this->created->value = REQUEST_TIME;
@@ -316,7 +321,7 @@ class Comment extends ContentEntityBase implements CommentInterface {
    */
   protected function releaseThreadLock() {
     if ($this->threadLock) {
-      lock()->release($this->threadLock);
+      \Drupal::lock()->release($this->threadLock);
       $this->threadLock = '';
     }
   }

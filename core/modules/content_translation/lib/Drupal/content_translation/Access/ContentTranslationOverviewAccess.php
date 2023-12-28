@@ -7,8 +7,8 @@
 
 namespace Drupal\content_translation\Access;
 
-use Drupal\Core\Access\StaticAccessCheckInterface;
 use Drupal\Core\Entity\EntityManagerInterface;
+use Drupal\Core\Routing\Access\AccessInterface;
 use Drupal\Core\Session\AccountInterface;
 use Symfony\Component\Routing\Route;
 use Symfony\Component\HttpFoundation\Request;
@@ -16,7 +16,7 @@ use Symfony\Component\HttpFoundation\Request;
 /**
  * Access check for entity translation overview.
  */
-class ContentTranslationOverviewAccess implements StaticAccessCheckInterface {
+class ContentTranslationOverviewAccess implements AccessInterface {
 
   /**
    * The entity type manager.
@@ -38,13 +38,6 @@ class ContentTranslationOverviewAccess implements StaticAccessCheckInterface {
   /**
    * {@inheritdoc}
    */
-  public function appliesTo() {
-    return array('_access_content_translation_overview');
-  }
-
-  /**
-   * {@inheritdoc}
-   */
   public function access(Route $route, Request $request, AccountInterface $account) {
     $entity_type = $request->attributes->get('_entity_type');
     if ($entity = $request->attributes->get($entity_type)) {
@@ -52,15 +45,16 @@ class ContentTranslationOverviewAccess implements StaticAccessCheckInterface {
       $bundle = $entity->bundle();
 
       // Get entity access callback.
-      $definitions = $this->entityManager->getDefinitions();
-      $access_callback = $definitions[$entity_type]['translation']['content_translation']['access_callback'];
+      $definition = $this->entityManager->getDefinition($entity_type);
+      $translation = $definition->get('translation');
+      $access_callback = $translation['content_translation']['access_callback'];
       if (call_user_func($access_callback, $entity)) {
         return static::ALLOW;
       }
 
       // Check per entity permission.
       $permission = "translate {$entity_type}";
-      if ($definitions[$entity_type]['permission_granularity'] == 'bundle') {
+      if ($definition->getPermissionGranularity() == 'bundle') {
         $permission = "translate {$bundle} {$entity_type}";
       }
       if ($account->hasPermission($permission)) {

@@ -18,6 +18,23 @@ namespace Drupal\Core\Language;
  */
 class Language {
 
+  /**
+   * The values to use to instantiate the default language.
+   *
+   * @todo Remove once the default language is converted to config. See
+   *   https://drupal.org/node/2108599.
+   *
+   * @var array
+   */
+  public static $defaultValues = array(
+    'id' => 'en',
+    'name' => 'English',
+    'direction' => 0,
+    'weight' => 0,
+    'locked' => 0,
+    'default' => TRUE,
+  );
+
   // Properties within the Language are set up as the default language.
 
   /**
@@ -205,14 +222,7 @@ class Language {
    *   The array of language objects keyed by langcode.
    */
   public static function sort(&$languages) {
-    uasort($languages, function ($a, $b) {
-      $a_weight = isset($a->weight) ? $a->weight : 0;
-      $b_weight = isset($b->weight) ? $b->weight : 0;
-      if ($a_weight == $b_weight) {
-        return strnatcasecmp($a->name, $b->name);
-      }
-      return ($a_weight < $b_weight) ? -1 : 1;
-    });
+    uasort($languages, 'Drupal\Component\Utility\SortArray::sortByWeightAndTitleKey');
   }
 
 }

@@ -154,15 +154,30 @@ function file_views_data() {
     ),
   );
 
-  // timestamp field
-  $data['file_managed']['timestamp'] = array(
+  // The created field.
+  $data['file_managed']['created'] = array(
     'title' => t('Upload date'),
     'help' => t('The date the file was uploaded.'),
     'field' => array(
       'id' => 'date',
     ),
     'sort' => array(
-      'id' => 'date'
+      'id' => 'date',
+    ),
+    'filter' => array(
+      'id' => 'date',
+    ),
+  );
+
+  // The changed field.
+  $data['file_managed']['changed'] = array(
+    'title' => t('Modified date'),
+    'help' => t('The date the file was last changed.'),
+    'field' => array(
+      'id' => 'date',
+    ),
+    'sort' => array(
+      'id' => 'date',
     ),
     'filter' => array(
       'id' => 'date',
@@ -488,22 +503,22 @@ function file_field_views_data(FieldInterface $field) {
  */
 function file_field_views_data_views_data_alter(array &$data, FieldInterface $field) {
   $entity_type = $field->entity_type;
-  $entity_info = entity_get_info($entity_type);
+  $entity_info = \Drupal::entityManager()->getDefinition($entity_type);
   $field_name = $field->getName();
   $pseudo_field_name = 'reverse_' . $field_name . '_' . $entity_type;
 
   list($label) = field_views_field_label($entity_type, $field_name);
 
   $data['file_managed'][$pseudo_field_name]['relationship'] = array(
-    'title' => t('@entity using @field', array('@entity' => $entity_info['label'], '@field' => $label)),
-    'help' => t('Relate each @entity with a @field set to the file.', array('@entity' => $entity_info['label'], '@field' => $label)),
+    'title' => t('@entity using @field', array('@entity' => $entity_info->getLabel(), '@field' => $label)),
+    'help' => t('Relate each @entity with a @field set to the file.', array('@entity' => $entity_info->getLabel(), '@field' => $label)),
     'id' => 'entity_reverse',
     'field_name' => $field_name,
     'entity_type' => $entity_type,
     'field table' => FieldableDatabaseStorageController::_fieldTableName($field),
     'field field' => $field_name . '_target_id',
-    'base' => $entity_info['base_table'],
-    'base field' => $entity_info['entity_keys']['id'],
+    'base' => $entity_info->getBaseTable(),
+    'base field' => $entity_info->getKey('id'),
     'label' => t('!field_name', array('!field_name' => $field_name)),
     'join_extra' => array(
       0 => array(

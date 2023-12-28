@@ -73,13 +73,6 @@ abstract class ContentEntityBase extends Entity implements \IteratorAggregate, C
   protected $fieldDefinitions;
 
   /**
-   * Local cache for URI placeholder substitution values.
-   *
-   * @var array
-   */
-  protected $uriPlaceholderReplacements;
-
-  /**
    * Local cache for the available language objects.
    *
    * @var array
@@ -179,8 +172,7 @@ abstract class ContentEntityBase extends Entity implements \IteratorAggregate, C
    * {@inheritdoc}
    */
   public function isNewRevision() {
-    $info = $this->entityInfo();
-    return $this->newRevision || (!empty($info['entity_keys']['revision']) && !$this->getRevisionId());
+    return $this->newRevision || ($this->entityInfo()->hasKey('revision') && !$this->getRevisionId());
   }
 
   /**
@@ -261,7 +253,7 @@ abstract class ContentEntityBase extends Entity implements \IteratorAggregate, C
    */
   public function validate() {
     // @todo: Add the typed data manager as proper dependency.
-    return \Drupal::typedData()->getValidator()->validate($this);
+    return \Drupal::typedDataManager()->getValidator()->validate($this);
   }
 
   /**
@@ -334,14 +326,27 @@ abstract class ContentEntityBase extends Entity implements \IteratorAggregate, C
   }
 
   /**
+   * {@inheritdoc}
+   */
+  public function __sleep() {
+    // Get the values of instantiated field objects, only serialize the values.
+    foreach ($this->fields as $name => $fields) {
+      foreach ($fields as $langcode => $field) {
+        $this->values[$name][$langcode] = $field->getValue();
+      }
+    }
+    $this->fields = array();
+    $this->fieldDefinitions = NULL;
+    $this->clearTranslationCache();
+    return array_keys(get_object_vars($this));
+  }
+
+
+  /**
    * Magic __wakeup() implementation.
    */
   public function __wakeup() {
     $this->init();
-    // @todo This should be done before serializing the entity, but we would
-    //   need to provide the full list of data to be serialized. See the
-    //   dedicated issue at https://drupal.org/node/2027795.
-    $this->clearTranslationCache();
   }
 
   /**
@@ -414,7 +419,7 @@ abstract class ContentEntityBase extends Entity implements \IteratorAggregate, C
         if (isset($this->values[$name][$langcode])) {
           $value = $this->values[$name][$langcode];
         }
-        $field = \Drupal::typedData()->getPropertyInstance($this, $name, $value);
+        $field = \Drupal::typedDataManager()->getPropertyInstance($this, $name, $value);
         if ($default) {
           // $this->defaultLangcode might not be set if we are initializing the
           // default language code cache, in which case there is no valid
@@ -712,7 +717,7 @@ abstract class ContentEntityBase extends Entity implements \IteratorAggregate, C
     // Instantiate a new empty entity so default values will be populated in the
     // specified language.
     $info = $this->entityInfo();
-    $default_values = array($info['entity_keys']['bundle'] => $this->bundle, 'langcode' => $langcode);
+    $default_values = array($info->getKey('bundle') => $this->bundle, 'langcode' => $langcode);
     $entity = \Drupal::entityManager()
       ->getStorageController($this->entityType())
       ->create($default_values);
@@ -898,17 +903,17 @@ abstract class ContentEntityBase extends Entity implements \IteratorAggregate, C
 
     $duplicate = clone $this;
     $entity_info = $this->entityInfo();
-    $duplicate->{$entity_info['entity_keys']['id']}->value = NULL;
+    $duplicate->{$entity_info->getKey('id')}->value = NULL;
 
     // Check if the entity type supports UUIDs and generate a new one if so.
-    if (!empty($entity_info['entity_keys']['uuid'])) {
+    if ($entity_info->hasKey('uuid')) {
       // @todo Inject the UUID service into the Entity class once possible.
-      $duplicate->{$entity_info['entity_keys']['uuid']}->value = \Drupal::service('uuid')->generate();
+      $duplicate->{$entity_info->getKey('uuid')}->value = \Drupal::service('uuid')->generate();
     }
 
     // Check whether the entity type supports revisions and initialize it if so.
-    if (!empty($entity_info['entity_keys']['revision'])) {
-      $duplicate->{$entity_info['entity_keys']['revision']}->value = NULL;
+    if ($entity_info->hasKey('revision')) {
+      $duplicate->{$entity_info->getKey('revision')}->value = NULL;
     }
 
     return $duplicate;
@@ -946,19 +951,17 @@ abstract class ContentEntityBase extends Entity implements \IteratorAggregate, C
   }
 
   /**
-   * Overrides Entity::label() to access the label field with the new API.
+   * {@inheritdoc}
    */
-  public function label($langcode = NULL) {
+  public function label() {
     $label = NULL;
     $entity_info = $this->entityInfo();
-    if (!isset($langcode)) {
-      $langcode = $this->activeLangcode;
+    // @todo Convert to is_callable() and call_user_func().
+    if (($label_callback = $entity_info->getLabelCallback()) && function_exists($label_callback)) {
+      $label = $label_callback($this);
     }
-    if (isset($entity_info['label_callback']) && function_exists($entity_info['label_callback'])) {
-      $label = $entity_info['label_callback']($this, $langcode);
-    }
-    elseif (!empty($entity_info['entity_keys']['label']) && isset($this->{$entity_info['entity_keys']['label']})) {
-      $label = $this->{$entity_info['entity_keys']['label']}->value;
+    elseif (($label_key = $entity_info->getKey('label')) && isset($this->{$label_key})) {
+      $label = $this->{$label_key}->value;
     }
     return $label;
   }

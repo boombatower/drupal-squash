@@ -264,7 +264,7 @@ class ModuleHandler implements ModuleHandlerInterface {
   /**
    * Implements \Drupal\Core\Extension\ModuleHandlerInterface::invoke().
    */
-  public function invoke($module, $hook, $args = array()) {
+  public function invoke($module, $hook, array $args = array()) {
     if (!$this->implementsHook($module, $hook)) {
       return;
     }
@@ -275,7 +275,7 @@ class ModuleHandler implements ModuleHandlerInterface {
   /**
    * Implements \Drupal\Core\Extension\ModuleHandlerInterface::invokeAll().
    */
-  public function invokeAll($hook, $args = array()) {
+  public function invokeAll($hook, array $args = array()) {
     $return = array();
     $implementations = $this->getImplementations($hook);
     foreach ($implementations as $module) {
@@ -426,7 +426,7 @@ class ModuleHandler implements ModuleHandlerInterface {
     $hook_info = $this->getHookInfo();
     foreach ($this->moduleList as $module => $filename) {
       $include_file = isset($hook_info[$hook]['group']) && $this->loadInclude($module, 'inc', $module . '.' . $hook_info[$hook]['group']);
-      // Since $this->hookImplements() may needlessly try to load the include
+      // Since $this->implementsHook() may needlessly try to load the include
       // file again, function_exists() is used directly here.
       if (function_exists($module . '_' . $hook)) {
         $this->implementations[$hook][$module] = $include_file ? $hook_info[$hook]['group'] : FALSE;
@@ -633,7 +633,7 @@ class ModuleHandler implements ModuleHandlerInterface {
         $version = $versions ? max($versions) : SCHEMA_INSTALLED;
 
         // Install default configuration of the module.
-        config_install_default_config('module', $module);
+        \Drupal::service('config.installer')->installDefaultConfig('module', $module);
 
         // If the module has no current updates, but has some that were
         // previously removed, set the version to the value of

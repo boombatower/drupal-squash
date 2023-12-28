@@ -7,12 +7,15 @@
 
 namespace Drupal\Core\Config\Entity;
 
+use Drupal\Component\Utility\String;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Entity\EntityMalformedException;
 use Drupal\Core\Entity\EntityStorageControllerBase;
 use Drupal\Core\Config\Config;
 use Drupal\Core\Config\ConfigFactory;
 use Drupal\Core\Config\StorageInterface;
+use Drupal\Core\Entity\EntityTypeInterface;
+use Drupal\Core\Entity\EntityStorageException;
 use Drupal\Core\Entity\Query\QueryFactory;
 use Drupal\Component\Uuid\UuidInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -79,10 +82,8 @@ class ConfigStorageController extends EntityStorageControllerBase {
   /**
    * Constructs a ConfigStorageController object.
    *
-   * @param string $entity_type
-   *   The entity type for which the instance is created.
-   * @param array $entity_info
-   *   An array of entity info for the entity type.
+   * @param \Drupal\Core\Entity\EntityTypeInterface $entity_info
+   *   The entity info for the entity type.
    * @param \Drupal\Core\Config\ConfigFactory $config_factory
    *   The config factory service.
    * @param \Drupal\Core\Config\StorageInterface $config_storage
@@ -92,17 +93,11 @@ class ConfigStorageController extends EntityStorageControllerBase {
    * @param \Drupal\Component\Uuid\UuidInterface $uuid_service
    *   The UUID service.
    */
-  public function __construct($entity_type, array $entity_info, ConfigFactory $config_factory, StorageInterface $config_storage, QueryFactory $entity_query_factory, UuidInterface $uuid_service) {
-    parent::__construct($entity_type, $entity_info);
+  public function __construct(EntityTypeInterface $entity_info, ConfigFactory $config_factory, StorageInterface $config_storage, QueryFactory $entity_query_factory, UuidInterface $uuid_service) {
+    parent::__construct($entity_info);
 
-    $this->idKey = $this->entityInfo['entity_keys']['id'];
-
-    if (isset($this->entityInfo['entity_keys']['status'])) {
-      $this->statusKey = $this->entityInfo['entity_keys']['status'];
-    }
-    else {
-      $this->statusKey = FALSE;
-    }
+    $this->idKey = $this->entityInfo->getKey('id');
+    $this->statusKey = $this->entityInfo->getKey('status');
 
     $this->configFactory = $config_factory;
     $this->configStorage = $config_storage;
@@ -113,9 +108,8 @@ class ConfigStorageController extends EntityStorageControllerBase {
   /**
    * {@inheritdoc}
    */
-  public static function createInstance(ContainerInterface $container, $entity_type, array $entity_info) {
+  public static function createInstance(ContainerInterface $container, EntityTypeInterface $entity_info) {
     return new static(
-      $entity_type,
       $entity_info,
       $container->get('config.factory'),
       $container->get('config.storage'),
@@ -186,19 +180,6 @@ class ConfigStorageController extends EntityStorageControllerBase {
   }
 
   /**
-   * Implements Drupal\Core\Entity\EntityStorageControllerInterface::loadByProperties().
-   */
-  public function loadByProperties(array $values = array()) {
-    $entities = $this->loadMultiple();
-    foreach ($values as $key => $value) {
-      $entities = array_filter($entities, function($entity) use ($key, $value) {
-        return $value === $entity->get($key);
-      });
-    }
-    return $entities;
-  }
-
-  /**
    * Returns an entity query instance.
    *
    * @param string $conjunction
@@ -221,7 +202,7 @@ class ConfigStorageController extends EntityStorageControllerBase {
    *   The full configuration prefix, for example 'views.view.'.
    */
   public function getConfigPrefix() {
-    return $this->entityInfo['config_prefix'] . '.';
+    return $this->entityInfo->getConfigPrefix() . '.';
   }
 
   /**
@@ -262,7 +243,7 @@ class ConfigStorageController extends EntityStorageControllerBase {
    *   A SelectQuery object for loading the entity.
    */
   protected function buildQuery($ids, $revision_id = FALSE) {
-    $config_class = $this->entityInfo['class'];
+    $config_class = $this->entityInfo->getClass();
     $prefix = $this->getConfigPrefix();
 
     // Get the names of the configuration entities we are going to load.
@@ -289,7 +270,7 @@ class ConfigStorageController extends EntityStorageControllerBase {
    * Implements Drupal\Core\Entity\EntityStorageControllerInterface::create().
    */
   public function create(array $values) {
-    $class = $this->entityInfo['class'];
+    $class = $this->entityInfo->getClass();
     $class::preCreate($this, $values);
 
     // Set default language to site default if not provided.
@@ -327,7 +308,7 @@ class ConfigStorageController extends EntityStorageControllerBase {
       return;
     }
 
-    $entity_class = $this->entityInfo['class'];
+    $entity_class = $this->entityInfo->getClass();
     $entity_class::preDelete($this, $entities);
     foreach ($entities as $entity) {
       $this->invokeHook('predelete', $entity);
@@ -365,9 +346,13 @@ class ConfigStorageController extends EntityStorageControllerBase {
       $id = $entity->getOriginalId();
     }
     $config = $this->configFactory->get($prefix . $id);
-    $is_new = $config->isNew();
 
-    if (!$is_new && !isset($entity->original)) {
+    // Prevent overwriting an existing configuration file if the entity is new.
+    if ($entity->isNew() && !$config->isNew()) {
+      throw new EntityStorageException(String::format('@type entity with ID @id already exists.', array('@type' => $this->entityType, '@id' => $id)));
+    }
+
+    if (!$config->isNew() && !isset($entity->original)) {
       $this->resetCache(array($id));
       $entity->original = $this->load($id);
     }
@@ -377,7 +362,7 @@ class ConfigStorageController extends EntityStorageControllerBase {
       // - Storage controller needs to access the original object.
       // - The object needs to be renamed/copied in ConfigFactory and reloaded.
       // - All instances of the object need to be renamed.
-      $this->configFactory->rename($prefix . $id, $prefix . $entity->id());
+      $config = $this->configFactory->rename($prefix . $id, $prefix . $entity->id());
     }
 
     // Build an ID if none is set.
@@ -393,7 +378,7 @@ class ConfigStorageController extends EntityStorageControllerBase {
       $config->set($key, $value);
     }
 
-    if (!$is_new) {
+    if (!$config->isNew()) {
       $return = SAVED_UPDATED;
       $config->save();
       $entity->postSave($this, TRUE);
@@ -471,7 +456,7 @@ class ConfigStorageController extends EntityStorageControllerBase {
    *   A configuration object containing the old configuration data.
    */
   public function importUpdate($name, Config $new_config, Config $old_config) {
-    $id = static::getIDFromConfigName($name, $this->entityInfo['config_prefix']);
+    $id = static::getIDFromConfigName($name, $this->entityInfo->getConfigPrefix());
     $entity = $this->load($id);
     $entity->setSyncing(TRUE);
     $entity->original = clone $entity;
@@ -502,7 +487,7 @@ class ConfigStorageController extends EntityStorageControllerBase {
    *   A configuration object containing the old configuration data.
    */
   public function importDelete($name, Config $new_config, Config $old_config) {
-    $id = static::getIDFromConfigName($name, $this->entityInfo['config_prefix']);
+    $id = static::getIDFromConfigName($name, $this->entityInfo->getConfigPrefix());
     $entity = $this->load($id);
     $entity->setSyncing(TRUE);
     $entity->delete();

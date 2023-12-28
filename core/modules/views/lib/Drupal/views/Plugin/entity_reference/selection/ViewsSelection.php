@@ -7,11 +7,9 @@
 
 namespace Drupal\views\Plugin\entity_reference\selection;
 
-use Drupal\Core\Annotation\Translation;
 use Drupal\Core\Database\Query\SelectInterface;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Field\FieldDefinitionInterface;
-use Drupal\entity_reference\Annotation\EntityReferenceSelection;
 use Drupal\entity_reference\Plugin\Type\Selection\SelectionInterface;
 
 /**
@@ -68,7 +66,7 @@ class ViewsSelection implements SelectionInterface {
     $options = array();
     foreach ($displays as $data) {
       list($view, $display_id) = $data;
-      if ($view->storage->get('base_table') == $entity_info['base_table']) {
+      if ($view->storage->get('base_table') == $entity_info->getBaseTable()) {
         $name = $view->storage->get('id');
         $display = $view->storage->get('display');
         $options[$name . ':' . $display_id] = $name . ' - ' . $display[$display_id]['display_title'];

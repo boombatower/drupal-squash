@@ -177,24 +177,20 @@ function drupal_get_database_types() {
  *   and comment properties.
  *   @code
  *   $settings['config_directories'] = array(
- *     CONFIG_ACTIVE_DIRECTORY => array(
- *       'path' => (object) array(
- *         'value' => 'config__hash/active'
- *         'required' => TRUE,
- *       ),
+ *     CONFIG_ACTIVE_DIRECTORY => (object) array(
+ *       'value' => 'config_hash/active'
+ *       'required' => TRUE,
  *     ),
- *     CONFIG_STAGING_DIRECTORY => array(
- *       'path' => (object) array(
- *         'value' => 'config_hash/staging',
- *         'required' => TRUE,
- *       ),
+ *     CONFIG_STAGING_DIRECTORY => (object) array(
+ *       'value' => 'config_hash/staging',
+ *       'required' => TRUE,
  *     ),
  *   );
  *   @endcode
  *   gets dumped as:
  *   @code
- *   $config_directories['active']['path'] = 'config__hash/active';
- *   $config_directories['staging']['path'] = 'config__hash/staging'
+ *   $config_directories['active'] = 'config_hash/active';
+ *   $config_directories['staging'] = 'config_hash/staging'
  *   @endcode
  */
 function drupal_rewrite_settings($settings = array(), $settings_file = NULL) {
@@ -452,17 +448,13 @@ function drupal_install_config_directories($mode = NULL) {
   if (empty($config_directories)) {
     $config_directories_hash = Crypt::randomStringHashed(55);
     $settings['config_directories'] = array(
-      CONFIG_ACTIVE_DIRECTORY => array(
-        'path' => (object) array(
-          'value' => 'config_' . $config_directories_hash . '/active',
-          'required' => TRUE,
-        ),
+      CONFIG_ACTIVE_DIRECTORY => (object) array(
+        'value' => conf_path() . '/files/config_' . $config_directories_hash . '/active',
+        'required' => TRUE,
       ),
-      CONFIG_STAGING_DIRECTORY => array(
-        'path' => (object) array(
-          'value' => 'config_' . $config_directories_hash . '/staging',
-          'required' => TRUE,
-        ),
+      CONFIG_STAGING_DIRECTORY => (object) array(
+        'value' => conf_path() . '/files/config_' . $config_directories_hash . '/staging',
+        'required' => TRUE,
       ),
     );
     // Rewrite settings.php, which also sets the value as global variable.
@@ -647,8 +639,8 @@ function drupal_install_system() {
   \Drupal::keyValue('system.schema')->set('system', $system_version);
 
   // System module needs to be enabled and the system/module lists need to be
-  // reset first in order to allow config_install_default_config() to invoke
-  // config import callbacks.
+  // reset first in order to allow installation of default configuration to
+  // invoke config import callbacks.
   // @todo Installation profiles may override the system.module config object.
   \Drupal::config('system.module')
     ->set('enabled.system', 0)
@@ -657,7 +649,7 @@ function drupal_install_system() {
   // Update the module list to include it.
   \Drupal::moduleHandler()->setModuleList(array('system' => $system_path . '/system.module'));
 
-  config_install_default_config('module', 'system');
+  \Drupal::service('config.installer')->installDefaultConfig('module', 'system');
 
   module_invoke('system', 'install');
 }

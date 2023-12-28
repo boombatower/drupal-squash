@@ -36,21 +36,21 @@ Drupal.edit.AppView = Backbone.View.extend({
     this.changedFieldStates = ['changed', 'saving', 'saved', 'invalid'];
     this.readyFieldStates = ['candidate', 'highlighted'];
 
-    options.entitiesCollection
+    this.listenTo(options.entitiesCollection, {
       // Track app state.
-      .on('change:state', this.appStateChange, this)
-      .on('change:isActive', this.enforceSingleActiveEntity, this);
+      'change:state': this.appStateChange,
+      'change:isActive': this.enforceSingleActiveEntity
+    });
 
-    options.fieldsCollection
-      // Track app state.
-      .on('change:state', this.editorStateChange, this)
-      // Respond to field model HTML representation change events.
-      .on('change:html', this.propagateUpdatedField, this)
-      .on('change:html', this.renderUpdatedField, this)
-      // Respond to addition.
-      .on('add', this.rerenderedFieldToCandidate, this)
-      // Respond to destruction.
-      .on('destroy', this.teardownEditor, this);
+    // Track app state.
+    this.listenTo(options.fieldsCollection, 'change:state', this.editorStateChange);
+    // Respond to field model HTML representation change events.
+    this.listenTo(options.fieldsCollection, 'change:html', this.renderUpdatedField);
+    this.listenTo(options.fieldsCollection, 'change:html', this.propagateUpdatedField);
+    // Respond to addition.
+    this.listenTo(options.fieldsCollection, 'add', this.rerenderedFieldToCandidate);
+    // Respond to destruction.
+    this.listenTo(options.fieldsCollection, 'destroy', this.teardownEditor);
   },
 
   /**
@@ -350,7 +350,8 @@ Drupal.edit.AppView = Backbone.View.extend({
 
     // Only instantiate if there isn't a modal instance visible yet.
     if (!this.model.get('activeModal')) {
-      discardDialog = Drupal.dialog('<div>' + Drupal.t('You have unsaved changes') + '</div>', {
+      var $unsavedChanges = $('<div>' + Drupal.t('You have unsaved changes') + '</div>');
+      discardDialog = Drupal.dialog($unsavedChanges.get(0), {
         title: Drupal.t('Discard changes?'),
         dialogClass: 'edit-discard-modal',
         resizable: false,
@@ -436,31 +437,48 @@ Drupal.edit.AppView = Backbone.View.extend({
     var $fieldWrapper = $(fieldModel.get('el'));
     var $context = $fieldWrapper.parent();
 
+    var renderField = function () {
+      // Destroy the field model; this will cause all attached views to be
+      // destroyed too, and removal from all collections in which it exists.
+      fieldModel.destroy();
+
+      // Replace the old content with the new content.
+      $fieldWrapper.replaceWith(html);
+
+      // Attach behaviors again to the modified piece of HTML; this will
+      // create a new field model and call rerenderedFieldToCandidate() with
+      // it.
+      Drupal.attachBehaviors($context);
+    };
+
     // When propagating the changes of another instance of this field, this
     // field is not being actively edited and hence no state changes are
     // necessary. So: only update the state of this field when the rerendering
-    // of this field happens not because of propagation, but because it is being
-    // edited itself.
+    // of this field happens not because of propagation, but because it is
+    // being edited itself.
     if (!options.propagation) {
-      // First set the state to 'candidate', to allow all attached views to
-      // clean up all their "active state"-related changes.
-      fieldModel.set('state', 'candidate');
+      // Deferred because renderUpdatedField is reacting to a field model change
+      // event, and we want to make sure that event fully propagates before
+      // making another change to the same model.
+      _.defer(function () {
+        // First set the state to 'candidate', to allow all attached views to
+        // clean up all their "active state"-related changes.
+        fieldModel.set('state', 'candidate');
 
-      // Set the field's state to 'inactive', to enable the updating of its DOM
-      // value.
-      fieldModel.set('state', 'inactive', { reason: 'rerender' });
+        // Similarly, the above .set() call's change event must fully propagate
+        // before calling it again.
+        _.defer(function () {
+          // Set the field's state to 'inactive', to enable the updating of its
+          // DOM value.
+          fieldModel.set('state', 'inactive', { reason: 'rerender' });
+
+          renderField();
+        });
+      });
     }
-
-    // Destroy the field model; this will cause all attached views to be
-    // destroyed too, and removal from all collections in which it exists.
-    fieldModel.destroy();
-
-    // Replace the old content with the new content.
-    $fieldWrapper.replaceWith(html);
-
-    // Attach behaviors again to the modified piece of HTML; this will create
-    // a new field model and call rerenderedFieldToCandidate() with it.
-    Drupal.attachBehaviors($context);
+    else {
+      renderField();
+    }
   },
 
   /**
@@ -523,10 +541,10 @@ Drupal.edit.AppView = Backbone.View.extend({
    *   A field that was just added to the collection of fields.
    */
   rerenderedFieldToCandidate: function (fieldModel) {
-    var activeEntity = Drupal.edit.collections.entities.where({isActive: true})[0];
+    var activeEntity = Drupal.edit.collections.entities.findWhere({isActive: true});
 
     // Early-return if there is no active entity.
-    if (activeEntity === null) {
+    if (!activeEntity) {
       return;
     }
 

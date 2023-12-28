@@ -66,7 +66,7 @@ class CommentFormController extends ContentEntityFormController {
     // Make the comment inherit the current content language unless specifically
     // set.
     if ($comment->isNew()) {
-      $language_content = \Drupal::languageManager()->getLanguage(Language::TYPE_CONTENT);
+      $language_content = \Drupal::languageManager()->getCurrentLanguage(Language::TYPE_CONTENT);
       $comment->langcode->value = $language_content->id;
     }
 
@@ -354,7 +354,7 @@ class CommentFormController extends ContentEntityFormController {
    * @param $form_state
    *   A reference to a keyed array containing the current state of the form.
    */
-  public function preview(array $form, array &$form_state) {
+  public function preview(array &$form, array &$form_state) {
     $comment = $this->entity;
     $form_state['comment_preview'] = comment_preview($comment, $form_state);
     $form_state['comment_preview']['#title'] = $this->t('Preview comment');

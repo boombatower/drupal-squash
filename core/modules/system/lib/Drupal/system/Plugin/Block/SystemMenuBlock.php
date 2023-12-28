@@ -8,8 +8,6 @@
 namespace Drupal\system\Plugin\Block;
 
 use Drupal\block\BlockBase;
-use Drupal\block\Annotation\Block;
-use Drupal\Core\Annotation\Translation;
 use Drupal\Core\Session\AccountInterface;
 
 /**
@@ -27,18 +25,8 @@ class SystemMenuBlock extends BlockBase {
   /**
    * {@inheritdoc}
    */
-  public function access(AccountInterface $account) {
-    // @todo Clean up when http://drupal.org/node/1874498 lands.
-    list( , $derivative) = explode(':', $this->getPluginId());
-    return ($account->isAuthenticated() || in_array($derivative, array('main', 'tools', 'footer')));
-  }
-
-  /**
-   * {@inheritdoc}
-   */
   public function build() {
-    // @todo Clean up when http://drupal.org/node/1874498 lands.
-    list(, $menu) = explode(':', $this->getPluginId());
+    $menu = $this->getDerivativeId();
     return menu_tree($menu);
   }
 

@@ -108,9 +108,8 @@ class InstallerTranslationTest extends InstallerTest {
 
     // Reload config directories.
     include $this->public_files_directory . '/settings.php';
-    $prefix = substr($this->public_files_directory, strlen(conf_path() . '/files/'));
-    foreach ($config_directories as $type => $data) {
-      $GLOBALS['config_directories'][$type]['path'] = $prefix . '/files/' . $data['path'];
+    foreach ($config_directories as $type => $path) {
+      $GLOBALS['config_directories'][$type] = $path;
     }
     $this->rebuildContainer();
 
@@ -133,7 +132,7 @@ class InstallerTranslationTest extends InstallerTest {
     ), $submit_value);
 
     // Use the test mail class instead of the default mail handler class.
-    \Drupal::config('system.mail')->set('interface.default', 'Drupal\Core\Mail\VariableLog')->save();
+    \Drupal::config('system.mail')->set('interface.default', 'Drupal\Core\Mail\TestMailCollector')->save();
 
     drupal_set_time_limit($this->timeLimit);
     // When running from run-tests.sh we don't get an empty current path which

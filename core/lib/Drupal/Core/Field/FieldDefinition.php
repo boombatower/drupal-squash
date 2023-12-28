@@ -10,11 +10,19 @@ namespace Drupal\Core\Field;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\TypedData\DataDefinition;
 use Drupal\Core\TypedData\ListDefinition;
+use Drupal\field\FieldException;
 
 /**
  * A class for defining entity fields.
  */
 class FieldDefinition extends ListDefinition implements FieldDefinitionInterface {
+
+  /**
+   * The field schema.
+   *
+   * @var array
+   */
+  protected $schema;
 
   /**
    * Creates a new field definition.
@@ -26,7 +34,15 @@ class FieldDefinition extends ListDefinition implements FieldDefinitionInterface
    *   A new field definition object.
    */
   public static function create($type) {
-    return new static(array(), DataDefinition::create('field_item:' . $type));
+    // Create a definition for the items, and initialize it with the default
+    // settings for the field type.
+    // @todo Cleanup in https://drupal.org/node/2116341.
+    $item_definition = DataDefinition::create('field_item:' . $type);
+    $field_type_manager = \Drupal::service('plugin.manager.field.field_type');
+    $default_settings = $field_type_manager->getDefaultSettings($type) + $field_type_manager->getDefaultInstanceSettings($type);
+    $item_definition->setSettings($default_settings);
+
+    return new static(array(), $item_definition);
   }
 
   /**
@@ -108,7 +124,7 @@ class FieldDefinition extends ListDefinition implements FieldDefinitionInterface
    * {@inheritdoc}
    */
   public function getPropertyNames() {
-    return array_keys(\Drupal::typedData()->create($this->getItemDefinition())->getPropertyDefinitions());
+    return array_keys(\Drupal::typedDataManager()->create($this->getItemDefinition())->getPropertyDefinitions());
   }
 
   /**
@@ -188,6 +204,69 @@ class FieldDefinition extends ListDefinition implements FieldDefinitionInterface
   }
 
   /**
+   * Sets the display options for the field in forms or rendered entities.
+   *
+   * This enables generic rendering of the field with widgets / formatters,
+   * including automated support for "In place editing", and with optional
+   * configurability in the "Manage display" / "Manage form display" UI screens.
+   *
+   * Unless this method is called, the field remains invisible (or requires
+   * ad-hoc rendering logic).
+   *
+   * @param string $display_context
+   *   The display context. Either 'view' or 'form'.
+   * @param array $options
+   *   An array of display options. Refer to
+   *   \Drupal\Core\Field\FieldDefinitionInterface::getDisplayOptions() for
+   *   a list of supported keys. The options should include at least a 'weight',
+   *   or specify 'type' = 'hidden'. The 'default_widget' / 'default_formatter'
+   *   for the field type will be used if no 'type' is specified.
+   *
+   * @return static
+   *   The object itself for chaining.
+   */
+  public function setDisplayOptions($display_context, array $options) {
+    $this->definition['display'][$display_context]['options'] = $options;
+    return $this;
+  }
+
+  /**
+   * Sets whether the display for the field can be configured.
+   *
+   * @param string $display_context
+   *   The display context. Either 'view' or 'form'.
+   * @param bool $configurable
+   *   Whether the display options can be configured (e.g., via the "Manage
+   *   display" / "Manage form display" UI screens). If TRUE, the options
+   *   specified via getDisplayOptions() act as defaults.
+   *
+   * @return static
+   *   The object itself for chaining.
+   */
+  public function setDisplayConfigurable($display_context, $configurable) {
+    // If no explicit display options have been specified, default to 'hidden'.
+    if (empty($this->definition['display'][$display_context])) {
+      $this->definition['display'][$display_context]['options'] = array('type' => 'hidden');
+    }
+    $this->definition['display'][$display_context]['configurable'] = $configurable;
+    return $this;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getDisplayOptions($display_context) {
+    return isset($this->definition['display'][$display_context]['options']) ? $this->definition['display'][$display_context]['options'] : NULL;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function isDisplayConfigurable($display_context) {
+    return isset($this->definition['display'][$display_context]['configurable']) ? $this->definition['display'][$display_context]['configurable'] : FALSE;
+  }
+
+  /**
    * {@inheritdoc}
    */
   public function isConfigurable() {
@@ -199,6 +278,56 @@ class FieldDefinition extends ListDefinition implements FieldDefinitionInterface
    */
   public function getDefaultValue(EntityInterface $entity) {
     return $this->getSetting('default_value');
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getSchema() {
+    if (!isset($this->schema)) {
+      // Get the schema from the field item class.
+      $definition = \Drupal::service('plugin.manager.field.field_type')->getDefinition($this->getFieldType());
+      $class = $definition['class'];
+      $schema = $class::schema($this);
+      // Fill in default values for optional entries.
+      $schema += array('indexes' => array(), 'foreign keys' => array());
+
+      // Check that the schema does not include forbidden column names.
+      if (array_intersect(array_keys($schema['columns']), static::getReservedColumns())) {
+        throw new FieldException('Illegal field type columns.');
+      }
+
+      // Merge custom indexes with those specified by the field type. Custom
+      // indexes prevail.
+      $schema['indexes'] = $this->indexes + $schema['indexes'];
+
+      $this->schema = $schema;
+    }
+
+    return $this->schema;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getColumns() {
+    $schema = $this->getSchema();
+    // A typical use case for the method is to iterate on the columns, while
+    // some other use cases rely on identifying the first column with the key()
+    // function. Since the schema is persisted in the Field object, we take care
+    // of resetting the array pointer so that the former does not interfere with
+    // the latter.
+    reset($schema['columns']);
+    return $schema['columns'];
+  }
+
+  /**
+   * A list of columns that can not be used as field type columns.
+   *
+   * @return array
+   */
+  public static function getReservedColumns() {
+    return array('deleted');
   }
 
 }

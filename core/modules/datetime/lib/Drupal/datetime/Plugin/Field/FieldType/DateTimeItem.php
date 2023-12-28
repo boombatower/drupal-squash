@@ -7,10 +7,9 @@
 
 namespace Drupal\datetime\Plugin\Field\FieldType;
 
-use Drupal\Core\Datetime\DrupalDateTime;
+use Drupal\Core\Field\FieldDefinitionInterface;
 use Drupal\Core\Field\PrepareCacheInterface;
 use Drupal\Core\TypedData\DataDefinition;
-use Drupal\field\FieldInterface;
 use Drupal\Core\Field\ConfigFieldItemBase;
 
 /**
@@ -23,14 +22,22 @@ use Drupal\Core\Field\ConfigFieldItemBase;
  *   settings = {
  *     "datetime_type" = "datetime"
  *   },
- *   instance_settings = {
- *     "default_value" = "now"
- *   },
  *   default_widget = "datetime_default",
- *   default_formatter = "datetime_default"
+ *   default_formatter = "datetime_default",
+ *   list_class = "\Drupal\datetime\Plugin\Field\FieldType\DateTimeFieldItemList"
  * )
  */
 class DateTimeItem extends ConfigFieldItemBase implements PrepareCacheInterface {
+
+  /**
+   * Value for the 'datetime_type' setting: store only a date.
+   */
+  const DATETIME_TYPE_DATE = 'date';
+
+  /**
+   * Value for the 'datetime_type' setting: store a date and time.
+   */
+  const DATETIME_TYPE_DATETIME = 'datetime';
 
   /**
    * Field definitions of the contained properties.
@@ -61,7 +68,7 @@ class DateTimeItem extends ConfigFieldItemBase implements PrepareCacheInterface 
   /**
    * {@inheritdoc}
    */
-  public static function schema(FieldInterface $field) {
+  public static function schema(FieldDefinitionInterface $field_definition) {
     return array(
       'columns' => array(
         'value' => array(
@@ -89,27 +96,9 @@ class DateTimeItem extends ConfigFieldItemBase implements PrepareCacheInterface 
       '#description' => t('Choose the type of date to create.'),
       '#default_value' => $this->getFieldSetting('datetime_type'),
       '#options' => array(
-        'datetime' => t('Date and time'),
-        'date' => t('Date only'),
+        static::DATETIME_TYPE_DATETIME => t('Date and time'),
+        static::DATETIME_TYPE_DATE => t('Date only'),
       ),
-    );
-
-    return $element;
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  public function instanceSettingsForm(array $form, array &$form_state) {
-    $element = array();
-
-    $element['default_value'] = array(
-      '#type' => 'select',
-      '#title' => t('Default date'),
-      '#description' => t('Set a default value for this date.'),
-      '#default_value' => $this->getFieldSetting('default_value'),
-      '#options' => array('blank' => t('No default value'), 'now' => t('The current date')),
-      '#weight' => 1,
     );
 
     return $element;

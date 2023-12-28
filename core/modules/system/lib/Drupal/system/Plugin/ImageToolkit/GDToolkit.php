@@ -7,9 +7,8 @@
 
 namespace Drupal\system\Plugin\ImageToolkit;
 
-use Drupal\Core\Plugin\PluginBase;
 use Drupal\Core\Image\ImageInterface;
-use Drupal\Core\ImageToolkit\ImageToolkitInterface;
+use Drupal\Core\ImageToolkit\ImageToolkitBase;
 use Drupal\Component\Utility\Image as ImageUtility;
 
 /**
@@ -20,7 +19,7 @@ use Drupal\Component\Utility\Image as ImageUtility;
  *   title = @Translation("GD2 image manipulation toolkit")
  * )
  */
-class GDToolkit extends PluginBase implements ImageToolkitInterface {
+class GDToolkit extends ImageToolkitBase {
 
   /**
    * {@inheritdoc}
@@ -325,14 +324,30 @@ class GDToolkit extends PluginBase implements ImageToolkitInterface {
   /**
    * {@inheritdoc}
    */
-  public static function isAvailable() {
-    if ($check = get_extension_funcs('gd')) {
-      if (in_array('imagegd2', $check)) {
-        // GD2 support is available.
-        return TRUE;
-      }
+  public function getRequirements() {
+    $requirements = array();
+
+    $info = gd_info();
+    $requirements['version'] = array(
+      'title' => t('GD library'),
+      'value' => $info['GD Version'],
+    );
+
+    // Check for filter and rotate support.
+    if (!function_exists('imagefilter') || !function_exists('imagerotate')) {
+      $requirements['version']['severity'] = REQUIREMENT_WARNING;
+      $requirements['version']['description'] = t('The GD Library for PHP is enabled, but was compiled without support for functions used by the rotate and desaturate effects. It was probably compiled using the official GD libraries from http://www.libgd.org instead of the GD library bundled with PHP. You should recompile PHP --with-gd using the bundled GD library. See <a href="@url">the PHP manual</a>.', array('@url' => 'http://www.php.net/manual/book.image.php'));
     }
-    return FALSE;
+
+    return $requirements;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public static function isAvailable() {
+    // GD2 support is available.
+    return function_exists('imagegd2');
   }
 
   /**

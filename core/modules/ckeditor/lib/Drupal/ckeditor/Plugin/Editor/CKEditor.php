@@ -13,8 +13,6 @@ use Drupal\ckeditor\CKEditorPluginManager;
 use Drupal\Core\Language\Language;
 use Drupal\Core\Language\LanguageManager;
 use Drupal\editor\Plugin\EditorBase;
-use Drupal\editor\Annotation\Editor;
-use Drupal\Core\Annotation\Translation;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\editor\Entity\Editor as EditorEntity;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -267,7 +265,7 @@ class CKEditor extends EditorBase implements ContainerFactoryPluginInterface {
 
     // Map the interface language code to a CKEditor translation.
     $ckeditor_langcodes = $this->getLangcodes();
-    $language_interface = $this->languageManager->getLanguage(Language::TYPE_INTERFACE);
+    $language_interface = $this->languageManager->getCurrentLanguage();
     if (isset($ckeditor_langcodes[$language_interface->id])) {
       $display_langcode = $ckeditor_langcodes[$language_interface->id];
     }
@@ -294,7 +292,7 @@ class CKEditor extends EditorBase implements ContainerFactoryPluginInterface {
 
     // Parse all CKEditor plugin JavaScript files for translations.
     if ($this->moduleHandler->moduleExists('locale')) {
-      locale_js_translate(array_values($settings['drupalExternalPlugins']));
+      locale_js_translate(array_values($external_plugin_files));
     }
 
     ksort($settings);

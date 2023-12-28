@@ -8,8 +8,6 @@
 namespace Drupal\custom_block\Plugin\Block;
 
 use Drupal\block\BlockBase;
-use Drupal\block\Annotation\Block;
-use Drupal\Core\Annotation\Translation;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Extension\ModuleHandlerInterface;
 use Drupal\Core\Session\AccountInterface;
@@ -135,8 +133,7 @@ class CustomBlockBlock extends BlockBase implements ContainerFactoryPluginInterf
    * {@inheritdoc}
    */
   public function build() {
-    // @todo Clean up when http://drupal.org/node/1874498 lands.
-    list(, $uuid) = explode(':', $this->getPluginId());
+    $uuid = $this->getDerivativeId();
     if ($block = entity_load_by_uuid('custom_block', $uuid)) {
       return entity_view($block, $this->configuration['view_mode']);
     }

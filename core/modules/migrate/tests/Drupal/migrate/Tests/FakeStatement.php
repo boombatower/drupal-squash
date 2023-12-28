@@ -7,6 +7,7 @@
 
 namespace Drupal\migrate\Tests;
 
+use Drupal\Core\Database\RowCountException;
 use Drupal\Core\Database\StatementInterface;
 
 /**
@@ -32,7 +33,7 @@ class FakeStatement extends \ArrayIterator implements StatementInterface {
    * {@inheritdoc}
    */
   public function rowCount() {
-    return $this->count();
+    throw new RowCountException();
   }
 
   /**
@@ -49,8 +50,11 @@ class FakeStatement extends \ArrayIterator implements StatementInterface {
    * {@inheritdoc}
    */
   public function fetchAssoc() {
-    $return = $this->current();
-    $this->next();
+    $return = FALSE;
+    if ($this->valid()) {
+      $return = $this->current();
+      $this->next();
+    }
     return $return;
   }
 
@@ -87,6 +91,14 @@ class FakeStatement extends \ArrayIterator implements StatementInterface {
       $return[$row[$key]] = $row;
     }
     return $return;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function fetchObject() {
+    $return = $this->fetchAssoc();
+    return $return === FALSE ? FALSE : (object) $return;
   }
 
   /**

@@ -7,24 +7,20 @@
 
 namespace Drupal\user\Plugin\Search;
 
-use Drupal\Core\Annotation\Translation;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Entity\EntityManagerInterface;
 use Drupal\Core\Extension\ModuleHandlerInterface;
 use Drupal\Core\Session\AccountInterface;
 use Drupal\Core\Access\AccessibleInterface;
-use Drupal\search\Annotation\SearchPlugin;
 use Drupal\search\Plugin\SearchPluginBase;
 use Symfony\Component\DependencyInjection\ContainerInterface;
-use Symfony\Component\HttpFoundation\Request;
 
 /**
  * Executes a keyword search for users against the {users} database table.
  *
  * @SearchPlugin(
  *   id = "user_search",
- *   title = @Translation("Users"),
- *   path = "user"
+ *   title = @Translation("Users")
  * )
  */
 class UserSearch extends SearchPluginBase implements AccessibleInterface {

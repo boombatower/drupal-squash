@@ -8,13 +8,15 @@
 namespace Drupal\Core\Entity;
 
 use Drupal\Core\Entity\Display\EntityViewDisplayInterface;
+use Drupal\Core\Extension\ModuleHandlerInterface;
 use Drupal\Core\Language\Language;
+use Drupal\Core\Language\LanguageManagerInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
  * Base class for entity view controllers.
  */
-class EntityViewBuilder implements EntityControllerInterface, EntityViewBuilderInterface {
+class EntityViewBuilder extends EntityControllerBase implements EntityControllerInterface, EntityViewBuilderInterface {
 
   /**
    * The type of entities for which this controller is instantiated.
@@ -26,9 +28,7 @@ class EntityViewBuilder implements EntityControllerInterface, EntityViewBuilderI
   /**
    * The entity info array.
    *
-   * @var array
-   *
-   * @see entity_get_info()
+   * @var \Drupal\Core\Entity\EntityTypeInterface
    */
   protected $entityInfo;
 
@@ -38,14 +38,6 @@ class EntityViewBuilder implements EntityControllerInterface, EntityViewBuilderI
    * @var \Drupal\Core\Entity\EntityManagerInterface
    */
   protected $entityManager;
-
-  /**
-   * An array of view mode info for the type of entities for which this
-   * controller is instantiated.
-   *
-   * @var array
-   */
-  protected $viewModesInfo;
 
   /**
    * The cache bin used to store the render cache.
@@ -58,27 +50,38 @@ class EntityViewBuilder implements EntityControllerInterface, EntityViewBuilderI
   protected $cacheBin = 'cache';
 
   /**
+   * The language manager.
+   *
+   * @param \Drupal\Core\Language\LanguageManagerInterface $language_manager
+   */
+  protected $languageManager;
+
+  /**
    * Constructs a new EntityViewBuilder.
    *
-   * @param string $entity_type
-   *   The entity type.
-   * @param array $entity_info
+   * @param \Drupal\Core\Entity\EntityTypeInterface $entity_info
    *   The entity information array.
-   * @param \Drupal\Core\Entity\EntityManager $entity_manager
+   * @param \Drupal\Core\Entity\EntityManagerInterface $entity_manager
    *   The entity manager service.
+   * @param \Drupal\Core\Language\LanguageManagerInterface $language_manager
+   *   The language manager.
    */
-  public function __construct($entity_type, array $entity_info, EntityManager $entity_manager) {
-    $this->entityType = $entity_type;
+  public function __construct(EntityTypeInterface $entity_info, EntityManagerInterface $entity_manager, LanguageManagerInterface $language_manager) {
+    $this->entityType = $entity_info->id();
     $this->entityInfo = $entity_info;
     $this->entityManager = $entity_manager;
-    $this->viewModesInfo = entity_get_view_modes($entity_type);
+    $this->languageManager = $language_manager;
   }
 
   /**
    * {@inheritdoc}
    */
-  public static function createInstance(ContainerInterface $container, $entity_type, array $entity_info) {
-    return new static($entity_type, $entity_info, $container->get('entity.manager'));
+  public static function createInstance(ContainerInterface $container, EntityTypeInterface $entity_info) {
+    return new static(
+      $entity_info,
+      $container->get('entity.manager'),
+      $container->get('language_manager')
+    );
   }
 
   /**
@@ -137,10 +140,8 @@ class EntityViewBuilder implements EntityControllerInterface, EntityViewBuilderI
     );
 
     // Cache the rendered output if permitted by the view mode and global entity
-    // type configuration. The isset() checks below are necessary because
-    // 'default' is not an actual view mode.
-    $view_mode_is_cacheable = !isset($this->viewModesInfo[$view_mode]) || (isset($this->viewModesInfo[$view_mode]) && $this->viewModesInfo[$view_mode]['cache']);
-    if ($view_mode_is_cacheable && !$entity->isNew() && !isset($entity->in_preview) && $this->entityInfo['render_cache']) {
+    // type configuration.
+    if ($this->isViewModeCacheable($view_mode) && !$entity->isNew() && !isset($entity->in_preview) && $this->entityInfo->isRenderCacheable()) {
       $return['#cache'] = array(
         'keys' => array('entity_view', $this->entityType, $entity->id(), $view_mode),
         'granularity' => DRUPAL_CACHE_PER_ROLE,
@@ -186,7 +187,7 @@ class EntityViewBuilder implements EntityControllerInterface, EntityViewBuilderI
    */
   public function viewMultiple(array $entities = array(), $view_mode = 'full', $langcode = NULL) {
     if (!isset($langcode)) {
-      $langcode = language(Language::TYPE_CONTENT)->id;
+      $langcode = $this->languageManager->getCurrentLanguage(Language::TYPE_CONTENT)->id;
     }
 
     // Build the view modes and display objects.
@@ -266,4 +267,23 @@ class EntityViewBuilder implements EntityControllerInterface, EntityViewBuilderI
       \Drupal::cache($this->cacheBin)->deleteTags(array($this->entityType . '_view' => TRUE));
     }
   }
+
+  /**
+   * Returns TRUE if the view mode is cacheable.
+   *
+   * @param string $view_mode
+   *   Name of the view mode that should be rendered.
+   *
+   * @return bool
+   *   TRUE if the view mode can be cached, FALSE otherwise.
+   */
+  protected function isViewModeCacheable($view_mode) {
+    if ($view_mode == 'default') {
+      // The 'default' is not an actual view mode.
+      return TRUE;
+    }
+    $view_modes_info = entity_get_view_modes($this->entityType);
+    return !empty($view_modes_info[$view_mode]['cache']);
+  }
+
 }

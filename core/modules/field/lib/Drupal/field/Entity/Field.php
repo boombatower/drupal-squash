@@ -225,13 +225,13 @@ class Field extends ConfigEntityBase implements FieldInterface {
       throw new FieldException('Attempt to create an unnamed field.');
     }
     if (!preg_match('/^[_a-z]+[_a-z0-9]*$/', $values['name'])) {
-      throw new FieldException('Attempt to create a field with invalid characters. Only lowercase alphanumeric characters and underscores are allowed, and only lowercase letters and underscore are allowed as the first character');
+      throw new FieldException(format_string('Attempt to create a field @field_name with invalid characters. Only lowercase alphanumeric characters and underscores are allowed, and only lowercase letters and underscore are allowed as the first character', array('@field_name' => $values['name'])));
     }
     if (empty($values['type'])) {
-      throw new FieldException('Attempt to create a field with no type.');
+      throw new FieldException(format_string('Attempt to create field @field_name with no type.', array('@field_name' => $values['name'])));
     }
     if (empty($values['entity_type'])) {
-      throw new FieldException('Attempt to create a field with no entity_type.');
+      throw new FieldException(format_string('Attempt to create a field @field_name with no entity_type.', array('@field_name' => $values['name'])));
     }
 
     parent::__construct($values, $entity_type);
@@ -316,17 +316,11 @@ class Field extends ConfigEntityBase implements FieldInterface {
       ));
     }
 
-    // Ensure the field name is unique (we do not care about deleted fields).
-    if ($prior_field = $storage_controller->load($this->id)) {
-      $message = 'Attempt to create field name %name which already exists.';
-      throw new FieldException(format_string($message, array('%name' => $this->name)));
-    }
-
     // Disallow reserved field names. This can't prevent all field name
     // collisions with existing entity properties, but some is better than
     // none.
     foreach ($entity_manager->getDefinitions() as $type => $info) {
-      if (in_array($this->name, $info['entity_keys'])) {
+      if (in_array($this->name, $info->getKeys())) {
         throw new FieldException(format_string('Attempt to create field %name which is reserved by entity type %type.', array('%name' => $this->name, '%type' => $type)));
       }
     }
@@ -457,7 +451,7 @@ class Field extends ConfigEntityBase implements FieldInterface {
 
       // Check that the schema does not include forbidden column names.
       if (array_intersect(array_keys($schema['columns']), static::getReservedColumns())) {
-        throw new FieldException('Illegal field type columns.');
+        throw new FieldException(format_string('Illegal field type @field_type on @field_name.', array('@field_type' => $this->type, '@field_name' => $this->name)));
       }
 
       // Merge custom indexes with those specified by the field type. Custom
@@ -515,10 +509,10 @@ class Field extends ConfigEntityBase implements FieldInterface {
    * {@inheritdoc}
    */
   public function getSettings() {
-    // @todo field_info_field_types() calls _field_info_collate_types() which
-    //   maintains its own static cache. However, do some CPU and memory
-    //   profiling to see if it's worth statically caching $field_type_info, or
-    //   the default field and instance settings, within $this.
+    // @todo FieldTypePluginManager maintains its own static cache. However, do
+    //   some CPU and memory profiling to see if it's worth statically caching
+    //   $field_type_info, or the default field and instance settings, within
+    //   $this.
     $field_type_info = \Drupal::service('plugin.manager.field.field_type')->getDefinition($this->type);
 
     $settings = $this->settings + $field_type_info['settings'] + $field_type_info['instance_settings'];
@@ -628,6 +622,21 @@ class Field extends ConfigEntityBase implements FieldInterface {
   /**
    * {@inheritdoc}
    */
+  public function isDisplayConfigurable($context) {
+    return TRUE;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getDisplayOptions($display_context) {
+    // Hide configurable fields by default.
+    return array('type' => 'hidden');
+  }
+
+  /**
+   * {@inheritdoc}
+   */
   public function isQueryable() {
     return TRUE;
   }
@@ -654,7 +663,7 @@ class Field extends ConfigEntityBase implements FieldInterface {
       $factory = \Drupal::service('entity.query');
       // Entity Query throws an exception if there is no base table.
       $entity_info = \Drupal::entityManager()->getDefinition($this->entity_type);
-      if (!isset($entity_info['base_table'])) {
+      if (!$entity_info->getBaseTable()) {
         return FALSE;
       }
       $query = $factory->get($this->entity_type);

@@ -17,6 +17,7 @@ use Drupal\Core\Field\FieldDefinitionInterface;
 use Drupal\Core\Field\FormatterPluginManager;
 use Drupal\Core\Language\Language;
 use Drupal\Core\Language\LanguageManager;
+use Drupal\Core\Session\AccountInterface;
 use Drupal\views\Views;
 use Drupal\views\ViewExecutable;
 use Drupal\views\Plugin\views\display\DisplayPluginBase;
@@ -167,15 +168,12 @@ class Field extends FieldPluginBase {
   }
 
   /**
-   * Check whether current user has access to this handler.
-   *
-   * @return bool
-   *   Return TRUE if the user has access to view this field.
+   * {@inheritdoc}
    */
-  public function access() {
+  public function access(AccountInterface $account) {
     $base_table = $this->get_base_table();
     $access_controller = $this->entityManager->getAccessController($this->definition['entity_tables'][$base_table]);
-    return $access_controller->fieldAccess('view', $this->field_info);
+    return $access_controller->fieldAccess('view', $this->field_info, $account);
   }
 
   /**
@@ -252,14 +250,14 @@ class Field extends FieldPluginBase {
 
       // Filter by langcode, if field translation is enabled.
       $field = $this->field_info;
-      if (field_is_translatable($entity_type, $field) && !empty($this->view->display_handler->options['field_langcode_add_to_query'])) {
+      if ($field->isTranslatable() && !empty($this->view->display_handler->options['field_langcode_add_to_query'])) {
         $column = $this->tableAlias . '.langcode';
         // By the same reason as field_language the field might be Language::LANGCODE_NOT_SPECIFIED in reality so allow it as well.
         // @see this::field_langcode()
         $default_langcode = language_default()->id;
         $langcode = str_replace(
           array('***CURRENT_LANGUAGE***', '***DEFAULT_LANGUAGE***'),
-          array($this->languageManager->getLanguage(Language::TYPE_CONTENT), $default_langcode),
+          array($this->languageManager->getCurrentLanguage(Language::TYPE_CONTENT), $default_langcode),
           $this->view->display_handler->options['field_langcode']
         );
         $placeholder = $this->placeholder();
@@ -855,11 +853,11 @@ class Field extends FieldPluginBase {
    * according to the settings.
    */
   function field_langcode(EntityInterface $entity) {
-    if (field_is_translatable($entity->entityType(), $this->field_info)) {
+    if ($this->field_info->isTranslatable()) {
       $default_langcode = language_default()->id;
       $langcode = str_replace(
         array('***CURRENT_LANGUAGE***', '***DEFAULT_LANGUAGE***'),
-        array($this->languageManager->getLanguage(Language::TYPE_CONTENT), $default_langcode),
+        array($this->languageManager->getCurrentLanguage(Language::TYPE_CONTENT), $default_langcode),
         $this->view->display_handler->options['field_language']
       );
 

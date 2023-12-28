@@ -126,11 +126,11 @@ class ViewUI implements ViewStorageInterface {
    * @var array
    */
   public static $forms = array(
-    'add-item' => '\Drupal\views_ui\Form\Ajax\AddItem',
+    'add-handler' => '\Drupal\views_ui\Form\Ajax\AddItem',
     'analyze' => '\Drupal\views_ui\Form\Ajax\Analyze',
-    'config-item' => '\Drupal\views_ui\Form\Ajax\ConfigItem',
-    'config-item-extra' => '\Drupal\views_ui\Form\Ajax\ConfigItemExtra',
-    'config-item-group' => '\Drupal\views_ui\Form\Ajax\ConfigItemGroup',
+    'handler' => '\Drupal\views_ui\Form\Ajax\ConfigHandler',
+    'handler-extra' => '\Drupal\views_ui\Form\Ajax\ConfigHandlerExtra',
+    'handler-group' => '\Drupal\views_ui\Form\Ajax\ConfigHandlerGroup',
     'display' => '\Drupal\views_ui\Form\Ajax\Display',
     'edit-details' => '\Drupal\views_ui\Form\Ajax\EditDetails',
     'rearrange' => '\Drupal\views_ui\Form\Ajax\Rearrange',
@@ -372,11 +372,6 @@ class ViewUI implements ViewStorageInterface {
     }
     // Finally, we never want these cached -- our object cache does that for us.
     $form['#no_cache'] = TRUE;
-
-    // If this isn't an ajaxy form, then we want to set the title.
-    if (!empty($form['#title'])) {
-      drupal_set_title($form['#title']);
-    }
   }
 
   /**
@@ -490,7 +485,7 @@ class ViewUI implements ViewStorageInterface {
         if ($cut = strpos($field, '$')) {
           $field = substr($field, 0, $cut);
         }
-        $id = $this->executable->addItem($form_state['display_id'], $type, $table, $field);
+        $id = $this->executable->addHandler($form_state['display_id'], $type, $table, $field);
 
         // check to see if we have group by settings
         $key = $type;
@@ -504,15 +499,15 @@ class ViewUI implements ViewStorageInterface {
         );
         $handler = Views::handlerManager($key)->getHandler($item);
         if ($this->executable->displayHandlers->get('default')->useGroupBy() && $handler->usesGroupBy()) {
-          $this->addFormToStack('config-item-group', $form_state['display_id'], $type, $id);
+          $this->addFormToStack('handler-group', $form_state['display_id'], $type, $id);
         }
 
         // check to see if this type has settings, if so add the settings form first
         if ($handler && $handler->hasExtraOptions()) {
-          $this->addFormToStack('config-item-extra', $form_state['display_id'], $type, $id);
+          $this->addFormToStack('handler-extra', $form_state['display_id'], $type, $id);
         }
         // Then add the form to the stack
-        $this->addFormToStack('config-item', $form_state['display_id'], $type, $id);
+        $this->addFormToStack('handler', $form_state['display_id'], $type, $id);
       }
     }
 
@@ -897,8 +892,8 @@ class ViewUI implements ViewStorageInterface {
   /**
    * Implements \Drupal\Core\Entity\EntityInterface::label().
    */
-  public function label($langcode = NULL) {
-    return $this->storage->label($langcode);
+  public function label() {
+    return $this->storage->label();
   }
 
   /**

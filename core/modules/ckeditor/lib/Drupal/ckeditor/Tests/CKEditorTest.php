@@ -317,7 +317,7 @@ class CKEditorTest extends DrupalUnitTestBase {
   function testLanguages() {
     // Get CKEditor supported language codes and spot-check.
     $this->enableModules(array('language'));
-    config_install_default_config('module', 'language');
+    $this->installConfig(array('language'));
     $langcodes = $this->ckeditor->getLangcodes();
 
     // Language codes transformed with browser mappings.
@@ -351,7 +351,7 @@ class CKEditorTest extends DrupalUnitTestBase {
       'customConfig' => '',
       'pasteFromWordPromptCleanup' => TRUE,
       'resize_dir' => 'vertical',
-      'justifyClasses' => array('align-left', 'align-center', 'align-right', 'align-justify'),
+      'justifyClasses' => array('text-align-left', 'text-align-center', 'text-align-right', 'text-align-justify'),
     );
   }
 

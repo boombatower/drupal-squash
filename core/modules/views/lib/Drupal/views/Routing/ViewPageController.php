@@ -69,18 +69,19 @@ class ViewPageController implements ContainerInjectionInterface {
       throw new NotFoundHttpException(String::format('Page controller for view %id requested, but view was not found.', array('%id' => $view_id)));
     }
     $view = $this->executableFactory->get($entity);
+    $view->setRequest($request);
     $view->setDisplay($display_id);
     $view->initHandlers();
 
     $args = array();
     $map = $request->attributes->get('_view_argument_map', array());
-    foreach (array_keys((array) $view->argument) as $argument_id) {
-
+    $arguments_length = count($view->argument);
+    for ($argument_index = 0; $argument_index < $arguments_length; $argument_index++) {
       // Allow parameters be pulled from the request.
       // The map stores the actual name of the parameter in the request. Views
       // which override existing controller, use for example 'node' instead of
       // arg_nid as name.
-      $attribute = 'arg_' . $argument_id;
+      $attribute = 'arg_' . $argument_index;
       if (isset($map[$attribute])) {
         $attribute = $map[$attribute];
 

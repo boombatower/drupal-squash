@@ -10,8 +10,6 @@ namespace Drupal\rest\Plugin\views\row;
 use Drupal\views\ViewExecutable;
 use Drupal\views\Plugin\views\display\DisplayPluginBase;
 use Drupal\views\Plugin\views\row\RowPluginBase;
-use Drupal\views\Annotation\ViewsRow;
-use Drupal\Core\Annotation\Translation;
 
 /**
  * Plugin which displays fields as raw data.
@@ -145,9 +143,9 @@ class DataFieldRow extends RowPluginBase {
       if (($field->field_alias != 'unknown') && !empty($this->rawOutputOptions[$id])) {
         $value = $field->sanitizeValue($field->getValue($row), 'xss_admin');
       }
-      // Otherwise, pass this through the field render() method.
+      // Otherwise, pass this through the field advancedRender() method.
       else {
-        $value = $field->render($row);
+        $value = $field->advancedRender($row);
       }
 
       $output[$this->getFieldKeyAlias($id)] = $value;

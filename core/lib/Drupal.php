@@ -106,8 +106,8 @@ class Drupal {
   /**
    * Returns the currently active global container.
    *
-   * @deprecated This method is only useful for the testing environment, and as
-   *   a BC shiv for drupal_container(). It should not be used otherwise.
+   * @deprecated This method is only useful for the testing environment. It
+   * should not be used otherwise.
    *
    * @return \Symfony\Component\DependencyInjection\ContainerInterface
    */
@@ -242,6 +242,19 @@ class Drupal {
   }
 
   /**
+   * Retrieves the configuration factory.
+   *
+   * This is mostly used to change the override settings on the configuration
+   * factory. For example, changing the language, or turning all overrides on
+   * or off.
+   *
+   * @return \Drupal\Core\Config\ConfigFactory
+   */
+  public static function configFactory() {
+    return static::$container->get('config.factory');
+  }
+
+  /**
    * Returns a queue for the given queue name.
    *
    * The following values can be set in your settings.php file's $settings
@@ -366,8 +379,8 @@ class Drupal {
    *
    * @see \Drupal\Core\TypedData\TypedDataManager::create()
    */
-  public static function typedData() {
-    return static::$container->get('typed_data');
+  public static function typedDataManager() {
+    return static::$container->get('typed_data_manager');
   }
 
   /**
@@ -520,7 +533,7 @@ class Drupal {
   /**
    * Returns the language manager service.
    *
-   * @return \Drupal\Core\Language\LanguageManager
+   * @return \Drupal\Core\Language\LanguageManagerInterface
    *   The language manager.
    */
   public static function languageManager() {

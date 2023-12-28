@@ -8,7 +8,7 @@
 namespace Drupal\entity_reference;
 
 use Drupal\Core\TypedData\DataDefinition;
-use Drupal\field\FieldInterface;
+use Drupal\Core\Field\FieldDefinitionInterface;
 use Drupal\Core\Field\ConfigEntityReferenceItemBase;
 use Drupal\Core\Field\ConfigFieldItemInterface;
 
@@ -53,7 +53,7 @@ class ConfigurableEntityReferenceItem extends ConfigEntityReferenceItemBase impl
       // Only add the revision ID property if the target entity type supports
       // revisions.
       $target_type_info = \Drupal::entityManager()->getDefinition($target_type);
-      if (!empty($target_type_info['entity_keys']['revision']) && !empty($target_type_info['revision_table'])) {
+      if ($target_type_info->hasKey('revision') && $target_type_info->getRevisionTable()) {
         static::$propertyDefinitions[$key]['revision_id'] = DataDefinition::create('integer')
           ->setLabel(t('Revision ID'))
           ->setConstraints(array('Range' => array('min' => 0)));
@@ -66,42 +66,20 @@ class ConfigurableEntityReferenceItem extends ConfigEntityReferenceItemBase impl
   /**
    * {@inheritdoc}
    */
-  public static function schema(FieldInterface $field) {
-    $target_type = $field->getSetting('target_type');
+  public static function schema(FieldDefinitionInterface $field_definition) {
+    $schema = parent::schema($field_definition);
+
+    $target_type = $field_definition->getSetting('target_type');
     $target_type_info = \Drupal::entityManager()->getDefinition($target_type);
 
-    if (is_subclass_of($target_type_info['class'], '\Drupal\Core\Entity\ContentEntityInterface')) {
-      $columns = array(
-        'target_id' => array(
-          'description' => 'The ID of the target entity.',
-          'type' => 'int',
-          'unsigned' => TRUE,
-          'not null' => TRUE,
-        ),
-        'revision_id' => array(
-          'description' => 'The revision ID of the target entity.',
-          'type' => 'int',
-          'unsigned' => TRUE,
-          'not null' => FALSE,
-        ),
+    if ($target_type_info->isSubclassOf('\Drupal\Core\Entity\ContentEntityInterface')) {
+      $schema['columns']['revision_id'] = array(
+        'description' => 'The revision ID of the target entity.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => FALSE,
       );
     }
-    else {
-      $columns = array(
-        'target_id' => array(
-          'description' => 'The ID of the target entity.',
-          'type' => 'varchar',
-          'length' => '255',
-        ),
-      );
-    }
-
-    $schema = array(
-      'columns' => $columns,
-      'indexes' => array(
-        'target_id' => array('target_id'),
-      ),
-    );
 
     return $schema;
   }

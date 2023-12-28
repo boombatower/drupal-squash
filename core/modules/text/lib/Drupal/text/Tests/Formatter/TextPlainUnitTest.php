@@ -49,7 +49,6 @@ class TextPlainUnitTest extends DrupalUnitTestBase {
     // Configure the theme system.
     $this->installConfig(array('system', 'field'));
     $this->installSchema('entity_test', 'entity_test');
-    $this->installSchema('user', 'users');
 
     // @todo Add helper methods for all of the following.
 
@@ -106,8 +105,8 @@ class TextPlainUnitTest extends DrupalUnitTestBase {
    *   The created entity object.
    */
   protected function createEntity($values = array()) {
-    $info = entity_get_info($this->entity_type);
-    $bundle_key = $info['entity_keys']['bundle'];
+    $info = \Drupal::entityManager()->getDefinition($this->entity_type);
+    $bundle_key = $info->getKey('bundle');
     $entity = entity_create($this->entity_type, $values + array(
       $bundle_key => $this->bundle,
     ));
