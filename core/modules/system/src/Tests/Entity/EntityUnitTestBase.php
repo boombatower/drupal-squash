@@ -14,6 +14,9 @@ use Drupal\user\Entity\User;
 
 /**
  * Defines an abstract test base for entity unit tests.
+ *
+ * @deprecated in Drupal 8.1.x, will be removed before Drupal 8.2.x. Use
+ *   \Drupal\KernelTests\Core\Entity\EntityKernelTestBase instead.
  */
 abstract class EntityUnitTestBase extends KernelTestBase {
 

@@ -7,13 +7,10 @@
 
 namespace Drupal\user;
 
-use Drupal\Core\Entity\EntityManagerInterface;
-use Drupal\Core\Entity\Query\QueryFactory;
 use Drupal\Core\Form\FormStateInterface;
-use Drupal\Core\Language\LanguageManagerInterface;
 
 /**
- * Form controller for the user register forms.
+ * Form handler for the user register forms.
  */
 class RegisterForm extends AccountForm {
 

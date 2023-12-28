@@ -10,7 +10,7 @@ namespace Drupal\migrate\Plugin\migrate\source;
 use Drupal\Core\Database\Database;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\State\StateInterface;
-use Drupal\migrate\Entity\MigrationInterface;
+use Drupal\migrate\Plugin\MigrationInterface;
 use Drupal\migrate\Plugin\migrate\id_map\Sql;
 use Drupal\migrate\Plugin\MigrateIdMapInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -90,6 +90,9 @@ abstract class SqlBase extends SourcePluginBase implements ContainerFactoryPlugi
       // configuration.
       if (isset($this->configuration['database_state_key'])) {
         $this->database = $this->setUpDatabase($this->state->get($this->configuration['database_state_key']));
+      }
+      elseif (($fallback_state_key = $this->state->get('migrate.fallback_state_key'))) {
+        $this->database = $this->setUpDatabase($this->state->get($fallback_state_key));
       }
       else {
         $this->database = $this->setUpDatabase($this->configuration);
