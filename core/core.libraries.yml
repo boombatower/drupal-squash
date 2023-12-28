@@ -14,10 +14,10 @@ backbone:
 
 ckeditor:
   remote: https://github.com/ckeditor/ckeditor-dev
-  version: "4.13.0"
+  version: "4.13.1"
   license:
     name: GNU-GPL-2.0-or-later
-    url: https://github.com/ckeditor/ckeditor-dev/blob/4.13/LICENSE.md
+    url: https://github.com/ckeditor/ckeditor4/blob/4.13.1/LICENSE.md
     gpl-compatible: true
   js:
     assets/vendor/ckeditor/ckeditor.js: { preprocess: false, minified: true }
@@ -94,6 +94,11 @@ drupal.autocomplete:
     - core/drupalSettings
     - core/drupal.ajax
     - core/jquery.ui.autocomplete
+
+drupal.array.find:
+  version: VERSION
+  js:
+    misc/polyfills/array.find.js: { weight: -20 }
 
 drupal.batch:
   version: VERSION
@@ -227,6 +232,11 @@ drupal.message:
     - core/drupal
     - core/drupal.announce
 
+drupal.object.assign:
+  version: VERSION
+  js:
+    misc/polyfills/object.assign.js: { weight: -20 }
+
 drupal.progress:
   version: VERSION
   js:
@@ -320,6 +330,15 @@ drupal.vertical-tabs:
     - core/drupal
     - core/drupalSettings
     - core/drupal.form
+
+es6-promise:
+  version: "4.2.8"
+  license:
+    name: MIT
+    url: https://github.com/stefanpenner/es6-promise/blob/v4.2.8/LICENSE
+    gpl-compatible: true
+  js:
+    assets/vendor/es6-promise/es6-promise.auto.min.js: { weight: -20, minified: true }
 
 jquery:
   remote: https://github.com/jquery/jquery
@@ -450,56 +469,36 @@ jquery.ui.button:
   version: *jquery_ui_version
   license: *jquery_ui_license
   js:
+    assets/vendor/jquery.ui/ui/widgets/checkboxradio-min.js: { minified: true }
+    assets/vendor/jquery.ui/ui/widgets/controlgroup-min.js: { minified: true }
     assets/vendor/jquery.ui/ui/widgets/button-min.js: { minified: true }
   css:
     component:
-      assets/vendor/jquery.ui/themes/base/button.css: {}
-  dependencies:
-    - core/jquery.ui
-    - core/jquery.ui.widget
-    - core/jquery.ui.checkboxradio
-    - core/jquery.ui.controlgroup
-
-jquery.ui.checkboxradio:
-  version: *jquery_ui_version
-  license: *jquery_ui_license
-  js:
-    assets/vendor/jquery.ui/ui/form-reset-mixin-min.js: { minified: true }
-    assets/vendor/jquery.ui/ui/widgets/checkboxradio-min.js: { minified: true }
-  css:
-    component:
       assets/vendor/jquery.ui/themes/base/checkboxradio.css: {}
+      assets/vendor/jquery.ui/themes/base/controlgroup.css: {}
       assets/vendor/jquery.ui/themes/base/button.css: {}
   dependencies:
     - core/jquery.ui
     - core/jquery.ui.widget
-  deprecated: &jquery_ui_unused_deprecated The "%library_id%" asset library is deprecated in drupal:8.8.0 and is removed from drupal:9.0.0. See https://www.drupal.org/node/3067969
-
-jquery.ui.controlgroup:
-  version: *jquery_ui_version
-  license: *jquery_ui_license
-  js:
-    assets/vendor/jquery.ui/ui/widgets/controlgroup-min.js: { minified: true }
-  css:
-    component:
-      assets/vendor/jquery.ui/themes/base/controlgroup.css: {}
-  dependencies:
-    - core/jquery.ui
-    - core/jquery.ui.widget
-  deprecated: *jquery_ui_unused_deprecated
 
 jquery.ui.dialog:
   version: *jquery_ui_version
   license: *jquery_ui_license
   js:
+    assets/vendor/jquery.ui/ui/form-reset-mixin-min.js: { minified: true }
+    assets/vendor/jquery.ui/ui/widgets/checkboxradio-min.js: { minified: true }
+    assets/vendor/jquery.ui/ui/widgets/controlgroup-min.js: { minified: true }
+    assets/vendor/jquery.ui/ui/widgets/button-min.js: { minified: true }
     assets/vendor/jquery.ui/ui/widgets/dialog-min.js: { minified: true }
   css:
     component:
+      assets/vendor/jquery.ui/themes/base/checkboxradio.css: {}
+      assets/vendor/jquery.ui/themes/base/controlgroup.css: {}
+      assets/vendor/jquery.ui/themes/base/button.css: {}
       assets/vendor/jquery.ui/themes/base/dialog.css: {}
   dependencies:
     - core/jquery.ui
     - core/jquery.ui.widget
-    - core/jquery.ui.button
     - core/jquery.ui.draggable
     - core/jquery.ui.mouse
     - core/jquery.ui.position
@@ -602,20 +601,24 @@ picturefill:
     assets/vendor/picturefill/picturefill.min.js: { weight: -10, minified: true }
 
 popperjs:
-  version: "1.16.0"
+  version: "2.0.6"
   license:
     name: MIT
-    url: https://github.com/popperjs/popper.js/blob/v1.16.0/LICENSE.md
+    url: https://github.com/popperjs/popper-core/blob/v2.0.6/LICENSE.md
     gpl-compatible: true
   js:
     assets/vendor/popperjs/popper.min.js: { minified: true }
+  dependencies:
+    - core/drupal.array.find
+    - core/es6-promise
+    - core/drupal.object.assign
 
 sortable:
   remote: https://github.com/SortableJS/Sortable
-  version: "1.10.1"
+  version: "1.10.2"
   license:
     name: MIT
-    url: https://github.com/SortableJS/Sortable/tree/1.10.1#mit-license
+    url: https://github.com/SortableJS/Sortable/tree/1.10.2#mit-license
     gpl-compatible: true
   js:
     assets/vendor/sortable/Sortable.min.js: { minified: true }

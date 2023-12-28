@@ -9,6 +9,8 @@ use Composer\Package\RootPackageInterface;
  *
  * Default configuration is merged with the root package's
  * extra:drupal-core-vendor-hardening configuration.
+ *
+ * @internal
  */
 class Config {
 
@@ -68,7 +70,6 @@ class Config {
     'squizlabs/php_codesniffer' => ['tests'],
     'stack/builder' => ['tests'],
     'symfony/browser-kit' => ['Tests'],
-    'symfony/class-loader' => ['Tests'],
     'symfony/console' => ['Tests'],
     'symfony/css-selector' => ['Tests'],
     'symfony/debug' => ['Tests'],

@@ -18,7 +18,6 @@
         "ext-tokenizer": "*",
         "ext-xml": "*",
         "php": ">=7.3",
-        "symfony/class-loader": "~3.4.0",
         "symfony/console": "^4.4",
         "symfony/dependency-injection": "^4.4",
         "symfony/event-dispatcher": "^4.4",
@@ -62,7 +61,6 @@
         "drupal/big_pipe": "self.version",
         "drupal/block": "self.version",
         "drupal/block_content": "self.version",
-        "drupal/block_place": "self.version",
         "drupal/book": "self.version",
         "drupal/breakpoint": "self.version",
         "drupal/ckeditor": "self.version",
@@ -148,7 +146,6 @@
         "drupal/settings_tray": "self.version",
         "drupal/seven": "self.version",
         "drupal/shortcut": "self.version",
-        "drupal/simpletest": "self.version",
         "drupal/standard": "self.version",
         "drupal/stark": "self.version",
         "drupal/statistics": "self.version",
@@ -177,17 +174,34 @@
         },
         "classmap": [
             "lib/Drupal.php",
+            "lib/Drupal/Component/DependencyInjection/Container.php",
+            "lib/Drupal/Component/DependencyInjection/PhpArrayContainer.php",
+            "lib/Drupal/Component/FileCache/FileCacheFactory.php",
             "lib/Drupal/Component/Utility/Timer.php",
             "lib/Drupal/Component/Utility/Unicode.php",
+            "lib/Drupal/Core/Cache/Cache.php",
+            "lib/Drupal/Core/Cache/CacheBackendInterface.php",
+            "lib/Drupal/Core/Cache/CacheTagsChecksumInterface.php",
+            "lib/Drupal/Core/Cache/CacheTagsChecksumTrait.php",
+            "lib/Drupal/Core/Cache/CacheTagsInvalidatorInterface.php",
+            "lib/Drupal/Core/Cache/DatabaseBackend.php",
+            "lib/Drupal/Core/Cache/DatabaseCacheTagsChecksum.php",
+            "lib/Drupal/Core/Database/Connection.php",
             "lib/Drupal/Core/Database/Database.php",
+            "lib/Drupal/Core/Database/Driver/mysql/Connection.php",
+            "lib/Drupal/Core/Database/Driver/pgsql/Connection.php",
+            "lib/Drupal/Core/Database/Driver/sqlite/Connection.php",
+            "lib/Drupal/Core/Database/Statement.php",
+            "lib/Drupal/Core/Database/StatementInterface.php",
+            "lib/Drupal/Core/DependencyInjection/Container.php",
             "lib/Drupal/Core/DrupalKernel.php",
             "lib/Drupal/Core/DrupalKernelInterface.php",
+            "lib/Drupal/Core/Installer/InstallerRedirectTrait.php",
             "lib/Drupal/Core/Site/Settings.php"
         ]
     },
     "config": {
-        "preferred-install": "dist",
-        "autoloader-suffix": "Drupal8"
+        "preferred-install": "dist"
     },
     "extra": {
         "drupal-scaffold": {

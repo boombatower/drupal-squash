@@ -1,3 +1,12 @@
+# Drupal throws an IncompleteLibraryDefinitionException if a base theme defined
+# library is set to false in a subtheme's libraries-override. This empty library
+# is used as a workaround.
+# @see https://www.drupal.org/node/3098375
+#  @todo remove this in https://drupal.org/node/3111468
+empty:
+  version: VERSION
+  css: {}
+
 global-styling:
   version: VERSION
   css:
@@ -6,6 +15,28 @@ global-styling:
       css/base/typography.css: {}
       css/base/print.css: {}
     component:
+      css/classy/components/action-links.css: {}
+      css/classy/components/breadcrumb.css: {}
+      css/classy/components/button.css: {}
+      css/classy/components/collapse-processed.css: {}
+      css/classy/components/container-inline.css: {}
+      css/classy/components/exposed-filters.css: {}
+      css/classy/components/field.css: {}
+      css/classy/components/form.css: {}
+      css/classy/components/icons.css: {}
+      css/classy/components/inline-form.css: {}
+      css/classy/components/item-list.css: {}
+      css/classy/components/link.css: {}
+      css/classy/components/links.css: {}
+      css/classy/components/menu.css: {}
+      css/classy/components/more-link.css: {}
+      css/classy/components/pager.css: {}
+      css/classy/components/tabledrag.css: {}
+      css/classy/components/tableselect.css: {}
+      css/classy/components/tablesort.css: {}
+      css/classy/components/tabs.css: {}
+      css/classy/components/textarea.css: {}
+      css/classy/components/ui-dialog.css: {}
       css/components/admin-list.css: {}
       css/components/content-header.css: {}
       css/components/container-inline.css: {}
@@ -60,6 +91,12 @@ maintenance-page:
   dependencies:
     - system/maintenance
     - seven/global-styling
+
+update-report:
+  version: VERSION
+  css:
+    theme:
+      css/theme/update-report.css: {}
 
 install-page:
   version: VERSION
@@ -141,6 +178,15 @@ layout_builder_content_translation_admin:
     component:
       css/components/layout-builder-content-translation.css: {}
 
+user:
+  version: VERSION
+  css:
+    component:
+      css/components/user.css: { weight: -10 }
+  js:
+    # @todo remove this file from library in https://drupal.org/node/3111468
+    js/user.theme.temporary.js: {}
+
 classy.book-navigation:
   version: VERSION
   css:
@@ -212,8 +258,10 @@ classy.search-results:
     component:
       css/classy/components/search-results.css: {}
 
-classy.user:
+# @todo remove library in https://drupal.org/node/3111468
+temporary.ajax:
   version: VERSION
-  css:
-    component:
-      css/classy/components/user.css: { weight: -10 }
+  js:
+    js/ajax.temporary.js: {}
+  dependencies:
+    - core/jquery

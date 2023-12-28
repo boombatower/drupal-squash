@@ -2701,6 +2701,22 @@ $connection->insert('comment')
   'homepage' => '',
   'language' => 'is',
 ))
+->values(array(
+  'cid' => '4',
+  'pid' => '0',
+  'nid' => '1',
+  'uid' => '3',
+  'subject' => 'Comment without language',
+  'hostname' => 'drupal7.local',
+  'created' => '1426781880',
+  'changed' => '1426781880',
+  'status' => '1',
+  'thread' => '02/',
+  'name' => 'Bob',
+  'mail' => '',
+  'homepage' => '',
+  'language' => '',
+))
 ->execute();
 $connection->schema()->createTable('contact', array(
   'fields' => array(
@@ -3349,6 +3365,18 @@ $connection->insert('entity_translation')
   'translate' => '1',
   'created' => '1531663925',
   'changed' => '1531663925',
+))
+->values(array(
+  'entity_type' => 'comment',
+  'entity_id' => '4',
+  'revision_id' => '4',
+  'language' => 'en',
+  'source' => '',
+  'uid' => '1',
+  'status' => '1',
+  'translate' => '0',
+  'created' => '1426781880',
+  'changed' => '1426781880',
 ))
 ->values(array(
   'entity_type' => 'taxonomy_term',
@@ -5327,6 +5355,17 @@ $connection->insert('field_data_comment_body')
   'comment_body_value' => 'This is a comment to an Icelandic translation.',
   'comment_body_format' => 'filtered_html',
 ))
+->values(array(
+  'entity_type' => 'comment',
+  'bundle' => 'comment_node_test_content_type',
+  'deleted' => '0',
+  'entity_id' => '4',
+  'revision_id' => '4',
+  'language' => 'und',
+  'delta' => '0',
+  'comment_body_value' => 'A comment without language (migrated from Drupal 6)',
+  'comment_body_format' => 'filtered_html',
+))
 ->execute();
 $connection->schema()->createTable('field_data_description_field', array(
   'fields' => array(
@@ -6926,6 +6965,16 @@ $connection->insert('field_data_field_integer')
   'language' => 'is',
   'delta' => '0',
   'field_integer_value' => '1',
+))
+->values(array(
+  'entity_type' => 'comment',
+  'bundle' => 'comment_node_test_content_type',
+  'deleted' => '0',
+  'entity_id' => '4',
+  'revision_id' => '4',
+  'language' => 'en',
+  'delta' => '0',
+  'field_integer_value' => '10',
 ))
 ->values(array(
   'entity_type' => 'taxonomy_term',
@@ -10307,6 +10356,17 @@ $connection->insert('field_data_subject_field')
   'subject_field_value' => 'Comment to IS translation',
   'subject_field_format' => NULL,
 ))
+->values(array(
+  'entity_type' => 'comment',
+  'bundle' => 'comment_node_test_content_type',
+  'deleted' => '0',
+  'entity_id' => '4',
+  'revision_id' => '4',
+  'language' => 'en',
+  'delta' => '0',
+  'subject_field_value' => 'Comment without language',
+  'subject_field_format' => NULL,
+))
 ->execute();
 $connection->schema()->createTable('field_data_taxonomy_forums', array(
   'fields' => array(
@@ -10816,6 +10876,17 @@ $connection->insert('field_revision_comment_body')
   'language' => 'und',
   'delta' => '0',
   'comment_body_value' => 'This is a comment to an Icelandic translation.',
+  'comment_body_format' => 'filtered_html',
+))
+->values(array(
+  'entity_type' => 'comment',
+  'bundle' => 'comment_node_test_content_type',
+  'deleted' => '0',
+  'entity_id' => '4',
+  'revision_id' => '4',
+  'language' => 'und',
+  'delta' => '0',
+  'comment_body_value' => 'A comment without language (migrated from Drupal 6)',
   'comment_body_format' => 'filtered_html',
 ))
 ->execute();
@@ -12422,6 +12493,16 @@ $connection->insert('field_revision_field_integer')
   'language' => 'en',
   'delta' => '0',
   'field_integer_value' => '99',
+))
+->values(array(
+  'entity_type' => 'comment',
+  'bundle' => 'comment_node_test_content_type',
+  'deleted' => '0',
+  'entity_id' => '4',
+  'revision_id' => '4',
+  'language' => 'en',
+  'delta' => '0',
+  'field_integer_value' => '10',
 ))
 ->values(array(
   'entity_type' => 'taxonomy_term',
@@ -15831,6 +15912,17 @@ $connection->insert('field_revision_subject_field')
   'language' => 'is',
   'delta' => '0',
   'subject_field_value' => 'Comment to IS translation',
+  'subject_field_format' => NULL,
+))
+->values(array(
+  'entity_type' => 'comment',
+  'bundle' => 'comment_node_test_content_type',
+  'deleted' => '0',
+  'entity_id' => '4',
+  'revision_id' => '4',
+  'language' => 'en',
+  'delta' => '0',
+  'subject_field_value' => 'Comment without language',
   'subject_field_format' => NULL,
 ))
 ->execute();
@@ -19924,6 +20016,19 @@ $connection->schema()->createTable('menu_custom', array(
       'not null' => FALSE,
       'size' => 'normal',
     ),
+    'language' => array(
+      'type' => 'varchar',
+      'not null' => TRUE,
+      'length' => '12',
+      'default' => 'und',
+    ),
+    'i18n_mode' => array(
+      'type' => 'int',
+      'not null' => TRUE,
+      'size' => 'normal',
+      'default' => '0',
+      'unsigned' => TRUE,
+    ),
   ),
   'primary key' => array(
     'menu_name',
@@ -19936,31 +20041,50 @@ $connection->insert('menu_custom')
   'menu_name',
   'title',
   'description',
+  'language',
+  'i18n_mode',
 ))
 ->values(array(
   'menu_name' => 'main-menu',
   'title' => 'Main menu',
   'description' => 'The <em>Main</em> menu is used on many sites to show the major sections of the site, often in a top navigation bar.',
+  'language' => 'und',
+  'i18n_mode' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
   'title' => 'Management',
   'description' => 'The <em>Management</em> menu contains links for administrative tasks.',
+  'language' => 'und',
+  'i18n_mode' => '0',
+))
+->values(array(
+  'menu_name' => 'menu-fixedlang',
+  'title' => 'FixedLang',
+  'description' => '',
+  'language' => 'is',
+  'i18n_mode' => '2',
 ))
 ->values(array(
   'menu_name' => 'menu-test-menu',
   'title' => 'Test Menu',
   'description' => 'Test menu description.',
+  'language' => 'und',
+  'i18n_mode' => '5',
 ))
 ->values(array(
   'menu_name' => 'navigation',
   'title' => 'Navigation',
   'description' => 'The <em>Navigation</em> menu contains links intended for site visitors. Links are added to the <em>Navigation</em> menu automatically by some modules.',
+  'language' => 'und',
+  'i18n_mode' => '0',
 ))
 ->values(array(
   'menu_name' => 'user-menu',
   'title' => 'User menu',
   'description' => "The <em>User</em> menu contains links related to the user's account, as well as the 'Log out' link.",
+  'language' => 'und',
+  'i18n_mode' => '0',
 ))
 ->execute();
 $connection->schema()->createTable('menu_links', array(
@@ -20124,6 +20248,19 @@ $connection->schema()->createTable('menu_links', array(
       'size' => 'normal',
       'default' => '0',
     ),
+    'language' => array(
+      'type' => 'varchar',
+      'not null' => TRUE,
+      'length' => '12',
+      'default' => 'und',
+    ),
+    'i18n_tsid' => array(
+      'type' => 'int',
+      'not null' => TRUE,
+      'size' => 'normal',
+      'default' => '0',
+      'unsigned' => TRUE,
+    ),
   ),
   'primary key' => array(
     'mlid',
@@ -20158,6 +20295,8 @@ $connection->insert('menu_links')
   'p8',
   'p9',
   'updated',
+  'language',
+  'i18n_tsid',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -20185,6 +20324,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'user-menu',
@@ -20212,6 +20353,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -20239,6 +20382,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -20266,6 +20411,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -20293,6 +20440,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -20320,6 +20469,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -20347,6 +20498,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -20374,6 +20527,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -20401,6 +20556,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'user-menu',
@@ -20428,6 +20585,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -20455,6 +20614,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'user-menu',
@@ -20482,6 +20643,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'user-menu',
@@ -20509,6 +20672,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -20536,6 +20701,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -20563,6 +20730,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -20590,6 +20759,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -20617,6 +20788,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'user-menu',
@@ -20644,6 +20817,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -20671,6 +20846,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -20698,6 +20875,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -20725,6 +20904,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -20752,6 +20933,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -20779,6 +20962,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -20806,6 +20991,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -20833,6 +21020,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -20860,6 +21049,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -20887,6 +21078,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -20914,6 +21107,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -20941,6 +21136,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -20968,6 +21165,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -20995,6 +21194,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -21022,6 +21223,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -21049,6 +21252,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -21076,6 +21281,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -21103,6 +21310,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -21130,6 +21339,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -21157,6 +21368,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -21184,6 +21397,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -21211,6 +21426,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -21238,6 +21455,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -21265,6 +21484,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -21292,6 +21513,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -21319,6 +21542,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -21346,6 +21571,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -21373,6 +21600,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -21400,6 +21629,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -21427,6 +21658,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -21454,6 +21687,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -21481,6 +21716,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -21508,6 +21745,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -21535,6 +21774,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -21562,6 +21803,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -21589,6 +21832,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -21616,6 +21861,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -21643,6 +21890,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -21670,6 +21919,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -21697,6 +21948,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -21724,6 +21977,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -21751,6 +22006,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -21778,6 +22035,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -21805,6 +22064,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -21832,6 +22093,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -21859,6 +22122,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -21886,6 +22151,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -21913,6 +22180,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -21940,6 +22209,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -21967,6 +22238,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -21994,6 +22267,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -22021,6 +22296,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -22048,6 +22325,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -22075,6 +22354,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -22102,6 +22383,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -22129,6 +22412,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -22156,6 +22441,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -22183,6 +22470,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -22210,6 +22499,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -22237,6 +22528,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -22264,6 +22557,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -22291,6 +22586,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -22318,6 +22615,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -22345,6 +22644,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -22372,6 +22673,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -22399,6 +22702,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -22426,6 +22731,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -22453,6 +22760,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -22480,6 +22789,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -22507,6 +22818,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -22534,6 +22847,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -22561,6 +22876,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -22588,6 +22905,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -22615,6 +22934,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -22642,6 +22963,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -22669,6 +22992,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -22696,6 +23021,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -22723,6 +23050,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -22750,6 +23079,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -22777,6 +23108,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -22804,6 +23137,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -22831,6 +23166,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -22858,6 +23195,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -22885,6 +23224,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -22912,6 +23253,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -22939,6 +23282,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -22966,6 +23311,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -22993,6 +23340,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -23020,6 +23369,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -23047,6 +23398,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -23074,6 +23427,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -23101,6 +23456,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -23128,6 +23485,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -23155,6 +23514,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -23182,6 +23543,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -23209,6 +23572,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -23236,6 +23601,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -23263,6 +23630,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -23290,6 +23659,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -23317,6 +23688,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -23344,6 +23717,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -23371,6 +23746,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -23398,6 +23775,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -23425,6 +23804,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -23452,6 +23833,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -23479,6 +23862,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -23506,6 +23891,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -23533,6 +23920,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -23560,6 +23949,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -23570,7 +23961,7 @@ $connection->insert('menu_links')
   'link_title' => 'Edit menu link',
   'options' => 'a:0:{}',
   'module' => 'system',
-  'hidden' => '0',
+  'hidden' => '-1',
   'external' => '0',
   'has_children' => '0',
   'expanded' => '0',
@@ -23587,6 +23978,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -23614,6 +24007,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -23641,6 +24036,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -23668,6 +24065,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -23695,6 +24094,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -23722,6 +24123,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -23729,14 +24132,14 @@ $connection->insert('menu_links')
   'plid' => '146',
   'link_path' => 'admin/structure/block/manage/%/%/configure',
   'router_path' => 'admin/structure/block/manage/%/%/configure',
-  'link_title' => 'Configure block',
+  'link_title' => 'Configure',
   'options' => 'a:0:{}',
   'module' => 'system',
   'hidden' => '-1',
   'external' => '0',
   'has_children' => '0',
   'expanded' => '0',
-  'weight' => '0',
+  'weight' => '-100',
   'depth' => '5',
   'customized' => '0',
   'p1' => '1',
@@ -23749,6 +24152,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -23776,6 +24181,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -23803,6 +24210,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -23830,6 +24239,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -23857,6 +24268,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -23884,6 +24297,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -23911,6 +24326,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -23938,6 +24355,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -23965,6 +24384,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -23992,6 +24413,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -24019,33 +24442,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
-))
-->values(array(
-  'menu_name' => 'navigation',
-  'mlid' => '174',
-  'plid' => '172',
-  'link_path' => 'search/user',
-  'router_path' => 'search/user',
-  'link_title' => 'Users',
-  'options' => 'a:0:{}',
-  'module' => 'system',
-  'hidden' => '-1',
-  'external' => '0',
-  'has_children' => '0',
-  'expanded' => '0',
-  'weight' => '0',
-  'depth' => '2',
-  'customized' => '0',
-  'p1' => '172',
-  'p2' => '174',
-  'p3' => '0',
-  'p4' => '0',
-  'p5' => '0',
-  'p6' => '0',
-  'p7' => '0',
-  'p8' => '0',
-  'p9' => '0',
-  'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -24073,6 +24471,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -24100,6 +24500,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -24127,6 +24529,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -24154,6 +24558,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -24181,6 +24587,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -24208,6 +24616,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -24235,33 +24645,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
-))
-->values(array(
-  'menu_name' => 'navigation',
-  'mlid' => '182',
-  'plid' => '174',
-  'link_path' => 'search/user/%',
-  'router_path' => 'search/user/%',
-  'link_title' => 'Users',
-  'options' => 'a:0:{}',
-  'module' => 'system',
-  'hidden' => '-1',
-  'external' => '0',
-  'has_children' => '0',
-  'expanded' => '0',
-  'weight' => '0',
-  'depth' => '3',
-  'customized' => '0',
-  'p1' => '172',
-  'p2' => '174',
-  'p3' => '182',
-  'p4' => '0',
-  'p5' => '0',
-  'p6' => '0',
-  'p7' => '0',
-  'p8' => '0',
-  'p9' => '0',
-  'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -24289,6 +24674,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -24316,6 +24703,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -24343,6 +24732,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -24370,6 +24761,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -24397,6 +24790,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -24424,6 +24819,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -24451,6 +24848,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -24478,6 +24877,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -24505,6 +24906,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -24532,6 +24935,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -24559,6 +24964,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -24586,6 +24993,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -24613,6 +25022,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -24640,6 +25051,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -24667,6 +25080,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -24694,6 +25109,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -24721,6 +25138,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -24748,6 +25167,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -24775,6 +25196,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -24802,6 +25225,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -24829,6 +25254,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -24856,6 +25283,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -24883,6 +25312,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -24910,6 +25341,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -24937,6 +25370,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -24964,6 +25399,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -24991,6 +25428,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -25018,6 +25457,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -25045,6 +25486,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -25072,6 +25515,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -25099,6 +25544,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -25126,6 +25573,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -25153,6 +25602,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -25180,6 +25631,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -25207,6 +25660,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -25234,6 +25689,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -25261,6 +25718,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -25288,6 +25747,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -25315,6 +25776,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -25342,6 +25805,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -25369,6 +25834,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -25396,6 +25863,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -25423,6 +25892,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -25450,6 +25921,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -25477,6 +25950,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -25504,6 +25979,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -25531,6 +26008,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -25558,6 +26037,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -25585,6 +26066,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -25612,6 +26095,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -25639,6 +26124,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -25666,6 +26153,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -25693,6 +26182,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -25720,6 +26211,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -25747,6 +26240,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -25774,6 +26269,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -25801,6 +26298,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -25828,6 +26327,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'shortcut-set-1',
@@ -25855,6 +26356,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'shortcut-set-1',
@@ -25882,6 +26385,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'main-menu',
@@ -25909,6 +26414,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -25936,6 +26443,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -25963,6 +26472,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -25990,6 +26501,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -26017,6 +26530,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -26044,6 +26559,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -26071,6 +26588,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -26098,6 +26617,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -26125,6 +26646,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -26152,6 +26675,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -26179,6 +26704,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -26206,6 +26733,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -26233,6 +26762,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -26260,6 +26791,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -26287,6 +26820,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -26314,6 +26849,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -26341,6 +26878,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -26368,6 +26907,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -26395,6 +26936,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -26422,6 +26965,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -26449,6 +26994,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -26476,6 +27023,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -26503,6 +27052,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -26530,6 +27081,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -26557,6 +27110,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -26584,6 +27139,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -26611,6 +27168,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -26638,6 +27197,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -26665,6 +27226,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -26692,6 +27255,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -26719,6 +27284,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -26746,6 +27313,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -26773,6 +27342,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -26800,6 +27371,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -26827,6 +27400,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -26854,6 +27429,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -26881,6 +27458,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -26908,6 +27487,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -26935,6 +27516,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -26962,6 +27545,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -26989,6 +27574,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -27016,6 +27603,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -27043,6 +27632,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -27070,6 +27661,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -27097,6 +27690,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -27124,6 +27719,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -27151,6 +27748,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -27178,6 +27777,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -27205,6 +27806,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -27232,6 +27835,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -27259,6 +27864,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -27286,6 +27893,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -27313,6 +27922,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -27340,6 +27951,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -27367,6 +27980,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -27394,6 +28009,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -27421,6 +28038,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -27448,6 +28067,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -27475,6 +28096,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -27502,6 +28125,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -27529,6 +28154,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -27556,6 +28183,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -27583,6 +28212,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -27610,6 +28241,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -27637,6 +28270,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -27664,6 +28299,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -27691,6 +28328,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -27718,6 +28357,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -27745,6 +28386,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -27772,6 +28415,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -27799,6 +28444,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -27826,6 +28473,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -27853,6 +28502,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -27880,6 +28531,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -27907,6 +28560,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -27934,6 +28589,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -27961,6 +28618,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -27988,6 +28647,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -28015,6 +28676,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -28042,6 +28705,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -28069,6 +28734,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -28081,9 +28748,9 @@ $connection->insert('menu_links')
   'module' => 'system',
   'hidden' => '-1',
   'external' => '0',
-  'has_children' => '0',
+  'has_children' => '1',
   'expanded' => '0',
-  'weight' => '2',
+  'weight' => '1',
   'depth' => '2',
   'customized' => '0',
   'p1' => '5',
@@ -28096,6 +28763,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -28123,6 +28792,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -28150,6 +28821,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -28177,6 +28850,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -28204,6 +28879,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -28231,6 +28908,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -28258,6 +28937,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -28285,6 +28966,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -28312,6 +28995,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -28339,6 +29024,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -28366,6 +29053,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -28393,6 +29082,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -28420,6 +29111,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -28447,6 +29140,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -28474,6 +29169,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -28501,6 +29198,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -28528,6 +29227,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -28555,6 +29256,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -28582,6 +29285,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -28609,6 +29314,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -28636,6 +29343,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -28663,6 +29372,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -28690,6 +29401,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -28717,6 +29430,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -28744,6 +29459,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -28771,6 +29488,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -28798,6 +29517,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -28825,6 +29546,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -28852,6 +29575,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -28879,6 +29604,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -28906,6 +29633,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -28933,6 +29662,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -28960,6 +29691,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -28987,6 +29720,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -29014,6 +29749,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -29041,6 +29778,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -29068,6 +29807,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -29095,6 +29836,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -29122,6 +29865,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -29149,6 +29894,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -29176,6 +29923,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -29203,6 +29952,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -29230,6 +29981,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -29257,6 +30010,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -29284,6 +30039,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -29311,6 +30068,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -29338,6 +30097,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -29365,6 +30126,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -29392,6 +30155,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -29419,6 +30184,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -29446,6 +30213,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -29473,6 +30242,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -29500,6 +30271,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -29527,6 +30300,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -29554,6 +30329,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -29581,6 +30358,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -29608,6 +30387,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -29635,6 +30416,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -29662,6 +30445,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -29689,6 +30474,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -29716,6 +30503,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -29743,6 +30532,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -29770,6 +30561,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -29797,6 +30590,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -29824,6 +30619,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -29851,6 +30648,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -29878,6 +30677,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -29905,6 +30706,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -29932,6 +30735,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -29959,6 +30764,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -29986,6 +30793,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -30013,6 +30822,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -30040,6 +30851,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -30067,6 +30880,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -30094,6 +30909,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -30121,6 +30938,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -30148,6 +30967,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -30175,6 +30996,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -30202,6 +31025,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'menu-test-menu',
@@ -30229,6 +31054,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'menu-test-menu',
@@ -30256,6 +31083,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'menu-test-menu',
@@ -30283,6 +31112,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'menu-test-menu',
@@ -30310,6 +31141,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'shortcut-set-2',
@@ -30337,6 +31170,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'shortcut-set-2',
@@ -30364,6 +31199,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -30391,6 +31228,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -30418,6 +31257,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -30445,13 +31286,15 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
   'mlid' => '479',
   'plid' => '0',
   'link_path' => 'node/2',
-  'router_path' => 'node/2',
+  'router_path' => 'node/%',
   'link_title' => 'node link test',
   'options' => 'a:1:{s:10:"attributes";a:1:{s:5:"title";s:6:"node 2";}}',
   'module' => 'menu',
@@ -30472,6 +31315,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'book-toc-1',
@@ -30499,6 +31344,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'book-toc-1',
@@ -30526,6 +31373,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'book-toc-1',
@@ -30553,6 +31402,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'book-toc-2',
@@ -30580,6 +31431,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -30607,6 +31460,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -30634,6 +31489,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -30661,6 +31518,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'navigation',
@@ -30688,6 +31547,8 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->values(array(
   'menu_name' => 'management',
@@ -30715,6 +31576,37 @@ $connection->insert('menu_links')
   'p8' => '0',
   'p9' => '0',
   'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
+))
+->values(array(
+  'menu_name' => 'management',
+  'mlid' => '535',
+  'plid' => '44',
+  'link_path' => 'admin/structure/menu/manage/menu-fixedlang',
+  'router_path' => 'admin/structure/menu/manage/%',
+  'link_title' => 'FixedLang',
+  'options' => 'a:0:{}',
+  'module' => 'menu',
+  'hidden' => '0',
+  'external' => '0',
+  'has_children' => '0',
+  'expanded' => '0',
+  'weight' => '0',
+  'depth' => '4',
+  'customized' => '0',
+  'p1' => '1',
+  'p2' => '20',
+  'p3' => '44',
+  'p4' => '535',
+  'p5' => '0',
+  'p6' => '0',
+  'p7' => '0',
+  'p8' => '0',
+  'p9' => '0',
+  'updated' => '0',
+  'language' => 'und',
+  'i18n_tsid' => '0',
 ))
 ->execute();
 $connection->schema()->createTable('menu_router', array(
@@ -41709,11 +42601,11 @@ $connection->insert('node_comment_statistics')
 ))
 ->values(array(
   'nid' => '1',
-  'cid' => '1',
-  'last_comment_timestamp' => '1421727536',
+  'cid' => '4',
+  'last_comment_timestamp' => '1426781880',
   'last_comment_name' => '',
-  'last_comment_uid' => '1',
-  'comment_count' => '1',
+  'last_comment_uid' => '3',
+  'comment_count' => '2',
 ))
 ->values(array(
   'nid' => '3',
@@ -53561,11 +54453,11 @@ $connection->insert('system')
   'name' => 'i18n_menu',
   'type' => 'module',
   'owner' => '',
-  'status' => '0',
+  'status' => '1',
   'bootstrap' => '0',
-  'schema_version' => '-1',
-  'weight' => '0',
-  'info' => 'a:12:{s:4:"name";s:16:"Menu translation";s:11:"description";s:40:"Supports translatable custom menu items.";s:12:"dependencies";a:4:{i:0;s:4:"i18n";i:1;s:4:"menu";i:2;s:11:"i18n_string";i:3;s:16:"i18n_translation";}s:7:"package";s:35:"Multilingual - Internationalization";s:4:"core";s:3:"7.x";s:5:"files";a:2:{i:0;s:13:"i18n_menu.inc";i:1;s:14:"i18n_menu.test";}s:7:"version";s:8:"7.x-1.26";s:7:"project";s:4:"i18n";s:9:"datestamp";s:10:"1534531985";s:5:"mtime";i:1534531985;s:3:"php";s:5:"5.2.4";s:9:"bootstrap";i:0;}',
+  'schema_version' => '7001',
+  'weight' => '5',
+  'info' => 'a:10:{s:4:"name";s:16:"Menu translation";s:11:"description";s:40:"Supports translatable custom menu items.";s:12:"dependencies";a:4:{i:0;s:4:"i18n";i:1;s:4:"menu";i:2;s:11:"i18n_string";i:3;s:16:"i18n_translation";}s:7:"package";s:35:"Multilingual - Internationalization";s:4:"core";s:3:"7.x";s:5:"files";a:2:{i:0;s:13:"i18n_menu.inc";i:1;s:14:"i18n_menu.test";}s:5:"mtime";i:1569454741;s:7:"version";N;s:3:"php";s:5:"5.2.4";s:9:"bootstrap";i:0;}',
 ))
 ->values(array(
   'filename' => 'sites/all/modules/i18n/i18n_node/i18n_node.module',
@@ -55787,7 +56679,7 @@ $connection->insert('variable')
 ))
 ->values(array(
   'name' => 'menu_masks',
-  'value' => 'a:36:{i:0;i:501;i:1;i:493;i:2;i:250;i:3;i:247;i:4;i:246;i:5;i:245;i:6;i:126;i:7;i:125;i:8;i:123;i:9;i:122;i:10;i:121;i:11;i:117;i:12;i:63;i:13;i:62;i:14;i:61;i:15;i:60;i:16;i:59;i:17;i:58;i:18;i:44;i:19;i:31;i:20;i:30;i:21;i:29;i:22;i:24;i:23;i:21;i:24;i:15;i:25;i:14;i:26;i:13;i:27;i:12;i:28;i:11;i:29;i:8;i:30;i:7;i:31;i:6;i:32;i:5;i:33;i:3;i:34;i:2;i:35;i:1;}',
+  'value' => 'a:47:{i:0;i:501;i:1;i:493;i:2;i:490;i:3;i:250;i:4;i:247;i:5;i:246;i:6;i:245;i:7;i:242;i:8;i:238;i:9;i:234;i:10;i:126;i:11;i:125;i:12;i:123;i:13;i:122;i:14;i:121;i:15;i:119;i:16;i:117;i:17;i:108;i:18;i:63;i:19;i:62;i:20;i:61;i:21;i:60;i:22;i:59;i:23;i:58;i:24;i:56;i:25;i:54;i:26;i:44;i:27;i:31;i:28;i:30;i:29;i:29;i:30;i:26;i:31;i:24;i:32;i:22;i:33;i:21;i:34;i:15;i:35;i:14;i:36;i:13;i:37;i:12;i:38;i:11;i:39;i:10;i:40;i:8;i:41;i:7;i:42;i:6;i:43;i:5;i:44;i:3;i:45;i:2;i:46;i:1;}',
 ))
 ->values(array(
   'name' => 'menu_options_article',

@@ -10,6 +10,20 @@
    <term><name>Projects</name><value>Drupal project</value></term>
   </terms>
 <releases>
+  <release>
+    <!-- This release is not in a supported branch; therefore it should not be recommended. -->
+    <name>Drupal 8.2.0</name>
+    <version>8.2.0</version>
+    <tag>DRUPAL-8-2-0</tag>
+    <status>published</status>
+    <release_link>http://example.com/drupal-8-2-0-release</release_link>
+    <download_link>http://example.com/drupal-8-2-0.tar.gz</download_link>
+    <date>1250425521</date>
+    <terms>
+      <term><name>Release type</name><value>New features</value></term>
+      <term><name>Release type</name><value>Bug fixes</value></term>
+    </terms>
+  </release>
  <release>
    <name>Drupal 8.1.0</name>
    <version>8.1.0</version>
@@ -43,6 +57,33 @@
    <status>published</status>
    <release_link>http://example.com/drupal-8-1-0-alpha1-release</release_link>
    <download_link>http://example.com/drupal-8-1-0-alpha1.tar.gz</download_link>
+   <date>1250424581</date>
+   <terms>
+     <term><name>Release type</name><value>New features</value></term>
+     <term><name>Release type</name><value>Bug fixes</value></term>
+   </terms>
+ </release>
+ <release>
+   <name>Drupal 8.0.3</name>
+   <version>8.0.3</version>
+   <tag>8.0.3</tag>
+   <status>published</status>
+   <release_link>http://example.com/drupal-8-0-3-release</release_link>
+   <download_link>http://example.com/drupal-8-0-3.tar.gz</download_link>
+   <date>1250424585</date>
+   <terms>
+     <term><name>Release type</name><value>New features</value></term>
+     <term><name>Release type</name><value>Bug fixes</value></term>
+     <term><name>Release type</name><value>Unsupported</value></term>
+   </terms>
+ </release>
+ <release>
+   <name>Drupal 8.0.2</name>
+   <version>8.0.2</version>
+   <tag>8.0.2</tag>
+   <status>unpublished</status>
+   <release_link>http://example.com/drupal-8-0-2-release</release_link>
+   <download_link>http://example.com/drupal-8-0-2.tar.gz</download_link>
    <date>1250424581</date>
    <terms>
      <term><name>Release type</name><value>New features</value></term>
