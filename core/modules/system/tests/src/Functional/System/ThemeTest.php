@@ -107,7 +107,7 @@ class ThemeTest extends BrowserTestBase {
         'default_logo' => FALSE,
         'logo_path' => $input,
       ];
-      $this->drupalPostForm('admin/appearance/settings', $edit, t('Save configuration'));
+      $this->drupalPostForm('admin/appearance/settings', $edit, 'Save configuration');
       $this->assertNoText('The custom logo path is invalid.');
       $this->assertSession()->fieldValueEquals('logo_path', $expected['form']);
 
@@ -179,7 +179,7 @@ class ThemeTest extends BrowserTestBase {
         'default_logo' => FALSE,
         'logo_path' => $path,
       ];
-      $this->drupalPostForm(NULL, $edit, t('Save configuration'));
+      $this->drupalPostForm(NULL, $edit, 'Save configuration');
       $this->assertText('The custom logo path is invalid.');
     }
 
@@ -189,7 +189,7 @@ class ThemeTest extends BrowserTestBase {
       'logo_path' => '',
       'files[logo_upload]' => \Drupal::service('file_system')->realpath($file->uri),
     ];
-    $this->drupalPostForm('admin/appearance/settings', $edit, t('Save configuration'));
+    $this->drupalPostForm('admin/appearance/settings', $edit, 'Save configuration');
 
     $uploaded_filename = 'public://' . $this->getSession()->getPage()->findField('logo_path')->getValue();
 
@@ -244,7 +244,7 @@ class ThemeTest extends BrowserTestBase {
       'default_logo' => FALSE,
       'logo_path' => 'core/misc/druplicon.png',
     ];
-    $this->drupalPostForm('admin/appearance/settings/bartik', $edit, t('Save configuration'));
+    $this->drupalPostForm('admin/appearance/settings/bartik', $edit, 'Save configuration');
     $this->assertSession()->fieldValueEquals('default_logo', FALSE);
     $this->assertSession()->fieldValueEquals('logo_path', 'core/misc/druplicon.png');
 
@@ -272,7 +272,7 @@ class ThemeTest extends BrowserTestBase {
     $this->drupalLogin($this->adminUser);
     // Save Bartik's theme settings which should invalidate the 'rendered' cache
     // tag in \Drupal\system\EventSubscriber\ConfigCacheTag.
-    $this->drupalPostForm('admin/appearance/settings/bartik', [], t('Save configuration'));
+    $this->drupalPostForm('admin/appearance/settings/bartik', [], 'Save configuration');
     $this->drupalLogout();
     $this->drupalGet('');
     $this->assertSession()->responseHeaderEquals('X-Drupal-Cache', 'MISS');
@@ -289,7 +289,7 @@ class ThemeTest extends BrowserTestBase {
       'admin_theme' => 'seven',
       'use_admin_theme' => TRUE,
     ];
-    $this->drupalPostForm('admin/appearance', $edit, t('Save configuration'));
+    $this->drupalPostForm('admin/appearance', $edit, 'Save configuration');
 
     // Check that the administration theme is used on an administration page.
     $this->drupalGet('admin/config');
@@ -311,7 +311,7 @@ class ThemeTest extends BrowserTestBase {
     $edit = [
       'use_admin_theme' => FALSE,
     ];
-    $this->drupalPostForm('admin/appearance', $edit, t('Save configuration'));
+    $this->drupalPostForm('admin/appearance', $edit, 'Save configuration');
 
     // Check that the administration theme is used on an administration page.
     $this->drupalGet('admin/config');
@@ -335,7 +335,7 @@ class ThemeTest extends BrowserTestBase {
       'admin_theme' => '',
       'use_admin_theme' => FALSE,
     ];
-    $this->drupalPostForm('admin/appearance', $edit, t('Save configuration'));
+    $this->drupalPostForm('admin/appearance', $edit, 'Save configuration');
 
     // Check that the site default theme used on administration page.
     $this->drupalGet('admin');
@@ -386,9 +386,9 @@ class ThemeTest extends BrowserTestBase {
     // Clear the system_list() and theme listing cache to pick up the change.
     $this->container->get('theme_handler')->reset();
     $this->drupalGet('admin/appearance');
-    $this->assertText(t('This theme requires the base theme @base_theme to operate correctly.', ['@base_theme' => 'not_real_test_basetheme']));
-    $this->assertText(t('This theme requires the base theme @base_theme to operate correctly.', ['@base_theme' => 'test_invalid_basetheme']));
-    $this->assertText(t('This theme requires the theme engine @theme_engine to operate correctly.', ['@theme_engine' => 'not_real_engine']));
+    $this->assertText('This theme requires the base theme not_real_test_basetheme to operate correctly.');
+    $this->assertText('This theme requires the base theme test_invalid_basetheme to operate correctly.');
+    $this->assertText('This theme requires the theme engine not_real_engine to operate correctly.');
     // Check for the error text of a theme with the wrong core version
     // using 7.x and ^7.
     $incompatible_core_message = 'This theme is not compatible with Drupal ' . \Drupal::VERSION . ". Check that the .info.yml file contains a compatible 'core' or 'core_version_requirement' value.";
@@ -409,7 +409,7 @@ class ThemeTest extends BrowserTestBase {
       'admin_theme' => 'seven',
       'use_admin_theme' => TRUE,
     ];
-    $this->drupalPostForm('admin/appearance', $edit, t('Save configuration'));
+    $this->drupalPostForm('admin/appearance', $edit, 'Save configuration');
     $this->drupalGet('admin/appearance');
     $this->clickLink(t('Set as default'));
 
@@ -428,7 +428,7 @@ class ThemeTest extends BrowserTestBase {
       'admin_theme' => 'stark',
       'use_admin_theme' => TRUE,
     ];
-    $this->drupalPostForm('admin/appearance', $edit, t('Save configuration'));
+    $this->drupalPostForm('admin/appearance', $edit, 'Save configuration');
 
     // Check that seven can be uninstalled now.
     $this->assertRaw('Uninstall Seven theme');
@@ -495,7 +495,7 @@ class ThemeTest extends BrowserTestBase {
     // Visit this theme's settings page.
     $this->drupalGet('admin/appearance/settings/test_theme_settings_features');
     $edit = [];
-    $this->drupalPostForm('admin/appearance/settings/test_theme_settings_features', $edit, t('Save configuration'));
+    $this->drupalPostForm('admin/appearance/settings/test_theme_settings_features', $edit, 'Save configuration');
     $this->assertText('The configuration options have been saved.');
   }
 

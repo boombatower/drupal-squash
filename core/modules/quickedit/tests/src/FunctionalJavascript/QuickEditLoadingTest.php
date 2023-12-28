@@ -47,7 +47,7 @@ class QuickEditLoadingTest extends WebDriverTestBase {
   protected $defaultTheme = 'classy';
 
   /**
-   * An user with permissions to create and edit articles.
+   * A user with permissions to create and edit articles.
    *
    * @var \Drupal\user\UserInterface
    */
@@ -61,7 +61,7 @@ class QuickEditLoadingTest extends WebDriverTestBase {
   protected $testNode;
 
   /**
-   * A author user with permissions to access in-place editor.
+   * An author user with permissions to access in-place editor.
    *
    * @var \Drupal\user\UserInterface
    */
@@ -135,7 +135,7 @@ class QuickEditLoadingTest extends WebDriverTestBase {
     // permission to in-place edit.
     $this->assertNoRaw('data-quickedit-entity-id="node/1"');
     $this->assertNoRaw('data-quickedit-field-id="node/1/body/en/full"');
-    $this->assertNoFieldByXPath('//h1[contains(@class, "js-quickedit-page-title")]');
+    $this->assertSession()->elementNotExists('xpath', '//h1[contains(@class, "js-quickedit-page-title")]');
     $assert->linkNotExists('Quick edit');
 
     // Tests the loading of Quick Edit when a user does have access to it.
@@ -375,9 +375,7 @@ class QuickEditLoadingTest extends WebDriverTestBase {
     $page->attachFileToField('files[field_image_0]', $image_path);
     $alt_field = $assert->waitForField('field_image[0][alt]');
     $this->assertNotEmpty($alt_field);
-    $this->drupalPostForm(NULL, [
-      'field_image[0][alt]' => 'Vivamus aliquet elit',
-    ], t('Save'));
+    $this->drupalPostForm(NULL, ['field_image[0][alt]' => 'Vivamus aliquet elit'], 'Save');
 
     // The image field form should load normally.
     // Wait "Quick edit" button for node.

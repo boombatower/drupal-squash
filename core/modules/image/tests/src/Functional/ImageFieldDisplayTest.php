@@ -2,7 +2,6 @@
 
 namespace Drupal\Tests\image\Functional;
 
-use Drupal\Component\Render\FormattableMarkup;
 use Drupal\Core\Field\FieldStorageDefinitionInterface;
 use Drupal\Core\StreamWrapper\StreamWrapperManager;
 use Drupal\Core\Url;
@@ -263,9 +262,9 @@ class ImageFieldDisplayTest extends ImageFieldTestBase {
     $this->assertSession()->fieldValueEquals('settings[min_resolution][y]', '10');
 
     $this->drupalGet('node/add/article');
-    $this->assertText(t('50 KB limit.'), 'Image widget max file size is displayed on article form.');
-    $this->assertText(t('Allowed types: @extensions.', ['@extensions' => $test_image_extension]), 'Image widget allowed file types displayed on article form.');
-    $this->assertText(t('Images must be larger than 10x10 pixels. Images larger than 100x100 pixels will be resized.'), 'Image widget allowed resolution displayed on article form.');
+    $this->assertText('50 KB limit.', 'Image widget max file size is displayed on article form.');
+    $this->assertText('Allowed types: ' . $test_image_extension . '.', 'Image widget allowed file types displayed on article form.');
+    $this->assertText('Images must be larger than 10x10 pixels. Images larger than 100x100 pixels will be resized.', 'Image widget allowed resolution displayed on article form.');
 
     // We have to create the article first and then edit it because the alt
     // and title fields do not display until the image has been attached.
@@ -302,7 +301,7 @@ class ImageFieldDisplayTest extends ImageFieldTestBase {
       $field_name . '[0][alt]' => $image['#alt'],
       $field_name . '[0][title]' => $image['#title'],
     ];
-    $this->drupalPostForm('node/' . $nid . '/edit', $edit, t('Save'));
+    $this->drupalPostForm('node/' . $nid . '/edit', $edit, 'Save');
     $default_output = str_replace("\n", NULL, $renderer->renderRoot($image));
     $this->assertRaw($default_output);
 
@@ -312,7 +311,7 @@ class ImageFieldDisplayTest extends ImageFieldTestBase {
       $field_name . '[0][alt]' => $this->randomMachineName($test_size),
       $field_name . '[0][title]' => $this->randomMachineName($test_size),
     ];
-    $this->drupalPostForm('node/' . $nid . '/edit', $edit, t('Save'));
+    $this->drupalPostForm('node/' . $nid . '/edit', $edit, 'Save');
     $schema = $field->getFieldStorageDefinition()->getSchema();
     $this->assertRaw(t('Alternative text cannot be longer than %max characters but is currently %length characters long.', [
       '%max' => $schema['columns']['alt']['length'],
@@ -330,14 +329,14 @@ class ImageFieldDisplayTest extends ImageFieldTestBase {
     // 1, so we need to make sure the file widget prevents these notices by
     // providing all settings, even if they are not used.
     // @see FileWidget::formMultipleElements().
-    $this->drupalPostForm('admin/structure/types/manage/article/fields/node.article.' . $field_name . '/storage', ['cardinality' => FieldStorageDefinitionInterface::CARDINALITY_UNLIMITED], t('Save field settings'));
+    $this->drupalPostForm('admin/structure/types/manage/article/fields/node.article.' . $field_name . '/storage', ['cardinality' => FieldStorageDefinitionInterface::CARDINALITY_UNLIMITED], 'Save field settings');
     $edit = [
       'files[' . $field_name . '_1][]' => \Drupal::service('file_system')->realpath($test_image->uri),
     ];
-    $this->drupalPostForm('node/' . $node->id() . '/edit', $edit, t('Save'));
+    $this->drupalPostForm('node/' . $node->id() . '/edit', $edit, 'Save');
     // Add the required alt text.
-    $this->drupalPostForm(NULL, [$field_name . '[1][alt]' => $alt], t('Save'));
-    $this->assertText(new FormattableMarkup('Article @title has been updated.', ['@title' => $node->getTitle()]));
+    $this->drupalPostForm(NULL, [$field_name . '[1][alt]' => $alt], 'Save');
+    $this->assertText('Article ' . $node->getTitle() . ' has been updated.');
 
     // Assert ImageWidget::process() calls FieldWidget::process().
     $this->drupalGet('node/' . $node->id() . '/edit');
@@ -381,7 +380,7 @@ class ImageFieldDisplayTest extends ImageFieldTestBase {
       'settings[default_image][alt]' => $alt,
       'settings[default_image][title]' => $title,
     ];
-    $this->drupalPostForm("admin/structure/types/manage/article/fields/node.article.$field_name/storage", $edit, t('Save field settings'));
+    $this->drupalPostForm("admin/structure/types/manage/article/fields/node.article.$field_name/storage", $edit, 'Save field settings');
     // Clear field definition cache so the new default image is detected.
     \Drupal::service('entity_field.manager')->clearCachedFieldDefinitions();
     $field_storage = FieldStorageConfig::loadByName('node', $field_name);
@@ -453,7 +452,7 @@ class ImageFieldDisplayTest extends ImageFieldTestBase {
       'settings[default_image][alt]' => $alt,
       'settings[default_image][title]' => $title,
     ];
-    $this->drupalPostForm('admin/structure/types/manage/article/fields/node.article.' . $private_field_name . '/storage', $edit, t('Save field settings'));
+    $this->drupalPostForm('admin/structure/types/manage/article/fields/node.article.' . $private_field_name . '/storage', $edit, 'Save field settings');
     // Clear field definition cache so the new default image is detected.
     \Drupal::service('entity_field.manager')->clearCachedFieldDefinitions();
 

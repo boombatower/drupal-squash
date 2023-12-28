@@ -188,7 +188,7 @@ class TextFieldTest extends StringFieldTest {
     $this->drupalLogin($this->adminUser);
     foreach (filter_formats() as $format) {
       if (!$format->isFallbackFormat()) {
-        $this->drupalPostForm('admin/config/content/formats/manage/' . $format->id() . '/disable', [], t('Disable'));
+        $this->drupalPostForm('admin/config/content/formats/manage/' . $format->id() . '/disable', [], 'Disable');
       }
     }
     $this->drupalLogin($this->webUser);
@@ -204,10 +204,10 @@ class TextFieldTest extends StringFieldTest {
     $edit = [
       "{$field_name}[0][value]" => $value,
     ];
-    $this->drupalPostForm(NULL, $edit, t('Save'));
+    $this->drupalPostForm(NULL, $edit, 'Save');
     preg_match('|entity_test/manage/(\d+)|', $this->getUrl(), $match);
     $id = $match[1];
-    $this->assertText(t('entity_test @id has been created.', ['@id' => $id]), 'Entity was created');
+    $this->assertText('entity_test ' . $id . ' has been created.', 'Entity was created');
 
     // Display the entity.
     $entity = EntityTest::load($id);
@@ -224,7 +224,7 @@ class TextFieldTest extends StringFieldTest {
       'format' => mb_strtolower($this->randomMachineName()),
       'name' => $this->randomMachineName(),
     ];
-    $this->drupalPostForm('admin/config/content/formats/add', $edit, t('Save configuration'));
+    $this->drupalPostForm('admin/config/content/formats/add', $edit, 'Save configuration');
     filter_formats_reset();
     $format = FilterFormat::load($edit['format']);
     $format_id = $format->id();
@@ -244,8 +244,8 @@ class TextFieldTest extends StringFieldTest {
     $edit = [
       "{$field_name}[0][format]" => $format_id,
     ];
-    $this->drupalPostForm(NULL, $edit, t('Save'));
-    $this->assertText(t('entity_test @id has been updated.', ['@id' => $id]), 'Entity was updated');
+    $this->drupalPostForm(NULL, $edit, 'Save');
+    $this->assertText('entity_test ' . $id . ' has been updated.', 'Entity was updated');
 
     // Display the entity.
     $this->container->get('entity_type.manager')->getStorage('entity_test')->resetCache([$id]);

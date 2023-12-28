@@ -232,7 +232,9 @@ class FormTest extends BrowserTestBase {
       'radios' => 'bar',
     ];
     $this->drupalPostForm(NULL, $edit, 'Submit');
-    $this->assertNoFieldByXpath('//div[contains(@class, "error")]', FALSE, 'No error message is displayed when all required fields are filled.');
+    // Verify that no error message is displayed when all required fields are
+    // filled.
+    $this->assertSession()->elementNotExists('xpath', '//div[contains(@class, "error")]');
     $this->assertRaw("The form_test_validate_required_form form was submitted successfully.");
   }
 
@@ -259,7 +261,9 @@ class FormTest extends BrowserTestBase {
       'radios' => 'foo',
     ];
     $this->drupalPostForm(NULL, $edit, 'Submit');
-    $this->assertFieldByXpath('//div[contains(@class, "error")]', NULL, 'Error message is displayed with invalid token even when required fields are filled.');
+    // Verify that error message is displayed with invalid token even when
+    // required fields are filled.
+    $this->assertSession()->elementExists('xpath', '//div[contains(@class, "error")]');
 
     $assert = $this->assertSession();
     $element = $assert->fieldExists('textfield');
@@ -283,7 +287,9 @@ class FormTest extends BrowserTestBase {
       'textarea' => $this->randomString() . "\n",
     ];
     $this->drupalPostForm(NULL, $edit, 'Submit');
-    $this->assertFieldByXpath('//div[contains(@class, "error")]', NULL, 'Error message is displayed with invalid token even when required fields are filled.');
+    // Verify that the error message is displayed with invalid token even when
+    // required fields are filled.
+    $this->assertSession()->elementExists('xpath', '//div[contains(@class, "error")]');
     $this->assertText('The form has become outdated.');
     $this->assertSession()->fieldValueEquals('textfield', '');
     $this->assertSession()->fieldValueEquals('textarea', '');
@@ -299,7 +305,9 @@ class FormTest extends BrowserTestBase {
       'integer_step' => mt_rand(6, 100),
     ];
     $this->drupalPostForm(NULL, $edit, 'Submit');
-    $this->assertFieldByXpath('//div[contains(@class, "error")]', NULL, 'Error message is displayed with invalid token even when required fields are filled.');
+    // Verify that the error message is displayed with invalid token even when
+    // required fields are filled.'
+    $this->assertSession()->elementExists('xpath', '//div[contains(@class, "error")]');
     $this->assertText('The form has become outdated.');
     $this->assertSession()->fieldValueEquals('integer_step', 5);
 
@@ -312,7 +320,9 @@ class FormTest extends BrowserTestBase {
       'url' => $this->randomString(),
     ];
     $this->drupalPostForm(NULL, $edit, 'Submit');
-    $this->assertFieldByXpath('//div[contains(@class, "error")]', NULL, 'Error message is displayed with invalid token even when required fields are filled.');
+    // Verify that the error message is displayed with invalid token even when
+    // required fields are filled.
+    $this->assertSession()->elementExists('xpath', '//div[contains(@class, "error")]');
     $this->assertText('The form has become outdated.');
     $this->assertSession()->fieldValueEquals('url', '');
   }
@@ -346,10 +356,10 @@ class FormTest extends BrowserTestBase {
     $this->assertNoRaw("The form_test_validate_required_form_no_title form was submitted successfully.");
 
     // Check the page for the error class on the textfield.
-    $this->assertFieldByXPath('//input[contains(@class, "error")]', FALSE, 'Error input form element class found.');
+    $this->assertSession()->elementExists('xpath', '//input[contains(@class, "error")]');
 
     // Check the page for the aria-invalid attribute on the textfield.
-    $this->assertFieldByXPath('//input[contains(@aria-invalid, "true")]', FALSE, 'Aria invalid attribute found.');
+    $this->assertSession()->elementExists('xpath', '//input[contains(@aria-invalid, "true")]');
 
     // Submit again with required fields set and verify that there are no
     // error messages.
@@ -357,7 +367,8 @@ class FormTest extends BrowserTestBase {
       'textfield' => $this->randomString(),
     ];
     $this->drupalPostForm(NULL, $edit, 'Submit');
-    $this->assertNoFieldByXpath('//input[contains(@class, "error")]', FALSE, 'No error input form element class found.');
+    // Verify that no error input form element class is present.
+    $this->assertSession()->elementNotExists('xpath', '//input[contains(@class, "error")]');
     $this->assertRaw("The form_test_validate_required_form_no_title form was submitted successfully.");
   }
 
@@ -369,11 +380,11 @@ class FormTest extends BrowserTestBase {
   public function testCheckboxProcessing() {
     // First, try to submit without the required checkbox.
     $edit = [];
-    $this->drupalPostForm('form-test/checkbox', $edit, t('Submit'));
+    $this->drupalPostForm('form-test/checkbox', $edit, 'Submit');
     $this->assertRaw(t('@name field is required.', ['@name' => 'required_checkbox']));
 
     // Now try to submit the form correctly.
-    $this->drupalPostForm(NULL, ['required_checkbox' => 1], t('Submit'));
+    $this->drupalPostForm(NULL, ['required_checkbox' => 1], 'Submit');
     $values = Json::decode($this->getSession()->getPage()->getContent());
     $expected_values = [
       'disabled_checkbox_on' => 'disabled_checkbox_on',
@@ -429,7 +440,7 @@ class FormTest extends BrowserTestBase {
         'multiple_no_default_required',
     ];
     foreach ($expected_errors as $key) {
-      $this->assertText(t('@name field is required.', ['@name' => $form[$key]['#title']]));
+      $this->assertText($form[$key]['#title'] . ' field is required.');
     }
 
     // Post values for required fields.
@@ -474,8 +485,8 @@ class FormTest extends BrowserTestBase {
    */
   public function testEmptySelect() {
     $this->drupalGet('form-test/empty-select');
-    $this->assertFieldByXPath("//select[1]", NULL, 'Select element found.');
-    $this->assertNoFieldByXPath("//select[1]/option", NULL, 'No option element found.');
+    $this->assertSession()->elementExists('xpath', "//select[1]");
+    $this->assertSession()->elementNotExists('xpath', "//select[1]/option");
   }
 
   /**
@@ -674,7 +685,8 @@ class FormTest extends BrowserTestBase {
     $this->assertEqual($values->offset, 6.9);
 
     $this->drupalPostForm('form-test/range/invalid', [], 'Submit');
-    $this->assertFieldByXPath('//input[@type="range" and contains(@class, "error")]', NULL, 'Range element has the error class.');
+    // Verify that the 'range' element has the error class.
+    $this->assertSession()->elementExists('xpath', '//input[@type="range" and contains(@class, "error")]');
   }
 
   /**
@@ -741,7 +753,7 @@ class FormTest extends BrowserTestBase {
 
     // Submit the form with no input, as the browser does for disabled elements,
     // and fetch the $form_state->getValues() that is passed to the submit handler.
-    $this->drupalPostForm('form-test/disabled-elements', [], t('Submit'));
+    $this->drupalPostForm('form-test/disabled-elements', [], 'Submit');
     $returned_values['normal'] = Json::decode($this->getSession()->getPage()->getContent());
 
     // Do the same with input, as could happen if JavaScript un-disables an
@@ -768,7 +780,7 @@ class FormTest extends BrowserTestBase {
       ->elementExists('css', 'input[name="hidden"]')
       ->setValue($edit['hidden']);
     unset($edit['hidden']);
-    $this->drupalPostForm(NULL, $edit, t('Submit'));
+    $this->drupalPostForm(NULL, $edit, 'Submit');
     $returned_values['hijacked'] = Json::decode($this->getSession()->getPage()->getContent());
 
     // Ensure that the returned values match the form's default values in both
@@ -878,7 +890,7 @@ class FormTest extends BrowserTestBase {
     // The value for checkboxes[two] was changed using post render to simulate
     // an input forgery.
     // @see \Drupal\form_test\Form\FormTestInputForgeryForm::postRender
-    $this->drupalPostForm(NULL, ['checkboxes[one]' => TRUE, 'checkboxes[two]' => TRUE], t('Submit'));
+    $this->drupalPostForm(NULL, ['checkboxes[one]' => TRUE, 'checkboxes[two]' => TRUE], 'Submit');
     $this->assertText('An illegal choice has been detected.', 'Input forgery was detected.');
   }
 

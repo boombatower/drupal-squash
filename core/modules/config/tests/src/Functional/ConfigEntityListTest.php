@@ -201,7 +201,7 @@ class ConfigEntityListTest extends BrowserTestBase {
       'id' => 'antelope',
       'weight' => 1,
     ];
-    $this->drupalPostForm(NULL, $edit, t('Save'));
+    $this->drupalPostForm(NULL, $edit, 'Save');
 
     // Ensure that the entity's sort method was called.
     $this->assertTrue(\Drupal::state()->get('config_entity_sort'), 'ConfigTest::sort() was called.');
@@ -209,8 +209,8 @@ class ConfigEntityListTest extends BrowserTestBase {
     // Confirm that the user is returned to the listing, and verify that the
     // text of the label and machine name appears in the list (versus elsewhere
     // on the page).
-    $this->assertFieldByXpath('//td', 'Antelope', "Label found for added 'Antelope' entity.");
-    $this->assertFieldByXpath('//td', 'antelope', "Machine name found for added 'Antelope' entity.");
+    $this->assertSession()->elementExists('xpath', '//td[text() = "Antelope"]');
+    $this->assertSession()->elementExists('xpath', '//td[text() = "antelope"]');
 
     // Edit the entity using the operations link.
     $this->assertSession()->linkByHrefExists('admin/structure/config_test/manage/antelope');
@@ -218,36 +218,36 @@ class ConfigEntityListTest extends BrowserTestBase {
     $this->assertSession()->statusCodeEquals(200);
     $this->assertSession()->titleEquals('Edit Antelope | Drupal');
     $edit = ['label' => 'Albatross', 'id' => 'albatross'];
-    $this->drupalPostForm(NULL, $edit, t('Save'));
+    $this->drupalPostForm(NULL, $edit, 'Save');
 
     // Confirm that the user is returned to the listing, and verify that the
     // text of the label and machine name appears in the list (versus elsewhere
     // on the page).
-    $this->assertFieldByXpath('//td', 'Albatross', "Label found for updated 'Albatross' entity.");
-    $this->assertFieldByXpath('//td', 'albatross', "Machine name found for updated 'Albatross' entity.");
+    $this->assertSession()->elementExists('xpath', '//td[text() = "Albatross"]');
+    $this->assertSession()->elementExists('xpath', '//td[text() = "albatross"]');
 
     // Delete the added entity using the operations link.
     $this->assertSession()->linkByHrefExists('admin/structure/config_test/manage/albatross/delete');
     $this->clickLink('Delete', 1);
     $this->assertSession()->statusCodeEquals(200);
     $this->assertSession()->titleEquals('Are you sure you want to delete the test configuration Albatross? | Drupal');
-    $this->drupalPostForm(NULL, [], t('Delete'));
+    $this->drupalPostForm(NULL, [], 'Delete');
 
     // Verify that the text of the label and machine name does not appear in
     // the list (though it may appear elsewhere on the page).
-    $this->assertNoFieldByXpath('//td', 'Albatross', "No label found for deleted 'Albatross' entity.");
-    $this->assertNoFieldByXpath('//td', 'albatross', "No machine name found for deleted 'Albatross' entity.");
+    $this->assertSession()->elementNotExists('xpath', '//td[text() = "Albatross"]');
+    $this->assertSession()->elementNotExists('xpath', '//td[text() = "albatross"]');
 
     // Delete the original entity using the operations link.
     $this->clickLink('Delete');
     $this->assertSession()->statusCodeEquals(200);
     $this->assertSession()->titleEquals('Are you sure you want to delete the test configuration Default? | Drupal');
-    $this->drupalPostForm(NULL, [], t('Delete'));
+    $this->drupalPostForm(NULL, [], 'Delete');
 
     // Verify that the text of the label and machine name does not appear in
     // the list (though it may appear elsewhere on the page).
-    $this->assertNoFieldByXpath('//td', 'Default', "No label found for deleted 'Default' entity.");
-    $this->assertNoFieldByXpath('//td', 'dotted.default', "No machine name found for deleted 'Default' entity.");
+    $this->assertSession()->elementNotExists('xpath', '//td[text() = "Default"]');
+    $this->assertSession()->elementNotExists('xpath', '//td[text() = "dotted.default"]');
 
     // Confirm that the empty text is displayed.
     $this->assertText('There are no test configuration entities yet.');

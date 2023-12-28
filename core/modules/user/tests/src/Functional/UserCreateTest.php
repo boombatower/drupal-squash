@@ -78,7 +78,7 @@ class UserCreateTest extends BrowserTestBase {
     $this->drupalGet('admin/people/create');
     $this->assertSession()->fieldValueEquals('edit-status-0', '1');
     $this->assertSession()->fieldValueEquals('edit-status-1', '1');
-    $this->assertFieldByXPath('//input[@type="radio" and @id="edit-status-1" and @checked="checked"]', NULL, 'Default setting for user status is active.');
+    $this->assertSession()->checkboxChecked('edit-status-1');
 
     // Test that browser autocomplete behavior does not occur.
     $this->assertNoRaw('data-user-info-from-browser');
@@ -105,14 +105,14 @@ class UserCreateTest extends BrowserTestBase {
         'pass[pass2]' => $pass,
         'notify' => $notify,
       ];
-      $this->drupalPostForm('admin/people/create', $edit, t('Create new account'));
+      $this->drupalPostForm('admin/people/create', $edit, 'Create new account');
 
       if ($notify) {
-        $this->assertText(t('A welcome message with further instructions has been emailed to the new user @name.', ['@name' => $edit['name']]), 'User created');
+        $this->assertText('A welcome message with further instructions has been emailed to the new user ' . $edit['name'] . '.', 'User created');
         $this->assertCount(1, $this->drupalGetMails(), 'Notification email sent');
       }
       else {
-        $this->assertText(t('Created a new user account for @name. No email has been sent.', ['@name' => $edit['name']]), 'User created');
+        $this->assertText('Created a new user account for ' . $edit['name'] . '. No email has been sent.', 'User created');
         $this->assertCount(0, $this->drupalGetMails(), 'Notification email not sent');
       }
 
@@ -132,7 +132,7 @@ class UserCreateTest extends BrowserTestBase {
       'pass[pass2]' => 0,
       'notify' => FALSE,
     ];
-    $this->drupalPostForm('admin/people/create', $edit, t('Create new account'));
+    $this->drupalPostForm('admin/people/create', $edit, 'Create new account');
     $this->assertText("Created a new user account for $name. No email has been sent");
     $this->assertNoText('Password field is required');
   }

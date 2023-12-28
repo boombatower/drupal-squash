@@ -55,10 +55,11 @@ class DateTimeFieldTest extends DateTestBase {
       // Display creation form.
       $this->drupalGet('entity_test/add');
       $this->assertSession()->fieldValueEquals("{$field_name}[0][value][date]", '');
-      $this->assertFieldByXPath('//*[@id="edit-' . $field_name . '-wrapper"]//label[contains(@class,"js-form-required")]', TRUE, 'Required markup found');
+      $this->assertSession()->elementExists('xpath', '//*[@id="edit-' . $field_name . '-wrapper"]//label[contains(@class,"js-form-required")]');
       $this->assertSession()->fieldNotExists("{$field_name}[0][value][time]");
-      $this->assertFieldByXPath('//input[@aria-describedby="edit-' . $field_name . '-0-value--description"]', NULL, 'ARIA described-by found');
-      $this->assertFieldByXPath('//div[@id="edit-' . $field_name . '-0-value--description"]', NULL, 'ARIA description found');
+      // ARIA described-by.
+      $this->assertSession()->elementExists('xpath', '//input[@aria-describedby="edit-' . $field_name . '-0-value--description"]');
+      $this->assertSession()->elementExists('xpath', '//div[@id="edit-' . $field_name . '-0-value--description"]');
 
       // Build up a date in the UTC timezone. Note that using this will also
       // mimic the user in a different timezone simply entering '2012-12-31' via
@@ -73,10 +74,10 @@ class DateTimeFieldTest extends DateTestBase {
       $edit = [
         "{$field_name}[0][value][date]" => $date->format($date_format),
       ];
-      $this->drupalPostForm(NULL, $edit, t('Save'));
+      $this->drupalPostForm(NULL, $edit, 'Save');
       preg_match('|entity_test/manage/(\d+)|', $this->getUrl(), $match);
       $id = $match[1];
-      $this->assertText(t('entity_test @id has been created.', ['@id' => $id]));
+      $this->assertText('entity_test ' . $id . ' has been created.');
       $this->assertRaw($date->format($date_format));
       $this->assertNoRaw($date->format($time_format));
 
@@ -85,11 +86,11 @@ class DateTimeFieldTest extends DateTestBase {
       $entity = EntityTest::load($id);
       $this->assertEqual('2012-12-31', $entity->{$field_name}->value);
       $this->drupalGet('entity_test/manage/' . $id . '/edit');
-      $this->drupalPostForm(NULL, [], t('Save'));
+      $this->drupalPostForm(NULL, [], 'Save');
       $this->drupalGet('entity_test/manage/' . $id . '/edit');
-      $this->drupalPostForm(NULL, [], t('Save'));
+      $this->drupalPostForm(NULL, [], 'Save');
       $this->drupalGet('entity_test/manage/' . $id . '/edit');
-      $this->drupalPostForm(NULL, [], t('Save'));
+      $this->drupalPostForm(NULL, [], 'Save');
       $entity = EntityTest::load($id);
       $this->assertEqual('2012-12-31', $entity->{$field_name}->value);
 
@@ -249,9 +250,9 @@ class DateTimeFieldTest extends DateTestBase {
     $this->drupalGet('entity_test/add');
     $this->assertSession()->fieldValueEquals("{$field_name}[0][value][date]", '');
     $this->assertSession()->fieldValueEquals("{$field_name}[0][value][time]", '');
-    $this->assertFieldByXPath('//fieldset[@id="edit-' . $field_name . '-0"]/legend', $field_label, 'Fieldset and label found');
-    $this->assertFieldByXPath('//fieldset[@aria-describedby="edit-' . $field_name . '-0--description"]', NULL, 'ARIA described-by found');
-    $this->assertFieldByXPath('//div[@id="edit-' . $field_name . '-0--description"]', NULL, 'ARIA description found');
+    $this->assertSession()->elementTextContains('xpath', '//fieldset[@id="edit-' . $field_name . '-0"]/legend', $field_label);
+    $this->assertSession()->elementExists('xpath', '//fieldset[@aria-describedby="edit-' . $field_name . '-0--description"]');
+    $this->assertSession()->elementExists('xpath', '//div[@id="edit-' . $field_name . '-0--description"]');
 
     // Build up a date in the UTC timezone.
     $value = '2012-12-31 00:00:00';
@@ -268,10 +269,10 @@ class DateTimeFieldTest extends DateTestBase {
       "{$field_name}[0][value][date]" => $date->format($date_format),
       "{$field_name}[0][value][time]" => $date->format($time_format),
     ];
-    $this->drupalPostForm(NULL, $edit, t('Save'));
+    $this->drupalPostForm(NULL, $edit, 'Save');
     preg_match('|entity_test/manage/(\d+)|', $this->getUrl(), $match);
     $id = $match[1];
-    $this->assertText(t('entity_test @id has been created.', ['@id' => $id]));
+    $this->assertText('entity_test ' . $id . ' has been created.');
     $this->assertRaw($date->format($date_format));
     $this->assertRaw($date->format($time_format));
 
@@ -413,13 +414,13 @@ class DateTimeFieldTest extends DateTestBase {
 
     // Display creation form.
     $this->drupalGet('entity_test/add');
-    $this->assertFieldByXPath('//fieldset[@id="edit-' . $field_name . '-0"]/legend', $field_label, 'Fieldset and label found');
-    $this->assertFieldByXPath('//fieldset[@aria-describedby="edit-' . $field_name . '-0--description"]', NULL, 'ARIA described-by found');
-    $this->assertFieldByXPath('//div[@id="edit-' . $field_name . '-0--description"]', NULL, 'ARIA description found');
+    $this->assertSession()->elementTextContains('xpath', '//fieldset[@id="edit-' . $field_name . '-0"]/legend', $field_label);
+    $this->assertSession()->elementExists('xpath', '//fieldset[@aria-describedby="edit-' . $field_name . '-0--description"]');
+    $this->assertSession()->elementExists('xpath', '//div[@id="edit-' . $field_name . '-0--description"]');
 
     // Assert that Hour and Minute Elements do not appear on Date Only
-    $this->assertNoFieldByXPath("//*[@id=\"edit-$field_name-0-value-hour\"]", NULL, 'Hour element not found on Date Only.');
-    $this->assertNoFieldByXPath("//*[@id=\"edit-$field_name-0-value-minute\"]", NULL, 'Minute element not found on Date Only.');
+    $this->assertSession()->elementNotExists('xpath', "//*[@id=\"edit-$field_name-0-value-hour\"]");
+    $this->assertSession()->elementNotExists('xpath', "//*[@id=\"edit-$field_name-0-value-minute\"]");
 
     // Go to the form display page to assert that increment option does not appear on Date Only
     $fieldEditUrl = 'entity_test/structure/entity_test/form-display';
@@ -428,7 +429,7 @@ class DateTimeFieldTest extends DateTestBase {
     // Click on the widget settings button to open the widget settings form.
     $this->drupalPostForm(NULL, [], $field_name . "_settings_edit");
     $xpathIncr = "//select[starts-with(@id, \"edit-fields-$field_name-settings-edit-form-settings-increment\")]";
-    $this->assertNoFieldByXPath($xpathIncr, NULL, 'Increment element not found for Date Only.');
+    $this->assertSession()->elementNotExists('xpath', $xpathIncr);
 
     // Change the field to a datetime field.
     $this->fieldStorage->setSetting('datetime_type', 'datetime');
@@ -453,28 +454,35 @@ class DateTimeFieldTest extends DateTestBase {
 
     // Click on the widget settings button to open the widget settings form.
     $this->drupalPostForm(NULL, [], $field_name . "_settings_edit");
-    $this->assertFieldByXPath($xpathIncr, NULL, 'Increment element found for Date and time.');
+    $this->assertSession()->elementExists('xpath', $xpathIncr);
 
     // Display creation form.
     $this->drupalGet('entity_test/add');
 
-    $this->assertFieldByXPath("//*[@id=\"edit-$field_name-0-value-year\"]", NULL, 'Year element found.');
+    // Year element.
+    $this->assertSession()->elementExists('xpath', "//*[@id=\"edit-$field_name-0-value-year\"]");
     $this->assertTrue($this->assertSession()->optionExists("edit-$field_name-0-value-year", '')->isSelected());
     $this->assertSession()->optionExists("edit-$field_name-0-value-year", 'Year');
-    $this->assertFieldByXPath("//*[@id=\"edit-$field_name-0-value-month\"]", NULL, 'Month element found.');
+    // Month element.
+    $this->assertSession()->elementExists('xpath', "//*[@id=\"edit-$field_name-0-value-month\"]");
     $this->assertTrue($this->assertSession()->optionExists("edit-$field_name-0-value-month", '')->isSelected());
     $this->assertSession()->optionExists("edit-$field_name-0-value-month", 'Month');
-    $this->assertFieldByXPath("//*[@id=\"edit-$field_name-0-value-day\"]", NULL, 'Day element found.');
+    // Day element.
+    $this->assertSession()->elementExists('xpath', "//*[@id=\"edit-$field_name-0-value-day\"]");
     $this->assertTrue($this->assertSession()->optionExists("edit-$field_name-0-value-day", '')->isSelected());
     $this->assertSession()->optionExists("edit-$field_name-0-value-day", 'Day');
-    $this->assertFieldByXPath("//*[@id=\"edit-$field_name-0-value-hour\"]", NULL, 'Hour element found.');
+    // Hour element.
+    $this->assertSession()->elementExists('xpath', "//*[@id=\"edit-$field_name-0-value-hour\"]");
     $this->assertTrue($this->assertSession()->optionExists("edit-$field_name-0-value-hour", '')->isSelected());
     $this->assertSession()->optionExists("edit-$field_name-0-value-hour", 'Hour');
-    $this->assertFieldByXPath("//*[@id=\"edit-$field_name-0-value-minute\"]", NULL, 'Minute element found.');
+    // Minute element.
+    $this->assertSession()->elementExists('xpath', "//*[@id=\"edit-$field_name-0-value-minute\"]");
     $this->assertTrue($this->assertSession()->optionExists("edit-$field_name-0-value-minute", '')->isSelected());
     $this->assertSession()->optionExists("edit-$field_name-0-value-minute", 'Minute');
-    $this->assertNoFieldByXPath("//*[@id=\"edit-$field_name-0-value-second\"]", NULL, 'Second element not found.');
-    $this->assertFieldByXPath("//*[@id=\"edit-$field_name-0-value-ampm\"]", NULL, 'AMPM element found.');
+    // No Second element.
+    $this->assertSession()->elementNotExists('xpath', "//*[@id=\"edit-$field_name-0-value-second\"]");
+    // AMPM element.
+    $this->assertSession()->elementExists('xpath', "//*[@id=\"edit-$field_name-0-value-ampm\"]");
     $this->assertTrue($this->assertSession()->optionExists("edit-$field_name-0-value-ampm", '')->isSelected());
     $this->assertSession()->optionExists("edit-$field_name-0-value-ampm", 'AM/PM');
 
@@ -488,10 +496,10 @@ class DateTimeFieldTest extends DateTestBase {
       $edit["{$field_name}[0][value][$part]"] = $value;
     }
 
-    $this->drupalPostForm(NULL, $edit, t('Save'));
+    $this->drupalPostForm(NULL, $edit, 'Save');
     preg_match('|entity_test/manage/(\d+)|', $this->getUrl(), $match);
     $id = $match[1];
-    $this->assertText(t('entity_test @id has been created.', ['@id' => $id]));
+    $this->assertText('entity_test ' . $id . ' has been created.');
 
     $this->assertTrue($this->assertSession()->optionExists("edit-$field_name-0-value-year", '2012')->isSelected());
     $this->assertTrue($this->assertSession()->optionExists("edit-$field_name-0-value-month", '12')->isSelected());
@@ -517,9 +525,9 @@ class DateTimeFieldTest extends DateTestBase {
     $this->drupalGet('entity_test/add');
 
     // Other elements are unaffected by the changed settings.
-    $this->assertFieldByXPath("//*[@id=\"edit-$field_name-0-value-hour\"]", NULL, 'Hour element found.');
+    $this->assertSession()->elementExists('xpath', "//*[@id=\"edit-$field_name-0-value-hour\"]");
     $this->assertTrue($this->assertSession()->optionExists("edit-$field_name-0-value-hour", '')->isSelected());
-    $this->assertNoFieldByXPath("//*[@id=\"edit-$field_name-0-value-ampm\"]", NULL, 'AMPM element not found.');
+    $this->assertSession()->elementNotExists('xpath', "//*[@id=\"edit-$field_name-0-value-ampm\"]");
     // Submit a valid date and ensure it is accepted.
     $date_value = ['year' => 2012, 'month' => 12, 'day' => 31, 'hour' => 17, 'minute' => 15];
 
@@ -528,10 +536,10 @@ class DateTimeFieldTest extends DateTestBase {
       $edit["{$field_name}[0][value][$part]"] = $value;
     }
 
-    $this->drupalPostForm(NULL, $edit, t('Save'));
+    $this->drupalPostForm(NULL, $edit, 'Save');
     preg_match('|entity_test/manage/(\d+)|', $this->getUrl(), $match);
     $id = $match[1];
-    $this->assertText(t('entity_test @id has been created.', ['@id' => $id]));
+    $this->assertText('entity_test ' . $id . ' has been created.');
 
     $this->assertTrue($this->assertSession()->optionExists("edit-$field_name-0-value-year", '2012')->isSelected());
     $this->assertTrue($this->assertSession()->optionExists("edit-$field_name-0-value-month", '12')->isSelected());
@@ -565,10 +573,10 @@ class DateTimeFieldTest extends DateTestBase {
         $edit["{$field_name}[0][value][$part]"] = $value;
       }
 
-      $this->drupalPostForm(NULL, $edit, t('Save'));
+      $this->drupalPostForm(NULL, $edit, 'Save');
       $this->assertSession()->statusCodeEquals(200);
       foreach ($expected as $expected_text) {
-        $this->assertText(t($expected_text));
+        $this->assertText($expected_text);
       }
     }
 
@@ -581,11 +589,11 @@ class DateTimeFieldTest extends DateTestBase {
       $edit["{$field_name}[0][value][$part]"] = $value;
     }
 
-    $this->drupalPostForm(NULL, $edit, t('Save'));
+    $this->drupalPostForm(NULL, $edit, 'Save');
     $this->assertSession()->statusCodeEquals(200);
     preg_match('|entity_test/manage/(\d+)|', $this->getUrl(), $match);
     $id = $match[1];
-    $this->assertText(t('entity_test @id has been created.', ['@id' => $id]));
+    $this->assertText('entity_test ' . $id . ' has been created.');
 
     // Test the widget to ensure zeros are not deselected on validation.
     $this->drupalGet('entity_test/add');
@@ -596,7 +604,7 @@ class DateTimeFieldTest extends DateTestBase {
       $edit["{$field_name}[0][value][$part]"] = $value;
     }
 
-    $this->drupalPostForm(NULL, $edit, t('Save'));
+    $this->drupalPostForm(NULL, $edit, 'Save');
     $this->assertSession()->statusCodeEquals(200);
     $this->assertTrue($this->assertSession()->optionExists("edit-$field_name-0-value-minute", '0')->isSelected());
   }
@@ -692,7 +700,7 @@ class DateTimeFieldTest extends DateTestBase {
       $field_edit = [
         'default_value_input[default_date_type]' => 'now',
       ];
-      $this->drupalPostForm('admin/structure/types/manage/date_content/fields/node.date_content.' . $field_name, $field_edit, t('Save settings'));
+      $this->drupalPostForm('admin/structure/types/manage/date_content/fields/node.date_content.' . $field_name, $field_edit, 'Save settings');
 
       // Check that default value is selected in default value form.
       $this->drupalGet('admin/structure/types/manage/date_content/fields/node.date_content.' . $field_name);
@@ -722,7 +730,7 @@ class DateTimeFieldTest extends DateTestBase {
         'default_value_input[default_date_type]' => 'relative',
         'default_value_input[default_date]' => 'invalid date',
       ];
-      $this->drupalPostForm('admin/structure/types/manage/date_content/fields/node.date_content.' . $field_name, $field_edit, t('Save settings'));
+      $this->drupalPostForm('admin/structure/types/manage/date_content/fields/node.date_content.' . $field_name, $field_edit, 'Save settings');
 
       $this->assertText('The relative date value entered is invalid.');
 
@@ -731,7 +739,7 @@ class DateTimeFieldTest extends DateTestBase {
         'default_value_input[default_date_type]' => 'relative',
         'default_value_input[default_date]' => '+90 days',
       ];
-      $this->drupalPostForm('admin/structure/types/manage/date_content/fields/node.date_content.' . $field_name, $field_edit, t('Save settings'));
+      $this->drupalPostForm('admin/structure/types/manage/date_content/fields/node.date_content.' . $field_name, $field_edit, 'Save settings');
 
       // Check that default value is selected in default value form.
       $this->drupalGet('admin/structure/types/manage/date_content/fields/node.date_content.' . $field_name);
@@ -761,7 +769,7 @@ class DateTimeFieldTest extends DateTestBase {
       $field_edit = [
         'default_value_input[default_date_type]' => '',
       ];
-      $this->drupalPostForm('admin/structure/types/manage/date_content/fields/node.date_content.' . $field_name, $field_edit, t('Save settings'));
+      $this->drupalPostForm('admin/structure/types/manage/date_content/fields/node.date_content.' . $field_name, $field_edit, 'Save settings');
 
       // Check that default value is selected in default value form.
       $this->drupalGet('admin/structure/types/manage/date_content/fields/node.date_content.' . $field_name);
@@ -804,7 +812,7 @@ class DateTimeFieldTest extends DateTestBase {
       "{$field_name}[0][value][date]" => $date_value,
       "{$field_name}[0][value][time]" => '12:00:00',
     ];
-    $this->drupalPostForm(NULL, $edit, t('Save'));
+    $this->drupalPostForm(NULL, $edit, 'Save');
     $this->assertText('date is invalid', 'Empty date value has been caught.');
 
     $date_value = 'aaaa-12-01';
@@ -812,7 +820,7 @@ class DateTimeFieldTest extends DateTestBase {
       "{$field_name}[0][value][date]" => $date_value,
       "{$field_name}[0][value][time]" => '00:00:00',
     ];
-    $this->drupalPostForm(NULL, $edit, t('Save'));
+    $this->drupalPostForm(NULL, $edit, 'Save');
     $this->assertText('date is invalid', new FormattableMarkup('Invalid year value %date has been caught.', ['%date' => $date_value]));
 
     $date_value = '2012-75-01';
@@ -820,7 +828,7 @@ class DateTimeFieldTest extends DateTestBase {
       "{$field_name}[0][value][date]" => $date_value,
       "{$field_name}[0][value][time]" => '00:00:00',
     ];
-    $this->drupalPostForm(NULL, $edit, t('Save'));
+    $this->drupalPostForm(NULL, $edit, 'Save');
     $this->assertText('date is invalid', new FormattableMarkup('Invalid month value %date has been caught.', ['%date' => $date_value]));
 
     $date_value = '2012-12-99';
@@ -828,7 +836,7 @@ class DateTimeFieldTest extends DateTestBase {
       "{$field_name}[0][value][date]" => $date_value,
       "{$field_name}[0][value][time]" => '00:00:00',
     ];
-    $this->drupalPostForm(NULL, $edit, t('Save'));
+    $this->drupalPostForm(NULL, $edit, 'Save');
     $this->assertText('date is invalid', new FormattableMarkup('Invalid day value %date has been caught.', ['%date' => $date_value]));
 
     $date_value = '2012-12-01';
@@ -837,7 +845,7 @@ class DateTimeFieldTest extends DateTestBase {
       "{$field_name}[0][value][date]" => $date_value,
       "{$field_name}[0][value][time]" => $time_value,
     ];
-    $this->drupalPostForm(NULL, $edit, t('Save'));
+    $this->drupalPostForm(NULL, $edit, 'Save');
     $this->assertText('date is invalid', 'Empty time value has been caught.');
 
     $date_value = '2012-12-01';
@@ -846,7 +854,7 @@ class DateTimeFieldTest extends DateTestBase {
       "{$field_name}[0][value][date]" => $date_value,
       "{$field_name}[0][value][time]" => $time_value,
     ];
-    $this->drupalPostForm(NULL, $edit, t('Save'));
+    $this->drupalPostForm(NULL, $edit, 'Save');
     $this->assertText('date is invalid', new FormattableMarkup('Invalid hour value %time has been caught.', ['%time' => $time_value]));
 
     $date_value = '2012-12-01';
@@ -855,7 +863,7 @@ class DateTimeFieldTest extends DateTestBase {
       "{$field_name}[0][value][date]" => $date_value,
       "{$field_name}[0][value][time]" => $time_value,
     ];
-    $this->drupalPostForm(NULL, $edit, t('Save'));
+    $this->drupalPostForm(NULL, $edit, 'Save');
     $this->assertText('date is invalid', new FormattableMarkup('Invalid minute value %time has been caught.', ['%time' => $time_value]));
 
     $date_value = '2012-12-01';
@@ -864,7 +872,7 @@ class DateTimeFieldTest extends DateTestBase {
       "{$field_name}[0][value][date]" => $date_value,
       "{$field_name}[0][value][time]" => $time_value,
     ];
-    $this->drupalPostForm(NULL, $edit, t('Save'));
+    $this->drupalPostForm(NULL, $edit, 'Save');
     $this->assertText('date is invalid', new FormattableMarkup('Invalid second value %time has been caught.', ['%time' => $time_value]));
   }
 
@@ -904,7 +912,7 @@ class DateTimeFieldTest extends DateTestBase {
       'body[0][value]' => $this->randomString(),
       $field_name . '[0][value][date]' => '2016-04-01',
     ];
-    $this->drupalPostForm('node/add/date_content', $edit, t('Save'));
+    $this->drupalPostForm('node/add/date_content', $edit, 'Save');
     $this->drupalGet('admin/structure/types/manage/date_content/fields/node.date_content.' . $field_name . '/storage');
     $result = $this->xpath("//*[@id='edit-settings-datetime-type' and contains(@disabled, 'disabled')]");
     $this->assertCount(1, $result, "Changing datetime setting is disabled.");

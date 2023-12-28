@@ -114,10 +114,10 @@ class BooleanFieldTest extends BrowserTestBase {
     $edit = [
       "{$field_name}[value]" => 1,
     ];
-    $this->drupalPostForm(NULL, $edit, t('Save'));
+    $this->drupalPostForm(NULL, $edit, 'Save');
     preg_match('|entity_test/manage/(\d+)|', $this->getUrl(), $match);
     $id = $match[1];
-    $this->assertText(t('entity_test @id has been created.', ['@id' => $id]));
+    $this->assertText('entity_test ' . $id . ' has been created.');
 
     // Verify that boolean value is displayed.
     $entity = EntityTest::load($id);
@@ -144,7 +144,7 @@ class BooleanFieldTest extends BrowserTestBase {
     $edit = [
       'settings[on_label]' => $on,
     ];
-    $this->drupalPostForm('entity_test/structure/entity_test/fields/entity_test.entity_test.' . $field_name, $edit, t('Save settings'));
+    $this->drupalPostForm('entity_test/structure/entity_test/fields/entity_test.entity_test.' . $field_name, $edit, 'Save settings');
     // Check if we see the updated labels in the creation form.
     $this->drupalGet('entity_test/add');
     $this->assertRaw($on);
@@ -233,10 +233,10 @@ class BooleanFieldTest extends BrowserTestBase {
     $this->assertSession()->fieldExists("{$field_name}[value]");
 
     // Should be posted OK.
-    $this->drupalPostForm(NULL, [], t('Save'));
+    $this->drupalPostForm(NULL, [], 'Save');
     preg_match('|entity_test/manage/(\d+)|', $this->getUrl(), $match);
     $id = $match[1];
-    $this->assertText(t('entity_test @id has been created.', ['@id' => $id]));
+    $this->assertText('entity_test ' . $id . ' has been created.');
 
     // Tell the test module to disable access to the field.
     \Drupal::state()->set('field.test_boolean_field_access_field', $field_name);
@@ -244,10 +244,10 @@ class BooleanFieldTest extends BrowserTestBase {
     // Field should not be there anymore.
     $this->assertSession()->fieldNotExists("{$field_name}[value]");
     // Should still be able to post the form.
-    $this->drupalPostForm(NULL, [], t('Save'));
+    $this->drupalPostForm(NULL, [], 'Save');
     preg_match('|entity_test/manage/(\d+)|', $this->getUrl(), $match);
     $id = $match[1];
-    $this->assertText(t('entity_test @id has been created.', ['@id' => $id]));
+    $this->assertText('entity_test ' . $id . ' has been created.');
   }
 
 }

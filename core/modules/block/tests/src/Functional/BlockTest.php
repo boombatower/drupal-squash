@@ -44,7 +44,7 @@ class BlockTest extends BlockTestBase {
     $this->drupalGet('admin/structure/block/add/' . $block_name . '/' . $default_theme);
     $this->assertSession()->checkboxChecked('edit-visibility-request-path-negate-0');
 
-    $this->drupalPostForm(NULL, $edit, t('Save block'));
+    $this->drupalPostForm(NULL, $edit, 'Save block');
     $this->assertText('The block configuration has been saved.', 'Block was saved');
 
     $this->clickLink('Configure');
@@ -83,7 +83,7 @@ class BlockTest extends BlockTestBase {
     $block_id = $edit['id'];
     // Set the block to be shown only to authenticated users.
     $edit['visibility[user_role][roles][' . RoleInterface::AUTHENTICATED_ID . ']'] = TRUE;
-    $this->drupalPostForm('admin/structure/block/add/' . $block_name . '/' . $default_theme, $edit, t('Save block'));
+    $this->drupalPostForm('admin/structure/block/add/' . $block_name . '/' . $default_theme, $edit, 'Save block');
     $this->clickLink('Configure');
     $this->assertSession()->checkboxChecked('edit-visibility-user-role-roles-authenticated');
 
@@ -119,7 +119,7 @@ class BlockTest extends BlockTestBase {
     ];
     // Set the block to be hidden on any user path, and to be shown only to
     // authenticated users.
-    $this->drupalPostForm('admin/structure/block/add/' . $block_name . '/' . $default_theme, $edit, t('Save block'));
+    $this->drupalPostForm('admin/structure/block/add/' . $block_name . '/' . $default_theme, $edit, 'Save block');
     $this->assertText('The block configuration has been saved.', 'Block was saved');
 
     $this->drupalGet('user');
@@ -170,7 +170,7 @@ class BlockTest extends BlockTestBase {
         'settings[label]' => $title,
       ];
       // Create the block using the link parsed from the library page.
-      $this->drupalPostForm($this->getAbsoluteUrl($links[0]->getAttribute('href')), $edit, t('Save block'));
+      $this->drupalPostForm($this->getAbsoluteUrl($links[0]->getAttribute('href')), $edit, 'Save block');
 
       // Ensure that the block was created with the expected weight.
       /** @var \Drupal\block\BlockInterface $block */
@@ -199,8 +199,8 @@ class BlockTest extends BlockTestBase {
     $block['region'] = 'header';
 
     // Set block title to confirm that interface works and override any custom titles.
-    $this->drupalPostForm('admin/structure/block/add/' . $block['id'] . '/' . $block['theme'], ['settings[label]' => $block['settings[label]'], 'settings[label_display]' => $block['settings[label_display]'], 'id' => $block['id'], 'region' => $block['region']], t('Save block'));
-    $this->assertText(t('The block configuration has been saved.'), 'Block title set.');
+    $this->drupalPostForm('admin/structure/block/add/' . $block['id'] . '/' . $block['theme'], ['settings[label]' => $block['settings[label]'], 'settings[label_display]' => $block['settings[label_display]'], 'id' => $block['id'], 'region' => $block['region']], 'Save block');
+    $this->assertText('The block configuration has been saved.', 'Block title set.');
     // Check to see if the block was created by checking its configuration.
     $instance = Block::load($block['id']);
 
@@ -216,7 +216,7 @@ class BlockTest extends BlockTestBase {
     $this->clickLink('Disable');
 
     // Confirm that the block is now listed as disabled.
-    $this->assertText(t('The block settings have been updated.'), 'Block successfully moved to disabled region.');
+    $this->assertText('The block settings have been updated.', 'Block successfully moved to disabled region.');
 
     // Confirm that the block instance title and markup are not displayed.
     $this->drupalGet('node');
@@ -224,13 +224,13 @@ class BlockTest extends BlockTestBase {
     // Check for <div id="block-my-block-instance-name"> if the machine name
     // is my_block_instance_name.
     $xpath = $this->assertSession()->buildXPathQuery('//div[@id=:id]/*', [':id' => 'block-' . str_replace('_', '-', strtolower($block['id']))]);
-    $this->assertNoFieldByXPath($xpath, FALSE, 'Block found in no regions.');
+    $this->assertSession()->elementNotExists('xpath', $xpath);
 
     // Test deleting the block from the edit form.
     $this->drupalGet('admin/structure/block/manage/' . $block['id']);
     $this->clickLink(t('Remove block'));
     $this->assertRaw(t('Are you sure you want to remove the block @name?', ['@name' => $block['settings[label]']]));
-    $this->drupalPostForm(NULL, [], t('Remove'));
+    $this->drupalPostForm(NULL, [], 'Remove');
     $this->assertRaw(t('The block %name has been removed.', ['%name' => $block['settings[label]']]));
 
     // Test deleting a block via "Configure block" link.
@@ -238,7 +238,7 @@ class BlockTest extends BlockTestBase {
     $this->drupalGet('admin/structure/block/manage/' . $block->id(), ['query' => ['destination' => 'admin']]);
     $this->clickLink(t('Remove block'));
     $this->assertRaw(t('Are you sure you want to remove the block @name?', ['@name' => $block->label()]));
-    $this->drupalPostForm(NULL, [], t('Remove'));
+    $this->drupalPostForm(NULL, [], 'Remove');
     $this->assertRaw(t('The block %name has been removed.', ['%name' => $block->label()]));
     $this->assertSession()->addressEquals('admin');
     $this->assertNoRaw($block->id());
@@ -259,8 +259,8 @@ class BlockTest extends BlockTestBase {
       $block['id'] = strtolower($this->randomMachineName());
       $block['theme'] = $theme;
       $block['region'] = 'content';
-      $this->drupalPostForm('admin/structure/block/add/system_powered_by_block', $block, t('Save block'));
-      $this->assertText(t('The block configuration has been saved.'));
+      $this->drupalPostForm('admin/structure/block/add/system_powered_by_block', $block, 'Save block');
+      $this->assertText('The block configuration has been saved.');
       $this->assertSession()->addressEquals('admin/structure/block/list/' . $theme . '?block-placement=' . Html::getClass($block['id']));
 
       // Set the default theme and ensure the block is placed.
@@ -302,7 +302,7 @@ class BlockTest extends BlockTestBase {
       'region' => 'sidebar_first',
       'settings[label]' => $title,
     ];
-    $this->drupalPostForm('admin/structure/block/add/' . $block_name . '/' . $default_theme, $edit, t('Save block'));
+    $this->drupalPostForm('admin/structure/block/add/' . $block_name . '/' . $default_theme, $edit, 'Save block');
     $this->assertText('The block configuration has been saved.', 'Block was saved');
 
     $this->drupalGet('user');
@@ -311,7 +311,7 @@ class BlockTest extends BlockTestBase {
     $edit = [
       'settings[label_display]' => TRUE,
     ];
-    $this->drupalPostForm('admin/structure/block/manage/' . $id, $edit, t('Save block'));
+    $this->drupalPostForm('admin/structure/block/manage/' . $id, $edit, 'Save block');
     $this->assertText('The block configuration has been saved.', 'Block was saved');
 
     $this->drupalGet('admin/structure/block/manage/' . $id);
@@ -338,21 +338,21 @@ class BlockTest extends BlockTestBase {
     $block += ['theme' => $this->config('system.theme')->get('default')];
     $edit = [];
     $edit['blocks[' . $block['id'] . '][region]'] = $region;
-    $this->drupalPostForm('admin/structure/block', $edit, t('Save blocks'));
+    $this->drupalPostForm('admin/structure/block', $edit, 'Save blocks');
 
     // Confirm that the block was moved to the proper region.
-    $this->assertText(t('The block settings have been updated.'), new FormattableMarkup('Block successfully moved to %region_name region.', ['%region_name' => $region]));
+    $this->assertText('The block settings have been updated.', new FormattableMarkup('Block successfully moved to %region_name region.', ['%region_name' => $region]));
 
     // Confirm that the block is being displayed.
     $this->drupalGet('');
-    $this->assertText(t($block['settings[label]']), 'Block successfully being displayed on the page.');
+    $this->assertText($block['settings[label]'], 'Block successfully being displayed on the page.');
 
     // Confirm that the custom block was found at the proper region.
     $xpath = $this->assertSession()->buildXPathQuery('//div[@class=:region-class]//div[@id=:block-id]/*', [
       ':region-class' => 'region region-' . Html::getClass($region),
       ':block-id' => 'block-' . str_replace('_', '-', strtolower($block['id'])),
     ]);
-    $this->assertFieldByXPath($xpath, NULL, t('Block found in %region_name region.', ['%region_name' => Html::getClass($region)]));
+    $this->assertSession()->elementExists('xpath', $xpath);
   }
 
   /**

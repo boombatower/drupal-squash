@@ -41,9 +41,9 @@ class UserCreateFailMailTest extends BrowserTestBase {
       'pass[pass2]' => $pass,
       'notify' => TRUE,
     ];
-    $this->drupalPostForm('admin/people/create', $edit, t('Create new account'));
+    $this->drupalPostForm('admin/people/create', $edit, 'Create new account');
 
-    $this->assertText(t('Unable to send email. Contact the site administrator if the problem persists.'));
+    $this->assertText('Unable to send email. Contact the site administrator if the problem persists.');
     $this->assertNoText('A welcome message with further instructions has been emailed to the new user ' . $edit['name'] . '.');
   }
 

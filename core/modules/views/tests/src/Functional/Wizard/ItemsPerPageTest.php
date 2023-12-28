@@ -54,7 +54,7 @@ class ItemsPerPageTest extends WizardTestBase {
     $view['block[create]'] = 1;
     $view['block[title]'] = $this->randomMachineName(16);
     $view['block[items_per_page]'] = 3;
-    $this->drupalPostForm('admin/structure/views/add', $view, t('Save and edit'));
+    $this->drupalPostForm('admin/structure/views/add', $view, 'Save and edit');
     $this->drupalGet($view['page[path]']);
     $this->assertSession()->statusCodeEquals(200);
 
@@ -73,7 +73,9 @@ class ItemsPerPageTest extends WizardTestBase {
     $pos4 = strpos($content, $node4->label());
     $pos3 = strpos($content, $node3->label());
     $pos2 = strpos($content, $node2->label());
-    $this->assertTrue($pos5 < $pos4 && $pos4 < $pos3 && $pos3 < $pos2, 'The nodes appear in the expected order in the page display.');
+    $this->assertGreaterThan($pos5, $pos4);
+    $this->assertGreaterThan($pos4, $pos3);
+    $this->assertGreaterThan($pos3, $pos2);
 
     // Confirm that the block is listed in the block administration UI.
     $this->drupalGet('admin/structure/block/list/' . $this->config('system.theme')->get('default'));
@@ -95,7 +97,8 @@ class ItemsPerPageTest extends WizardTestBase {
     $pos5 = strpos($content, $node5->label());
     $pos4 = strpos($content, $node4->label());
     $pos3 = strpos($content, $node3->label());
-    $this->assertTrue($pos5 < $pos4 && $pos4 < $pos3, 'The nodes appear in the expected order in the block display.');
+    $this->assertGreaterThan($pos5, $pos4);
+    $this->assertGreaterThan($pos4, $pos3);
   }
 
 }

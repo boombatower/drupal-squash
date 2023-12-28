@@ -62,7 +62,8 @@ class EditorAdminTest extends BrowserTestBase {
     $roles_pos = strpos($raw_content, 'Roles');
     $editor_pos = strpos($raw_content, 'Text editor');
     $filters_pos = strpos($raw_content, 'Enabled filters');
-    $this->assertTrue($roles_pos < $editor_pos && $editor_pos < $filters_pos, '"Text Editor" select appears in the correct location of the text format configuration UI.');
+    $this->assertGreaterThan($roles_pos, $editor_pos);
+    $this->assertLessThan($filters_pos, $editor_pos);
 
     // Verify the <select>.
     $select = $this->xpath('//select[@name="editor[editor]"]');
@@ -85,7 +86,7 @@ class EditorAdminTest extends BrowserTestBase {
     $edit = $this->selectUnicornEditor();
     // Configure Unicorn Editor's setting to another value.
     $edit['editor[settings][ponies_too]'] = FALSE;
-    $this->drupalPostForm(NULL, $edit, t('Save configuration'));
+    $this->drupalPostForm(NULL, $edit, 'Save configuration');
     $this->verifyUnicornEditorConfiguration('filtered_html', FALSE);
 
     // Switch back to 'None' and check the Unicorn Editor's settings are gone.
@@ -136,7 +137,7 @@ class EditorAdminTest extends BrowserTestBase {
     $node->body->format = 'monoceros';
     $node->save();
 
-    // Log in as an user able to use both formats and edit nodes of created type.
+    // Log in as a user able to use both formats and edit nodes of created type.
     $account = $this->drupalCreateUser($permissions);
     $this->drupalLogin($account);
 
@@ -173,7 +174,7 @@ class EditorAdminTest extends BrowserTestBase {
       'format' => $format_id,
     ];
     $edit += $this->selectUnicornEditor();
-    $this->drupalPostForm(NULL, $edit, t('Save configuration'));
+    $this->drupalPostForm(NULL, $edit, 'Save configuration');
   }
 
   /**

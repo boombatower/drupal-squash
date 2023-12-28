@@ -2,7 +2,6 @@
 
 namespace Drupal\Tests\block_content\Functional;
 
-use Drupal\Component\Render\FormattableMarkup;
 use Drupal\block_content\Entity\BlockContent;
 
 /**
@@ -35,7 +34,7 @@ class PageEditTest extends BlockContentTestBase {
     $edit = [];
     $edit['info[0][value]'] = mb_strtolower($this->randomMachineName(8));
     $edit[$body_key] = $this->randomMachineName(16);
-    $this->drupalPostForm('block/add/basic', $edit, t('Save'));
+    $this->drupalPostForm('block/add/basic', $edit, 'Save');
 
     // Check that the block exists in the database.
     $blocks = \Drupal::entityQuery('block_content')->condition('info', $edit['info[0][value]'])->execute();
@@ -52,7 +51,7 @@ class PageEditTest extends BlockContentTestBase {
     $edit[$title_key] = $this->randomMachineName(8);
     $edit[$body_key] = $this->randomMachineName(16);
     // Stay on the current page, without reloading.
-    $this->drupalPostForm(NULL, $edit, t('Save'));
+    $this->drupalPostForm(NULL, $edit, 'Save');
 
     // Edit the same block, creating a new revision.
     $this->drupalGet("block/" . $block->id());
@@ -60,7 +59,7 @@ class PageEditTest extends BlockContentTestBase {
     $edit['info[0][value]'] = $this->randomMachineName(8);
     $edit[$body_key] = $this->randomMachineName(16);
     $edit['revision'] = TRUE;
-    $this->drupalPostForm(NULL, $edit, t('Save'));
+    $this->drupalPostForm(NULL, $edit, 'Save');
 
     // Ensure that the block revision has been created.
     \Drupal::entityTypeManager()->getStorage('block_content')->resetCache([$block->id()]);
@@ -70,7 +69,7 @@ class PageEditTest extends BlockContentTestBase {
     // Test deleting the block.
     $this->drupalGet("block/" . $revised_block->id());
     $this->clickLink(t('Delete'));
-    $this->assertText(new FormattableMarkup('Are you sure you want to delete the custom block @label?', ['@label' => $revised_block->label()]));
+    $this->assertText('Are you sure you want to delete the custom block ' . $revised_block->label() . '?');
   }
 
 }

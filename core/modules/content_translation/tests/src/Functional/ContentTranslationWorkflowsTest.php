@@ -172,7 +172,7 @@ class ContentTranslationWorkflowsTest extends ContentTranslationTestBase {
       'name[0][value]' => 'translation name',
       'content_translation[status]' => FALSE,
     ];
-    $this->drupalPostForm($add_translation_url, $edit, t('Save'));
+    $this->drupalPostForm($add_translation_url, $edit, 'Save');
 
     $storage->resetCache([$id]);
     $this->entity = $storage->load($id);
@@ -416,7 +416,7 @@ class ContentTranslationWorkflowsTest extends ContentTranslationTestBase {
    */
   protected function assertNoSharedElements() {
     $language_none = LanguageInterface::LANGCODE_NOT_SPECIFIED;
-    return $this->assertNoFieldByXPath("//input[@name='field_test_text[$language_none][0][value]']", NULL, 'Shared elements are not available on the translation form.');
+    return $this->assertSession()->fieldNotExists("field_test_text[$language_none][0][value]");
   }
 
 }

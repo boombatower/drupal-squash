@@ -137,7 +137,7 @@ class FormTest extends FieldTestBase {
     $edit = [
       "{$field_name}[0][value]" => -1,
     ];
-    $this->drupalPostForm(NULL, $edit, t('Save'));
+    $this->drupalPostForm(NULL, $edit, 'Save');
     $this->assertRaw(t('%name does not accept the value -1.', ['%name' => $this->field['label']]));
     // TODO : check that the correct field is flagged for error.
 
@@ -146,10 +146,10 @@ class FormTest extends FieldTestBase {
     $edit = [
       "{$field_name}[0][value]" => $value,
     ];
-    $this->drupalPostForm(NULL, $edit, t('Save'));
+    $this->drupalPostForm(NULL, $edit, 'Save');
     preg_match('|entity_test/manage/(\d+)|', $this->getUrl(), $match);
     $id = $match[1];
-    $this->assertText(t('entity_test @id has been created.', ['@id' => $id]), 'Entity was created');
+    $this->assertText('entity_test ' . $id . ' has been created.', 'Entity was created');
     $entity = EntityTest::load($id);
     $this->assertEqual($entity->{$field_name}->value, $value, 'Field value was saved');
 
@@ -165,8 +165,8 @@ class FormTest extends FieldTestBase {
     $edit = [
       "{$field_name}[0][value]" => $value,
     ];
-    $this->drupalPostForm(NULL, $edit, t('Save'));
-    $this->assertText(t('entity_test @id has been updated.', ['@id' => $id]), 'Entity was updated');
+    $this->drupalPostForm(NULL, $edit, 'Save');
+    $this->assertText('entity_test ' . $id . ' has been updated.', 'Entity was updated');
     $this->container->get('entity_type.manager')->getStorage('entity_test')->resetCache([$id]);
     $entity = EntityTest::load($id);
     $this->assertEqual($entity->{$field_name}->value, $value, 'Field value was updated');
@@ -176,8 +176,8 @@ class FormTest extends FieldTestBase {
     $edit = [
       "{$field_name}[0][value]" => $value,
     ];
-    $this->drupalPostForm('entity_test/manage/' . $id . '/edit', $edit, t('Save'));
-    $this->assertText(t('entity_test @id has been updated.', ['@id' => $id]), 'Entity was updated');
+    $this->drupalPostForm('entity_test/manage/' . $id . '/edit', $edit, 'Save');
+    $this->assertText('entity_test ' . $id . ' has been updated.', 'Entity was updated');
     $this->container->get('entity_type.manager')->getStorage('entity_test')->resetCache([$id]);
     $entity = EntityTest::load($id);
     $this->assertTrue($entity->{$field_name}->isEmpty(), 'Field was emptied');
@@ -202,16 +202,16 @@ class FormTest extends FieldTestBase {
     // Display creation form.
     $this->drupalGet('entity_test/add');
     // Test that the default value is displayed correctly.
-    $this->assertFieldByXpath("//input[@name='{$field_name}[0][value]' and @value='$default']");
+    $this->assertSession()->fieldValueEquals("{$field_name}[0][value]", $default);
 
     // Try to submit an empty value.
     $edit = [
       "{$field_name}[0][value]" => '',
     ];
-    $this->drupalPostForm(NULL, $edit, t('Save'));
+    $this->drupalPostForm(NULL, $edit, 'Save');
     preg_match('|entity_test/manage/(\d+)|', $this->getUrl(), $match);
     $id = $match[1];
-    $this->assertText(t('entity_test @id has been created.', ['@id' => $id]), 'Entity was created.');
+    $this->assertText('entity_test ' . $id . ' has been created.', 'Entity was created.');
     $entity = EntityTest::load($id);
     $this->assertTrue($entity->{$field_name}->isEmpty(), 'Field is now empty.');
   }
@@ -230,7 +230,7 @@ class FormTest extends FieldTestBase {
 
     // Submit with missing required value.
     $edit = [];
-    $this->drupalPostForm('entity_test/add', $edit, t('Save'));
+    $this->drupalPostForm('entity_test/add', $edit, 'Save');
     $this->assertRaw(t('@name field is required.', ['@name' => $this->field['label']]));
 
     // Create an entity
@@ -238,10 +238,10 @@ class FormTest extends FieldTestBase {
     $edit = [
       "{$field_name}[0][value]" => $value,
     ];
-    $this->drupalPostForm(NULL, $edit, t('Save'));
+    $this->drupalPostForm(NULL, $edit, 'Save');
     preg_match('|entity_test/manage/(\d+)|', $this->getUrl(), $match);
     $id = $match[1];
-    $this->assertText(t('entity_test @id has been created.', ['@id' => $id]), 'Entity was created');
+    $this->assertText('entity_test ' . $id . ' has been created.', 'Entity was created');
     $entity = EntityTest::load($id);
     $this->assertEqual($entity->{$field_name}->value, $value, 'Field value was saved');
 
@@ -250,7 +250,7 @@ class FormTest extends FieldTestBase {
     $edit = [
       "{$field_name}[0][value]" => $value,
     ];
-    $this->drupalPostForm('entity_test/manage/' . $id . '/edit', $edit, t('Save'));
+    $this->drupalPostForm('entity_test/manage/' . $id . '/edit', $edit, 'Save');
     $this->assertRaw(t('@name field is required.', ['@name' => $this->field['label']]));
   }
 
@@ -276,7 +276,7 @@ class FormTest extends FieldTestBase {
     $this->assertTrue(isset($elements[0]), 'aria-describedby attribute is properly placed on multiple value widgets.');
 
     // Press 'add more' button -> 2 widgets.
-    $this->drupalPostForm(NULL, [], t('Add another item'));
+    $this->drupalPostForm(NULL, [], 'Add another item');
     $this->assertSession()->fieldValueEquals("{$field_name}[0][value]", '');
     $this->assertSession()->fieldValueEquals("{$field_name}[1][value]", '');
     // Verify that no extraneous widget is displayed.
@@ -284,7 +284,7 @@ class FormTest extends FieldTestBase {
     // TODO : check that non-field inputs are preserved ('title'), etc.
 
     // Yet another time so that we can play with more values -> 3 widgets.
-    $this->drupalPostForm(NULL, [], t('Add another item'));
+    $this->drupalPostForm(NULL, [], 'Add another item');
 
     // Prepare values and weights.
     $count = 3;
@@ -309,7 +309,7 @@ class FormTest extends FieldTestBase {
     }
 
     // Press 'add more' button -> 4 widgets
-    $this->drupalPostForm(NULL, $edit, t('Add another item'));
+    $this->drupalPostForm(NULL, $edit, 'Add another item');
     for ($delta = 0; $delta <= $delta_range; $delta++) {
       $this->assertSession()->fieldValueEquals("{$field_name}[$delta][value]", $values[$delta]);
       $this->assertSession()->fieldValueEquals("{$field_name}[$delta][_weight]", $weights[$delta]);
@@ -324,10 +324,10 @@ class FormTest extends FieldTestBase {
     $this->assertSession()->fieldNotExists("{$field_name}[" . ($delta + 1) . '][value]');
 
     // Submit the form and create the entity.
-    $this->drupalPostForm(NULL, $edit, t('Save'));
+    $this->drupalPostForm(NULL, $edit, 'Save');
     preg_match('|entity_test/manage/(\d+)|', $this->getUrl(), $match);
     $id = $match[1];
-    $this->assertText(t('entity_test @id has been created.', ['@id' => $id]), 'Entity was created');
+    $this->assertText('entity_test ' . $id . ' has been created.', 'Entity was created');
     $entity = EntityTest::load($id);
     ksort($field_values);
     $field_values = array_values($field_values);
@@ -410,10 +410,10 @@ class FormTest extends FieldTestBase {
     $this->drupalGet('entity_test/add');
 
     // Press the 'Add more' button.
-    $this->drupalPostForm(NULL, [], t('Add another item'));
+    $this->drupalPostForm(NULL, [], 'Add another item');
 
     // Verify that no error is thrown by the radio element.
-    $this->assertNoFieldByXpath('//div[contains(@class, "error")]', FALSE, 'No error message is displayed.');
+    $this->assertSession()->elementNotExists('xpath', '//div[contains(@class, "error")]');
 
     // Verify that the widget is added.
     $this->assertSession()->fieldValueEquals("{$field_name}[0][value]", '');
@@ -448,7 +448,7 @@ class FormTest extends FieldTestBase {
     $edit = [
       $field_name => '1, 2, 3',
     ];
-    $this->drupalPostForm(NULL, $edit, t('Save'));
+    $this->drupalPostForm(NULL, $edit, 'Save');
     preg_match('|entity_test/manage/(\d+)|', $this->getUrl(), $match);
     $id = $match[1];
 
@@ -462,7 +462,7 @@ class FormTest extends FieldTestBase {
 
     // Submit the form with more values than the field accepts.
     $edit = [$field_name => '1, 2, 3, 4, 5'];
-    $this->drupalPostForm(NULL, $edit, t('Save'));
+    $this->drupalPostForm(NULL, $edit, 'Save');
     $this->assertRaw('this field cannot hold more than 4 values');
     // Check that the field values were not submitted.
     $this->assertFieldValues($entity_init, $field_name, [1, 2, 3]);
@@ -542,7 +542,7 @@ class FormTest extends FieldTestBase {
     $edit = [
       "{$field_name}[0][value]" => 1,
     ];
-    $this->drupalPostForm(NULL, $edit, t('Save'));
+    $this->drupalPostForm(NULL, $edit, 'Save');
     preg_match("|$entity_type/manage/(\d+)|", $this->getUrl(), $match);
     $id = $match[1];
 
@@ -558,7 +558,7 @@ class FormTest extends FieldTestBase {
       "{$field_name}[0][value]" => 2,
       'revision' => TRUE,
     ];
-    $this->drupalPostForm($entity_type . '/manage/' . $id . '/edit', $edit, t('Save'));
+    $this->drupalPostForm($entity_type . '/manage/' . $id . '/edit', $edit, 'Save');
 
     // Check that the new revision has the expected values.
     $storage->resetCache([$id]);
@@ -598,10 +598,10 @@ class FormTest extends FieldTestBase {
     // Create an entity and test that the default value is assigned correctly to
     // the field that uses the hidden widget.
     $this->assertSession()->fieldNotExists("{$field_name}[0][value]");
-    $this->drupalPostForm(NULL, [], t('Save'));
+    $this->drupalPostForm(NULL, [], 'Save');
     preg_match('|' . $entity_type . '/manage/(\d+)|', $this->getUrl(), $match);
     $id = $match[1];
-    $this->assertText(t('entity_test_rev @id has been created.', ['@id' => $id]), 'Entity was created');
+    $this->assertText('entity_test_rev ' . $id . ' has been created.', 'Entity was created');
     $storage = $this->container->get('entity_type.manager')
       ->getStorage($entity_type);
 
@@ -626,8 +626,8 @@ class FormTest extends FieldTestBase {
     // Update the entity.
     $value = mt_rand(1, 127);
     $edit = ["{$field_name}[0][value]" => $value];
-    $this->drupalPostForm(NULL, $edit, t('Save'));
-    $this->assertText(t('entity_test_rev @id has been updated.', ['@id' => $id]), 'Entity was updated');
+    $this->drupalPostForm(NULL, $edit, 'Save');
+    $this->assertText('entity_test_rev ' . $id . ' has been updated.', 'Entity was updated');
     $storage->resetCache([$id]);
     $entity = $storage->load($id);
     $this->assertEqual($entity->{$field_name}->value, $value, 'Field value was updated');
@@ -640,7 +640,7 @@ class FormTest extends FieldTestBase {
 
     // Create a new revision.
     $edit = ['revision' => TRUE];
-    $this->drupalPostForm($entity_type . '/manage/' . $id . '/edit', $edit, t('Save'));
+    $this->drupalPostForm($entity_type . '/manage/' . $id . '/edit', $edit, 'Save');
 
     // Check that the expected value has been carried over to the new revision.
     $storage->resetCache([$id]);

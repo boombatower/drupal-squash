@@ -85,7 +85,7 @@ class PrepareUninstallTest extends BrowserTestBase {
     $this->assertText("And $term_count more taxonomy terms.");
     $this->assertText('This action cannot be undone.');
     $this->assertText('Make a backup of your database if you want to be able to restore these items.');
-    $this->drupalPostForm(NULL, [], t('Delete all taxonomy terms'));
+    $this->drupalPostForm(NULL, [], 'Delete all taxonomy terms');
 
     // Check that we are redirected to the uninstall page and data has been
     // removed.
@@ -98,8 +98,8 @@ class PrepareUninstallTest extends BrowserTestBase {
     $this->assertSession()->linkByHrefNotExists('admin/modules/uninstall/entity/taxonomy_term');
 
     // Uninstall the Taxonomy module.
-    $this->drupalPostForm('admin/modules/uninstall', ['uninstall[taxonomy]' => TRUE], t('Uninstall'));
-    $this->drupalPostForm(NULL, [], t('Uninstall'));
+    $this->drupalPostForm('admin/modules/uninstall', ['uninstall[taxonomy]' => TRUE], 'Uninstall');
+    $this->drupalPostForm(NULL, [], 'Uninstall');
     $this->assertText('The selected modules have been uninstalled.');
     $this->assertNoText('Enables the categorization of content.');
 
@@ -134,7 +134,7 @@ class PrepareUninstallTest extends BrowserTestBase {
     // the first 10's labels.
     $this->assertText('And 2 more content items.');
 
-    $this->drupalPostForm(NULL, [], t('Delete all content items'));
+    $this->drupalPostForm(NULL, [], 'Delete all content items');
 
     // Check we are redirected to the uninstall page and data has been removed.
     $this->assertSession()->addressEquals('admin/modules/uninstall');
@@ -146,8 +146,8 @@ class PrepareUninstallTest extends BrowserTestBase {
     $this->assertSession()->linkByHrefNotExists('admin/modules/uninstall/entity/node');
 
     // Uninstall Node module.
-    $this->drupalPostForm('admin/modules/uninstall', ['uninstall[node]' => TRUE], t('Uninstall'));
-    $this->drupalPostForm(NULL, [], t('Uninstall'));
+    $this->drupalPostForm('admin/modules/uninstall', ['uninstall[node]' => TRUE], 'Uninstall');
+    $this->drupalPostForm(NULL, [], 'Uninstall');
     $this->assertText('The selected modules have been uninstalled.');
     $this->assertNoText('Allows content to be submitted to the site and displayed on pages.');
 
@@ -158,8 +158,7 @@ class PrepareUninstallTest extends BrowserTestBase {
     // Test an entity type which does not have any existing entities.
     $this->drupalGet('admin/modules/uninstall/entity/entity_test_no_label');
     $this->assertText('There are 0 entity test without label entities to delete.');
-    $button_xpath = '//input[@type="submit"][@value="Delete all entity test without label entities"]';
-    $this->assertNoFieldByXPath($button_xpath, NULL, 'Button with value "Delete all entity test without label entities" not found');
+    $this->assertSession()->buttonNotExists("Delete all entity test without label entities");
 
     // Test an entity type without a label.
     /** @var \Drupal\Core\Entity\EntityStorageInterface $storage */
@@ -171,7 +170,7 @@ class PrepareUninstallTest extends BrowserTestBase {
     ])->save();
     $this->drupalGet('admin/modules/uninstall/entity/entity_test_no_label');
     $this->assertText('This will delete 1 entity test without label.');
-    $this->assertFieldByXPath($button_xpath, NULL, 'Button with value "Delete all entity test without label entities" found');
+    $this->assertSession()->buttonExists("Delete all entity test without label entities");
     $storage->create([
       'id' => mb_strtolower($this->randomMachineName()),
       'name' => $this->randomMachineName(),

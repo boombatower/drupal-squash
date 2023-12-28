@@ -150,19 +150,19 @@ class CommentNonNodeTest extends BrowserTestBase {
       case DRUPAL_REQUIRED:
         // Preview required so no save button should be found.
         $this->assertSession()->buttonNotExists(t('Save'));
-        $this->drupalPostForm(NULL, $edit, t('Preview'));
+        $this->drupalPostForm(NULL, $edit, 'Preview');
         // Don't break here so that we can test post-preview field presence and
         // function below.
       case DRUPAL_OPTIONAL:
         $this->assertSession()->buttonExists(t('Preview'));
         $this->assertSession()->buttonExists(t('Save'));
-        $this->drupalPostForm(NULL, $edit, t('Save'));
+        $this->drupalPostForm(NULL, $edit, 'Save');
         break;
 
       case DRUPAL_DISABLED:
         $this->assertSession()->buttonNotExists(t('Preview'));
         $this->assertSession()->buttonExists(t('Save'));
-        $this->drupalPostForm(NULL, $edit, t('Save'));
+        $this->drupalPostForm(NULL, $edit, 'Save');
         break;
     }
     $match = [];
@@ -176,7 +176,8 @@ class CommentNonNodeTest extends BrowserTestBase {
         $this->assertText($subject, 'Comment subject posted.');
       }
       $this->assertText($comment, 'Comment body posted.');
-      $this->assertTrue((!empty($match) && !empty($match[1])), 'Comment ID found.');
+      // Check the comment ID was extracted.
+      $this->assertArrayHasKey(1, $match);
     }
 
     if (isset($match[1])) {
@@ -234,14 +235,14 @@ class CommentNonNodeTest extends BrowserTestBase {
     $edit = [];
     $edit['operation'] = $operation;
     $edit['comments[' . $comment->id() . ']'] = TRUE;
-    $this->drupalPostForm('admin/content/comment' . ($approval ? '/approval' : ''), $edit, t('Update'));
+    $this->drupalPostForm('admin/content/comment' . ($approval ? '/approval' : ''), $edit, 'Update');
 
     if ($operation == 'delete') {
-      $this->drupalPostForm(NULL, [], t('Delete'));
+      $this->drupalPostForm(NULL, [], 'Delete');
       $this->assertRaw(\Drupal::translation()->formatPlural(1, 'Deleted 1 comment.', 'Deleted @count comments.'));
     }
     else {
-      $this->assertText(t('The update has been performed.'), new FormattableMarkup('Operation "@operation" was performed on comment.', ['@operation' => $operation]));
+      $this->assertText('The update has been performed.', new FormattableMarkup('Operation "@operation" was performed on comment.', ['@operation' => $operation]));
     }
   }
 
@@ -271,7 +272,7 @@ class CommentNonNodeTest extends BrowserTestBase {
     $this->drupalLogin($limited_user);
     // Test that default field exists.
     $this->drupalGet('entity_test/structure/entity_test/fields');
-    $this->assertText(t('Comments'));
+    $this->assertText('Comments');
     $this->assertSession()->linkByHrefExists('entity_test/structure/entity_test/fields/entity_test.entity_test.comment');
     // Test widget hidden option is not visible when there's no comments.
     $this->drupalGet('entity_test/structure/entity_test/fields/entity_test.entity_test.comment');
@@ -414,7 +415,7 @@ class CommentNonNodeTest extends BrowserTestBase {
       'default_value_input[comment][0][status]' => CommentItemInterface::CLOSED,
       'settings[anonymous]' => CommentInterface::ANONYMOUS_MAY_CONTACT,
     ];
-    $this->drupalPostForm(NULL, $edit, t('Save settings'));
+    $this->drupalPostForm(NULL, $edit, 'Save settings');
     $this->drupalGet('entity_test/structure/entity_test/fields/entity_test.entity_test.comment');
     $this->assertSession()->checkboxNotChecked('edit-default-value-input-comment-0-status-0');
     $this->assertSession()->checkboxChecked('edit-default-value-input-comment-0-status-1');
@@ -477,7 +478,7 @@ class CommentNonNodeTest extends BrowserTestBase {
     $this->assertSession()->fieldNotExists('comment_body[0][value]');
     // Set subject field to autogenerate it.
     $edit = ['subject[0][value]' => ''];
-    $this->drupalPostForm(NULL, $edit, t('Save'));
+    $this->drupalPostForm(NULL, $edit, 'Save');
   }
 
   /**

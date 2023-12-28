@@ -95,9 +95,9 @@ class MenuLinkContentFormTest extends BrowserTestBase {
         'title[0][value]' => t('Front page'),
         'link[0][uri]' => '<front>',
       ],
-      t('Save')
+      'Save'
     );
-    $this->assertText(t('The menu link has been saved.'));
+    $this->assertText('The menu link has been saved.');
   }
 
   /**
@@ -111,9 +111,9 @@ class MenuLinkContentFormTest extends BrowserTestBase {
         'title[0][value]' => t('Test page'),
         'link[0][uri]' => '<test>',
       ],
-      t('Save')
+      'Save'
     );
-    $this->assertText(t('Manually entered paths should start with one of the following characters: / ? #'));
+    $this->assertText('Manually entered paths should start with one of the following characters: / ? #');
   }
 
 }

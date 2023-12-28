@@ -103,14 +103,14 @@ class SearchLanguageTest extends BrowserTestBase {
   public function testLanguages() {
     // Add predefined language.
     $edit = ['predefined_langcode' => 'fr'];
-    $this->drupalPostForm('admin/config/regional/language/add', $edit, t('Add language'));
+    $this->drupalPostForm('admin/config/regional/language/add', $edit, 'Add language');
     $this->assertText('French', 'Language added successfully.');
 
     // Now we should have languages displayed.
     $this->drupalGet('search/node');
-    $this->assertText(t('Languages'), 'Languages displayed to choose from.');
-    $this->assertText(t('English'), 'English is a possible choice.');
-    $this->assertText(t('French'), 'French is a possible choice.');
+    $this->assertText('Languages', 'Languages displayed to choose from.');
+    $this->assertText('English', 'English is a possible choice.');
+    $this->assertText('French', 'French is a possible choice.');
 
     // Ensure selecting no language does not make the query different.
     $this->drupalPostForm('search/node', [], 'edit-submit--2');
@@ -143,9 +143,9 @@ class SearchLanguageTest extends BrowserTestBase {
     $edit = [
       'site_default_language' => 'fr',
     ];
-    $this->drupalPostForm($path, $edit, t('Save configuration'));
+    $this->drupalPostForm($path, $edit, 'Save configuration');
     $this->assertSession()->checkboxNotChecked('edit-site-default-language-en');
-    $this->drupalPostForm('admin/config/regional/language/delete/en', [], t('Delete'));
+    $this->drupalPostForm('admin/config/regional/language/delete/en', [], 'Delete');
   }
 
 }

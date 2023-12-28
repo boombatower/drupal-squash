@@ -239,7 +239,7 @@ class ExposedFormTest extends ViewTestBase {
     $xpath = $this->assertSession()->buildXPathQuery('//div[@class="view-content"]/form/@id', [
       ':id' => Html::getUniqueId('block-' . $block->id()),
     ]);
-    $this->assertNoFieldByXpath($xpath, $this->getExpectedExposedFormId($view), 'No exposed form found in views content region.');
+    $this->assertSession()->elementNotExists('xpath', $xpath);
 
     // Test there is only one views exposed form on the page.
     $elements = $this->xpath('//form[@id=:id]', [':id' => $this->getExpectedExposedFormId($view)]);
@@ -402,7 +402,7 @@ class ExposedFormTest extends ViewTestBase {
     $this->assertRaw(t('Apply'));
     $this->assertRaw('<div class="views-row">');
 
-    $this->drupalPostForm(NULL, [], t('Submit'));
+    $this->drupalPostForm(NULL, [], 'Submit');
     $this->assertSession()->statusCodeEquals(200);
     $form = $this->cssSelect('form.views-exposed-form');
     $this->assertNotEmpty($form, 'The exposed form element was found.');

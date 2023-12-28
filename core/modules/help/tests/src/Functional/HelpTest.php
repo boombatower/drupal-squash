@@ -82,15 +82,15 @@ class HelpTest extends BrowserTestBase {
     // Verify that an empty section is handled correctly.
     $this->assertRaw('<h2>' . t('Empty section') . '</h2>');
     $this->assertRaw('<p>' . t('This description should appear.') . '</p>');
-    $this->assertText(t('There is currently nothing in this section.'));
+    $this->assertText('There is currently nothing in this section.');
 
     // Make sure links are properly added for modules implementing hook_help().
     foreach ($this->getModuleList() as $module => $name) {
       $this->assertSession()->linkExists($name, 0, new FormattableMarkup('Link properly added to @name (admin/help/@module)', ['@module' => $module, '@name' => $name]));
     }
 
-    // Ensure that module which does not provide an module overview page is
-    // handled correctly.
+    // Ensure a module which does not provide a module overview page is handled
+    // correctly.
     $this->clickLink(\Drupal::moduleHandler()->getName('help_test'));
     $this->assertRaw(t('No help is available for module %module.', ['%module' => \Drupal::moduleHandler()->getName('help_test')]));
 
@@ -136,7 +136,7 @@ class HelpTest extends BrowserTestBase {
         $info = \Drupal::service('extension.list.module')->getExtensionInfo($module);
         $admin_tasks = system_get_module_admin_tasks($module, $info);
         if (!empty($admin_tasks)) {
-          $this->assertText(t('@module administration pages', ['@module' => $name]));
+          $this->assertText($name . ' administration pages');
         }
         foreach ($admin_tasks as $task) {
           $this->assertSession()->linkExists($task['title']);

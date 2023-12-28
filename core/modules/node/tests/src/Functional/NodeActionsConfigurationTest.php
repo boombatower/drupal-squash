@@ -37,7 +37,7 @@ class NodeActionsConfigurationTest extends BrowserTestBase {
     // Make a POST request to admin/config/system/actions.
     $edit = [];
     $edit['action'] = 'node_assign_owner_action';
-    $this->drupalPostForm('admin/config/system/actions', $edit, t('Create'));
+    $this->drupalPostForm('admin/config/system/actions', $edit, 'Create');
     $this->assertSession()->statusCodeEquals(200);
 
     // Make a POST request to the individual action configuration page.
@@ -46,13 +46,13 @@ class NodeActionsConfigurationTest extends BrowserTestBase {
     $edit['label'] = $action_label;
     $edit['id'] = strtolower($action_label);
     $edit['owner_uid'] = $user->id();
-    $this->drupalPostForm('admin/config/system/actions/add/node_assign_owner_action', $edit, t('Save'));
+    $this->drupalPostForm('admin/config/system/actions/add/node_assign_owner_action', $edit, 'Save');
     $this->assertSession()->statusCodeEquals(200);
 
     $action_id = $edit['id'];
 
     // Make sure that the new action was saved properly.
-    $this->assertText(t('The action has been successfully saved.'), 'The node_assign_owner_action action has been successfully saved.');
+    $this->assertText('The action has been successfully saved.', 'The node_assign_owner_action action has been successfully saved.');
     $this->assertText($action_label, 'The label of the node_assign_owner_action action appears on the actions administration page after saving.');
 
     // Make another POST request to the action edit page.
@@ -61,11 +61,11 @@ class NodeActionsConfigurationTest extends BrowserTestBase {
     $new_action_label = $this->randomMachineName();
     $edit['label'] = $new_action_label;
     $edit['owner_uid'] = $user->id();
-    $this->drupalPostForm(NULL, $edit, t('Save'));
+    $this->drupalPostForm(NULL, $edit, 'Save');
     $this->assertSession()->statusCodeEquals(200);
 
     // Make sure that the action updated properly.
-    $this->assertText(t('The action has been successfully saved.'), 'The node_assign_owner_action action has been successfully updated.');
+    $this->assertText('The action has been successfully saved.', 'The node_assign_owner_action action has been successfully updated.');
     $this->assertNoText($action_label, 'The old label for the node_assign_owner_action action does not appear on the actions administration page after updating.');
     $this->assertText($new_action_label, 'The new label for the node_assign_owner_action action appears on the actions administration page after updating.');
 
@@ -74,7 +74,7 @@ class NodeActionsConfigurationTest extends BrowserTestBase {
     $this->clickLink(t('Delete'));
     $this->assertSession()->statusCodeEquals(200);
     $edit = [];
-    $this->drupalPostForm(NULL, $edit, t('Delete'));
+    $this->drupalPostForm(NULL, $edit, 'Delete');
     $this->assertSession()->statusCodeEquals(200);
 
     // Make sure that the action was actually deleted.

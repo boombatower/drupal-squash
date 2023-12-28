@@ -70,7 +70,7 @@ class SessionTest extends BrowserTestBase {
       'name' => $user->getAccountName(),
       'pass' => $user->passRaw,
     ];
-    $this->drupalPostForm('user/login', $edit, t('Log in'));
+    $this->drupalPostForm('user/login', $edit, 'Log in');
     $this->drupalGet('user');
     $pass = $this->assertText($user->getAccountName(), new FormattableMarkup('Found name: %name', ['%name' => $user->getAccountName()]), 'User login');
     $this->_logged_in = $pass;
@@ -202,7 +202,7 @@ class SessionTest extends BrowserTestBase {
     $this->assertSessionEmpty(FALSE);
     // Verify that caching was bypassed.
     $this->assertSession()->responseHeaderDoesNotExist('X-Drupal-Cache');
-    $this->assertText(t('This is a dummy message.'), 'Message was displayed.');
+    $this->assertText('This is a dummy message.', 'Message was displayed.');
     // Verify that session cookie was deleted.
     $this->assertSession()->responseHeaderMatches('Set-Cookie', '/SESS\w+=deleted/');
 

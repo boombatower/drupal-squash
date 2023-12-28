@@ -462,7 +462,7 @@
     // 1. /nojs/
     // 2. /nojs$ - The end of a URL string.
     // 3. /nojs? - Followed by a query (e.g. path/nojs?destination=foobar).
-    // 4. /nojs# - Followed by a fragment (e.g.: path/nojs#myfragment).
+    // 4. /nojs# - Followed by a fragment (e.g.: path/nojs#my-fragment).
     const originalUrl = this.url;
 
     /**
@@ -1208,7 +1208,7 @@
      * @param {string} [response.method]
      *   The jQuery DOM manipulation method to be used.
      * @param {string} [response.selector]
-     *   A optional jQuery selector string.
+     *   An optional jQuery selector string.
      * @param {object} [response.settings]
      *   An optional array of settings that will be used.
      */

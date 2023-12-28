@@ -30,20 +30,20 @@ class ConfirmFormTest extends BrowserTestBase {
     $this->drupalGet('form-test/confirm-form');
     $site_name = $this->config('system.site')->get('name');
     $this->assertSession()->titleEquals("ConfirmFormTestForm::getQuestion(). | $site_name");
-    $this->assertText(t('ConfirmFormTestForm::getDescription().'), 'The description was used.');
-    $this->assertFieldByXPath('//input[@id="edit-submit"]', t('ConfirmFormTestForm::getConfirmText().'), 'The confirm text was used.');
+    $this->assertText('ConfirmFormTestForm::getDescription().', 'The description was used.');
+    $this->assertSession()->buttonExists('ConfirmFormTestForm::getConfirmText().');
 
     // Test cancelling the form.
     $this->clickLink(t('ConfirmFormTestForm::getCancelText().'));
     $this->assertSession()->addressEquals('form-test/autocomplete');
 
     // Test submitting the form.
-    $this->drupalPostForm('form-test/confirm-form', [], t('ConfirmFormTestForm::getConfirmText().'));
+    $this->drupalPostForm('form-test/confirm-form', [], 'ConfirmFormTestForm::getConfirmText().');
     $this->assertText('The ConfirmFormTestForm::submitForm() method was used for this form.');
     $this->assertSession()->addressEquals('');
 
     // Test submitting the form with a destination.
-    $this->drupalPostForm('form-test/confirm-form', [], t('ConfirmFormTestForm::getConfirmText().'), ['query' => ['destination' => 'admin/config']]);
+    $this->drupalPostForm('form-test/confirm-form', [], 'ConfirmFormTestForm::getConfirmText().', ['query' => ['destination' => 'admin/config']]);
     $this->assertSession()->addressEquals('admin/config');
 
     // Test cancelling the form with a complex destination.
