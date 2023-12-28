@@ -7,7 +7,7 @@
         "webflo/drupal-core-require-dev": "*"
     },
     "require": {
-        "drupal/core": "9.2.0-beta2",
+        "drupal/core": "9.2.0-beta3",
         "behat/mink": "v1.8.1",
         "behat/mink-goutte-driver": "v1.2.1",
         "behat/mink-selenium2-driver": "v1.4.0",
@@ -60,7 +60,7 @@
         "symfony/filesystem": "v4.4.22",
         "symfony/finder": "v4.4.24",
         "symfony/lock": "v4.4.23",
-        "symfony/phpunit-bridge": "v5.2.9",
+        "symfony/phpunit-bridge": "v5.3.0-RC1",
         "theseer/tokenizer": "1.2.0",
         "webmozart/assert": "1.10.0"
     }
