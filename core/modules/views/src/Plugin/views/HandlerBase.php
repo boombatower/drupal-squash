@@ -214,16 +214,16 @@ abstract class HandlerBase extends PluginBase implements ViewsHandlerInterface {
    * Transform a string by a certain method.
    *
    * @param $string
-   *    The input you want to transform.
+   *   The input you want to transform.
    * @param $option
-   *    How do you want to transform it, possible values:
-   *      - upper: Uppercase the string.
-   *      - lower: lowercase the string.
-   *      - ucfirst: Make the first char uppercase.
-   *      - ucwords: Make each word in the string uppercase.
+   *   How do you want to transform it, possible values:
+   *   - upper: Uppercase the string.
+   *   - lower: lowercase the string.
+   *   - ucfirst: Make the first char uppercase.
+   *   - ucwords: Make each word in the string uppercase.
    *
    * @return string
-   *    The transformed string.
+   *   The transformed string.
    */
   protected function caseTransform($string, $option) {
     switch ($option) {

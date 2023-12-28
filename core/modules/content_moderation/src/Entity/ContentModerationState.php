@@ -2,7 +2,6 @@
 
 namespace Drupal\content_moderation\Entity;
 
-use Drupal\content_moderation\ContentModerationStateInterface;
 use Drupal\Core\Entity\ContentEntityBase;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Entity\EntityTypeInterface;
@@ -67,7 +66,6 @@ class ContentModerationState extends ContentEntityBase implements ContentModerat
       ->setDescription(t('The workflow the moderation state is in.'))
       ->setSetting('target_type', 'workflow')
       ->setRequired(TRUE)
-      ->setTranslatable(TRUE)
       ->setRevisionable(TRUE);
 
     $fields['moderation_state'] = BaseFieldDefinition::create('string')
@@ -149,7 +147,7 @@ class ContentModerationState extends ContentEntityBase implements ContentModerat
    * @param \Drupal\Core\Entity\EntityInterface $entity
    *   A moderated entity object.
    *
-   * @return \Drupal\content_moderation\ContentModerationStateInterface|null
+   * @return \Drupal\content_moderation\Entity\ContentModerationStateInterface|null
    *   The related content moderation state or NULL if none could be found.
    *
    * @internal
@@ -173,7 +171,7 @@ class ContentModerationState extends ContentEntityBase implements ContentModerat
         ->execute();
 
       if ($ids) {
-        /** @var \Drupal\content_moderation\ContentModerationStateInterface $content_moderation_state */
+        /** @var \Drupal\content_moderation\Entity\ContentModerationStateInterface $content_moderation_state */
         $content_moderation_state = $storage->loadRevision(key($ids));
       }
     }

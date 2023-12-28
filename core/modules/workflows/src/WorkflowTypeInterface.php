@@ -8,10 +8,6 @@ use Drupal\Core\Plugin\PluginWithFormsInterface;
 
 /**
  * An interface for Workflow type plugins.
- *
- * @internal
- *   The workflow system is currently experimental and should only be leveraged
- *   by experimental modules and development releases of contributed modules.
  */
 interface WorkflowTypeInterface extends PluginWithFormsInterface, DerivativeInspectionInterface, ConfigurablePluginInterface {
 
@@ -71,9 +67,9 @@ interface WorkflowTypeInterface extends PluginWithFormsInterface, DerivativeInsp
   /**
    * Gets the required states of workflow type.
    *
-   * This are usually configured in the workflow type annotation.
+   * This is usually specified in the workflow type annotation.
    *
-   * @return array[]
+   * @return string[]
    *   The required states.
    *
    * @see \Drupal\workflows\Annotation\WorkflowType
@@ -103,8 +99,7 @@ interface WorkflowTypeInterface extends PluginWithFormsInterface, DerivativeInsp
    * @param string $label
    *   The state's label.
    *
-   * @return \Drupal\workflows\WorkflowTypeInterface
-   *   The workflow type plugin.
+   * @return $this
    *
    * @throws \InvalidArgumentException
    *   Thrown if a state already exists or state ID is invalid.
@@ -158,8 +153,7 @@ interface WorkflowTypeInterface extends PluginWithFormsInterface, DerivativeInsp
    * @param string $label
    *   The state's label.
    *
-   * @return \Drupal\workflows\WorkflowTypeInterface
-   *   The workflow type plugin.
+   * @return $this
    */
   public function setStateLabel($state_id, $label);
 
@@ -171,8 +165,7 @@ interface WorkflowTypeInterface extends PluginWithFormsInterface, DerivativeInsp
    * @param int $weight
    *   The state's weight.
    *
-   * @return \Drupal\workflows\WorkflowTypeInterface
-   *   The workflow type plugin.
+   * @return $this
    */
   public function setStateWeight($state_id, $weight);
 
@@ -202,8 +195,7 @@ interface WorkflowTypeInterface extends PluginWithFormsInterface, DerivativeInsp
    * @param string $to_state_id
    *   The state ID to transition to.
    *
-   * @return \Drupal\workflows\WorkflowTypeInterface
-   *   The workflow type plugin.
+   * @return $this
    *
    * @throws \InvalidArgumentException
    *   Thrown if either state does not exist.
@@ -301,8 +293,7 @@ interface WorkflowTypeInterface extends PluginWithFormsInterface, DerivativeInsp
    * @param string $label
    *   The transition's label.
    *
-   * @return \Drupal\workflows\WorkflowTypeInterface
-   *   The workflow type plugin.
+   * @return $this
    *
    * @throws \InvalidArgumentException
    *   Thrown if the transition does not exist.
@@ -317,8 +308,7 @@ interface WorkflowTypeInterface extends PluginWithFormsInterface, DerivativeInsp
    * @param int $weight
    *   The transition's weight.
    *
-   * @return \Drupal\workflows\WorkflowTypeInterface
-   *   The workflow type plugin.
+   * @return $this
    *
    * @throws \InvalidArgumentException
    *   Thrown if the transition does not exist.
@@ -333,13 +323,12 @@ interface WorkflowTypeInterface extends PluginWithFormsInterface, DerivativeInsp
    * @param array $from_state_ids
    *   The state IDs to transition from.
    *
-   * @return \Drupal\workflows\WorkflowTypeInterface
-   *   The workflow type plugin.
+   * @return $this
    *
    * @throws \InvalidArgumentException
    *   Thrown if the transition does not exist or the states do not exist.
    */
-  public function setTransitionFromStates($transition_id, array   $from_state_ids);
+  public function setTransitionFromStates($transition_id, array $from_state_ids);
 
   /**
    * Deletes a transition.
@@ -347,8 +336,7 @@ interface WorkflowTypeInterface extends PluginWithFormsInterface, DerivativeInsp
    * @param string $transition_id
    *   The transition ID.
    *
-   * @return \Drupal\workflows\WorkflowTypeInterface
-   *   The workflow type plugin.
+   * @return $this
    *
    * @throws \InvalidArgumentException
    *   Thrown if the transition does not exist.

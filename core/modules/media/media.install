@@ -5,7 +5,7 @@
  * Install, uninstall and update hooks for Media module.
  */
 
-use \Drupal\user\RoleInterface;
+use Drupal\user\RoleInterface;
 
 /**
  * Implements hook_install().
@@ -33,15 +33,6 @@ function media_install() {
     user_role_grant_permissions(RoleInterface::ANONYMOUS_ID, ['view media']);
     user_role_grant_permissions(RoleInterface::AUTHENTICATED_ID, ['view media']);
   }
-}
-
-/**
- * Implements hook_uninstall().
- *
- * @TODO Remove when https://www.drupal.org/node/2884202 is fixed.
- */
-function media_uninstall() {
-  \Drupal::moduleHandler()->invoke('field', 'cron');
 }
 
 /**

@@ -32,7 +32,7 @@ use Drupal\workflows\WorkflowInterface;
  *     },
  *     "route_provider" = {
  *       "html" = "Drupal\Core\Entity\Routing\AdminHtmlRouteProvider",
- *     }
+ *     },
  *   },
  *   config_prefix = "workflow",
  *   admin_permission = "administer workflows",
@@ -47,19 +47,15 @@ use Drupal\workflows\WorkflowInterface;
  *     "delete-form" = "/admin/config/workflow/workflows/manage/{workflow}/delete",
  *     "add-state-form" = "/admin/config/workflow/workflows/manage/{workflow}/add_state",
  *     "add-transition-form" = "/admin/config/workflow/workflows/manage/{workflow}/add_transition",
- *     "collection" = "/admin/config/workflow/workflows"
+ *     "collection" = "/admin/config/workflow/workflows",
  *   },
  *   config_export = {
  *     "id",
  *     "label",
  *     "type",
- *     "type_settings"
+ *     "type_settings",
  *   },
  * )
- *
- * @internal
- *   The workflow system is currently experimental and should only be leveraged
- *   by experimental modules and development releases of contributed modules.
  */
 class Workflow extends ConfigEntityBase implements WorkflowInterface, EntityWithPluginCollectionInterface {
 
@@ -71,7 +67,7 @@ class Workflow extends ConfigEntityBase implements WorkflowInterface, EntityWith
   protected $id;
 
   /**
-   * The Moderation state label.
+   * The workflow label.
    *
    * @var string
    */
@@ -88,6 +84,7 @@ class Workflow extends ConfigEntityBase implements WorkflowInterface, EntityWith
 
   /**
    * The configuration for the workflow type plugin.
+   *
    * @var array
    */
   protected $type_settings = [];

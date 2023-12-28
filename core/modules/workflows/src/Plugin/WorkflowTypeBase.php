@@ -14,10 +14,6 @@ use Drupal\workflows\WorkflowTypeInterface;
  * A base class for Workflow type plugins.
  *
  * @see \Drupal\workflows\Annotation\WorkflowType
- *
- * @internal
- *   The workflow system is currently experimental and should only be leveraged
- *   by experimental modules and development releases of contributed modules.
  */
 abstract class WorkflowTypeBase extends PluginBase implements WorkflowTypeInterface {
 
@@ -199,15 +195,20 @@ abstract class WorkflowTypeBase extends PluginBase implements WorkflowTypeInterf
     }
 
     foreach ($this->configuration['transitions'] as $transition_id => $transition) {
+      if ($transition['to'] === $state_id) {
+        $this->deleteTransition($transition_id);
+        continue;
+      }
       $from_key = array_search($state_id, $transition['from'], TRUE);
       if ($from_key !== FALSE) {
         // Remove state from the from array.
         unset($transition['from'][$from_key]);
-      }
-      if (empty($transition['from']) || $transition['to'] === $state_id) {
-        $this->deleteTransition($transition_id);
-      }
-      elseif ($from_key !== FALSE) {
+        if (empty($transition['from'])) {
+          // There are no more 'from' entries, remove the transition.
+          $this->deleteTransition($transition_id);
+          continue;
+        }
+        // We changed the from state, update the transition.
         $this->setTransitionFromStates($transition_id, $transition['from']);
       }
     }
