@@ -32,7 +32,7 @@ class ComposerProjectTemplatesTest extends BuildTestBase {
    *
    * @see https://getcomposer.org/doc/04-schema.md#minimum-stability
    */
-  protected const MINIMUM_STABILITY = 'beta';
+  protected const MINIMUM_STABILITY = 'RC';
 
   /**
    * The order of stability strings from least stable to most stable.
@@ -256,9 +256,13 @@ class ComposerProjectTemplatesTest extends BuildTestBase {
    * Assert that the VERSION constant in Drupal.php is the expected value.
    *
    * @param string $expectedVersion
+   *   The expected version.
    * @param string $dir
+   *   The path to the site root.
+   *
+   * @internal
    */
-  protected function assertDrupalVersion($expectedVersion, $dir) {
+  protected function assertDrupalVersion(string $expectedVersion, string $dir): void {
     $drupal_php_path = $dir . '/core/lib/Drupal.php';
     $this->assertFileExists($drupal_php_path);
 
