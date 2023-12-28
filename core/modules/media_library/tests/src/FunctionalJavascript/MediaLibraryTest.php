@@ -480,6 +480,12 @@ class MediaLibraryTest extends WebDriverTestBase {
     // setting for the entity reference field is null. All types should be
     // allowed in this case.
     $menu = $this->openMediaLibraryForField('field_null_types_media');
+
+    // Assert that the button to open the media library does not submit the
+    // parent form. We can do this by checking if the validation of the parent
+    // form is not triggered.
+    $assert_session->pageTextNotContains('Title field is required.');
+
     $this->assertTrue($menu->hasLink('Type One'));
     $this->assertTrue($menu->hasLink('Type Two'));
     $this->assertTrue($menu->hasLink('Type Three'));
@@ -2294,8 +2300,15 @@ class MediaLibraryTest extends WebDriverTestBase {
     $assert_session->pageTextMatches('/The media items? ha(s|ve) been created but ha(s|ve) not yet been saved. Fill in any required fields and save to add (it|them) to the media library./');
     $assert_session->elementAttributeContains('css', $selector, 'aria-label', 'Added media items');
 
-    $this->assertElementExistsAfterWait('css', '[data-drupal-selector="edit-media-' . $index . '-fields"]');
+    $fields = $this->assertElementExistsAfterWait('css', '[data-drupal-selector="edit-media-' . $index . '-fields"]');
     $assert_session->elementNotExists('css', '.js-media-library-menu');
+
+    // Assert extraneous components were removed in
+    // FileUploadForm::hideExtraSourceFieldComponents().
+    $assert_session->elementNotExists('css', '[data-drupal-selector$="preview"]', $fields);
+    $assert_session->buttonNotExists('Remove', $fields);
+    $assert_session->elementNotExists('css', '[data-drupal-selector$="filename"]', $fields);
+    $assert_session->elementNotExists('css', '.file-size', $fields);
   }
 
   /**

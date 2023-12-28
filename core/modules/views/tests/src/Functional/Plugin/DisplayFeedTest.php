@@ -3,6 +3,7 @@
 namespace Drupal\Tests\views\Functional\Plugin;
 
 use Drupal\Core\Url;
+use Drupal\Tests\Traits\Core\PathAliasTestTrait;
 use Drupal\Tests\views\Functional\ViewTestBase;
 use Drupal\views\Views;
 
@@ -13,6 +14,8 @@ use Drupal\views\Views;
  * @see \Drupal\views\Plugin\views\display\Feed
  */
 class DisplayFeedTest extends ViewTestBase {
+
+  use PathAliasTestTrait;
 
   /**
    * Views used by this test.
@@ -67,8 +70,8 @@ class DisplayFeedTest extends ViewTestBase {
     $this->config('system.site')->set('name', $site_name)->save();
 
     $this->drupalGet('test-feed-display.xml');
-    $this->assertEquals($site_name, $this->getSession()->getDriver()->getText('//title'));
-    $this->assertEquals($frontpage_url, $this->getSession()->getDriver()->getText('//link'));
+    $this->assertEquals($site_name, $this->getSession()->getDriver()->getText('//channel/title'));
+    $this->assertEquals($frontpage_url, $this->getSession()->getDriver()->getText('//channel/link'));
     $this->assertEquals('Copyright 2019 Dries Buytaert', $this->getSession()->getDriver()->getText('//channel/copyright'));
     $this->assertEquals($node_title, $this->getSession()->getDriver()->getText('//item/title'));
     $this->assertEquals($node_link, $this->getSession()->getDriver()->getText('//item/link'));
@@ -81,7 +84,7 @@ class DisplayFeedTest extends ViewTestBase {
     $view->save();
 
     $this->drupalGet('test-feed-display.xml');
-    $this->assertEquals('test_display_feed', $this->getSession()->getDriver()->getText('//title'));
+    $this->assertEquals('test_display_feed', $this->getSession()->getDriver()->getText('//channel/title'));
 
     // Add a block display and attach the feed.
     $view->getExecutable()->newDisplay('block', NULL, 'test');
@@ -122,13 +125,29 @@ class DisplayFeedTest extends ViewTestBase {
         ],
       ],
     ]);
+
+    // Create an alias to verify that outbound processing runs on the link and
+    // ensure that the node actually contains that.
+    $this->createPathAlias('/node/' . $node->id(), '/the-article-alias');
+
     $node_link = $node->toUrl()->setAbsolute()->toString();
+    $this->assertContains('/the-article-alias', $node_link);
 
     $this->drupalGet('test-feed-display-fields.xml');
-    $this->assertEquals($node_title, $this->getSession()->getDriver()->getText('//title/a'));
+    $this->assertEquals($node_title, $this->getSession()->getDriver()->getText('//item/title'));
     $this->assertEquals($node_link, $this->getSession()->getDriver()->getText('//item/link'));
     // Verify HTML is properly escaped in the description field.
     $this->assertRaw('&lt;p&gt;A paragraph&lt;/p&gt;');
+
+    // Change the display to use the nid field, which is rewriting output as
+    // 'node/{{ nid }}' and make sure things are still working.
+    $view = Views::getView('test_display_feed');
+    $display = &$view->storage->getDisplay('feed_2');
+    $display['display_options']['row']['options']['link_field'] = 'nid';
+    $view->save();
+    $this->drupalGet('test-feed-display-fields.xml');
+    $this->assertEquals($node_title, $this->getSession()->getDriver()->getText('//item/title'));
+    $this->assertEquals($node_link, $this->getSession()->getDriver()->getText('//item/link'));
   }
 
   /**
