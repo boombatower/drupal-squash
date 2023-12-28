@@ -281,7 +281,7 @@ abstract class RESTTestBase extends WebTestBase {
   /**
    * Enables the REST service interface for a specific entity type.
    *
-   * @param string|FALSE $resource_type
+   * @param string|false $resource_type
    *   The resource type that should get REST API enabled or FALSE to disable all
    *   resource types.
    * @param string $method
@@ -446,7 +446,8 @@ abstract class RESTTestBase extends WebTestBase {
   protected function loadEntityFromLocationHeader($location_url) {
     $url_parts = explode('/', $location_url);
     $id = end($url_parts);
-    return entity_load($this->testEntityType, $id);
+    return $this->container->get('entity_type.manager')
+      ->getStorage($this->testEntityType)->load($id);
   }
 
   /**

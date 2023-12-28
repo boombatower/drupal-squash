@@ -307,6 +307,9 @@ Contact module
 - Jibran Ijaz 'jibran' https://www.drupal.org/u/jibran
 - Andrey Postnikov 'andypost' https://www.drupal.org/u/andypost
 
+Content Moderation module
+- Tim Millwood 'timmillwood' https://www.drupal.org/u/timmillwood
+
 Content Translation module
 - Francesco Placella 'plach' https://www.drupal.org/u/plach
 
@@ -392,6 +395,9 @@ Number module
 Options module
 - Yves Chedemois 'yched' https://www.drupal.org/u/yched
 
+Outside In module
+- Ted Bowman 'tedbow' https://www.drupal.org/u/tedbow
+
 Page Cache module
 - Lorenz Schori 'znerol' https://www.drupal.org/u/znerol
 - Fabian Franz 'Fabianx' https://www.drupal.org/u/fabianx
@@ -472,11 +478,13 @@ Views module
 - Tim Plunkett 'tim.plunkett' https://www.drupal.org/u/tim.plunkett
 - Damian Lee 'damiankloip' https://www.drupal.org/u/damiankloip
 - Jess Myrbo 'xjm' https://www.drupal.org/u/xjm
+- Len Swaneveld 'Lendude' https://www.drupal.org/u/lendude
 
 Views UI module
 - Daniel Wehner 'dawehner' https://www.drupal.org/u/dawehner
 - Tim Plunkett 'tim.plunkett' https://www.drupal.org/u/tim.plunkett
 - Damian Lee 'damiankloip' https://www.drupal.org/u/damiankloip
+- Len Swaneveld 'Lendude' https://www.drupal.org/u/lendude
 
 
 Theme maintainers
@@ -522,6 +530,9 @@ Multi-lingual
 
 Web services
 - Larry Garfield 'Crell' https://www.drupal.org/u/crell
+
+Workflow Initiative
+- Dick Olsson 'dixon_' https://www.drupal.org/u/dixon_
 
 Provisional membership: None at this time.
 
