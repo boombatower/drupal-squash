@@ -85,7 +85,7 @@ class InstallerTranslationTest extends InstallerTestBase {
 
     // Verify German was configured but not English.
     $this->drupalGet('admin/config/regional/language');
-    $this->assertText('German');
+    $this->assertSession()->pageTextContains('German');
     $this->assertNoText('English');
 
     // The current container still has the english as current language, rebuild.
@@ -99,12 +99,14 @@ class InstallerTranslationTest extends InstallerTestBase {
     $this->assertEquals('de', $account->language()->getId(), 'New user is German.');
 
     // Ensure that we can enable basic_auth on a non-english site.
-    $this->drupalPostForm('admin/modules', ['modules[basic_auth][enable]' => TRUE], 'Install');
+    $this->drupalGet('admin/modules');
+    $this->submitForm(['modules[basic_auth][enable]' => TRUE], 'Install');
     $this->assertSession()->statusCodeEquals(200);
 
     // Assert that the theme CSS was added to the page.
     $edit = ['preprocess_css' => FALSE];
-    $this->drupalPostForm('admin/config/development/performance', $edit, 'Save configuration');
+    $this->drupalGet('admin/config/development/performance');
+    $this->submitForm($edit, 'Save configuration');
     $this->drupalGet('<front>');
     $this->assertRaw('classy/css/components/action-links.css');
 
@@ -115,8 +117,9 @@ class InstallerTranslationTest extends InstallerTestBase {
       $edit['langcode'] = 'de';
       $edit['translation'] = 'translated';
       $edit['string'] = $sample;
-      $this->drupalPostForm('admin/config/regional/translate', $edit, 'Filter');
-      $this->assertText($sample . ' de');
+      $this->drupalGet('admin/config/regional/translate');
+      $this->submitForm($edit, 'Filter');
+      $this->assertSession()->pageTextContains($sample . ' de');
     }
 
     /** @var \Drupal\language\ConfigurableLanguageManager $language_manager */
@@ -134,7 +137,8 @@ class InstallerTranslationTest extends InstallerTestBase {
 
     // Assert that adding English makes the English override available.
     $edit = ['predefined_langcode' => 'en'];
-    $this->drupalPostForm('admin/config/regional/language/add', $edit, 'Add language');
+    $this->drupalGet('admin/config/regional/language/add');
+    $this->submitForm($edit, 'Add language');
     $override_en = $language_manager->getLanguageConfigOverride('en', 'user.settings');
     $this->assertFalse($override_en->isNew());
     $this->assertEquals('Anonymous', $override_en->get('anonymous'));

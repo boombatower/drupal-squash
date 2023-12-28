@@ -69,7 +69,8 @@ class SiteMaintenanceTest extends BrowserTestBase {
     $edit = [
       'maintenance_mode' => 1,
     ];
-    $this->drupalPostForm('admin/config/development/maintenance', $edit, 'Save configuration');
+    $this->drupalGet('admin/config/development/maintenance');
+    $this->submitForm($edit, 'Save configuration');
 
     $admin_message = t('Operating in maintenance mode. <a href=":url">Go online.</a>', [':url' => Url::fromRoute('system.site_maintenance_mode')->toString()]);
     $user_message = 'Operating in maintenance mode.';
@@ -85,13 +86,13 @@ class SiteMaintenanceTest extends BrowserTestBase {
     $this->drupalLogout();
     $this->drupalGet('');
     $this->assertEquals('Site under maintenance', $this->cssSelect('main h1')[0]->getText());
-    $this->assertText($offline_message);
+    $this->assertSession()->pageTextContains($offline_message);
     $this->drupalGet('node');
     $this->assertEquals('Site under maintenance', $this->cssSelect('main h1')[0]->getText());
-    $this->assertText($offline_message);
+    $this->assertSession()->pageTextContains($offline_message);
     $this->drupalGet('user/register');
     $this->assertEquals('Site under maintenance', $this->cssSelect('main h1')[0]->getText());
-    $this->assertText($offline_message);
+    $this->assertSession()->pageTextContains($offline_message);
 
     // Verify that user is able to log in.
     $this->drupalGet('user');
@@ -106,7 +107,7 @@ class SiteMaintenanceTest extends BrowserTestBase {
       'pass' => $this->user->pass_raw,
     ];
     $this->submitForm($edit, 'Log in');
-    $this->assertText($user_message);
+    $this->assertSession()->pageTextContains($user_message);
 
     // Log in administrative user and configure a custom site offline message.
     $this->drupalLogout();
@@ -128,20 +129,22 @@ class SiteMaintenanceTest extends BrowserTestBase {
 
     // Verify that custom site offline message is not displayed on user/password.
     $this->drupalGet('user/password');
-    $this->assertText('Username or email address');
+    $this->assertSession()->pageTextContains('Username or email address');
 
     // Submit password reset form.
     $edit = [
       'name' => $this->user->getAccountName(),
     ];
-    $this->drupalPostForm('user/password', $edit, 'Submit');
+    $this->drupalGet('user/password');
+    $this->submitForm($edit, 'Submit');
     $mails = $this->drupalGetMails();
     $start = strpos($mails[0]['body'], 'user/reset/' . $this->user->id());
     $path = substr($mails[0]['body'], $start, 66 + strlen($this->user->id()));
 
     // Log in with temporary login link.
-    $this->drupalPostForm($path, [], 'Log in');
-    $this->assertText($user_message);
+    $this->drupalGet($path);
+    $this->submitForm([], 'Log in');
+    $this->assertSession()->pageTextContains($user_message);
 
     // Regression test to check if title displays in Bartik on maintenance page.
     \Drupal::service('theme_installer')->install(['bartik']);

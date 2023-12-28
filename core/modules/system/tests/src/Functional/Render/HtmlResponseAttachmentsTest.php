@@ -24,7 +24,7 @@ class HtmlResponseAttachmentsTest extends BrowserTestBase {
   protected $defaultTheme = 'stark';
 
   /**
-   * Test rendering of ['#attached'].
+   * Tests rendering of ['#attached'].
    */
   public function testAttachments() {
     // Test ['#attached']['http_header] = ['Status', $code].
@@ -70,7 +70,7 @@ class HtmlResponseAttachmentsTest extends BrowserTestBase {
   }
 
   /**
-   * Test caching of ['#attached'].
+   * Tests caching of ['#attached'].
    */
   public function testRenderCachedBlock() {
     // Make sure our test block is visible.
@@ -79,7 +79,7 @@ class HtmlResponseAttachmentsTest extends BrowserTestBase {
     // Get the front page, which should now have our visible block.
     $this->drupalGet('');
     // Make sure our block is visible.
-    $this->assertText('Markup from attached_rendering_block.');
+    $this->assertSession()->pageTextContains('Markup from attached_rendering_block.');
     // Test that all our attached items are present.
     $this->assertFeed();
     $this->assertHead();
@@ -89,7 +89,7 @@ class HtmlResponseAttachmentsTest extends BrowserTestBase {
     // Reload the page, to test caching.
     $this->drupalGet('');
     // Make sure our block is visible.
-    $this->assertText('Markup from attached_rendering_block.');
+    $this->assertSession()->pageTextContains('Markup from attached_rendering_block.');
     // The header should be present again.
     $this->assertSession()->responseHeaderEquals('X-Test-Teapot', 'Teapot Mode Active');
   }

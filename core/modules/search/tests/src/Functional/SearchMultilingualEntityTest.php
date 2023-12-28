@@ -154,7 +154,8 @@ class SearchMultilingualEntityTest extends BrowserTestBase {
 
     // Now index the rest of the nodes.
     // Make sure index throttle is high enough, via the UI.
-    $this->drupalPostForm('admin/config/search/pages', ['cron_limit' => 20], 'Save configuration');
+    $this->drupalGet('admin/config/search/pages');
+    $this->submitForm(['cron_limit' => 20], 'Save configuration');
     $this->assertEquals(20, $this->config('search.settings')->get('index.cron_limit', 100), 'Config setting was saved correctly');
     // Get a new search plugin, to make sure it has this setting.
     $this->plugin = $this->container->get('plugin.manager.search')->createInstance('node_search');
@@ -164,7 +165,8 @@ class SearchMultilingualEntityTest extends BrowserTestBase {
     $this->assertDatabaseCounts(8, 0, 'after updating fully');
 
     // Click the reindex button on the admin page, verify counts, and reindex.
-    $this->drupalPostForm('admin/config/search/pages', [], 'Re-index site');
+    $this->drupalGet('admin/config/search/pages');
+    $this->submitForm([], 'Re-index site');
     $this->submitForm([], 'Re-index site');
     $this->assertIndexCounts(8, 8, 'after reindex');
     $this->assertDatabaseCounts(8, 0, 'after reindex');
@@ -296,17 +298,17 @@ class SearchMultilingualEntityTest extends BrowserTestBase {
     $indexed = $total - $remaining;
     $percent = ($total > 0) ? floor(100 * $indexed / $total) : 100;
     $this->drupalGet('admin/config/search/pages');
-    $this->assertText($percent . '% of the site has been indexed.');
-    $this->assertText($remaining . ' item');
+    $this->assertSession()->pageTextContains($percent . '% of the site has been indexed.');
+    $this->assertSession()->pageTextContains($remaining . ' item');
 
     // Check text in pages section of Search settings page.
-    $this->assertText($indexed . ' of ' . $total . ' indexed');
+    $this->assertSession()->pageTextContains($indexed . ' of ' . $total . ' indexed');
 
     // Check text on status report page.
     $this->drupalGet('admin/reports/status');
-    $this->assertText('Search index progress');
-    $this->assertText($percent . '%');
-    $this->assertText('(' . $remaining . ' remaining)');
+    $this->assertSession()->pageTextContains('Search index progress');
+    $this->assertSession()->pageTextContains($percent . '%');
+    $this->assertSession()->pageTextContains('(' . $remaining . ' remaining)');
   }
 
   /**

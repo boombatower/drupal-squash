@@ -70,7 +70,7 @@ class ContentTranslationSettingsTest extends BrowserTestBase {
     // Check for the content_translation_menu_links_discovered_alter() changes.
     $this->drupalGet('admin/config');
     $this->assertSession()->linkExists('Content language and translation');
-    $this->assertText('Configure language and translation support for content.');
+    $this->assertSession()->pageTextContains('Configure language and translation support for content.');
     // Test that the translation settings are ignored if the bundle is marked
     // translatable but the entity type is not.
     $edit = ['settings[comment][comment_article][translatable]' => TRUE];
@@ -169,7 +169,8 @@ class ContentTranslationSettingsTest extends BrowserTestBase {
     $this->drupalGet('admin/structure/types/manage/article');
     $this->assertSession()->fieldExists('language_configuration[content_translation]');
     $this->assertSession()->checkboxNotChecked('edit-language-configuration-content-translation');
-    $this->drupalPostForm('admin/structure/types/manage/article', $edit, 'Save content type');
+    $this->drupalGet('admin/structure/types/manage/article');
+    $this->submitForm($edit, 'Save content type');
     $this->drupalGet('admin/structure/types/manage/article');
     $this->assertSession()->checkboxChecked('edit-language-configuration-content-translation');
 
@@ -195,7 +196,8 @@ class ContentTranslationSettingsTest extends BrowserTestBase {
       // Test that also the Field UI form behaves correctly.
       $translatable = !$translatable;
       $edit = ['translatable' => $translatable];
-      $this->drupalPostForm('admin/structure/types/manage/article/fields/node.article.body', $edit, 'Save settings');
+      $this->drupalGet('admin/structure/types/manage/article/fields/node.article.body');
+      $this->submitForm($edit, 'Save settings');
       $entity_field_manager->clearCachedFieldDefinitions();
       $field = FieldConfig::loadByName('node', 'article', 'body');
       $definitions = $entity_field_manager->getFieldDefinitions('node', 'article');
@@ -234,14 +236,16 @@ class ContentTranslationSettingsTest extends BrowserTestBase {
     $edit = [
       'language[content_translation]' => TRUE,
     ];
-    $this->drupalPostForm('admin/config/people/accounts', $edit, 'Save configuration');
+    $this->drupalGet('admin/config/people/accounts');
+    $this->submitForm($edit, 'Save configuration');
     $this->drupalGet('admin/config/people/accounts');
     $this->assertSession()->checkboxChecked('edit-language-content-translation');
 
     // Make sure account settings can be saved.
-    $this->drupalPostForm('admin/config/people/accounts', ['anonymous' => 'Save me please!'], 'Save configuration');
+    $this->drupalGet('admin/config/people/accounts');
+    $this->submitForm(['anonymous' => 'Save me please!'], 'Save configuration');
     $this->assertSession()->fieldValueEquals('anonymous', 'Save me please!');
-    $this->assertText('The configuration options have been saved.');
+    $this->assertSession()->pageTextContains('The configuration options have been saved.');
   }
 
   /**
@@ -260,7 +264,8 @@ class ContentTranslationSettingsTest extends BrowserTestBase {
    *   TRUE if the assertion succeeded, FALSE otherwise.
    */
   protected function assertSettings($entity_type, $bundle, $enabled, $edit) {
-    $this->drupalPostForm('admin/config/regional/content-language', $edit, 'Save configuration');
+    $this->drupalGet('admin/config/regional/content-language');
+    $this->submitForm($edit, 'Save configuration');
     $args = ['@entity_type' => $entity_type, '@bundle' => $bundle, '@enabled' => $enabled ? 'enabled' : 'disabled'];
     $message = new FormattableMarkup('Translation for entity @entity_type (@bundle) is @enabled.', $args);
     return $this->assertEquals($enabled, \Drupal::service('content_translation.manager')->isEnabled($entity_type, $bundle), $message);
@@ -278,14 +283,15 @@ class ContentTranslationSettingsTest extends BrowserTestBase {
       'label' => 'Test',
       'field_name' => 'article_text',
     ];
-    $this->drupalPostForm('admin/structure/types/manage/article/fields/add-field', $edit, 'Save and continue');
+    $this->drupalGet('admin/structure/types/manage/article/fields/add-field');
+    $this->submitForm($edit, 'Save and continue');
 
     // Tests that field doesn't have translatable setting if bundle is not
     // translatable.
     $path = 'admin/structure/types/manage/article/fields/node.article.field_article_text';
     $this->drupalGet($path);
     $this->assertSession()->fieldDisabled('edit-translatable');
-    $this->assertText('To configure translation for this field, enable language support for this type.');
+    $this->assertSession()->pageTextContains('To configure translation for this field, enable language support for this type.');
 
     // Tests that field has translatable setting if bundle is translatable.
     // Note: this field is not translatable when enable bundle translatability.

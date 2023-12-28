@@ -80,13 +80,13 @@ ENDPO;
 
     // Verify German and Spanish were configured.
     $this->drupalGet('admin/config/regional/language');
-    $this->assertText('German');
-    $this->assertText('Spanish');
+    $this->assertSession()->pageTextContains('German');
+    $this->assertSession()->pageTextContains('Spanish');
     // If the installer was English or we used a profile that keeps English, we
     // expect that configured also. Otherwise English should not be configured
     // on the site.
     if ($this->langcode == 'en' || $this->profile == 'testing_multilingual_with_english') {
-      $this->assertText('English');
+      $this->assertSession()->pageTextContains('English');
     }
     else {
       $this->assertNoText('English');
@@ -129,7 +129,8 @@ ENDPO;
 
         // Adding English should make the English override available.
         $edit = ['predefined_langcode' => 'en'];
-        $this->drupalPostForm('admin/config/regional/language/add', $edit, 'Add language');
+        $this->drupalGet('admin/config/regional/language/add');
+        $this->submitForm($edit, 'Add language');
         $override_en = $language_manager->getLanguageConfigOverride('en', 'user.settings');
         $this->assertEquals('Anonymous', $override_en->get('anonymous'));
       }
@@ -140,7 +141,8 @@ ENDPO;
         'modules[views][enable]' => TRUE,
         'modules[filter][enable]' => TRUE,
       ];
-      $this->drupalPostForm('admin/modules', $edit, 'Install');
+      $this->drupalGet('admin/modules');
+      $this->submitForm($edit, 'Install');
 
       // Verify the strings from the translation are still as expected.
       $this->verifyImportedStringsTranslated();
@@ -173,8 +175,9 @@ ENDPO;
         $edit['langcode'] = $langcode;
         $edit['translation'] = 'translated';
         $edit['string'] = $sample;
-        $this->drupalPostForm('admin/config/regional/translate', $edit, 'Filter');
-        $this->assertText($sample . ' ' . $langcode);
+        $this->drupalGet('admin/config/regional/translate');
+        $this->submitForm($edit, 'Filter');
+        $this->assertSession()->pageTextContains($sample . ' ' . $langcode);
       }
     }
   }

@@ -76,7 +76,7 @@ class LocaleImportFunctionalTest extends BrowserTestBase {
   }
 
   /**
-   * Test import of standalone .po files.
+   * Tests import of standalone .po files.
    */
   public function testStandalonePoFile() {
     // Try importing a .po file.
@@ -141,12 +141,13 @@ class LocaleImportFunctionalTest extends BrowserTestBase {
 
     // Try importing a .po file which doesn't exist.
     $name = $this->randomMachineName(16);
-    $this->drupalPostForm('admin/config/regional/translate/import', [
+    $this->drupalGet('admin/config/regional/translate/import');
+    $this->submitForm([
       'langcode' => 'fr',
       'files[file]' => $name,
     ], 'Import');
     $this->assertSession()->addressEquals(Url::fromRoute('locale.translate_import'));
-    $this->assertText('File to import not found.');
+    $this->assertSession()->pageTextContains('File to import not found.');
 
     // Try importing a .po file with overriding strings, and ensure existing
     // strings are kept.
@@ -162,8 +163,9 @@ class LocaleImportFunctionalTest extends BrowserTestBase {
       'langcode' => 'fr',
       'translation' => 'translated',
     ];
-    $this->drupalPostForm('admin/config/regional/translate', $search, 'Filter');
-    $this->assertText('No strings available.');
+    $this->drupalGet('admin/config/regional/translate');
+    $this->submitForm($search, 'Filter');
+    $this->assertSession()->pageTextContains('No strings available.');
 
     // This import should not have changed number of plural forms.
     $locale_plurals = \Drupal::service('locale.plural.formula')->getNumberOfPlurals('fr');
@@ -184,7 +186,8 @@ class LocaleImportFunctionalTest extends BrowserTestBase {
       'langcode' => 'fr',
       'translation' => 'translated',
     ];
-    $this->drupalPostForm('admin/config/regional/translate', $search, 'Filter');
+    $this->drupalGet('admin/config/regional/translate');
+    $this->submitForm($search, 'Filter');
     $this->assertNoText('No strings available.');
     // This import should have changed number of plural forms.
     $locale_plurals = \Drupal::service('locale.plural.formula')->reset()->getNumberOfPlurals('fr');
@@ -224,8 +227,9 @@ class LocaleImportFunctionalTest extends BrowserTestBase {
       'langcode' => 'fr',
       'translation' => 'translated',
     ];
-    $this->drupalPostForm('admin/config/regional/translate', $search, 'Filter');
-    $this->assertText('No strings available.');
+    $this->drupalGet('admin/config/regional/translate');
+    $this->submitForm($search, 'Filter');
+    $this->assertSession()->pageTextContains('No strings available.');
 
     // Try importing a .po file with overriding strings, and ensure existing
     // customized strings are overwritten.
@@ -243,13 +247,14 @@ class LocaleImportFunctionalTest extends BrowserTestBase {
       'langcode' => 'fr',
       'translation' => 'translated',
     ];
-    $this->drupalPostForm('admin/config/regional/translate', $search, 'Filter');
+    $this->drupalGet('admin/config/regional/translate');
+    $this->submitForm($search, 'Filter');
     $this->assertNoText('No strings available.');
 
   }
 
   /**
-   * Test msgctxt context support.
+   * Tests msgctxt context support.
    */
   public function testLanguageContext() {
     // Try importing a .po file.
@@ -264,7 +269,7 @@ class LocaleImportFunctionalTest extends BrowserTestBase {
   }
 
   /**
-   * Test empty msgstr at end of .po file see #611786.
+   * Tests empty msgstr at end of .po file see #611786.
    */
   public function testEmptyMsgstr() {
     $langcode = 'hu';
@@ -291,8 +296,9 @@ class LocaleImportFunctionalTest extends BrowserTestBase {
       'translation' => 'untranslated',
     ];
     // Check that search finds the string as untranslated.
-    $this->drupalPostForm('admin/config/regional/translate', $search, 'Filter');
-    $this->assertText($str);
+    $this->drupalGet('admin/config/regional/translate');
+    $this->submitForm($search, 'Filter');
+    $this->assertSession()->pageTextContains($str);
   }
 
   /**
@@ -324,7 +330,8 @@ class LocaleImportFunctionalTest extends BrowserTestBase {
       'label' => $this->randomMachineName(16),
       'direction' => LanguageInterface::DIRECTION_LTR,
     ];
-    $this->drupalPostForm('admin/config/regional/language/add', $edit, 'Add custom language');
+    $this->drupalGet('admin/config/regional/language/add');
+    $this->submitForm($edit, 'Add custom language');
 
     // Check for the source strings we are going to translate. Adding the
     // custom language should have made the process to export configuration
@@ -347,8 +354,9 @@ class LocaleImportFunctionalTest extends BrowserTestBase {
         'langcode' => $langcode,
         'translation' => 'all',
       ];
-      $this->drupalPostForm('admin/config/regional/translate', $search, 'Filter');
-      $this->assertText($config_string[1]);
+      $this->drupalGet('admin/config/regional/translate');
+      $this->submitForm($search, 'Filter');
+      $this->assertSession()->pageTextContains($config_string[1]);
     }
 
     // Test that translations got recorded in the config system.
@@ -377,7 +385,7 @@ class LocaleImportFunctionalTest extends BrowserTestBase {
   }
 
   /**
-   * Test the translation are imported when a new language is created.
+   * Tests the translation are imported when a new language is created.
    */
   public function testCreatedLanguageTranslation() {
     // Import a .po file to add de language.
@@ -401,7 +409,8 @@ class LocaleImportFunctionalTest extends BrowserTestBase {
     $name = $file_system->tempnam('temporary://', "po_") . '.po';
     file_put_contents($name, $contents);
     $options['files[file]'] = $name;
-    $this->drupalPostForm('admin/config/regional/translate/import', $options, 'Import');
+    $this->drupalGet('admin/config/regional/translate/import');
+    $this->submitForm($options, 'Import');
     $file_system->unlink($name);
   }
 

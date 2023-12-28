@@ -42,7 +42,7 @@ class ToolkitSetupFormTest extends BrowserTestBase {
   }
 
   /**
-   * Test Image toolkit setup form.
+   * Tests Image toolkit setup form.
    */
   public function testToolkitSetupForm() {
     // Get form.
@@ -65,7 +65,7 @@ class ToolkitSetupFormTest extends BrowserTestBase {
     // Test changing the test toolkit parameter.
     $edit = ['test[test_parameter]' => '0'];
     $this->submitForm($edit, 'Save configuration');
-    $this->assertText('Test parameter should be different from 0.');
+    $this->assertSession()->pageTextContains('Test parameter should be different from 0.');
     $edit = ['test[test_parameter]' => '20'];
     $this->submitForm($edit, 'Save configuration');
     $this->assertEquals('20', $this->config('system.image.test_toolkit')->get('test_parameter'));
