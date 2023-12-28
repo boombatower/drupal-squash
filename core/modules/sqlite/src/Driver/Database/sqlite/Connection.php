@@ -2,14 +2,16 @@
 
 namespace Drupal\sqlite\Driver\Database\sqlite;
 
+use Drupal\Core\Database\DatabaseExceptionWrapper;
 use Drupal\Core\Database\DatabaseNotFoundException;
 use Drupal\Core\Database\Connection as DatabaseConnection;
 use Drupal\Core\Database\StatementInterface;
+use Drupal\Core\Database\SupportsTemporaryTablesInterface;
 
 /**
  * SQLite implementation of \Drupal\Core\Database\Connection.
  */
-class Connection extends DatabaseConnection {
+class Connection extends DatabaseConnection implements SupportsTemporaryTablesInterface {
 
   /**
    * Error code for "Unable to open database file" error.
@@ -107,7 +109,7 @@ class Connection extends DatabaseConnection {
     ];
 
     try {
-      $pdo = new \PDO('sqlite:' . $connection_options['database'], '', '', $connection_options['pdo']);
+      $pdo = new PDOConnection('sqlite:' . $connection_options['database'], '', '', $connection_options['pdo']);
     }
     catch (\PDOException $e) {
       if ($e->getCode() == static::DATABASE_NOT_FOUND) {
@@ -352,6 +354,22 @@ class Connection extends DatabaseConnection {
     return $this->query($query . ' LIMIT ' . (int) $from . ', ' . (int) $count, $args, $options);
   }
 
+  /**
+   * {@inheritdoc}
+   */
+  public function queryTemporary($query, array $args = [], array $options = []) {
+    $tablename = 'db_temporary_' . uniqid();
+
+    $this->query('CREATE TEMPORARY TABLE ' . $tablename . ' AS ' . $query, $args, $options);
+
+    // Temporary tables always live in the temp database, which means that
+    // they cannot be fully qualified table names since they do not live
+    // in the main SQLite database. We provide the fully-qualified name
+    // ourselves to prevent Drupal from applying prefixes.
+    // @see https://www.sqlite.org/lang_createtable.html
+    return 'temp.' . $tablename;
+  }
+
   public function driver() {
     return 'sqlite';
   }
@@ -399,7 +417,15 @@ class Connection extends DatabaseConnection {
   }
 
   public function nextId($existing_id = 0) {
-    $this->startTransaction();
+    try {
+      $this->startTransaction();
+    }
+    catch (\PDOException $e) {
+      // $this->exceptionHandler()->handleExecutionException()
+      // requires a $statement argument, so we cannot use that.
+      throw new DatabaseExceptionWrapper($e->getMessage(), 0, $e);
+    }
+
     // We can safely use literal queries here instead of the slower query
     // builder because if a given database breaks here then it can simply
     // override nextId. However, this is unlikely as we deal with short strings

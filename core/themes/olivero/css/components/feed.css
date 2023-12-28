@@ -31,22 +31,14 @@
 }
 
 .feed-icon:hover {
-    color: var(--color--primary-50);
-  }
+  color: var(--color--primary-50);
+}
 
 .feed-icon__label {
   flex-shrink: 0;
   letter-spacing: 0.08em;
   font-size: var(--font-size-xxs);
   font-weight: 600;
-}
-
-[dir="ltr"] .feed-icon__icon {
-  margin-left: var(--sp0-5);
-}
-
-[dir="rtl"] .feed-icon__icon {
-  margin-right: var(--sp0-5);
 }
 
 .feed-icon__icon {
@@ -56,11 +48,12 @@
   justify-content: center;
   width: var(--sp1-5);
   height: var(--sp1-5);
+  margin-inline-start: var(--sp0-5);
   color: var(--color--white);
   background-color: var(--color--primary-50);
 }
 
 .feed-icon__icon svg {
-    vertical-align: top;
-    fill: currentColor;
-  }
+  vertical-align: top;
+  fill: currentColor;
+}

@@ -1018,6 +1018,8 @@ regexes
 reindex
 reindexing
 reinject
+relname
+relpersistence
 renderable
 renderables
 renderered
@@ -1441,7 +1443,6 @@ wcprops
 webassert
 webcal
 webflo
-webfonts
 webheads
 webhosting
 webmention

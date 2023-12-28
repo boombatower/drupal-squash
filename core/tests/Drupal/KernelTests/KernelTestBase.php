@@ -26,6 +26,7 @@ use Drupal\TestTools\Extension\SchemaInspector;
 use Drupal\TestTools\TestVarDumper;
 use PHPUnit\Framework\Exception;
 use PHPUnit\Framework\TestCase;
+use Prophecy\PhpUnit\ProphecyTrait;
 use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\HttpFoundation\Request;
@@ -89,6 +90,7 @@ abstract class KernelTestBase extends TestCase implements ServiceProviderInterfa
   use TestRequirementsTrait;
   use PhpUnitWarnings;
   use PhpUnitCompatibilityTrait;
+  use ProphecyTrait;
   use ExpectDeprecationTrait;
 
   /**
@@ -453,7 +455,7 @@ abstract class KernelTestBase extends TestCase implements ServiceProviderInterfa
       throw new \Exception('There is no database connection so no tests can be run. You must provide a SIMPLETEST_DB environment variable to run PHPUnit based functional tests outside of run-tests.sh. See https://www.drupal.org/node/2116263#skipped-tests for more information.');
     }
     else {
-      $database = Database::convertDbUrlToConnectionInfo($db_url, $this->root);
+      $database = Database::convertDbUrlToConnectionInfo($db_url, $this->root, TRUE);
       Database::addConnectionInfo('default', 'default', $database);
     }
 
@@ -978,27 +980,6 @@ abstract class KernelTestBase extends TestCase implements ServiceProviderInterfa
     // together.
     $modules = array_values(array_reverse($modules));
     return call_user_func_array('array_merge_recursive', $modules);
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  protected function prepareTemplate(\Text_Template $template) {
-    $bootstrap_globals = '';
-
-    // Fix missing bootstrap.php when $preserveGlobalState is FALSE.
-    // @see https://github.com/sebastianbergmann/phpunit/pull/797
-    $bootstrap_globals .= '$__PHPUNIT_BOOTSTRAP = ' . var_export($GLOBALS['__PHPUNIT_BOOTSTRAP'], TRUE) . ";\n";
-
-    // Avoid repetitive test namespace discoveries to improve performance.
-    // @see /core/tests/bootstrap.php
-    $bootstrap_globals .= '$namespaces = ' . var_export($GLOBALS['namespaces'], TRUE) . ";\n";
-
-    $template->setVar([
-      'constants' => '',
-      'included_files' => '',
-      'globals' => $bootstrap_globals,
-    ]);
   }
 
   /**

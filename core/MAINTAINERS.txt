@@ -38,6 +38,7 @@ Framework managers
 Release managers
 - Nathaniel Catchpole 'catch' https://www.drupal.org/u/catch
 - Jess Myrbo 'xjm' https://www.drupal.org/u/xjm
+- (provisional) Dave Long 'longwave' https://www.drupal.org/u/longwave
 - (provisional) Victoria Spagnolo 'quietone' https://www.drupal.org/u/quietone
 
 Core JavaScript packages
@@ -161,7 +162,7 @@ CSS
 - Mike Herchel 'mherchel' https://www.drupal.org/u/mherchel
 
 Database API
-- ?
+- David Bekker 'daffie' https://www.drupal.org/u/daffie
 
   MySQL DB driver
   - David Strauss 'David Strauss' https://www.drupal.org/u/david-strauss
