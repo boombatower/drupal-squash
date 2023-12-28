@@ -59,6 +59,9 @@ class SaveUploadTest extends FileManagedTestBase {
    */
   protected $imageExtension;
 
+  /**
+   * {@inheritdoc}
+   */
   protected function setUp(): void {
     parent::setUp();
     $account = $this->drupalCreateUser(['access site reports']);
@@ -463,9 +466,9 @@ class SaveUploadTest extends FileManagedTestBase {
     // extensions.
     $extensions = 'foo ' . $this->imageExtension;
     $edit = [
-        'files[file_test_upload]' => \Drupal::service('file_system')->realpath($this->image->getFileUri()),
-        'extensions' => $extensions,
-      ];
+      'files[file_test_upload]' => \Drupal::service('file_system')->realpath($this->image->getFileUri()),
+      'extensions' => $extensions,
+    ];
 
     $this->drupalGet('file-test/upload');
     $this->submitForm($edit, 'Submit');
@@ -505,9 +508,9 @@ class SaveUploadTest extends FileManagedTestBase {
 
     $extensions = 'php ' . $this->imageExtension;
     $edit = [
-        'files[file_test_upload]' => \Drupal::service('file_system')->realpath($this->image->getFileUri()),
-        'extensions' => $extensions,
-      ];
+      'files[file_test_upload]' => \Drupal::service('file_system')->realpath($this->image->getFileUri()),
+      'extensions' => $extensions,
+    ];
 
     $this->drupalGet('file-test/upload');
     $this->submitForm($edit, 'Submit');
