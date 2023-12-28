@@ -85,6 +85,20 @@ class MediaTest extends WebDriverTestBase {
   protected function setUp(): void {
     parent::setUp();
 
+    EntityViewMode::create([
+      'id' => 'media.view_mode_1',
+      'targetEntityType' => 'media',
+      'status' => TRUE,
+      'enabled' => TRUE,
+      'label' => 'View Mode 1',
+    ])->save();
+    EntityViewMode::create([
+      'id' => 'media.22222',
+      'targetEntityType' => 'media',
+      'status' => TRUE,
+      'enabled' => TRUE,
+      'label' => 'View Mode 2 has Numeric ID',
+    ])->save();
     FilterFormat::create([
       'format' => 'test_format',
       'name' => 'Test format',
@@ -97,7 +111,17 @@ class MediaTest extends WebDriverTestBase {
         ],
         'filter_align' => ['status' => TRUE],
         'filter_caption' => ['status' => TRUE],
-        'media_embed' => ['status' => TRUE],
+        'media_embed' => [
+          'status' => TRUE,
+          'settings' => [
+            'default_view_mode' => 'view_mode_1',
+            'allowed_view_modes' => [
+              'view_mode_1' => 'view_mode_1',
+              '22222' => '22222',
+            ],
+            'allowed_media_types' => [],
+          ],
+        ],
       ],
     ])->save();
     Editor::create([
@@ -115,6 +139,9 @@ class MediaTest extends WebDriverTestBase {
         'plugins' => [
           'ckeditor5_sourceEditing' => [
             'allowed_tags' => [],
+          ],
+          'media_media' => [
+            'allow_view_mode_override' => TRUE,
           ],
         ],
       ],
@@ -170,6 +197,22 @@ class MediaTest extends WebDriverTestBase {
       ],
     ]);
     $this->mediaFile->save();
+
+    // Set created media types for each view mode.
+    EntityViewDisplay::create([
+      'id' => 'media.image.view_mode_1',
+      'targetEntityType' => 'media',
+      'status' => TRUE,
+      'bundle' => 'image',
+      'mode' => 'view_mode_1',
+    ])->save();
+    EntityViewDisplay::create([
+      'id' => 'media.image.22222',
+      'targetEntityType' => 'media',
+      'status' => TRUE,
+      'bundle' => 'image',
+      'mode' => '22222',
+    ])->save();
 
     // Create a sample host entity to embed media in.
     $this->drupalCreateContentType(['type' => 'blog']);
@@ -893,7 +936,7 @@ class MediaTest extends WebDriverTestBase {
    *
    * @dataProvider providerLinkability
    */
-  public function testLinkManualDecoratorRestricted(bool $unrestricted) {
+  public function testLinkManualDecorator(bool $unrestricted) {
     \Drupal::service('module_installer')->install(['ckeditor5_manual_decorator_test']);
     $this->resetAll();
 
@@ -941,21 +984,17 @@ class MediaTest extends WebDriverTestBase {
     $this->assertNotEmpty($xpath->query("//a[@href='http://linking-embedded-media.com']$decorator_attributes"));
     $this->assertNotEmpty($xpath->query("//a[@href='http://linking-embedded-media.com']$decorator_attributes/drupal-media"));
 
-    // @todo enable for unrestricted test case after
-    //   https://www.drupal.org/project/drupal/issues/3268318 has been resolved.
-    if (!$unrestricted) {
-      // Finally, ensure that media can be unlinked.
-      $drupalmedia->click();
-      $this->assertVisibleBalloon('.ck-toolbar[aria-label="Drupal Media toolbar"]');
-      $this->getBalloonButton('Link media')->click();
-      $this->assertVisibleBalloon('.ck-link-actions');
-      $this->getBalloonButton('Unlink')->click();
+    // Finally, ensure that media can be unlinked.
+    $drupalmedia->click();
+    $this->assertVisibleBalloon('.ck-toolbar[aria-label="Drupal Media toolbar"]');
+    $this->getBalloonButton('Link media')->click();
+    $this->assertVisibleBalloon('.ck-link-actions');
+    $this->getBalloonButton('Unlink')->click();
 
-      $this->assertTrue($assert_session->waitForElementRemoved('css', '.drupal-media a'));
-      $xpath = new \DOMXPath($this->getEditorDataAsDom());
-      $this->assertEmpty($xpath->query('//a'));
-      $this->assertNotEmpty($xpath->query('//drupal-media'));
-    }
+    $this->assertTrue($assert_session->waitForElementRemoved('css', '.drupal-media a'));
+    $xpath = new \DOMXPath($this->getEditorDataAsDom());
+    $this->assertEmpty($xpath->query('//a'));
+    $this->assertNotEmpty($xpath->query('//drupal-media'));
   }
 
   /**
@@ -1137,6 +1176,9 @@ class MediaTest extends WebDriverTestBase {
         'ckeditor5_sourceEditing' => [
           'allowed_tags' => [],
         ],
+        'media_media' => [
+          'allow_view_mode_override' => TRUE,
+        ],
       ],
     ]);
     $filter_format = $editor->getFilterFormat();
@@ -1201,20 +1243,6 @@ class MediaTest extends WebDriverTestBase {
    */
   public function testViewMode(bool $with_alignment) {
     EntityViewMode::create([
-      'id' => 'media.view_mode_1',
-      'targetEntityType' => 'media',
-      'status' => TRUE,
-      'enabled' => TRUE,
-      'label' => 'View Mode 1',
-    ])->save();
-    EntityViewMode::create([
-      'id' => 'media.22222',
-      'targetEntityType' => 'media',
-      'status' => TRUE,
-      'enabled' => TRUE,
-      'label' => 'View Mode 2 has Numeric ID',
-    ])->save();
-    EntityViewMode::create([
       'id' => 'media.view_mode_3',
       'targetEntityType' => 'media',
       'status' => TRUE,
@@ -1229,20 +1257,6 @@ class MediaTest extends WebDriverTestBase {
       'label' => 'View Mode 4',
     ])->save();
     // Enable view mode 1, 2, 4 for Image.
-    EntityViewDisplay::create([
-      'id' => 'media.image.view_mode_1',
-      'targetEntityType' => 'media',
-      'status' => TRUE,
-      'bundle' => 'image',
-      'mode' => 'view_mode_1',
-    ])->save();
-    EntityViewDisplay::create([
-      'id' => 'media.image.22222',
-      'targetEntityType' => 'media',
-      'status' => TRUE,
-      'bundle' => 'image',
-      'mode' => '22222',
-    ])->save();
     EntityViewDisplay::create([
       'id' => 'media.image.view_mode_4',
       'targetEntityType' => 'media',
