@@ -35,7 +35,7 @@ class TwigDebugMarkupTest extends WebTestBase {
   function testTwigDebugMarkup() {
     $extension = twig_extension();
     theme_enable(array('test_theme'));
-    config('system.theme')->set('default', 'test_theme')->save();
+    \Drupal::config('system.theme')->set('default', 'test_theme')->save();
     // Enable debug, rebuild the service container, and clear all caches.
     $this->settingsSet('twig_debug', TRUE);
     $this->rebuildContainer();
@@ -43,7 +43,7 @@ class TwigDebugMarkupTest extends WebTestBase {
 
     $cache = array();
     // Prime the theme cache.
-    foreach (module_implements('theme') as $module) {
+    foreach (\Drupal::moduleHandler()->getImplementations('theme') as $module) {
       _theme_process_registry($cache, $module, 'module', $module, drupal_get_path('module', $module));
     }
     // Create array of Twig templates.

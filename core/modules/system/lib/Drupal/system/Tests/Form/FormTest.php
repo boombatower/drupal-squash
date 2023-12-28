@@ -35,7 +35,7 @@ class FormTest extends WebTestBase {
     ));
     $filtered_html_format->save();
 
-    $filtered_html_permission = filter_permission_name($filtered_html_format);
+    $filtered_html_permission = $filtered_html_format->getPermissionName();
     user_role_grant_permissions(DRUPAL_ANONYMOUS_RID, array($filtered_html_permission));
   }
 
@@ -247,6 +247,9 @@ class FormTest extends WebTestBase {
 
     // Check the page for the error class on the textfield.
     $this->assertFieldByXPath('//input[contains(@class, "error")]', FALSE, 'Error input form element class found.');
+
+    // Check the page for the aria-invalid attribute on the textfield.
+    $this->assertFieldByXPath('//input[contains(@aria-invalid, "true")]', FALSE, 'Aria invalid attribute found.');
 
     // Submit again with required fields set and verify that there are no
     // error messages.

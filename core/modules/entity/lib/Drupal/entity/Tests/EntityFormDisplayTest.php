@@ -53,7 +53,7 @@ class EntityFormDisplayTest extends DrupalUnitTestBase {
    * Tests the behavior of a field component within an EntityFormDisplay object.
    */
   public function testFieldComponent() {
-    $this->enableModules(array('field_sql_storage', 'field_test'));
+    $this->enableModules(array('field_test'));
 
     $form_display = entity_create('entity_form_display', array(
       'targetEntityType' => 'entity_test',
@@ -64,7 +64,8 @@ class EntityFormDisplayTest extends DrupalUnitTestBase {
     // Create a field and an instance.
     $field_name = 'test_field';
     $field = entity_create('field_entity', array(
-      'field_name' => $field_name,
+      'name' => $field_name,
+      'entity_type' => 'entity_test',
       'type' => 'test_field'
     ));
     $field->save();
@@ -77,33 +78,33 @@ class EntityFormDisplayTest extends DrupalUnitTestBase {
 
     // Check that providing no options results in default values being used.
     $form_display->setComponent($field_name);
-    $field_type_info = field_info_field_types($field->type);
+    $field_type_info = \Drupal::service('plugin.manager.entity.field.field_type')->getDefinition($field->type);
     $default_widget = $field_type_info['default_widget'];
-    $default_settings = field_info_widget_settings($default_widget);
+    $widget_settings = \Drupal::service('plugin.manager.field.widget')->getDefinition($default_widget);
     $expected = array(
       'weight' => 0,
       'type' => $default_widget,
-      'settings' => $default_settings,
+      'settings' => $widget_settings['settings'],
     );
     $this->assertEqual($form_display->getComponent($field_name), $expected);
 
     // Check that the getWidget() method returns the correct widget plugin.
-    $widget = $form_display->getWidget($field_name);
+    $widget = $form_display->getRenderer($field_name);
     $this->assertEqual($widget->getPluginId(), $default_widget);
-    $this->assertEqual($widget->getSettings(), $default_settings);
+    $this->assertEqual($widget->getSettings(), $widget_settings['settings']);
 
     // Check that the widget is statically persisted, by assigning an
     // arbitrary property and reading it back.
     $random_value = $this->randomString();
     $widget->randomValue = $random_value;
-    $widget = $form_display->getWidget($field_name);
+    $widget = $form_display->getRenderer($field_name);
     $this->assertEqual($widget->randomValue, $random_value);
 
     // Check that changing the definition creates a new widget.
     $form_display->setComponent($field_name, array(
       'type' => 'field_test_multiple',
     ));
-    $widget = $form_display->getWidget($field_name);
+    $widget = $form_display->getRenderer($field_name);
     $this->assertEqual($widget->getPluginId(), 'test_field_widget');
     $this->assertFalse(isset($widget->randomValue));
 
@@ -115,7 +116,7 @@ class EntityFormDisplayTest extends DrupalUnitTestBase {
     ));
     $options = $form_display->getComponent($field_name);
     $this->assertEqual($options['type'], 'unknown_widget');
-    $widget = $form_display->getWidget($field_name);
+    $widget = $form_display->getRenderer($field_name);
     $this->assertEqual($widget->getPluginId(), $default_widget);
   }
 

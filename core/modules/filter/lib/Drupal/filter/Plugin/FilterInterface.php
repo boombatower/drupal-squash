@@ -7,6 +7,9 @@
 
 namespace Drupal\filter\Plugin;
 
+use Drupal\Component\Plugin\PluginInspectionInterface;
+use Drupal\Component\Plugin\ConfigurablePluginInterface;
+
 /**
  * Defines the interface for text processing filter plugins.
  *
@@ -17,7 +20,7 @@ namespace Drupal\filter\Plugin;
  * formats as needed. Individual filters can be enabled and configured
  * differently for each text format.
  *
- * @see \Drupal\filter\Plugin\Core\Entity\FilterFormat
+ * @see \Drupal\filter\Entity\FilterFormat
  *
  * Filtering is a two-step process. First, the content is 'prepared' by calling
  * the FilterInterface::prepare() method for every filter. The purpose is to
@@ -74,26 +77,7 @@ namespace Drupal\filter\Plugin;
  *
  * @see \Drupal\filter\Plugin\Filter\FilterBase
  */
-interface FilterInterface {
-
-  /**
-   * Sets the configuration for this filter plugin instance.
-   *
-   * @param array $configuration
-   *   An associative array containing:
-   *   - status: A Boolean indicating whether the plugin is enabled.
-   *   - weight: The weight of the filter compared to others.
-   *   - settings: An associative array containing configured settings for this
-   *     filter implementation.
-   */
-  public function setPluginConfiguration(array $configuration);
-
-  /**
-   * Exports the complete configuration of this filter plugin instance.
-   *
-   * @return array
-   */
-  public function export();
+interface FilterInterface extends ConfigurablePluginInterface, PluginInspectionInterface {
 
   /**
    * Returns the processing type of this filter plugin.

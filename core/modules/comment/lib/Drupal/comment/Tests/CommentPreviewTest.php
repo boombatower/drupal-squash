@@ -17,11 +17,11 @@ use Drupal\Core\Language\Language;
 class CommentPreviewTest extends CommentTestBase {
 
   /**
-   * Use the standard profile.
+   * Modules to enable.
    *
-   * @var string
+   * @var array
    */
-  protected $profile = 'standard';
+  public static $modules = array('image');
 
   public static function getInfo() {
     return array(
@@ -29,6 +29,32 @@ class CommentPreviewTest extends CommentTestBase {
       'description' => 'Test comment preview.',
       'group' => 'Comment',
     );
+  }
+
+  function setUp() {
+    parent::setUp();
+
+    // Create user picture field.
+    module_load_install('user');
+    user_install_picture_field();
+
+    // Add the basic_html filter format from the standard install profile.
+    $filter_format_storage_controller = $this->container->get('entity.manager')->getStorageController('filter_format');
+    $filter_format = $filter_format_storage_controller->create(array(
+      'format' => 'basic_html',
+      'name' => 'Basic HTML',
+      'status' => '1',
+      'roles' => array('authenticated'),
+    ), 'filter_format');
+
+    $filter_format->setFilterConfig('filter_html', array(
+      'module' => 'filter',
+      'status' => '1',
+      'settings' => array(
+        'allowed_html' => '<a> <em> <strong> <cite> <blockquote> <code> <ul> <ol> <li> <dl> <dt> <dd> <h4> <h5> <h6> <p> <span> <img>',
+      ),
+    ));
+    $filter_format->save();
   }
 
   /**
@@ -47,18 +73,18 @@ class CommentPreviewTest extends CommentTestBase {
 
     // Login as web user and add a signature and a user picture.
     $this->drupalLogin($this->web_user);
-    config('user.settings')->set('signatures', 1)->save();
+    \Drupal::config('user.settings')->set('signatures', 1)->save();
     $test_signature = $this->randomName();
     $edit['signature[value]'] = '<a href="http://example.com/">' . $test_signature. '</a>';
     $image = current($this->drupalGetTestFiles('image'));
     $edit['files[user_picture_und_0]'] = drupal_realpath($image->uri);
-    $this->drupalPost('user/' . $this->web_user->uid . '/edit', $edit, t('Save'));
+    $this->drupalPost('user/' . $this->web_user->id() . '/edit', $edit, t('Save'));
 
     // As the web user, fill in the comment form and preview the comment.
     $edit = array();
     $edit['subject'] = $this->randomName(8);
     $edit['comment_body[' . $langcode . '][0][value]'] = $this->randomName(16);
-    $this->drupalPost('node/' . $this->node->nid, $edit, t('Preview'));
+    $this->drupalPost('node/' . $this->node->id(), $edit, t('Preview'));
 
     // Check that the preview is displaying the title and body.
     $this->assertTitle(t('Preview comment | Drupal'), 'Page title is "Preview comment".');
@@ -92,7 +118,7 @@ class CommentPreviewTest extends CommentTestBase {
     $date = new DrupalDateTime('2008-03-02 17:23');
     $edit['subject'] = $this->randomName(8);
     $edit['comment_body[' . $langcode . '][0][value]'] = $this->randomName(16);
-    $edit['name'] = $web_user->name;
+    $edit['name'] = $web_user->getUsername();
     $edit['date[date]'] = $date->format('Y-m-d');
     $edit['date[time]'] = $date->format('H:i:s');
     $raw_date = $date->getTimestamp();

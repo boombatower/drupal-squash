@@ -29,7 +29,7 @@ class TypedDataTest extends DrupalUnitTestBase {
    *
    * @var array
    */
-  public static $modules = array('system', 'file');
+  public static $modules = array('system', 'field', 'file');
 
   public static function getInfo() {
     return array(
@@ -47,21 +47,13 @@ class TypedDataTest extends DrupalUnitTestBase {
   }
 
   /**
-   * Creates a typed data object and executes some basic assertions.
+   * Creates a typed data object and ensures it implements TypedDataInterface.
    *
    * @see Drupal\Core\TypedData\TypedDataManager::create().
    */
   protected function createTypedData($definition, $value = NULL, $name = NULL) {
-    // Save the type that was passed in so we can compare with it later.
-    $type = $definition['type'];
-    // Construct the object.
     $data = $this->typedData->create($definition, $value, $name);
-    // Assert the definition of the wrapper.
     $this->assertTrue($data instanceof \Drupal\Core\TypedData\TypedDataInterface, 'Typed data object is an instance of the typed data interface.');
-    $definition = $data->getDefinition();
-    $this->assertTrue(!empty($definition['type']), format_string('!type data definition was returned.', array('!type' => $definition['type'])));
-    // Assert that the correct type was constructed.
-    $this->assertEqual($data->getType(), $type, format_string('!type object returned type.', array('!type' => $definition['type'])));
     return $data;
   }
 
@@ -71,6 +63,7 @@ class TypedDataTest extends DrupalUnitTestBase {
   public function testGetAndSet() {
     // Boolean type.
     $typed_data = $this->createTypedData(array('type' => 'boolean'), TRUE);
+    $this->assertTrue($typed_data instanceof \Drupal\Core\TypedData\Type\BooleanInterface, 'Typed data object is an instance of BooleanInterface.');
     $this->assertTrue($typed_data->getValue() === TRUE, 'Boolean value was fetched.');
     $this->assertEqual($typed_data->validate()->count(), 0);
     $typed_data->setValue(FALSE);
@@ -86,6 +79,7 @@ class TypedDataTest extends DrupalUnitTestBase {
     // String type.
     $value = $this->randomString();
     $typed_data = $this->createTypedData(array('type' => 'string'), $value);
+    $this->assertTrue($typed_data instanceof \Drupal\Core\TypedData\Type\StringInterface, 'Typed data object is an instance of StringInterface.');
     $this->assertTrue($typed_data->getValue() === $value, 'String value was fetched.');
     $this->assertEqual($typed_data->validate()->count(), 0);
     $new_value = $this->randomString();
@@ -103,6 +97,7 @@ class TypedDataTest extends DrupalUnitTestBase {
     // Integer type.
     $value = rand();
     $typed_data = $this->createTypedData(array('type' => 'integer'), $value);
+    $this->assertTrue($typed_data instanceof \Drupal\Core\TypedData\Type\IntegerInterface, 'Typed data object is an instance of IntegerInterface.');
     $this->assertTrue($typed_data->getValue() === $value, 'Integer value was fetched.');
     $this->assertEqual($typed_data->validate()->count(), 0);
     $new_value = rand();
@@ -119,6 +114,7 @@ class TypedDataTest extends DrupalUnitTestBase {
     // Float type.
     $value = 123.45;
     $typed_data = $this->createTypedData(array('type' => 'float'), $value);
+    $this->assertTrue($typed_data instanceof \Drupal\Core\TypedData\Type\FloatInterface, 'Typed data object is an instance of FloatInterface.');
     $this->assertTrue($typed_data->getValue() === $value, 'Float value was fetched.');
     $this->assertEqual($typed_data->validate()->count(), 0);
     $new_value = 678.90;
@@ -132,51 +128,106 @@ class TypedDataTest extends DrupalUnitTestBase {
     $typed_data->setValue('invalid');
     $this->assertEqual($typed_data->validate()->count(), 1, 'Validation detected invalid value.');
 
-    // Date type.
-    $value = new DrupalDateTime();
-    $typed_data = $this->createTypedData(array('type' => 'date'), $value);
-    $this->assertTrue($typed_data->getValue() === $value, 'Date value was fetched.');
+    // Date Time type.
+    $value = '2014-01-01T20:00:00+00:00';
+    $typed_data = $this->createTypedData(array('type' => 'datetime_iso8601'), $value);
+    $this->assertTrue($typed_data instanceof \Drupal\Core\TypedData\Type\DateTimeInterface, 'Typed data object is an instance of DateTimeInterface.');
+    $this->assertTrue($typed_data->getValue() == $value, 'Date value was fetched.');
+    $this->assertEqual($typed_data->getValue(), $typed_data->getDateTime()->format('c'), 'Value representation of a date is ISO 8601');
+    $this->assertEqual($typed_data->validate()->count(), 0);
+    $new_value = '2014-01-02T20:00:00+00:00';
+    $typed_data->setValue($new_value);
+    $this->assertTrue($typed_data->getDateTime()->format('c') === $new_value, 'Date value was changed and set by an ISO8601 date.');
+    $this->assertEqual($typed_data->validate()->count(), 0);
+    $this->assertTrue($typed_data->getDateTime()->format('Y-m-d') == '2014-01-02', 'Date value was changed and set by date string.');
+    $this->assertEqual($typed_data->validate()->count(), 0);
+    $typed_data->setValue(NULL);
+    $this->assertNull($typed_data->getDateTime(), 'Date wrapper is null-able.');
+    $this->assertEqual($typed_data->validate()->count(), 0);
+    $typed_data->setValue('invalid');
+    $this->assertEqual($typed_data->validate()->count(), 1, 'Validation detected invalid value.');
+    // Check implementation of DateTimeInterface.
+    $typed_data = $this->createTypedData(array('type' => 'datetime_iso8601'), '2014-01-01T20:00:00+00:00');
+    $this->assertTrue($typed_data->getDateTime() instanceof DrupalDateTime);
+    $typed_data->setDateTime(new DrupalDateTime('2014-01-02T20:00:00+00:00'));
+    $this->assertEqual($typed_data->getValue(), '2014-01-02T20:00:00+00:00');
+    $typed_data->setValue(NULL);
+    $this->assertNull($typed_data->getDateTime());
+
+    // Timestamp type.
+    $value = REQUEST_TIME;
+    $typed_data = $this->createTypedData(array('type' => 'timestamp'), $value);
+    $this->assertTrue($typed_data instanceof \Drupal\Core\TypedData\Type\DateTimeInterface, 'Typed data object is an instance of DateTimeInterface.');
+    $this->assertTrue($typed_data->getValue() == $value, 'Timestamp value was fetched.');
     $this->assertEqual($typed_data->validate()->count(), 0);
     $new_value = REQUEST_TIME + 1;
     $typed_data->setValue($new_value);
-    $this->assertTrue($typed_data->getValue()->getTimestamp() === $new_value, 'Date value was changed and set by timestamp.');
-    $this->assertEqual($typed_data->validate()->count(), 0);
-    $typed_data->setValue('2000-01-01');
-    $this->assertTrue($typed_data->getValue()->format('Y-m-d') == '2000-01-01', 'Date value was changed and set by date string.');
-    $this->assertTrue(is_string($typed_data->getString()), 'Date value was converted to string');
+    $this->assertTrue($typed_data->getValue() === $new_value, 'Timestamp value was changed and set.');
     $this->assertEqual($typed_data->validate()->count(), 0);
     $typed_data->setValue(NULL);
-    $this->assertNull($typed_data->getValue(), 'Date wrapper is null-able.');
+    $this->assertNull($typed_data->getDateTime(), 'Timestamp wrapper is null-able.');
     $this->assertEqual($typed_data->validate()->count(), 0);
     $typed_data->setValue('invalid');
     $this->assertEqual($typed_data->validate()->count(), 1, 'Validation detected invalid value.');
+    // Check implementation of DateTimeInterface.
+    $typed_data = $this->createTypedData(array('type' => 'timestamp'), REQUEST_TIME);
+    $this->assertTrue($typed_data->getDateTime() instanceof DrupalDateTime);
+    $typed_data->setDateTime(DrupalDateTime::createFromTimestamp(REQUEST_TIME + 1));
+    $this->assertEqual($typed_data->getValue(), REQUEST_TIME + 1);
+    $typed_data->setValue(NULL);
+    $this->assertNull($typed_data->getDateTime());
 
-    // Duration type.
-    $value = new DateInterval('PT20S');
-    $typed_data = $this->createTypedData(array('type' => 'duration'), $value);
-    $this->assertTrue($typed_data->getValue() === $value, 'Duration value was fetched.');
-    $this->assertEqual($typed_data->validate()->count(), 0);
-    $typed_data->setValue(10);
-    $this->assertTrue($typed_data->getValue()->s == 10, 'Duration value was changed and set by time span in seconds.');
+    // DurationIso8601 type.
+    $value = 'PT20S';
+    $typed_data = $this->createTypedData(array('type' => 'duration_iso8601'), $value);
+    $this->assertTrue($typed_data instanceof \Drupal\Core\TypedData\Type\DurationInterface, 'Typed data object is an instance of DurationInterface.');
+    $this->assertIdentical($typed_data->getValue(), $value, 'DurationIso8601 value was fetched.');
     $this->assertEqual($typed_data->validate()->count(), 0);
     $typed_data->setValue('P40D');
-    $this->assertTrue($typed_data->getValue()->d == 40, 'Duration value was changed and set by duration string.');
-    $this->assertTrue(is_string($typed_data->getString()), 'Duration value was converted to string');
-    $this->assertEqual($typed_data->validate()->count(), 0);
-    // Test getting the string and passing it back as value.
-    $duration = $typed_data->getString();
-    $typed_data->setValue($duration);
-    $this->assertEqual($typed_data->getString(), $duration, 'Duration formatted as string can be used to set the duration value.');
+    $this->assertEqual($typed_data->getDuration()->d, 40, 'DurationIso8601 value was changed and set by duration string.');
+    $this->assertTrue(is_string($typed_data->getString()), 'DurationIso8601 value was converted to string');
     $this->assertEqual($typed_data->validate()->count(), 0);
     $typed_data->setValue(NULL);
-    $this->assertNull($typed_data->getValue(), 'Duration wrapper is null-able.');
+    $this->assertNull($typed_data->getValue(), 'DurationIso8601 wrapper is null-able.');
     $this->assertEqual($typed_data->validate()->count(), 0);
     $typed_data->setValue('invalid');
     $this->assertEqual($typed_data->validate()->count(), 1, 'Validation detected invalid value.');
+    // Check implementation of DurationInterface.
+    $typed_data = $this->createTypedData(array('type' => 'duration_iso8601'), 'PT20S');
+    $this->assertTrue($typed_data->getDuration() instanceof DateInterval);
+    $typed_data->setDuration(new DateInterval('P40D'));
+    // @todo: Should we make this "nicer"?
+    $this->assertEqual($typed_data->getValue(), 'P0Y0M40DT0H0M0S');
+    $typed_data->setValue(NULL);
+    $this->assertNull($typed_data->getDuration());
+
+    // Time span type.
+    $value = 20;
+    $typed_data = $this->createTypedData(array('type' => 'timespan'), $value);
+    $this->assertTrue($typed_data instanceof \Drupal\Core\TypedData\Type\DurationInterface, 'Typed data object is an instance of DurationInterface.');
+    $this->assertIdentical($typed_data->getValue(), $value, 'Time span value was fetched.');
+    $this->assertEqual($typed_data->validate()->count(), 0);
+    $typed_data->setValue(60 * 60 * 4);
+    $this->assertEqual($typed_data->getDuration()->s, 14400, 'Time span was changed');
+    $this->assertTrue(is_string($typed_data->getString()), 'Time span value was converted to string');
+    $this->assertEqual($typed_data->validate()->count(), 0);
+    $typed_data->setValue(NULL);
+    $this->assertNull($typed_data->getValue(), 'Time span wrapper is null-able.');
+    $this->assertEqual($typed_data->validate()->count(), 0);
+    $typed_data->setValue('invalid');
+    $this->assertEqual($typed_data->validate()->count(), 1, 'Validation detected invalid value.');
+    // Check implementation of DurationInterface.
+    $typed_data = $this->createTypedData(array('type' => 'timespan'), 20);
+    $this->assertTrue($typed_data->getDuration() instanceof DateInterval);
+    $typed_data->setDuration(new DateInterval('PT4H'));
+    $this->assertEqual($typed_data->getValue(), 60 * 60 * 4);
+    $typed_data->setValue(NULL);
+    $this->assertNull($typed_data->getDuration());
 
     // URI type.
     $uri = 'http://example.com/foo/';
     $typed_data = $this->createTypedData(array('type' => 'uri'), $uri);
+    $this->assertTrue($typed_data instanceof \Drupal\Core\TypedData\Type\UriInterface, 'Typed data object is an instance of UriInterface.');
     $this->assertTrue($typed_data->getValue() === $uri, 'URI value was fetched.');
     $this->assertEqual($typed_data->validate()->count(), 0);
     $typed_data->setValue($uri . 'bar.txt');
@@ -203,6 +254,7 @@ class TypedDataTest extends DrupalUnitTestBase {
     // Email type.
     $value = $this->randomString();
     $typed_data = $this->createTypedData(array('type' => 'email'), $value);
+    $this->assertTrue($typed_data instanceof \Drupal\Core\TypedData\Type\StringInterface, 'Typed data object is an instance of StringInterface.');
     $this->assertIdentical($typed_data->getValue(), $value, 'E-mail value was fetched.');
     $new_value = 'test@example.com';
     $typed_data->setValue($new_value);
@@ -217,6 +269,7 @@ class TypedDataTest extends DrupalUnitTestBase {
 
     // Binary type.
     $typed_data = $this->createTypedData(array('type' => 'binary'), $files[0]->getFileUri());
+    $this->assertTrue($typed_data instanceof \Drupal\Core\TypedData\Type\BinaryInterface, 'Typed data object is an instance of BinaryInterface.');
     $this->assertTrue(is_resource($typed_data->getValue()), 'Binary value was fetched.');
     $this->assertEqual($typed_data->validate()->count(), 0);
     // Try setting by URI.

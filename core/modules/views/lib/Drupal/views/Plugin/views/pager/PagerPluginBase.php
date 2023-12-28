@@ -183,13 +183,12 @@ abstract class PagerPluginBase extends PluginBase {
       $this->total_items -= $this->options['offset'];
     }
 
-    $this->updatePageInfo();
     return $this->total_items;
   }
 
   /**
    * If there are pagers that need global values set, this method can
-   * be used to set them. It will be called when the count query is run.
+   * be used to set them. It will be called after the query is run.
    */
   public function updatePageInfo() {
 
@@ -218,16 +217,15 @@ abstract class PagerPluginBase extends PluginBase {
   public function preRender(&$result) { }
 
   /**
-   * Render the pager.
+   * Return the renderable array of the pager.
    *
-   * Called during the view render process, this will render the
-   * pager.
+   * Called during the view render process.
    *
    * @param $input
    *   Any extra GET parameters that should be retained, such as exposed
    *   input.
    */
-  function render($input) { }
+  public function render($input) { }
 
   /**
    * Determine if there are more records available.

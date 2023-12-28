@@ -9,9 +9,9 @@ namespace Drupal\edit;
 
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Component\Plugin\PluginManagerInterface;
-use Drupal\field\Plugin\Core\Entity\FieldInstance;
+use Drupal\Core\Entity\Field\FieldDefinitionInterface;
 use Drupal\edit\Access\EditEntityFieldAccessCheckInterface;
-
+use Drupal\field\FieldInstanceInterface;
 
 /**
  * Generates in-place editing metadata for an entity field.
@@ -56,10 +56,19 @@ class MetadataGenerator implements MetadataGeneratorInterface {
   }
 
   /**
-   * Implements \Drupal\edit\MetadataGeneratorInterface::generate().
+   * {@inheritdoc}
    */
-  public function generate(EntityInterface $entity, FieldInstance $instance, $langcode, $view_mode) {
-    $field_name = $instance['field_name'];
+  public function generateEntity(EntityInterface $entity, $langcode) {
+    return array(
+      'label' => $entity->label($langcode),
+    );
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function generateField(EntityInterface $entity, FieldDefinitionInterface $field_definition, $langcode, $view_mode) {
+    $field_name = $field_definition->getFieldName();
 
     // Early-return if user does not have access.
     $access = $this->accessChecker->accessEditEntityField($entity, $field_name);
@@ -68,15 +77,15 @@ class MetadataGenerator implements MetadataGeneratorInterface {
     }
 
     // Early-return if no editor is available.
-    $formatter_id = entity_get_render_display($entity, $view_mode)->getFormatter($instance['field_name'])->getPluginId();
-    $items = $entity->getTranslation($langcode, FALSE)->get($field_name)->getValue();
-    $editor_id = $this->editorSelector->getEditor($formatter_id, $instance, $items);
+    $formatter_id = entity_get_render_display($entity, $view_mode)->getRenderer($field_name)->getPluginId();
+    $items = $entity->getTranslation($langcode)->get($field_name)->getValue();
+    $editor_id = $this->editorSelector->getEditor($formatter_id, $field_definition, $items);
     if (!isset($editor_id)) {
       return array('access' => FALSE);
     }
 
     // Gather metadata, allow the editor to add additional metadata of its own.
-    $label = $instance['label'];
+    $label = $field_definition->getFieldLabel();
     $editor = $this->editorManager->createInstance($editor_id);
     $metadata = array(
       'label' => check_plain($label),
@@ -84,7 +93,7 @@ class MetadataGenerator implements MetadataGeneratorInterface {
       'editor' => $editor_id,
       'aria' => t('Entity @type @id, field @field', array('@type' => $entity->entityType(), '@id' => $entity->id(), '@field' => $label)),
     );
-    $custom_metadata = $editor->getMetadata($instance, $items);
+    $custom_metadata = $editor->getMetadata($field_definition, $items);
     if (count($custom_metadata)) {
       $metadata['custom'] = $custom_metadata;
     }

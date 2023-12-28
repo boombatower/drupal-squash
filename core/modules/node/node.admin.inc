@@ -9,29 +9,6 @@ use Drupal\Core\Language\Language;
 use Drupal\node\NodeInterface;
 
 /**
- * Page callback: Form constructor for the permission rebuild confirmation form.
- *
- * @return array
- *   An array as expected by drupal_render().
- *
- * @see node_configure_rebuild_confirm_submit()
- * @see node_menu()
- * @ingroup forms
- */
-function node_configure_rebuild_confirm() {
-  return confirm_form(array(), t('Are you sure you want to rebuild the permissions on site content?'),
-                  'admin/reports/status', t('This action rebuilds all permissions on site content, and may be a lengthy process. This action cannot be undone.'), t('Rebuild permissions'), t('Cancel'));
-}
-
-/**
- * Form submission handler for node_configure_rebuild_confirm().
- */
-function node_configure_rebuild_confirm_submit($form, &$form_state) {
-  node_access_rebuild(TRUE);
-  $form_state['redirect'] = 'admin/reports/status';
-}
-
-/**
  * Updates all nodes in the passed-in array with the passed-in field values.
  *
  * IMPORTANT NOTE: This function is intended to work when called from a form
@@ -103,7 +80,7 @@ function _node_mass_update_helper(NodeInterface $node, array $updates, $langcode
   $node->original = clone $node;
   foreach ($langcodes as $langcode) {
     foreach ($updates as $name => $value) {
-      $node->getTranslation($langcode, FALSE)->$name = $value;
+      $node->getTranslation($langcode)->$name = $value;
     }
   }
   $node->save();
@@ -141,7 +118,7 @@ function _node_mass_update_batch_process(array $nodes, array $updates, $load, ar
     $node = _node_mass_update_helper($node, $updates);
 
     // Store result for post-processing in the finished callback.
-    $context['results'][] = l($node->label(), 'node/' . $node->nid);
+    $context['results'][] = l($node->label(), 'node/' . $node->id());
 
     // Update our progress information.
     $context['sandbox']['progress']++;
@@ -229,7 +206,7 @@ function node_admin_nodes() {
     // If the user is able to view their own unpublished nodes, allow them
     // to see these in addition to published nodes. Check that they actually
     // have some unpublished nodes to view before adding the condition.
-    if (user_access('view own unpublished content') && $own_unpublished = db_query('SELECT DISTINCT nid FROM {node_field_data} WHERE uid = :uid AND status = :status', array(':uid' => $GLOBALS['user']->uid, ':status' => 0))->fetchCol()) {
+    if (user_access('view own unpublished content') && $own_unpublished = db_query('SELECT DISTINCT nid FROM {node_field_data} WHERE uid = :uid AND status = :status', array(':uid' => $GLOBALS['user']->id(), ':status' => 0))->fetchCol()) {
       $query->condition(db_or()
         ->condition('n.status', 1)
         ->condition('n.nid', $own_unpublished, 'IN')
@@ -259,34 +236,34 @@ function node_admin_nodes() {
     '#empty' => t('No content available.'),
   );
   foreach ($nodes as $node) {
-    $l_options = $node->langcode != Language::LANGCODE_NOT_SPECIFIED && isset($languages[$node->langcode]) ? array('language' => $languages[$node->langcode]) : array();
+    $l_options = $node->language()->id != Language::LANGCODE_NOT_SPECIFIED && isset($languages[$node->language()->id]) ? array('language' => $languages[$node->language()->id]) : array();
     $mark = array(
       '#theme' => 'mark',
-      '#mark_type' => node_mark($node->nid, $node->changed),
+      '#status' => node_mark($node->id(), $node->getChangedTime()),
     );
-    $form['nodes'][$node->nid]['title'] = array(
+    $form['nodes'][$node->id()]['title'] = array(
       '#type' => 'link',
       '#title' => $node->label(),
-      '#href' => 'node/' . $node->nid,
+      '#href' => 'node/' . $node->id(),
       '#options' => $l_options,
       '#suffix' => ' ' . drupal_render($mark),
     );
-    $form['nodes'][$node->nid]['type'] = array(
+    $form['nodes'][$node->id()]['type'] = array(
       '#markup' => check_plain(node_get_type_label($node)),
     );
-    $form['nodes'][$node->nid]['author'] = array(
+    $form['nodes'][$node->id()]['author'] = array(
       '#theme' => 'username',
-      '#account' => $node,
+      '#account' => $node->getAuthor(),
     );
-    $form['nodes'][$node->nid]['status'] = array(
-      '#markup' => $node->status ? t('published') : t('not published'),
+    $form['nodes'][$node->id()]['status'] = array(
+      '#markup' => $node->isPublished() ? t('published') : t('not published'),
     );
-    $form['nodes'][$node->nid]['changed'] = array(
-      '#markup' => format_date($node->changed, 'short'),
+    $form['nodes'][$node->id()]['changed'] = array(
+      '#markup' => format_date($node->getChangedTime(), 'short'),
     );
     if ($multilingual) {
-      $form['nodes'][$node->nid]['language_name'] = array(
-        '#markup' => language_name($node->langcode),
+      $form['nodes'][$node->id()]['language_name'] = array(
+        '#markup' => $node->language()->name,
       );
     }
 
@@ -295,28 +272,28 @@ function node_admin_nodes() {
     if (node_access('update', $node)) {
       $operations['edit'] = array(
         'title' => t('Edit'),
-        'href' => 'node/' . $node->nid . '/edit',
+        'href' => 'node/' . $node->id() . '/edit',
         'query' => $destination,
       );
     }
     if (node_access('delete', $node)) {
       $operations['delete'] = array(
         'title' => t('Delete'),
-        'href' => 'node/' . $node->nid . '/delete',
+        'href' => 'node/' . $node->id() . '/delete',
         'query' => $destination,
       );
     }
     if ($node->isTranslatable()) {
       $operations['translate'] = array(
         'title' => t('Translate'),
-        'href' => 'node/' . $node->nid . '/translations',
+        'href' => 'node/' . $node->id() . '/translations',
         'query' => $destination,
       );
     }
-    $form['nodes'][$node->nid]['operations'] = array();
+    $form['nodes'][$node->id()]['operations'] = array();
     if (count($operations) > 1) {
       // Render an unordered list of operations links.
-      $form['nodes'][$node->nid]['operations'] = array(
+      $form['nodes'][$node->id()]['operations'] = array(
         '#type' => 'operations',
         '#subtype' => 'node',
         '#links' => $operations,
@@ -325,7 +302,7 @@ function node_admin_nodes() {
     elseif (!empty($operations)) {
       // Render the first and only operation as a link.
       $link = reset($operations);
-      $form['nodes'][$node->nid]['operations'] = array(
+      $form['nodes'][$node->id()]['operations'] = array(
         '#type' => 'link',
         '#title' => $link['title'],
         '#href' => $link['href'],

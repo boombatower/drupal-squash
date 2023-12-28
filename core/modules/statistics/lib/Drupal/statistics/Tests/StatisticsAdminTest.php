@@ -61,7 +61,7 @@ class StatisticsAdminTest extends WebTestBase {
     }
     $this->privileged_user = $this->drupalCreateUser(array('administer statistics', 'view post access counter', 'create page content'));
     $this->drupalLogin($this->privileged_user);
-    $this->test_node = $this->drupalCreateNode(array('type' => 'page', 'uid' => $this->privileged_user->uid));
+    $this->test_node = $this->drupalCreateNode(array('type' => 'page', 'uid' => $this->privileged_user->id()));
     $this->client = \Drupal::httpClient();
     $this->client->setConfig(array('curl.options' => array(CURLOPT_TIMEOUT => 10)));
   }
@@ -70,33 +70,32 @@ class StatisticsAdminTest extends WebTestBase {
    * Verifies that the statistics settings page works.
    */
   function testStatisticsSettings() {
-    $config = config('statistics.settings');
+    $config = \Drupal::config('statistics.settings');
     $this->assertFalse($config->get('count_content_views'), 'Count content view log is disabled by default.');
 
     // Enable counter on content view.
     $edit['statistics_count_content_views'] = 1;
     $this->drupalPost('admin/config/system/statistics', $edit, t('Save configuration'));
-    $config = config('statistics.settings');
+    $config = \Drupal::config('statistics.settings');
     $this->assertTrue($config->get('count_content_views'), 'Count content view log is enabled.');
 
     // Hit the node.
-    $this->drupalGet('node/' . $this->test_node->nid);
+    $this->drupalGet('node/' . $this->test_node->id());
     // Manually calling statistics.php, simulating ajax behavior.
-    $nid = $this->test_node->nid;
-    $post = http_build_query(array('nid' => $nid));
-    $headers = array('Content-Type' => 'application/x-www-form-urlencoded');
+    $nid = $this->test_node->id();
+    $post = array('nid' => $nid);
     global $base_url;
     $stats_path = $base_url . '/' . drupal_get_path('module', 'statistics'). '/statistics.php';
-    $this->client->post($stats_path, $headers, $post)->send();
+    $this->client->post($stats_path, array(), $post)->send();
 
     // Hit the node again (the counter is incremented after the hit, so
     // "1 view" will actually be shown when the node is hit the second time).
-    $this->drupalGet('node/' . $this->test_node->nid);
-    $this->client->post($stats_path, $headers, $post)->send();
+    $this->drupalGet('node/' . $this->test_node->id());
+    $this->client->post($stats_path, array(), $post)->send();
     $this->assertText('1 view', 'Node is viewed once.');
 
-    $this->drupalGet('node/' . $this->test_node->nid);
-    $this->client->post($stats_path, $headers, $post)->send();
+    $this->drupalGet('node/' . $this->test_node->id());
+    $this->client->post($stats_path, array(), $post)->send();
     $this->assertText('2 views', 'Node is viewed 2 times.');
   }
 
@@ -104,29 +103,28 @@ class StatisticsAdminTest extends WebTestBase {
    * Tests that when a node is deleted, the node counter is deleted too.
    */
   function testDeleteNode() {
-    config('statistics.settings')->set('count_content_views', 1)->save();
+    \Drupal::config('statistics.settings')->set('count_content_views', 1)->save();
 
-    $this->drupalGet('node/' . $this->test_node->nid);
+    $this->drupalGet('node/' . $this->test_node->id());
     // Manually calling statistics.php, simulating ajax behavior.
-    $nid = $this->test_node->nid;
-    $post = http_build_query(array('nid' => $nid));
-    $headers = array('Content-Type' => 'application/x-www-form-urlencoded');
+    $nid = $this->test_node->id();
+    $post = array('nid' => $nid);
     global $base_url;
     $stats_path = $base_url . '/' . drupal_get_path('module', 'statistics'). '/statistics.php';
-    $this->client->post($stats_path, $headers, $post)->send();
+    $this->client->post($stats_path, array(), $post)->send();
 
     $result = db_select('node_counter', 'n')
       ->fields('n', array('nid'))
-      ->condition('n.nid', $this->test_node->nid)
+      ->condition('n.nid', $this->test_node->id())
       ->execute()
       ->fetchAssoc();
-    $this->assertEqual($result['nid'], $this->test_node->nid, 'Verifying that the node counter is incremented.');
+    $this->assertEqual($result['nid'], $this->test_node->id(), 'Verifying that the node counter is incremented.');
 
     $this->test_node->delete();
 
     $result = db_select('node_counter', 'n')
       ->fields('n', array('nid'))
-      ->condition('n.nid', $this->test_node->nid)
+      ->condition('n.nid', $this->test_node->id())
       ->execute()
       ->fetchAssoc();
     $this->assertFalse($result, 'Verifying that the node counter is deleted.');
@@ -136,21 +134,20 @@ class StatisticsAdminTest extends WebTestBase {
    * Tests that cron clears day counts and expired access logs.
    */
   function testExpiredLogs() {
-    config('statistics.settings')
+    \Drupal::config('statistics.settings')
       ->set('count_content_views', 1)
       ->save();
     \Drupal::state()->set('statistics.day_timestamp', 8640000);
 
-    $this->drupalGet('node/' . $this->test_node->nid);
+    $this->drupalGet('node/' . $this->test_node->id());
     // Manually calling statistics.php, simulating ajax behavior.
-    $nid = $this->test_node->nid;
-    $post = http_build_query(array('nid' => $nid));
-    $headers = array('Content-Type' => 'application/x-www-form-urlencoded');
+    $nid = $this->test_node->id();
+    $post = array('nid' => $nid);
     global $base_url;
     $stats_path = $base_url . '/' . drupal_get_path('module', 'statistics'). '/statistics.php';
-    $this->client->post($stats_path, $headers, $post)->send();
-    $this->drupalGet('node/' . $this->test_node->nid);
-    $this->client->post($stats_path, $headers, $post)->send();
+    $this->client->post($stats_path, array(), $post)->send();
+    $this->drupalGet('node/' . $this->test_node->id());
+    $this->client->post($stats_path, array(), $post)->send();
     $this->assertText('1 view', 'Node is viewed once.');
 
     // statistics_cron() will subtract
@@ -161,11 +158,11 @@ class StatisticsAdminTest extends WebTestBase {
     $this->cronRun();
 
     $this->drupalGet('admin/reports/pages');
-    $this->assertNoText('node/' . $this->test_node->nid, 'No hit URL found.');
+    $this->assertNoText('node/' . $this->test_node->id(), 'No hit URL found.');
 
     $result = db_select('node_counter', 'nc')
       ->fields('nc', array('daycount'))
-      ->condition('nid', $this->test_node->nid, '=')
+      ->condition('nid', $this->test_node->id(), '=')
       ->execute()
       ->fetchField();
     $this->assertFalse($result, 'Daycounter is zero.');

@@ -19,8 +19,8 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  *
  * The container is built by the kernel and passed in to this class which stores
  * it statically. The container always contains the services from
- * \Drupal\Core\CoreBundle, the bundles of enabled modules and any other bundles
- * defined in $GLOBALS['conf']['container_bundles'].
+ * \Drupal\Core\CoreServiceProvider, the service providers of enabled modules and any other
+ * service providers defined in $GLOBALS['conf']['container_service_providers'].
  *
  * This class exists only to support legacy code that cannot be dependency
  * injected. If your code needs it, consider refactoring it to be object
@@ -148,13 +148,22 @@ class Drupal {
   }
 
   /**
+   * Gets the current active user.
+   *
+   * @return \Drupal\Core\Session\AccountInterface
+   */
+  public static function currentUser() {
+    return static::$container->get('current_user');
+  }
+
+  /**
    * Retrieves the entity manager service.
    *
    * @return \Drupal\Core\Entity\EntityManager
    *   The entity manager service.
    */
   public static function entityManager() {
-    return static::$container->get('plugin.manager.entity');
+    return static::$container->get('entity.manager');
   }
 
   /**
@@ -207,12 +216,12 @@ class Drupal {
    * Retrieves a configuration object.
    *
    * This is the main entry point to the configuration API. Calling
-   * @code Drupal::config('book.admin') @endcode will return a configuration
+   * @code \Drupal::config('book.admin') @endcode will return a configuration
    * object in which the book module can store its administrative settings.
    *
    * @param string $name
    *   The name of the configuration object to retrieve. The name corresponds to
-   *   a configuration file. For @code config('book.admin') @endcode, the config
+   *   a configuration file. For @code \Drupal::config('book.admin') @endcode, the config
    *   object returned will contain the contents of book.admin configuration file.
    *
    * @return \Drupal\Core\Config\Config
@@ -251,7 +260,7 @@ class Drupal {
   /**
    * Returns a key/value storage collection.
    *
-   * @param $collection
+   * @param string $collection
    *   Name of the key/value collection to return.
    *
    * @return \Drupal\Core\KeyValueStore\KeyValueStoreInterface
@@ -267,7 +276,7 @@ class Drupal {
    * that does not need deploying and does not need human editing; for example,
    * the last time cron was run. Data which needs to be edited by humans and
    * needs to be the same across development, production, etc. environments
-   * (for example, the system maintenance message) should use config() instead.
+   * (for example, the system maintenance message) should use \Drupal::config() instead.
    *
    * @return \Drupal\Core\KeyValueStore\KeyValueStoreInterface
    */
@@ -305,10 +314,10 @@ class Drupal {
   /**
    * Returns the entity query aggregate object for this entity type.
    *
-   * @param $entity_type
+   * @param string $entity_type
    *   The entity type, e.g. node, for which the query object should be
    *   returned.
-   * @param $conjunction
+   * @param string $conjunction
    *   AND if all conditions in the query need to apply, OR if any of them is
    *   enough. Optional, defaults to AND.
    *
@@ -331,7 +340,7 @@ class Drupal {
   /**
    * Returns the module handler.
    *
-   * @return \Drupal\Core\Extension\ModuleHandler
+   * @return \Drupal\Core\Extension\ModuleHandlerInterface
    */
   public static function moduleHandler() {
     return static::$container->get('module_handler');
@@ -364,7 +373,7 @@ class Drupal {
   /**
    * Returns the url generator service.
    *
-   * @return \Drupal\Core\Routing\UrlGenerator
+   * @return \Drupal\Core\Routing\UrlGeneratorInterface
    *   The url generator service.
    */
   public static function urlGenerator() {
@@ -372,9 +381,126 @@ class Drupal {
   }
 
   /**
+   * Generates a URL or path for a specific route based on the given parameters.
+   *
+   * Parameters that reference placeholders in the route pattern will be
+   * substituted for them in the pattern. Extra params are added as query
+   * strings to the URL.
+   *
+   * @param string $name
+   *   The name of the route
+   * @param array  $parameters
+   *   An associative array of parameter names and values.
+   * @param array $options
+   *   (optional) An associative array of additional options, with the following
+   *   elements:
+   *   - 'query': An array of query key/value-pairs (without any URL-encoding)
+   *     to append to the URL. Merged with the parameters array.
+   *   - 'fragment': A fragment identifier (named anchor) to append to the URL.
+   *     Do not include the leading '#' character.
+   *   - 'absolute': Defaults to FALSE. Whether to force the output to be an
+   *     absolute link (beginning with http:). Useful for links that will be
+   *     displayed outside the site, such as in an RSS feed.
+   *   - 'language': An optional language object used to look up the alias
+   *     for the URL. If $options['language'] is omitted, the language will be
+   *     obtained from language(Language::TYPE_URL).
+   *   - 'https': Whether this URL should point to a secure location. If not
+   *     defined, the current scheme is used, so the user stays on HTTP or HTTPS
+   *     respectively. if mixed mode sessions are permitted, TRUE enforces HTTPS
+   *     and FALSE enforces HTTP.
+   *
+   * @return string
+   *   The generated URL for the given route.
+   *
+   * @throws \Symfony\Component\Routing\Exception\RouteNotFoundException
+   *   Thrown when the named route doesn't exist.
+   * @throws \Symfony\Component\Routing\Exception\MissingMandatoryParametersException
+   *   Thrown when some parameters are missing that are mandatory for the route.
+   * @throws \Symfony\Component\Routing\Exception\InvalidParameterException
+   *   Thrown when a parameter value for a placeholder is not correct because it
+   *   does not match the requirement.
+   *
+   * @see \Drupal\Core\Routing\UrlGeneratorInterface::generateFromRoute()
+   */
+  public static function url($route_name, $rotue_parameters = array(), $options = array()) {
+    return static::$container->get('url_generator')->generateFromRoute($route_name, $route_parameters, $options);
+  }
+
+  /**
+   * Returns the link generator service.
+   *
+   * @return \Drupal\Core\Utility\LinkGeneratorInterface
+   */
+  public static function linkGenerator() {
+    return static::$container->get('link_generator');
+  }
+
+  /**
+   * Renders a link to a route given a route name and its parameters.
+   *
+   * This function correctly handles aliased paths and sanitizing text, so all
+   * internal links output by modules should be generated by this function if
+   * possible.
+   *
+   * However, for links enclosed in translatable text you should use t() and
+   * embed the HTML anchor tag directly in the translated string. For example:
+   * @code
+   * t('Visit the <a href="@url">content types</a> page', array('@url' => Drupal::url('node_overview_types')));
+   * @endcode
+   * This keeps the context of the link title ('settings' in the example) for
+   * translators.
+   *
+   * @param string|array $text
+   *   The link text for the anchor tag as a translated string or render array.
+   * @param string $route_name
+   *   The name of the route to use to generate the link.
+   * @param array $parameters
+   *   (optional) Any parameters needed to render the route path pattern.
+   * @param array $options
+   *   (optional) An associative array of additional options. Defaults to an
+   *   empty array. It may contain the following elements:
+   *   - 'query': An array of query key/value-pairs (without any URL-encoding) to
+   *     append to the URL.
+   *   - absolute: Whether to force the output to be an absolute link (beginning
+   *     with http:). Useful for links that will be displayed outside the site,
+   *     such as in an RSS feed. Defaults to FALSE.
+   *   - attributes: An associative array of HTML attributes to apply to the
+   *     anchor tag. If element 'class' is included, it must be an array; 'title'
+   *     must be a string; other elements are more flexible, as they just need
+   *     to work as an argument for the constructor of the class
+   *     Drupal\Core\Template\Attribute($options['attributes']).
+   *   - html: Whether $text is HTML or just plain-text. For
+   *     example, to make an image tag into a link, this must be set to TRUE, or
+   *     you will see the escaped HTML image tag. $text is not sanitized if
+   *     'html' is TRUE. The calling function must ensure that $text is already
+   *     safe. Defaults to FALSE.
+   *   - language: An optional language object. If the path being linked to is
+   *     internal to the site, $options['language'] is used to determine whether
+   *     the link is "active", or pointing to the current page (the language as
+   *     well as the path must match).
+   *
+   * @return string
+   *   An HTML string containing a link to the given route and parameters.
+   *
+   * @throws \Symfony\Component\Routing\Exception\RouteNotFoundException
+   *   Thrown when the named route doesn't exist.
+   * @throws \Symfony\Component\Routing\Exception\MissingMandatoryParametersException
+   *   Thrown when some parameters are missing that are mandatory for the route.
+   * @throws \Symfony\Component\Routing\Exception\InvalidParameterException
+   *   Thrown when a parameter value for a placeholder is not correct because it
+   *   does not match the requirement.
+   *
+   * @see \Drupal\Core\Routing\UrlGeneratorInterface::generateFromRoute()
+   * @see \Drupal\Core\Utility\LinkGeneratorInterface::generate()
+   */
+  public static function l($text, $route_name, array $parameters = array(), array $options = array()) {
+    return static::$container->get('link_generator')->generate($text, $route_name, $parameters, $options);
+  }
+
+  /**
    * Returns the string translation service.
    *
-   * @return \Drupal\Core\Translation\TranslationManager
+   * @return \Drupal\Core\StringTranslation\TranslationManager
    *   The string translation manager.
    */
   public static function translation() {
@@ -389,6 +515,26 @@ class Drupal {
    */
   public static function languageManager() {
     return static::$container->get('language_manager');
+  }
+
+  /**
+   * Returns the CSRF token manager service.
+   *
+   * @return \Drupal\Core\Access\CsrfTokenGenerator
+   *   The CSRF token manager.
+   */
+  public static function csrfToken() {
+    return static::$container->get('csrf_token');
+  }
+
+  /**
+   * Returns the transliteration service.
+   *
+   * @return \Drupal\Core\Transliteration\PHPTransliteration
+   *   The transliteration manager.
+   */
+  public static function transliteration() {
+    return static::$container->get('transliteration');
   }
 
 }

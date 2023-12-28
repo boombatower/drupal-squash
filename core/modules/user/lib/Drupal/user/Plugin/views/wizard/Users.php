@@ -8,7 +8,7 @@
 namespace Drupal\user\Plugin\views\wizard;
 
 use Drupal\views\Plugin\views\wizard\WizardPluginBase;
-use Drupal\Component\Annotation\Plugin;
+use Drupal\views\Annotation\ViewsWizard;
 use Drupal\Core\Annotation\Translation;
 
 /**
@@ -18,7 +18,7 @@ use Drupal\Core\Annotation\Translation;
 /**
  * Tests creating user views with the wizard.
  *
- * @Plugin(
+ * @ViewsWizard(
  *   id = "users",
  *   module = "user",
  *   base_table = "users",
@@ -54,7 +54,8 @@ class Users extends WizardPluginBase {
     'status' => array(
       'value' => TRUE,
       'table' => 'users',
-      'field' => 'status'
+      'field' => 'status',
+      'provider' => 'user'
     )
   );
 
@@ -75,6 +76,7 @@ class Users extends WizardPluginBase {
     $display_options['fields']['name']['id'] = 'name';
     $display_options['fields']['name']['table'] = 'users';
     $display_options['fields']['name']['field'] = 'name';
+    $display_options['fields']['name']['provider'] = 'user';
     $display_options['fields']['name']['label'] = '';
     $display_options['fields']['name']['alter']['alter_text'] = 0;
     $display_options['fields']['name']['alter']['make_link'] = 0;

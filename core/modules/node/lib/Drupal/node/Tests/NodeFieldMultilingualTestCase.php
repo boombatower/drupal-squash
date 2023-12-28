@@ -42,7 +42,7 @@ class NodeFieldMultilingualTestCase extends WebTestBase {
 
     // Add a new language.
     $language = new Language(array(
-      'langcode' => 'it',
+      'id' => 'it',
       'name' => 'Italian',
     ));
     language_save($language);
@@ -59,7 +59,7 @@ class NodeFieldMultilingualTestCase extends WebTestBase {
     $this->assertRaw(t('The content type %type has been updated.', array('%type' => 'Basic page')), 'Basic page content type has been updated.');
 
     // Make node body translatable.
-    $field = field_info_field('body');
+    $field = field_info_field('node', 'body');
     $field->translatable = TRUE;
     $field->save();
   }
@@ -82,9 +82,9 @@ class NodeFieldMultilingualTestCase extends WebTestBase {
     $this->drupalPost('node/add/page', $edit, t('Save'));
 
     // Check that the node exists in the database.
-    $node = $this->drupalGetNodeByTitle($edit[$title_key])->getNGEntity();
+    $node = $this->drupalGetNodeByTitle($edit[$title_key]);
     $this->assertTrue($node, 'Node found in database.');
-    $this->assertTrue($node->language()->langcode == $langcode && $node->body->value == $body_value, 'Field language correctly set.');
+    $this->assertTrue($node->language()->id == $langcode && $node->body->value == $body_value, 'Field language correctly set.');
 
     // Change node language.
     $langcode = 'it';
@@ -94,9 +94,9 @@ class NodeFieldMultilingualTestCase extends WebTestBase {
       'langcode' => $langcode,
     );
     $this->drupalPost(NULL, $edit, t('Save'));
-    $node = $this->drupalGetNodeByTitle($edit[$title_key], TRUE)->getNGEntity();
+    $node = $this->drupalGetNodeByTitle($edit[$title_key], TRUE);
     $this->assertTrue($node, 'Node found in database.');
-    $this->assertTrue($node->language()->langcode == $langcode && $node->body->value == $body_value, 'Field language correctly changed.');
+    $this->assertTrue($node->language()->id == $langcode && $node->body->value == $body_value, 'Field language correctly changed.');
 
     // Enable content language URL detection.
     language_negotiation_set(Language::TYPE_CONTENT, array(LANGUAGE_NEGOTIATION_URL => 0));
@@ -131,12 +131,12 @@ class NodeFieldMultilingualTestCase extends WebTestBase {
     $this->assertTrue($node, 'Node found in database.');
 
     // Check if node body is showed.
-    $this->drupalGet("node/$node->nid");
+    $this->drupalGet('node/' . $node->id());
     $body = $this->xpath('//article[@id=:id]//div[@class=:class]/descendant::p', array(
-      ':id' => 'node-' . $node->nid,
+      ':id' => 'node-' . $node->id(),
       ':class' => 'content',
     ));
-    $this->assertEqual(current($body), $node->body['en'][0]['value'], 'Node body found.');
+    $this->assertEqual(current($body), $node->body->value, 'Node body found.');
   }
 
 }

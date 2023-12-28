@@ -7,15 +7,15 @@
 
 namespace Drupal\options\Plugin\field\widget;
 
-use Drupal\Component\Annotation\Plugin;
+use Drupal\field\Annotation\FieldWidget;
 use Drupal\Core\Annotation\Translation;
+use Drupal\Core\Entity\Field\FieldInterface;
 
 /**
  * Plugin implementation of the 'options_select' widget.
  *
- * @Plugin(
+ * @FieldWidget(
  *   id = "options_select",
- *   module = "options",
  *   label = @Translation("Select list"),
  *   field_types = {
  *     "list_integer",
@@ -30,13 +30,13 @@ class SelectWidget extends OptionsWidgetBase {
   /**
    * {@inheritdoc}
    */
-  public function formElement(array $items, $delta, array $element, $langcode, array &$form, array &$form_state) {
+  public function formElement(FieldInterface $items, $delta, array $element, $langcode, array &$form, array &$form_state) {
     $element = parent::formElement($items, $delta, $element, $langcode, $form, $form_state);
 
     $element += array(
       '#type' => 'select',
-      '#options' => $this->getOptions(),
-      '#default_value' => $this->getSelectedOptions($items),
+      '#options' => $this->getOptions($items[$delta]),
+      '#default_value' => $this->getSelectedOptions($items, $delta),
       // Do not display a 'multiple' select box if there is only one option.
       '#multiple' => $this->multiple && count($this->options) > 1,
     );

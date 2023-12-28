@@ -4,9 +4,11 @@
  * @file
  * Contains \Drupal\entity_reference/EntityReferenceAutocomplete.
  */
+
 namespace Drupal\entity_reference;
 
 use Drupal\Core\Entity\EntityManager;
+use Drupal\entity_reference\Plugin\Type\SelectionPluginManager;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
 /**
@@ -22,13 +24,23 @@ class EntityReferenceAutocomplete {
   protected $entityManager;
 
   /**
+   * The Entity reference selection handler plugin manager.
+   *
+   * @var \Drupal\entity_reference\Plugin\Type\SelectionPluginManager
+   */
+  protected $selectionHandlerManager;
+
+  /**
    * Constructs a EntityReferenceAutocomplete object.
    *
    * @param \Drupal\Core\Entity\EntityManager $entity_manager
    *   The entity manager.
+   * @param \Drupal\entity_reference\Plugin\Type\SelectionPluginManager $selection_manager
+   *   The Entity reference selection handler plugin manager.
    */
-  public function __construct(EntityManager $entity_manager) {
+  public function __construct(EntityManager $entity_manager, SelectionPluginManager $selection_manager) {
     $this->entityManager = $entity_manager;
+    $this->selectionHandlerManager = $selection_manager;
   }
 
   /**
@@ -60,24 +72,22 @@ class EntityReferenceAutocomplete {
    * @see \Drupal\entity_reference\EntityReferenceController
    */
   public function getMatches($field, $instance, $entity_type, $entity_id = '', $prefix = '', $string = '') {
-    $target_type = $field['settings']['target_type'];
     $matches = array();
     $entity = NULL;
 
     if ($entity_id !== 'NULL') {
-      $entities = $this->entityManager->getStorageController($entity_type)->load(array($entity_id));
-      $entity = reset($entities);
+      $entity = $this->entityManager->getStorageController($entity_type)->load($entity_id);
       if (!$entity || !$entity->access('view')) {
         throw new AccessDeniedHttpException();
       }
     }
-    $handler = entity_reference_get_selection_handler($instance, $entity);
+    $handler = $this->selectionHandlerManager->getSelectionHandler($instance, $entity);
 
     if (isset($string)) {
       // Get an array of matching entities.
       $widget = entity_get_form_display($instance['entity_type'], $instance['bundle'], 'default')->getComponent($instance['field_name']);
       $match_operator = !empty($widget['settings']['match_operator']) ? $widget['settings']['match_operator'] : 'CONTAINS';
-      $entity_labels = $handler->getReferencableEntities($string, $match_operator, 10);
+      $entity_labels = $handler->getReferenceableEntities($string, $match_operator, 10);
 
       // Loop through the entities and convert them into autocomplete output.
       foreach ($entity_labels as $values) {

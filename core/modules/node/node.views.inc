@@ -217,12 +217,12 @@ function node_views_data() {
     );
   }
 
-  if (Drupal::moduleHandler()->moduleExists('translation_entity')) {
+  if (Drupal::moduleHandler()->moduleExists('content_translation')) {
     $data['node']['translation_link'] = array(
       'title' => t('Translation link'),
       'help' => t('Provide a link to the translations overview for nodes.'),
       'field' => array(
-        'id' => 'translation_entity_link',
+        'id' => 'content_translation_link',
       ),
     );
   }
@@ -235,15 +235,7 @@ function node_views_data() {
     ),
   );
 
-  // Define some fields based upon views_handler_field_entity in the entity
-  // table so they can be re-used with other query backends.
-  // @see views_handler_field_entity
-
-  // Define the base group of this table. Fields that don't have a group defined
-  // will go into this field by default.
-  $data['views_entity_node']['table']['group'] = t('Content');
-
-  $data['views_entity_node']['view_node'] = array(
+  $data['node']['view_node'] = array(
     'field' => array(
       'title' => t('Link to content'),
       'help' => t('Provide a simple link to the content.'),
@@ -251,7 +243,7 @@ function node_views_data() {
     ),
   );
 
-  $data['views_entity_node']['edit_node'] = array(
+  $data['node']['edit_node'] = array(
     'field' => array(
       'title' => t('Link to edit content'),
       'help' => t('Provide a simple link to edit the content.'),
@@ -259,7 +251,7 @@ function node_views_data() {
     ),
   );
 
-  $data['views_entity_node']['delete_node'] = array(
+  $data['node']['delete_node'] = array(
     'field' => array(
       'title' => t('Link to delete content'),
       'help' => t('Provide a simple link to delete the content.'),
@@ -630,21 +622,21 @@ function node_views_data() {
 /**
  * Implements hook_preprocess_node().
  */
-function node_row_node_view_preprocess_node(&$vars) {
-  $node = $vars['node'];
-  $options = $vars['view']->rowPlugin->options;
+function node_row_node_view_preprocess_node(&$variables) {
+  $node = $variables['node'];
+  $options = $variables['view']->rowPlugin->options;
 
   // Prevent the comment form from showing up if this is not a page display.
-  if ($vars['view_mode'] == 'full' && !$vars['view']->display_handler->hasPath()) {
+  if ($variables['view_mode'] == 'full' && !$variables['view']->display_handler->hasPath()) {
     $node->comment = FALSE;
   }
 
   if (!$options['links']) {
-    unset($vars['content']['links']);
+    unset($variables['content']['links']);
   }
 
-  if (!empty($options['comments']) && user_access('access comments') && $node->comment) {
-    $vars['content']['comments'] = comment_node_page_additions($node);
+  if (!empty($options['comments']) && user_access('access comments') && $node->comment->value) {
+    $variables['content']['comments'] = comment_node_page_additions($node);
   }
 }
 

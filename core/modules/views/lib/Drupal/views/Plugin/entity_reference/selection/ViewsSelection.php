@@ -7,19 +7,18 @@
 
 namespace Drupal\views\Plugin\entity_reference\selection;
 
-use Drupal\Component\Annotation\Plugin;
 use Drupal\Core\Annotation\Translation;
 use Drupal\Core\Database\Query\SelectInterface;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Entity\Field\FieldDefinitionInterface;
+use Drupal\entity_reference\Annotation\EntityReferenceSelection;
 use Drupal\entity_reference\Plugin\Type\Selection\SelectionInterface;
 
 /**
  * Plugin implementation of the 'selection' entity_reference.
  *
- * @Plugin(
+ * @EntityReferenceSelection(
  *   id = "views",
- *   module = "views",
  *   label = @Translation("Views: Filter by an entity reference view"),
  *   group = "views",
  *   weight = 0
@@ -57,14 +56,15 @@ class ViewsSelection implements SelectionInterface {
   }
 
   /**
-   * Implements \Drupal\entity_reference\Plugin\Type\Selection\SelectionInterface::settingsForm().
+   * {@inheritdoc}
    */
-  public static function settingsForm(&$field, &$instance) {
-    $view_settings = empty($instance['settings']['handler_settings']['view']) ? array() : $instance['settings']['handler_settings']['view'];
+  public static function settingsForm(FieldDefinitionInterface $field_definition) {
+    $selection_handler_settings = $field_definition->getFieldSetting('handler_settings') ?: array();
+    $view_settings = !empty($selection_handler_settings['view']) ? $selection_handler_settings['view'] : array();
     $displays = views_get_applicable_views('entity_reference_display');
     // Filter views that list the entity type we want, and group the separate
     // displays by view.
-    $entity_info = entity_get_info($field['settings']['target_type']);
+    $entity_info = \Drupal::entityManager()->getDefinition($field_definition->getFieldSetting('target_type'));
     $options = array();
     foreach ($displays as $data) {
       list($view, $display_id) = $data;
@@ -79,7 +79,7 @@ class ViewsSelection implements SelectionInterface {
     // into 'view_name' and 'view_display' in the final submitted values, so
     // we massage the data at validate time on the wrapping element (not
     // ideal).
-    $plugin = new static($field, $instance);
+    $plugin = new static($field_definition);
     $form['view']['#element_validate'] = array(array($plugin, 'settingsFormValidate'));
 
     if ($options) {
@@ -155,9 +155,9 @@ class ViewsSelection implements SelectionInterface {
   }
 
   /**
-   * Implements \Drupal\entity_reference\Plugin\Type\Selection\SelectionInterface::getReferencableEntities().
+   * {@inheritdoc}
    */
-  public function getReferencableEntities($match = NULL, $match_operator = 'CONTAINS', $limit = 0) {
+  public function getReferenceableEntities($match = NULL, $match_operator = 'CONTAINS', $limit = 0) {
     $handler_settings = $this->fieldDefinition->getFieldSetting('handler_settings');
     $display_name = $handler_settings['view']['display_name'];
     $arguments = $handler_settings['view']['arguments'];
@@ -178,17 +178,17 @@ class ViewsSelection implements SelectionInterface {
   }
 
   /**
-   * Implements \Drupal\entity_reference\Plugin\Type\Selection\SelectionInterface::countReferencableEntities().
+   * {@inheritdoc}
    */
-  public function countReferencableEntities($match = NULL, $match_operator = 'CONTAINS') {
-    $this->getReferencableEntities($match, $match_operator);
+  public function countReferenceableEntities($match = NULL, $match_operator = 'CONTAINS') {
+    $this->getReferenceableEntities($match, $match_operator);
     return $this->view->pager->getTotalItems();
   }
 
   /**
-   * Implements \Drupal\entity_reference\Plugin\Type\Selection\SelectionInterface::validateReferencableEntities().
+   * {@inheritdoc}
    */
-  public function validateReferencableEntities(array $ids) {
+  public function validateReferenceableEntities(array $ids) {
     $handler_settings = $this->fieldDefinition->getFieldSetting('handler_settings');
     $display_name = $handler_settings['view']['display_name'];
     $arguments = $handler_settings['view']['arguments'];
@@ -202,14 +202,14 @@ class ViewsSelection implements SelectionInterface {
   }
 
   /**
-   * Implements \Drupal\entity_reference\Plugin\Type\Selection\SelectionInterface::validateAutocompleteInput().
+   * {@inheritdoc}
    */
   public function validateAutocompleteInput($input, &$element, &$form_state, $form, $strict = TRUE) {
     return NULL;
   }
 
   /**
-   * Implements \Drupal\entity_reference\Plugin\Type\Selection\SelectionInterface::entityQueryAlter().
+   * {@inheritdoc}
    */
   public function entityQueryAlter(SelectInterface $query) {}
 
@@ -241,4 +241,5 @@ class ViewsSelection implements SelectionInterface {
     $value = array('view_name' => $view, 'display_name' => $display, 'arguments' => $arguments);
     form_set_value($element, $value, $form_state);
   }
+
 }

@@ -43,12 +43,12 @@ class DateTimeTest extends WebTestBase {
    */
   function testTimeZoneHandling() {
     // Setup date/time settings for Honolulu time.
-    $config = config('system.timezone')
-      ->set('default', 'Pacific/Honolulu')
-      ->set('user.configurable', 0)
+    $config = \Drupal::config('system.date')
+      ->set('timezone.default', 'Pacific/Honolulu')
+      ->set('timezone.user.configurable', 0)
       ->save();
-    config('system.date')
-      ->set('formats.medium.pattern.php', 'Y-m-d H:i:s O')
+    entity_load('date_format', 'medium')
+      ->setPattern('Y-m-d H:i:s O')
       ->save();
 
     // Create some nodes with different authored-on dates.
@@ -58,18 +58,18 @@ class DateTimeTest extends WebTestBase {
     $node2 = $this->drupalCreateNode(array('created' => strtotime($date2), 'type' => 'article'));
 
     // Confirm date format and time zone.
-    $this->drupalGet("node/$node1->nid");
+    $this->drupalGet('node/' . $node1->id());
     $this->assertText('2007-01-31 21:00:00 -1000', 'Date should be identical, with GMT offset of -10 hours.');
-    $this->drupalGet("node/$node2->nid");
+    $this->drupalGet('node/' . $node2->id());
     $this->assertText('2007-07-31 21:00:00 -1000', 'Date should be identical, with GMT offset of -10 hours.');
 
     // Set time zone to Los Angeles time.
-    $config->set('default', 'America/Los_Angeles')->save();
+    $config->set('timezone.default', 'America/Los_Angeles')->save();
 
     // Confirm date format and time zone.
-    $this->drupalGet("node/$node1->nid");
+    $this->drupalGet('node/' . $node1->id());
     $this->assertText('2007-01-31 23:00:00 -0800', 'Date should be two hours ahead, with GMT offset of -8 hours.');
-    $this->drupalGet("node/$node2->nid");
+    $this->drupalGet('node/' . $node2->id());
     $this->assertText('2007-08-01 00:00:00 -0700', 'Date should be three hours ahead, with GMT offset of -7 hours.');
   }
 
@@ -78,7 +78,7 @@ class DateTimeTest extends WebTestBase {
    */
   function testDateFormatConfiguration() {
     // Confirm 'no custom date formats available' message appears.
-    $this->drupalGet('admin/config/regional/date-time/formats');
+    $this->drupalGet('admin/config/regional/date-time');
 
     // Add custom date format.
     $this->clickLink(t('Add format'));
@@ -86,59 +86,56 @@ class DateTimeTest extends WebTestBase {
     $name = ucwords($date_format_id);
     $date_format = 'd.m.Y - H:i';
     $edit = array(
-      'date_format_id' => $date_format_id,
-      'date_format_name' => $name,
+      'id' => $date_format_id,
+      'label' => $name,
       'date_format_pattern' => $date_format,
     );
     $this->drupalPost('admin/config/regional/date-time/formats/add', $edit, t('Add format'));
-    $this->assertEqual($this->getUrl(), url('admin/config/regional/date-time/formats', array('absolute' => TRUE)), 'Correct page redirection.');
-    $this->assertText(t('Custom date format updated.'), 'Date format added confirmation message appears.');
+    $this->assertEqual($this->getUrl(), url('admin/config/regional/date-time', array('absolute' => TRUE)), 'Correct page redirection.');
+    $this->assertText(t('Custom date format added.'), 'Date format added confirmation message appears.');
     $this->assertText($date_format_id, 'Custom date format appears in the date format list.');
     $this->assertText(t('Delete'), 'Delete link for custom date format appears.');
 
     // Edit custom date format.
-    $this->drupalGet('admin/config/regional/date-time/formats');
+    $this->drupalGet('admin/config/regional/date-time');
     $this->clickLink(t('Edit'));
     $edit = array(
       'date_format_pattern' => 'Y m',
     );
     $this->drupalPost($this->getUrl(), $edit, t('Save format'));
-    $this->assertEqual($this->getUrl(), url('admin/config/regional/date-time/formats', array('absolute' => TRUE)), 'Correct page redirection.');
+    $this->assertEqual($this->getUrl(), url('admin/config/regional/date-time', array('absolute' => TRUE)), 'Correct page redirection.');
     $this->assertText(t('Custom date format updated.'), 'Custom date format successfully updated.');
 
     // Delete custom date format.
     $this->clickLink(t('Delete'));
-    $this->drupalPost('admin/config/regional/date-time/formats/' . $date_format_id . '/delete', array(), t('Remove'));
-    $this->assertEqual($this->getUrl(), url('admin/config/regional/date-time/formats', array('absolute' => TRUE)), 'Correct page redirection.');
+    $this->drupalPost('admin/config/regional/date-time/formats/manage/' . $date_format_id . '/delete', array(), t('Remove'));
+    $this->assertEqual($this->getUrl(), url('admin/config/regional/date-time', array('absolute' => TRUE)), 'Correct page redirection.');
     $this->assertText(t('Removed date format ' . $name), 'Custom date format removed.');
 
     // Make sure the date does not exist in config.
-    $date_format = config('system.date')->get('formats.' . $date_format_id);
-    $this->assertIdentical($date_format, NULL);
+    $date_format = entity_load('date_format', $date_format_id);
+    $this->assertFalse($date_format);
   }
 
   /**
    * Test if the date formats are stored properly.
    */
   function testDateFormatStorage() {
-    $date_format_info = array(
-      'name' => 'testDateFormatStorage Short Format',
+    $date_format = entity_create('date_format', array(
+      'id' => 'test_short',
+      'label' => 'testDateFormatStorage Short Format',
       'pattern' => array('php' => 'dmYHis'),
-    );
+    ));
+    $date_format->save();
 
-    system_date_format_save('test_short', $date_format_info);
-
-    $format = config('system.date')->get('formats.test_short.pattern.php');
+    $format = $date_format->getPattern();
     $this->assertEqual('dmYHis', $format, 'Unlocalized date format resides in general config.');
 
-    $date_format_info['locales'] = array('en');
-
-    system_date_format_save('test_short_en', $date_format_info);
-
-    $format = config('system.date')->get('formats.test_short_en.pattern.php');
+    $date_format->addLocale('en')->save();
+    $format = $date_format->getPattern();
     $this->assertEqual('dmYHis', $format, 'Localized date format resides in general config too.');
 
-    $format = config('locale.config.en.system.date')->get('formats.test_short_en.pattern.php');
+    $format = \Drupal::config('locale.config.en.system.date_format.test_short')->get('pattern.php');
     $this->assertEqual('dmYHis', $format, 'Localized date format resides in localized config.');
   }
 
@@ -146,11 +143,12 @@ class DateTimeTest extends WebTestBase {
    * Test that date formats are sanitized.
    */
   function testDateFormatXSS() {
-    $date_format_info = array(
-      'name' => 'XSS format',
+    $date_format = entity_create('date_format', array(
+      'id' => 'xss_short',
+      'label' => 'XSS format',
       'pattern' => array('php' => '\<\s\c\r\i\p\t\>\a\l\e\r\t\(\'\X\S\S\'\)\;\<\/\s\c\r\i\p\t\>'),
-    );
-    system_date_format_save('xss_short', $date_format_info);
+    ));
+    $date_format->save();
 
     $this->drupalGet('admin/config/regional/date-time');
     $this->assertNoRaw("<script>alert('XSS');</script>", 'The date format was properly sanitized');

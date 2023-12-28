@@ -7,9 +7,10 @@
 
 namespace Drupal\views\Tests;
 
+use Drupal\Core\Database\Query\SelectInterface;
 use Drupal\simpletest\WebTestBase;
 use Drupal\views\ViewExecutable;
-use Drupal\block\Plugin\Core\Entity\Block;
+use Drupal\block\Entity\Block;
 
 /**
  * Defines a base class for Views testing in the full web test environment.
@@ -228,13 +229,17 @@ abstract class ViewTestBase extends WebTestBase {
     $view->setDisplay();
     $view->preExecute($args);
     $view->execute();
-    $this->verbose('<pre>Executed view: ' . ((string) $view->build_info['query']) . '</pre>');
+    $verbose_message = '<pre>Executed view: ' . ((string) $view->build_info['query']). '</pre>';
+    if ($view->build_info['query'] instanceof SelectInterface) {
+      $verbose_message .= '<pre>Arguments: ' . print_r($view->build_info['query']->getArguments(), TRUE) . '</pre>';
+    }
+    $this->verbose($verbose_message);
   }
 
   /**
    * Checks to see whether a block appears on the page.
    *
-   * @param \Drupal\block\Plugin\Core\Entity\Block $block
+   * @param \Drupal\block\Entity\Block $block
    *   The block entity to find on the page.
    */
   protected function assertBlockAppears(Block $block) {
@@ -245,7 +250,7 @@ abstract class ViewTestBase extends WebTestBase {
   /**
    * Checks to see whether a block does not appears on the page.
    *
-   * @param \Drupal\block\Plugin\Core\Entity\Block $block
+   * @param \Drupal\block\Entity\Block $block
    *   The block entity to find on the page.
    */
   protected function assertNoBlockAppears(Block $block) {
@@ -256,7 +261,7 @@ abstract class ViewTestBase extends WebTestBase {
   /**
    * Find a block instance on the page.
    *
-   * @param \Drupal\block\Plugin\Core\Entity\Block $block
+   * @param \Drupal\block\Entity\Block $block
    *   The block entity to find on the page.
    *
    * @return array

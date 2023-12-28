@@ -7,14 +7,16 @@
 
 namespace Drupal\Core\Entity;
 
+use Drupal\Core\Form\FormBase;
 use Drupal\entity\EntityFormDisplayInterface;
-
+use Drupal\Core\Extension\ModuleHandlerInterface;
 use Drupal\Core\Language\Language;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
  * Base class for entity form controllers.
  */
-class EntityFormController implements EntityFormControllerInterface {
+class EntityFormController extends FormBase implements EntityFormControllerInterface {
 
   /**
    * The name of the current operation.
@@ -27,6 +29,13 @@ class EntityFormController implements EntityFormControllerInterface {
   protected $operation;
 
   /**
+   * The module handler service.
+   *
+   * @var \Drupal\Core\Extension\ModuleHandlerInterface
+   */
+  protected $moduleHandler;
+
+  /**
    * The entity being used by this form.
    *
    * @var \Drupal\Core\Entity\EntityInterface
@@ -34,33 +43,29 @@ class EntityFormController implements EntityFormControllerInterface {
   protected $entity;
 
   /**
-   * Constructs an EntityFormController object.
-   *
-   * @param string|null $operation
-   *   (optional) The name of the current operation, defaults to NULL.
-   */
-  public function __construct($operation = NULL) {
-    $this->setOperation($operation);
-  }
-
-  /**
-   * Sets the operation for this form.
-   *
-   * @param string $operation
-   *   The name of the current operation.
+   * {@inheritdoc}
    */
   public function setOperation($operation) {
     // If NULL is passed, do not overwrite the operation.
     if ($operation) {
       $this->operation = $operation;
     }
+    return $this;
   }
 
   /**
    * {@inheritdoc}
    */
   public function getBaseFormID() {
-    return $this->entity->entityType() . '_form';
+    // Assign ENTITYTYPE_form as base form ID to invoke corresponding
+    // hook_form_alter(), #validate, #submit, and #theme callbacks, but only if
+    // it is different from the actual form ID, since callbacks would be invoked
+    // twice otherwise.
+    $base_form_id = $this->entity->entityType() . '_form';
+    if ($base_form_id == $this->getFormID()) {
+      $base_form_id = '';
+    }
+    return $base_form_id;
   }
 
   /**
@@ -104,12 +109,6 @@ class EntityFormController implements EntityFormControllerInterface {
   /**
    * {@inheritdoc}
    */
-  public function validateForm(array &$form, array &$form_state) {
-  }
-
-  /**
-   * {@inheritdoc}
-   */
   public function submitForm(array &$form, array &$form_state) {
   }
 
@@ -120,21 +119,29 @@ class EntityFormController implements EntityFormControllerInterface {
     // Add the controller to the form state so it can be easily accessed by
     // module-provided form handlers there.
     $form_state['controller'] = $this;
+
+    // Ensure we act on the translation object corresponding to the current form
+    // language.
+    $this->entity = $this->getTranslatedEntity($form_state);
+
+    // Prepare the entity to be presented in the entity form.
     $this->prepareEntity();
 
-    // @todo Allow the usage of different form modes by exposing a hook and the
-    // UI for them.
-    $form_display = entity_get_render_form_display($this->entity, 'default');
+    $form_display = entity_get_render_form_display($this->entity, $this->getOperation());
 
     // Let modules alter the form display.
     $form_display_context = array(
       'entity_type' => $this->entity->entityType(),
       'bundle' => $this->entity->bundle(),
-      'form_mode' => 'default',
+      'form_mode' => $this->getOperation(),
     );
-    \Drupal::moduleHandler()->alter('entity_form_display', $form_display, $form_display_context);
+    $this->moduleHandler->alter('entity_form_display', $form_display, $form_display_context);
 
     $this->setFormDisplay($form_display, $form_state);
+
+    // Invoke the prepare form hooks.
+    $this->prepareInvokeAll('entity_prepare_form', $form_state);
+    $this->prepareInvokeAll($this->entity->entityType() . '_prepare_form', $form_state);
   }
 
   /**
@@ -151,12 +158,8 @@ class EntityFormController implements EntityFormControllerInterface {
       field_attach_form($entity, $form, $form_state, $this->getFormLangcode($form_state));
     }
 
-    // Assign the weights configured in the form display.
-    foreach ($this->getFormDisplay($form_state)->getComponents() as $name => $options) {
-      if (isset($form[$name])) {
-        $form[$name]['#weight'] = $options['weight'];
-      }
-    }
+    // Add a process callback so we can assign weights and hide extra fields.
+    $form['#process'][] = array($this, 'processForm');
 
     if (!isset($form['langcode'])) {
       // If the form did not specify otherwise, default to keeping the existing
@@ -164,10 +167,34 @@ class EntityFormController implements EntityFormControllerInterface {
       // new entities.
       $form['langcode'] = array(
         '#type' => 'value',
-        '#value' => !$entity->isNew() ? $entity->langcode : language_default()->langcode,
+        '#value' => !$entity->isNew() ? $entity->getUntranslated()->language()->id : language_default()->id,
       );
     }
     return $form;
+  }
+
+  /**
+   * Process callback: assigns weights and hides extra fields.
+   *
+   * @see \Drupal\Core\Entity\EntityFormController::form()
+   */
+  public function processForm($element, $form_state, $form) {
+    // Assign the weights configured in the form display.
+    foreach ($this->getFormDisplay($form_state)->getComponents() as $name => $options) {
+      if (isset($element[$name])) {
+        $element[$name]['#weight'] = $options['weight'];
+      }
+    }
+
+    // Hide extra fields.
+    $extra_fields = field_info_extra_fields($this->entity->entityType(), $this->entity->bundle(), 'form');
+    foreach ($extra_fields as $extra_field => $info) {
+      if (!$this->getFormDisplay($form_state)->getComponent($extra_field)) {
+        $element[$extra_field]['#access'] = FALSE;
+      }
+    }
+
+    return $element;
   }
 
   /**
@@ -216,7 +243,7 @@ class EntityFormController implements EntityFormControllerInterface {
     return array(
       // @todo Rename the action key from submit to save.
       'submit' => array(
-        '#value' => t('Save'),
+        '#value' => $this->t('Save'),
         '#validate' => array(
           array($this, 'validate'),
         ),
@@ -226,7 +253,7 @@ class EntityFormController implements EntityFormControllerInterface {
         ),
       ),
       'delete' => array(
-        '#value' => t('Delete'),
+        '#value' => $this->t('Delete'),
         // No need to validate the form when deleting the entity.
         '#submit' => array(
           array($this, 'delete'),
@@ -241,13 +268,50 @@ class EntityFormController implements EntityFormControllerInterface {
    * Implements \Drupal\Core\Entity\EntityFormControllerInterface::validate().
    */
   public function validate(array $form, array &$form_state) {
-    // @todo Exploit the Field API to validate the values submitted for the
-    // entity properties.
     $entity = $this->buildEntity($form, $form_state);
-    $info = $entity->entityInfo();
+    $entity_type = $entity->entityType();
+    $entity_langcode = $entity->language()->id;
 
-    if (!empty($info['fieldable'])) {
-      field_attach_form_validate($entity, $form, $form_state);
+    $violations = array();
+
+    // @todo Simplify when all entity types are converted to EntityNG.
+    if ($entity instanceof EntityNG) {
+      foreach ($entity as $field_name => $field) {
+        $field_violations = $field->validate();
+        if (count($field_violations)) {
+          $violations[$field_name] = $field_violations;
+        }
+      }
+    }
+    else {
+      // For BC entities, iterate through each field instance and
+      // instantiate NG items objects manually.
+      $definitions = \Drupal::entityManager()->getFieldDefinitions($entity_type, $entity->bundle());
+      foreach (field_info_instances($entity_type, $entity->bundle()) as $field_name => $instance) {
+        $langcode = field_is_translatable($entity_type, $instance->getField()) ? $entity_langcode : Language::LANGCODE_NOT_SPECIFIED;
+
+        // Create the field object.
+        $items = isset($entity->{$field_name}[$langcode]) ? $entity->{$field_name}[$langcode] : array();
+        // @todo Exception : calls setValue(), tries to set the 'formatted'
+        // property.
+        $field = \Drupal::typedData()->create($definitions[$field_name], $items, $field_name, $entity);
+        $field_violations = $field->validate();
+        if (count($field_violations)) {
+          $violations[$field->getName()] = $field_violations;
+        }
+      }
+    }
+
+    // Map errors back to form elements.
+    if ($violations) {
+      foreach ($violations as $field_name => $field_violations) {
+        $langcode = field_is_translatable($entity_type , field_info_field($entity_type, $field_name)) ? $entity_langcode : Language::LANGCODE_NOT_SPECIFIED;
+        $field_state = field_form_get_state($form['#parents'], $field_name, $langcode, $form_state);
+        $field_state['constraint_violations'] = $field_violations;
+        field_form_set_state($form['#parents'], $field_name, $langcode, $form_state, $field_state);
+      }
+
+      field_invoke_method('flagErrors', _field_invoke_widget_target($form_state['form_display']), $entity, $form, $form_state);
     }
 
     // @todo Remove this.
@@ -309,7 +373,6 @@ class EntityFormController implements EntityFormControllerInterface {
    */
   public function getFormLangcode(array $form_state) {
     $entity = $this->entity;
-    $translations = $entity->getTranslationLanguages();
 
     if (!empty($form_state['langcode'])) {
       $langcode = $form_state['langcode'];
@@ -318,7 +381,8 @@ class EntityFormController implements EntityFormControllerInterface {
       // If no form langcode was provided we default to the current content
       // language and inspect existing translations to find a valid fallback,
       // if any.
-      $langcode = language(Language::TYPE_CONTENT)->langcode;
+      $translations = $entity->getTranslationLanguages();
+      $langcode = language(Language::TYPE_CONTENT)->id;
       $fallback = language_multilingual() ? language_fallback_get_candidates() : array();
       while (!empty($langcode) && !isset($translations[$langcode])) {
         $langcode = array_shift($fallback);
@@ -327,23 +391,23 @@ class EntityFormController implements EntityFormControllerInterface {
 
     // If the site is not multilingual or no translation for the given form
     // language is available, fall back to the entity language.
-    return !empty($langcode) ? $langcode : $entity->language()->langcode;
+    return !empty($langcode) ? $langcode : $entity->getUntranslated()->language()->id;
   }
 
   /**
    * Implements \Drupal\Core\Entity\EntityFormControllerInterface::isDefaultFormLangcode().
    */
   public function isDefaultFormLangcode(array $form_state) {
-    return $this->getFormLangcode($form_state) == $this->entity->language()->langcode;
+    return $this->getFormLangcode($form_state) == $this->entity->getUntranslated()->language()->id;
   }
 
   /**
    * Updates the form language to reflect any change to the entity language.
    *
    * @param array $form_state
-   *   A keyed array containing the current state of the form.
+   *   A reference to a keyed array containing the current state of the form.
    */
-  protected function updateFormLangcode(array $form_state) {
+  protected function updateFormLangcode(array &$form_state) {
     // Update the form language as it might have changed.
     if (isset($form_state['values']['langcode']) && $this->isDefaultFormLangcode($form_state)) {
       $form_state['langcode'] = $form_state['values']['langcode'];
@@ -363,24 +427,24 @@ class EntityFormController implements EntityFormControllerInterface {
     $entity_type = $entity->entityType();
 
     if (field_has_translation_handler($entity_type)) {
-      $form_langcode = $this->getFormLangcode($form_state);
-
       // If we are editing the default language values, we use the submitted
       // entity language as the new language for fields to handle any language
       // change. Otherwise the current form language is the proper value, since
       // in this case it is not supposed to change.
-      $current_langcode = $entity->language()->langcode == $form_langcode ? $form_state['values']['langcode'] : $form_langcode;
+      $current_langcode = $this->isDefaultFormLangcode($form_state) ? $form_state['values']['langcode'] : $this->getFormLangcode($form_state);
 
       foreach (field_info_instances($entity_type, $entity->bundle()) as $instance) {
-        $field_name = $instance['field_name'];
-        $field = field_info_field($field_name);
-        $previous_langcode = $form[$field_name]['#language'];
+        $field = $instance->getField();
+        $field_name = $field->name;
+        if (isset($form[$field_name]['#language'])) {
+          $previous_langcode = $form[$field_name]['#language'];
 
-        // Handle a possible language change: new language values are inserted,
-        // previous ones are deleted.
-        if ($field['translatable'] && $previous_langcode != $current_langcode) {
-          $form_state['values'][$field_name][$current_langcode] = $form_state['values'][$field_name][$previous_langcode];
-          $form_state['values'][$field_name][$previous_langcode] = array();
+          // Handle a possible language change: new language values are inserted,
+          // previous ones are deleted.
+          if ($field['translatable'] && $previous_langcode != $current_langcode) {
+            $form_state['values'][$field_name][$current_langcode] = $form_state['values'][$field_name][$previous_langcode];
+            $form_state['values'][$field_name][$previous_langcode] = array();
+          }
         }
       }
     }
@@ -391,9 +455,13 @@ class EntityFormController implements EntityFormControllerInterface {
    */
   public function buildEntity(array $form, array &$form_state) {
     $entity = clone $this->entity;
+    // If you submit a form, the form state comes from caching, which forces
+    // the controller to be the one before caching. Ensure to have the
+    // controller of the current request.
+    $form_state['controller'] = $this;
     // @todo Move entity_form_submit_build_entity() here.
     // @todo Exploit the Field API to process the submitted entity field.
-    entity_form_submit_build_entity($entity->entityType(), $entity, $form, $form_state);
+    entity_form_submit_build_entity($entity->entityType(), $entity, $form, $form_state, array('langcode' => $this->getFormLangcode($form_state)));
     return $entity;
   }
 
@@ -402,6 +470,17 @@ class EntityFormController implements EntityFormControllerInterface {
    */
   public function getEntity() {
     return $this->entity;
+  }
+
+  /**
+   * Returns the translation object corresponding to the form language.
+   *
+   * @param array $form_state
+   *   A keyed array containing the current state of the form.
+   */
+  protected function getTranslatedEntity(array $form_state) {
+    $langcode = $this->getFormLangcode($form_state);
+    return $this->entity->getTranslation($langcode);
   }
 
   /**
@@ -415,8 +494,27 @@ class EntityFormController implements EntityFormControllerInterface {
   /**
    * Prepares the entity object before the form is built first.
    */
-  protected function prepareEntity() {
-    // @todo Perform common prepare operations and add a hook.
+  protected function prepareEntity() {}
+
+  /**
+   * Invokes the specified prepare hook variant.
+   *
+   * @param string $hook
+   *   The hook variant name.
+   * @param array $form_state
+   *   An associative array containing the current state of the form.
+   */
+  protected function prepareInvokeAll($hook, array &$form_state) {
+    $implementations = $this->moduleHandler->getImplementations($hook);
+    foreach ($implementations as $module) {
+      $function = $module . '_' . $hook;
+      if (function_exists($function)) {
+        // Ensure we pass an updated translation object and form display at
+        // each invocation, since they depend on form state which is alterable.
+        $args = array($this->getTranslatedEntity($form_state), $this->getFormDisplay($form_state), $this->operation, &$form_state);
+        call_user_func_array($function, $args);
+      }
+    }
   }
 
   /**
@@ -440,4 +538,13 @@ class EntityFormController implements EntityFormControllerInterface {
   public function getOperation() {
     return $this->operation;
   }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function setModuleHandler(ModuleHandlerInterface $module_handler) {
+    $this->moduleHandler = $module_handler;
+    return $this;
+  }
+
 }

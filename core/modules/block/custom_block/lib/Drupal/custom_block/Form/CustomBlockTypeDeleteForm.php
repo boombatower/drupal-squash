@@ -8,15 +8,13 @@
 namespace Drupal\custom_block\Form;
 
 use Drupal\Core\Entity\EntityConfirmFormBase;
-use Drupal\Core\Entity\EntityControllerInterface;
 use Drupal\Core\Entity\Query\QueryFactory;
 use Symfony\Component\DependencyInjection\ContainerInterface;
-use Symfony\Component\HttpFoundation\Request;
 
 /**
  * Provides a confirmation form for deleting a custom block type entity.
  */
-class CustomBlockTypeDeleteForm extends EntityConfirmFormBase implements EntityControllerInterface {
+class CustomBlockTypeDeleteForm extends EntityConfirmFormBase {
 
   /**
    * The query factory to create entity queries.
@@ -38,7 +36,7 @@ class CustomBlockTypeDeleteForm extends EntityConfirmFormBase implements EntityC
   /**
    * {@inheritdoc}
    */
-  public static function createInstance(ContainerInterface $container, $entity_type, array $entity_info) {
+  public static function create(ContainerInterface $container) {
     return new static(
       $container->get('entity.query')
     );
@@ -55,7 +53,7 @@ class CustomBlockTypeDeleteForm extends EntityConfirmFormBase implements EntityC
    * {@inheritdoc}
    */
   public function getCancelPath() {
-    return 'admin/structure/custom-blocks';
+    return 'admin/structure/custom-blocks/types';
   }
 
   /**
@@ -68,7 +66,7 @@ class CustomBlockTypeDeleteForm extends EntityConfirmFormBase implements EntityC
   /**
    * {@inheritdoc}
    */
-  public function buildForm(array $form, array &$form_state, Request $request = NULL) {
+  public function buildForm(array $form, array &$form_state) {
     $blocks = $this->queryFactory->get('custom_block')->condition('type', $this->entity->id())->execute();
     if (!empty($blocks)) {
       $caption = '<p>' . format_plural(count($blocks), '%label is used by 1 custom block on your site. You can not remove this block type until you have removed all of the %label blocks.', '%label is used by @count custom blocks on your site. You may not remove %label until you have removed all of the %label custom blocks.', array('%label' => $this->entity->label())) . '</p>';
@@ -76,7 +74,7 @@ class CustomBlockTypeDeleteForm extends EntityConfirmFormBase implements EntityC
       return $form;
     }
     else {
-      return parent::buildForm($form, $form_state, $request);
+      return parent::buildForm($form, $form_state);
     }
   }
 
@@ -85,7 +83,7 @@ class CustomBlockTypeDeleteForm extends EntityConfirmFormBase implements EntityC
    */
   public function submit(array $form, array &$form_state) {
     $this->entity->delete();
-    $form_state['redirect'] = 'admin/structure/custom-blocks';
+    $form_state['redirect'] = 'admin/structure/custom-blocks/types';
     drupal_set_message(t('Custom block type %label has been deleted.', array('%label' => $this->entity->label())));
     watchdog('custom_block', 'Custom block type %label has been deleted.', array('%label' => $this->entity->label()), WATCHDOG_NOTICE);
   }

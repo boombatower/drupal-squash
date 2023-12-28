@@ -11,7 +11,7 @@ use Drupal\ckeditor\CKEditorPluginBase;
 use Drupal\Component\Utility\NestedArray;
 use Drupal\ckeditor\Annotation\CKEditorPlugin;
 use Drupal\Core\Annotation\Translation;
-use Drupal\editor\Plugin\Core\Entity\Editor;
+use Drupal\editor\Entity\Editor;
 
 /**
  * Defines the "internal" plugin (i.e. core plugins part of our CKEditor build).
@@ -46,13 +46,8 @@ class Internal extends CKEditorPluginBase {
     $config = array(
       'customConfig' => '', // Don't load CKEditor's config.js file.
       'pasteFromWordPromptCleanup' => TRUE,
-      'removeDialogTabs' => 'image:Link;image:advanced;link:advanced',
       'resize_dir' => 'vertical',
-      'keystrokes' =>  array(
-        // 0x11000 is CKEDITOR.CTRL, see http://docs.ckeditor.com/#!/api/CKEDITOR-property-CTRL.
-        array(0x110000 + 75, 'link'),
-        array(0x110000 + 76, NULL),
-      ),
+      'justifyClasses' => array('align-left', 'align-center', 'align-right', 'align-justify'),
     );
 
     // Add the allowedContent setting, which ensures CKEditor only allows tags
@@ -86,6 +81,10 @@ class Internal extends CKEditorPluginBase {
         'label' => t('Italic'),
         'image_alternative' => $button('italic'),
       ),
+      'Underline' => array(
+        'label' => t('Underline'),
+        'image_alternative' => $button('underline'),
+      ),
       'Strike' => array(
         'label' => t('Strike-through'),
         'image_alternative' => $button('strike'),
@@ -102,6 +101,23 @@ class Internal extends CKEditorPluginBase {
       'RemoveFormat' => array(
         'label' => t('Remove format'),
         'image_alternative' => $button('remove format'),
+      ),
+      // "justify" plugin.
+      'JustifyLeft' => array(
+        'label' => t('Align left'),
+        'image_alternative' => $button('justify left'),
+      ),
+      'JustifyCenter' => array(
+        'label' => t('Align center'),
+        'image_alternative' => $button('justify center'),
+      ),
+      'JustifyRight' => array(
+        'label' => t('Align right'),
+        'image_alternative' => $button('justify right'),
+      ),
+      'JustifyBlock' => array(
+        'label' => t('Justify'),
+        'image_alternative' => $button('justify block'),
       ),
       // "list" plugin.
       'BulletedList' => array(
@@ -135,20 +151,6 @@ class Internal extends CKEditorPluginBase {
         'label' => t('Redo'),
         'image_alternative' => $button('redo'),
         'image_alternative_rtl' => $button('redo', 'rtl'),
-      ),
-      // "link" plugin.
-      'Link' => array(
-        'label' => t('Link'),
-        'image_alternative' => $button('link'),
-      ),
-      'Unlink' => array(
-        'label' => t('Unlink'),
-        'image_alternative' => $button('unlink'),
-      ),
-      'Anchor' => array(
-        'label' => t('Anchor'),
-        'image_alternative' => $button('anchor'),
-        'image_alternative_rtl' => $button('anchor', 'rtl'),
       ),
       // "blockquote" plugin.
       'Blockquote' => array(
@@ -197,11 +199,6 @@ class Internal extends CKEditorPluginBase {
         'label' => t('HTML block format'),
         'image_alternative' => '<a href="#" role="button" aria-label="' . t('Format') . '"><span class="ckeditor-button-dropdown">' . t('Format') . '<span class="ckeditor-button-arrow"></span></span></a>',
       ),
-      // "image" plugin.
-      'Image' => array(
-        'label' => t('Image'),
-        'image_alternative' => $button('image'),
-      ),
       // "table" plugin.
       'Table' => array(
         'label' => t('Table'),
@@ -244,7 +241,7 @@ class Internal extends CKEditorPluginBase {
    *
    * @see getConfig()
    *
-   * @param \Drupal\editor\Plugin\Core\Entity\Editor $editor
+   * @param \Drupal\editor\Entity\Editor $editor
    *   A configured text editor object.
    *
    * @return array
@@ -278,7 +275,7 @@ class Internal extends CKEditorPluginBase {
    *
    * @see getConfig()
    *
-   * @param \Drupal\editor\Plugin\Core\Entity\Editor $editor
+   * @param \Drupal\editor\Entity\Editor $editor
    *   A configured text editor object.
    *
    * @return string|TRUE

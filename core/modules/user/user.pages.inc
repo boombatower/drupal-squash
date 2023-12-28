@@ -19,17 +19,17 @@ function user_pass_reset($form, &$form_state, $uid, $timestamp, $hashed_pass, $a
 
   // When processing the one-time login link, we have to make sure that a user
   // isn't already logged in.
-  if ($user->uid) {
+  if ($user->isAuthenticated()) {
     // The existing user is already logged in.
-    if ($user->uid == $uid) {
-      drupal_set_message(t('You are logged in as %user. <a href="!user_edit">Change your password.</a>', array('%user' => $user->name, '!user_edit' => url("user/$user->uid/edit"))));
+    if ($user->id() == $uid) {
+      drupal_set_message(t('You are logged in as %user. <a href="!user_edit">Change your password.</a>', array('%user' => $user->getUsername(), '!user_edit' => url("user/" . $user->id() . "/edit"))));
     }
     // A different user is already logged in on the computer.
     else {
       $reset_link_account = user_load($uid);
       if (!empty($reset_link_account)) {
         drupal_set_message(t('Another user (%other_user) is already logged into the site on this computer, but you tried to use a one-time link for user %resetting_user. Please <a href="!logout">logout</a> and try using the link again.',
-          array('%other_user' => $user->name, '%resetting_user' => $reset_link_account->name, '!logout' => url('user/logout'))));
+          array('%other_user' => $user->getUsername(), '%resetting_user' => $reset_link_account->getUsername(), '!logout' => url('user/logout'))));
       } else {
         // Invalid one-time link specifies an unknown user.
         drupal_set_message(t('The one-time login link you clicked is invalid.'));
@@ -39,41 +39,40 @@ function user_pass_reset($form, &$form_state, $uid, $timestamp, $hashed_pass, $a
   }
   else {
     // Time out, in seconds, until login URL expires.
-    $timeout = config('user.settings')->get('password_reset_timeout');
+    $timeout = Drupal::config('user.settings')->get('password_reset_timeout');
     $current = REQUEST_TIME;
     $account = user_load($uid);
     // Verify that the user exists and is active.
-    if ($timestamp <= $current && $account && $account->status) {
+    if ($timestamp <= $current && $account && $account->isActive()) {
       // No time out for first time login.
-      if ($account->login && $current - $timestamp > $timeout) {
+      if ($account->getLastLoginTime() && $current - $timestamp > $timeout) {
         drupal_set_message(t('You have tried to use a one-time login link that has expired. Please request a new one using the form below.'));
         return new RedirectResponse(url('user/password', array('absolute' => TRUE)));
       }
-      elseif ($account->uid && $timestamp >= $account->login && $timestamp <= $current && $hashed_pass == user_pass_rehash($account->pass, $timestamp, $account->login)) {
+      elseif ($account->isAuthenticated() && $timestamp >= $account->getLastLoginTime() && $timestamp <= $current && $hashed_pass == user_pass_rehash($account->getPassword(), $timestamp, $account->getLastLoginTime())) {
         // First stage is a confirmation form, then login
         if ($action == 'login') {
           // Set the new user.
-          $user = $account;
           // user_login_finalize() also updates the login timestamp of the
           // user, which invalidates further use of the one-time login link.
-          user_login_finalize();
-          watchdog('user', 'User %name used one-time login link at time %timestamp.', array('%name' => $account->name, '%timestamp' => $timestamp));
+          user_login_finalize($account);
+          watchdog('user', 'User %name used one-time login link at time %timestamp.', array('%name' => $account->getUsername(), '%timestamp' => $timestamp));
           drupal_set_message(t('You have just used your one-time login link. It is no longer necessary to use this link to log in. Please change your password.'));
           // Let the user's password be changed without the current password check.
           $token = Crypt::randomStringHashed(55);
-          $_SESSION['pass_reset_' . $user->uid] = $token;
-          return new RedirectResponse(url('user/' . $user->uid . '/edit', array(
+          $_SESSION['pass_reset_' . $user->id()] = $token;
+          return new RedirectResponse(url('user/' . $user->id() . '/edit', array(
             'query' => array('pass-reset-token' => $token),
             'absolute' => TRUE,
           )));
         }
         else {
-          if (!$account->login) {
+          if (!$account->getLastLoginTime()) {
             // No expiration for first time login.
-            $form['message'] = array('#markup' => t('<p>This is a one-time login for %user_name.</p><p>Click on this button to log in to the site and change your password.</p>', array('%user_name' => $account->name)));
+            $form['message'] = array('#markup' => t('<p>This is a one-time login for %user_name.</p><p>Click on this button to log in to the site and change your password.</p>', array('%user_name' => $account->getUsername())));
           }
           else {
-            $form['message'] = array('#markup' => t('<p>This is a one-time login for %user_name and will expire on %expiration_date.</p><p>Click on this button to log in to the site and change your password.</p>', array('%user_name' => $account->name, '%expiration_date' => format_date($timestamp + $timeout))));
+            $form['message'] = array('#markup' => t('<p>This is a one-time login for %user_name and will expire on %expiration_date.</p><p>Click on this button to log in to the site and change your password.</p>', array('%user_name' => $account->getUsername(), '%expiration_date' => format_date($timestamp + $timeout))));
           }
           $form['help'] = array('#markup' => '<p>' . t('This login can be used only once.') . '</p>');
           $form['actions'] = array('#type' => 'actions');
@@ -124,13 +123,14 @@ function template_preprocess_user(&$variables) {
  */
 function user_edit_cancel_submit($form, &$form_state) {
   $destination = array();
-  if (isset($_GET['destination'])) {
+  $query = Drupal::request()->query;
+  if ($query->has('destination')) {
     $destination = drupal_get_destination();
-    unset($_GET['destination']);
+    $query->remove('destination');
   }
   // Note: We redirect from user/uid/edit to user/uid/cancel to make the tabs disappear.
   $account = $form_state['controller']->getEntity();
-  $form_state['redirect'] = array("user/" . $account->uid . "/cancel", array('query' => $destination));
+  $form_state['redirect'] = array("user/" . $account->id() . "/cancel", array('query' => $destination));
 }
 
 /**
@@ -149,7 +149,7 @@ function user_cancel_confirm_form($form, &$form_state, $account) {
   $can_select_method = $admin_access || user_access('select account cancellation method');
   $form['user_cancel_method'] = array(
     '#type' => 'radios',
-    '#title' => ($account->uid == $user->uid ? t('When cancelling your account') : t('When cancelling the account')),
+    '#title' => ($account->id() == $user->id() ? t('When cancelling your account') : t('When cancelling the account')),
     '#access' => $can_select_method,
   );
   $form['user_cancel_method'] += user_cancel_methods();
@@ -157,7 +157,7 @@ function user_cancel_confirm_form($form, &$form_state, $account) {
   // Allow user administrators to skip the account cancellation confirmation
   // mail (by default), as long as they do not attempt to cancel their own
   // account.
-  $override_access = $admin_access && ($account->uid != $user->uid);
+  $override_access = $admin_access && ($account->id() != $user->id());
   $form['user_cancel_confirm'] = array(
     '#type' => 'checkbox',
     '#title' => t('Require e-mail confirmation to cancel account.'),
@@ -166,7 +166,7 @@ function user_cancel_confirm_form($form, &$form_state, $account) {
     '#description' => t('When enabled, the user must confirm the account cancellation via e-mail.'),
   );
   // Also allow to send account canceled notification mail, if enabled.
-  $default_notify = config('user.settings')->get('notify.status_canceled');
+  $default_notify = Drupal::config('user.settings')->get('notify.status_canceled');
   $form['user_cancel_notify'] = array(
     '#type' => 'checkbox',
     '#title' => t('Notify user when account is canceled.'),
@@ -176,13 +176,13 @@ function user_cancel_confirm_form($form, &$form_state, $account) {
   );
 
   // Prepare confirmation form page title and description.
-  if ($account->uid == $user->uid) {
+  if ($account->id() == $user->id()) {
     $question = t('Are you sure you want to cancel your account?');
   }
   else {
-    $question = t('Are you sure you want to cancel the account %name?', array('%name' => $account->name));
+    $question = t('Are you sure you want to cancel the account %name?', array('%name' => $account->getUsername()));
   }
-  $default_method = config('user.settings')->get('cancel_method');
+  $default_method = Drupal::config('user.settings')->get('cancel_method');
   $description = NULL;
   if ($can_select_method) {
     $description = t('Select the method to cancel the account above.');
@@ -194,10 +194,10 @@ function user_cancel_confirm_form($form, &$form_state, $account) {
   }
 
   // Always provide entity id in the same form key as in the entity edit form.
-  $form['uid'] = array('#type' => 'value', '#value' => $account->uid);
+  $form['uid'] = array('#type' => 'value', '#value' => $account->id());
   return confirm_form($form,
     $question,
-    'user/' . $account->uid,
+    'user/' . $account->id(),
     $description . ' ' . t('This action cannot be undone.'),
     t('Cancel account'), t('Cancel'));
 }
@@ -215,8 +215,8 @@ function user_cancel_confirm_form_submit($form, &$form_state) {
   // Cancel account immediately, if the current user has administrative
   // privileges, no confirmation mail shall be sent, and the user does not
   // attempt to cancel the own account.
-  if (user_access('administer users') && empty($form_state['values']['user_cancel_confirm']) && $account->uid != $user->uid) {
-    user_cancel($form_state['values'], $account->uid, $form_state['values']['user_cancel_method']);
+  if (user_access('administer users') && empty($form_state['values']['user_cancel_confirm']) && $account->id() != $user->id()) {
+    user_cancel($form_state['values'], $account->id(), $form_state['values']['user_cancel_method']);
 
     $form_state['redirect'] = 'admin/people';
   }
@@ -228,9 +228,9 @@ function user_cancel_confirm_form_submit($form, &$form_state) {
     $account->save();
     _user_mail_notify('cancel_confirm', $account);
     drupal_set_message(t('A confirmation request to cancel your account has been sent to your e-mail address.'));
-    watchdog('user', 'Sent account cancellation request to %name %email.', array('%name' => $account->name, '%email' => '<' . $account->mail . '>'), WATCHDOG_NOTICE);
+    watchdog('user', 'Sent account cancellation request to %name %email.', array('%name' => $account->getUsername(), '%email' => '<' . $account->getEmail() . '>'), WATCHDOG_NOTICE);
 
-    $form_state['redirect'] = "user/$account->uid";
+    $form_state['redirect'] = "user/" . $account->id();
   }
 }
 
@@ -248,7 +248,7 @@ function user_cancel_confirm_form_submit($form, &$form_state) {
  * @see user_multiple_cancel_confirm()
  */
 function user_cancel_methods() {
-  $anonymous_name = config('user.settings')->get('anonymous');
+  $anonymous_name = Drupal::config('user.settings')->get('anonymous');
   $methods = array(
     'user_cancel_block' => array(
       'title' => t('Disable the account and keep its content.'),
@@ -272,7 +272,7 @@ function user_cancel_methods() {
   drupal_alter('user_cancel_methods', $methods);
 
   // Turn all methods into real form elements.
-  $default_method = config('user.settings')->get('cancel_method');
+  $default_method = Drupal::config('user.settings')->get('cancel_method');
   $form = array(
     '#options' => array(),
     '#default_value' => $default_method,
@@ -304,12 +304,12 @@ function user_cancel_confirm($account, $timestamp = 0, $hashed_pass = '') {
   $current = REQUEST_TIME;
 
   // Basic validation of arguments.
-  $account_data = drupal_container()->get('user.data')->get('user', $account->id());
+  $account_data = Drupal::service('user.data')->get('user', $account->id());
   if (isset($account_data['cancel_method']) && !empty($timestamp) && !empty($hashed_pass)) {
     // Validate expiration and hashed password/login.
-    if ($timestamp <= $current && $current - $timestamp < $timeout && $account->uid && $timestamp >= $account->login && $hashed_pass == user_pass_rehash($account->pass, $timestamp, $account->login)) {
+    if ($timestamp <= $current && $current - $timestamp < $timeout && $account->id() && $timestamp >= $account->getLastLoginTime() && $hashed_pass == user_pass_rehash($account->getPassword(), $timestamp, $account->getLastLoginTime())) {
       $edit = array(
-        'user_cancel_notify' => isset($account_data['cancel_notify']) ? $account_data['cancel_notify'] : config('user.settings')->get('notify.status_canceled'),
+        'user_cancel_notify' => isset($account_data['cancel_notify']) ? $account_data['cancel_notify'] : Drupal::config('user.settings')->get('notify.status_canceled'),
       );
       user_cancel($edit, $account->id(), $account_data['cancel_method']);
       // Since user_cancel() is not invoked via Form API, batch processing needs
@@ -319,24 +319,8 @@ function user_cancel_confirm($account, $timestamp = 0, $hashed_pass = '') {
     }
     else {
       drupal_set_message(t('You have tried to use an account cancellation link that has expired. Please request a new one using the form below.'));
-      return new RedirectResponse(url("user/$account->uid/cancel", array('absolute' => TRUE)));
+      return new RedirectResponse(url("user/" . $account->id() . "/cancel", array('absolute' => TRUE)));
     }
   }
   throw new AccessDeniedHttpException();
-}
-
-/**
- * Access callback for path /user.
- *
- * Displays user profile if user is logged in, or login form for anonymous
- * users.
- */
-function user_page() {
-  global $user;
-  if ($user->uid) {
-    return new RedirectResponse(url('user/' . $user->uid, array('absolute' => TRUE)));
-  }
-  else {
-    return drupal_get_form('user_login_form');
-  }
 }

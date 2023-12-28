@@ -7,7 +7,7 @@
 
 namespace Drupal\views\Plugin\views\pager;
 
-use Drupal\Component\Annotation\Plugin;
+use Drupal\views\Annotation\ViewsPager;
 use Drupal\Core\Annotation\Translation;
 
 /**
@@ -15,11 +15,13 @@ use Drupal\Core\Annotation\Translation;
  *
  * @ingroup views_pager_plugins
  *
- * @Plugin(
+ * @ViewsPager(
  *   id = "full",
  *   title = @Translation("Paged output, full pager"),
  *   short_title = @Translation("Full"),
- *   help = @Translation("Paged output, full Drupal style")
+ *   help = @Translation("Paged output, full Drupal style"),
+ *   theme = "pager",
+ *   register_theme = FALSE
  * )
  */
 class Full extends SqlBase {
@@ -78,24 +80,24 @@ class Full extends SqlBase {
   }
 
   /**
-   * Overrides \Drupal\views\Plugin\views\pager\PagerPluginBase::render().
+   * {@inheritdoc}
    */
-  function render($input) {
-    $pager_theme = views_theme_functions('pager', $this->view, $this->view->display_handler->display);
-    // The 0, 1, 3, 4 index are correct. See theme_pager documentation.
+  public function render($input) {
+    // The 0, 1, 3, 4 indexes are correct. See the template_preprocess_pager()
+    // documentation.
     $tags = array(
       0 => $this->options['tags']['first'],
       1 => $this->options['tags']['previous'],
       3 => $this->options['tags']['next'],
       4 => $this->options['tags']['last'],
     );
-    $output = theme($pager_theme, array(
-      'tags' => $tags,
-      'element' => $this->options['id'],
-      'parameters' => $input,
-      'quantity' => $this->options['quantity'],
-    ));
-    return $output;
+    return array(
+      '#theme' => $this->themeFunctions(),
+      '#tags' => $tags,
+      '#element' => $this->options['id'],
+      '#parameters' => $input,
+      '#quantity' => $this->options['quantity'],
+    );
   }
 
 

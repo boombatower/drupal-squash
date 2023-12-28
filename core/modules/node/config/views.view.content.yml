@@ -37,7 +37,9 @@ display:
           row_class_special: '1'
           override: '1'
           sticky: '1'
+          caption: ''
           summary: ''
+          description: ''
           columns:
             node_bulk_form: node_bulk_form
             title: title
@@ -49,44 +51,82 @@ display:
             delete_node: delete_node
             translation_link: translation_link
             dropbutton: dropbutton
+            timestamp: title
           info:
             node_bulk_form:
-              sortable: '0'
-              default_sort_order: asc
+              align: ''
+              separator: ''
+              empty_column: '0'
               responsive: ''
             title:
               sortable: '1'
               default_sort_order: asc
+              align: ''
+              separator: ''
+              empty_column: '0'
+              responsive: ''
             type:
               sortable: '1'
               default_sort_order: asc
+              align: ''
+              separator: ''
+              empty_column: '0'
+              responsive: ''
             name:
               sortable: '0'
               default_sort_order: asc
+              align: ''
+              separator: ''
+              empty_column: '0'
               responsive: priority-low
             status:
               sortable: '1'
               default_sort_order: asc
+              align: ''
+              separator: ''
+              empty_column: '0'
               responsive: ''
             changed:
               sortable: '1'
               default_sort_order: desc
+              align: ''
+              separator: ''
+              empty_column: '0'
               responsive: priority-low
             edit_node:
               sortable: '0'
               default_sort_order: asc
+              align: ''
+              separator: ''
+              empty_column: '0'
               responsive: ''
             delete_node:
               sortable: '0'
               default_sort_order: asc
+              align: ''
+              separator: ''
+              empty_column: '0'
               responsive: ''
             translation_link:
               sortable: '0'
               default_sort_order: asc
+              align: ''
+              separator: ''
+              empty_column: '0'
               responsive: ''
             dropbutton:
               sortable: '0'
               default_sort_order: asc
+              align: ''
+              separator: ''
+              empty_column: '0'
+              responsive: ''
+            timestamp:
+              sortable: '0'
+              default_sort_order: asc
+              align: ''
+              separator: ''
+              empty_column: '0'
               responsive: ''
           default: changed
           empty_table: '1'
@@ -108,6 +148,7 @@ display:
           empty_zero: '0'
           hide_alter_empty: '1'
           plugin_id: node_bulk_form
+          provider: node
         title:
           id: title
           table: node_field_data
@@ -124,6 +165,7 @@ display:
           hide_alter_empty: '1'
           link_to_node: '1'
           plugin_id: node
+          provider: node
         type:
           id: type
           table: node_field_data
@@ -141,6 +183,7 @@ display:
           link_to_node: '0'
           machine_name: '0'
           plugin_id: node_type
+          provider: node
         name:
           id: name
           table: users
@@ -161,6 +204,7 @@ display:
           anonymous_text: ''
           format_username: '1'
           plugin_id: user_name
+          provider: user
         status:
           id: status
           table: node_field_data
@@ -180,6 +224,7 @@ display:
           type_custom_false: ''
           not: '0'
           plugin_id: boolean
+          provider: views
         changed:
           id: changed
           table: node_field_data
@@ -198,22 +243,25 @@ display:
           custom_date_format: ''
           timezone: ''
           plugin_id: date
+          provider: views
         edit_node:
           id: edit_node
-          table: views_entity_node
+          table: node
           field: edit_node
           label: ''
           exclude: '1'
           text: Edit
           plugin_id: node_link_edit
+          provider: node
         delete_node:
           id: delete_node
-          table: views_entity_node
+          table: node
           field: delete_node
           label: ''
           exclude: '1'
           text: Delete
           plugin_id: node_link_delete
+          provider: node
         translation_link:
           id: translation_link
           table: node
@@ -230,7 +278,7 @@ display:
           empty: ''
           text: Translate
           optional: '1'
-          plugin_id: translation_entity_link
+          plugin_id: content_translation_link
         dropbutton:
           id: dropbutton
           table: views
@@ -242,6 +290,59 @@ display:
             translation_link: translation_link
           destination: '1'
           plugin_id: dropbutton
+          provider: views
+        timestamp:
+          id: timestamp
+          table: history
+          field: timestamp
+          relationship: none
+          group_type: group
+          admin_label: ''
+          label: 'Has new content'
+          exclude: '0'
+          alter:
+            alter_text: '0'
+            text: ''
+            make_link: '0'
+            path: ''
+            absolute: '0'
+            external: '0'
+            replace_spaces: '0'
+            path_case: none
+            trim_whitespace: '0'
+            alt: ''
+            rel: ''
+            link_class: ''
+            prefix: ''
+            suffix: ''
+            target: ''
+            nl2br: '0'
+            max_length: ''
+            word_boundary: '1'
+            ellipsis: '1'
+            more_link: '0'
+            more_link_text: ''
+            more_link_path: ''
+            strip_tags: '0'
+            trim: '0'
+            preserve_tags: ''
+            html: '0'
+          element_type: ''
+          element_class: ''
+          element_label_type: ''
+          element_label_class: ''
+          element_label_colon: '1'
+          element_wrapper_type: ''
+          element_wrapper_class: ''
+          element_default_classes: '1'
+          empty: ''
+          hide_empty: '0'
+          empty_zero: '0'
+          hide_alter_empty: '1'
+          link_to_node: '0'
+          comments: '0'
+          plugin_id: history_user_timestamp
+          provider: history
       filters:
         status_extra:
           id: status_extra
@@ -250,6 +351,7 @@ display:
           operator: '='
           value: ''
           plugin_id: node_status
+          provider: node
         status:
           id: status
           table: node_field_data
@@ -294,6 +396,7 @@ display:
                 operator: '='
                 value: '0'
           plugin_id: boolean
+          provider: views
         type:
           id: type
           table: node_field_data
@@ -315,6 +418,7 @@ display:
               authenticated: authenticated
             reduce: '0'
           plugin_id: bundle
+          provider: views
         langcode:
           id: langcode
           table: node
@@ -332,6 +436,7 @@ display:
               authenticated: authenticated
           optional: '1'
           plugin_id: language
+          provider: language
       sorts: {  }
       title: Content
       empty:
@@ -342,6 +447,7 @@ display:
           empty: '1'
           content: 'No content available.'
           plugin_id: text_custom
+          provider: views
       arguments: {  }
       relationships:
         uid:
@@ -351,6 +457,7 @@ display:
           admin_label: author
           required: '1'
           plugin_id: standard
+          provider: views
       show_admin_links: '0'
     display_plugin: default
     display_title: Master
@@ -380,4 +487,5 @@ label: Content
 module: node
 id: content
 tag: default
+uuid: 914eaf17-0b90-4fcd-a312-18b51e9dac77
 langcode: en

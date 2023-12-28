@@ -8,7 +8,7 @@
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
-use Drupal\block\Plugin\Core\Entity\Block;
+use Drupal\block\Entity\Block;
 use Drupal\Core\Session\AccountInterface;
 
 /**
@@ -22,26 +22,6 @@ function overlay_help($path, $arg) {
       $output .= '<p>' . t('The Overlay module makes the administration pages on your site display in a JavaScript overlay of the page you were viewing when you clicked the administrative link, instead of replacing the page in your browser window. Use the close link on the overlay to return to the page you were viewing when you clicked the link. For more information, see the online handbook entry for <a href="@overlay">Overlay module</a>.', array('@overlay' => 'http://drupal.org/documentation/modules/overlay')) . '</p>';
       return $output;
   }
-}
-
-/**
- * Implements hook_menu()
- */
-function overlay_menu() {
-  $items['overlay-ajax/%'] = array(
-    'title' => '',
-    'page callback' => 'overlay_ajax_render_region',
-    'page arguments' => array(1),
-    'access arguments' => array('access overlay'),
-    'type' => MENU_CALLBACK,
-  );
-  $items['overlay/dismiss-message'] = array(
-    'title' => '',
-    'page callback' => 'overlay_user_dismiss_message',
-    'access callback' => 'overlay_user_dismiss_message_access',
-    'type' => MENU_CALLBACK,
-  );
-  return $items;
 }
 
 /**
@@ -100,9 +80,9 @@ function overlay_field_extra_fields() {
 /**
  * Implements hook_form_FORM_ID_alter().
  */
-function overlay_form_user_profile_form_alter(&$form, &$form_state) {
+function overlay_form_user_form_alter(&$form, &$form_state) {
   $account = $form_state['controller']->getEntity();
-  if (user_access('access overlay', $account)) {
+  if ($account->hasPermission('access overlay')) {
     $account_data = Drupal::service('user.data')->get('overlay', $account->id(), 'enabled');
     $form['overlay_control'] = array(
       '#type' => 'details',
@@ -115,15 +95,17 @@ function overlay_form_user_profile_form_alter(&$form, &$form_state) {
       '#description' => t('Show administrative pages on top of the page you started from.'),
       '#default_value' => isset($account_data) ? $account_data : 1,
     );
+    $form['actions']['submit']['#submit'][] = 'overlay_user_profile_form_submit';
   }
 }
 
 /**
- * Implements hook_user_update().
+ * Submit callback for the user profile form to save the overlay page setting.
  */
-function overlay_user_update($account) {
-  if (isset($account->overlay)) {
-    Drupal::service('user.data')->set('overlay', $account->id(), 'enabled', (int) $account->overlay);
+function overlay_user_profile_form_submit($form, &$form_state) {
+  $account = $form_state['controller']->getEntity();
+  if ($account->id() && isset($form_state['values']['overlay'])) {
+    Drupal::service('user.data')->set('overlay', $account->id(), 'enabled', (int) $form_state['values']['overlay']);
   }
 }
 
@@ -220,56 +202,6 @@ function overlay_page_alter(&$page) {
 }
 
 /**
- * Access callback: Determines access to dismiss the accessibility message.
- *
- * @return
- *   TRUE if the user has permission to dismiss the accessibility message or if
- *   the user is anonymous. FALSE if otherwise.
- *
- * @see overlay_user_dismiss_message()
- * @see overlay_menu()
- */
-function overlay_user_dismiss_message_access() {
-  global $user;
-  if (!user_access('access overlay')) {
-    return FALSE;
-  }
-  // It's unlikely, but possible that "access overlay" permission is granted to
-  // the anonymous role. In this case, we do not display the message to disable
-  // the overlay, so there is nothing to dismiss.
-  if (empty($user->uid)) {
-    return FALSE;
-  }
-  return TRUE;
-}
-
-/**
- * Page callback: Dismisses the overlay accessibility message for this user.
- *
- * @return
- *   A render array for a page containing a list of content.
- *
- * @see overlay_user_dismiss_message_access()
- * @see overlay_menu()
- */
-function overlay_user_dismiss_message() {
-  global $user;
-
-  // @todo CSRF tokens are validated in page callbacks rather than access
-  //   callbacks, because access callbacks are also invoked during menu link
-  //   generation. Add token support to routing: http://drupal.org/node/755584.
-  $token = Drupal::request()->query->get('token');
-  if (!isset($token) || !drupal_valid_token($token, 'overlay')) {
-    throw new AccessDeniedHttpException();
-  }
-
-  Drupal::service('user.data')->set('overlay', $user->uid, 'message_dismissed', 1);
-  drupal_set_message(t('The message has been dismissed. You can change your overlay settings at any time by visiting your profile page.'));
-  // Destination is normally given. Go to the user profile as a fallback.
-  return new RedirectResponse(url('user/' . $user->uid . '/edit', array('absolute' => TRUE)));
-}
-
-/**
  * Returns a renderable array representing a message for disabling the overlay.
  *
  * If the current user can access the overlay and has not previously indicated
@@ -286,11 +218,11 @@ function overlay_disable_message() {
   global $user;
 
   $build = array();
-  if (empty($user->uid) || !user_access('access overlay')) {
+  if ($user->isAnonymous() || !$user->hasPermission('access overlay')) {
     return $build;
   }
 
-  $user_data = Drupal::service('user.data')->get('overlay', $user->uid);
+  $user_data = Drupal::service('user.data')->get('overlay', $user->id());
   if (empty($user_data['message_dismissed']) && (!isset($user_data['enabled']) || $user_data['enabled'])) {
     $build = array(
       '#theme' => 'overlay_disable_message',
@@ -299,7 +231,7 @@ function overlay_disable_message() {
       'profile_link' => array(
         '#type' => 'link',
         '#title' => t('If you have problems accessing administrative pages on this site, disable the overlay on your profile page.'),
-        '#href' => 'user/' . $user->uid . '/edit',
+        '#href' => 'user/' . $user->id() . '/edit',
         '#options' => array(
           'query' => drupal_get_destination(),
           'fragment' => 'edit-overlay-control',
@@ -518,7 +450,10 @@ function overlay_get_mode() {
  */
 function overlay_set_mode($mode = NULL) {
   global $base_path;
-  $overlay_mode = &drupal_static(__FUNCTION__);
+  // We're not using drupal_static() here since the static cache is reset in
+  // drupal_flush_all_caches(); this could lead to the loss of the overlay when
+  // submitting the admin/modules form, for instance.
+  static $overlay_mode;
 
   // Make sure external resources are not included more than once. Also return
   // the current mode, if no mode was specified.
@@ -532,14 +467,14 @@ function overlay_set_mode($mode = NULL) {
       drupal_add_library('overlay', 'drupal.overlay.parent');
 
       // Allow modules to act upon overlay events.
-      module_invoke_all('overlay_parent_initialize');
+      Drupal::moduleHandler()->invokeAll('overlay_parent_initialize');
       break;
 
     case 'child':
       drupal_add_library('overlay', 'drupal.overlay.child');
 
       // Allow modules to act upon overlay events.
-      module_invoke_all('overlay_child_initialize');
+      Drupal::moduleHandler()->invokeAll('overlay_child_initialize');
       break;
   }
   return $overlay_mode;
@@ -552,13 +487,13 @@ function overlay_overlay_parent_initialize() {
   // Let the client side know which paths are administrative.
   $paths = path_get_admin_paths();
   foreach ($paths as &$type) {
-    $type = str_replace('<front>', config('system.site')->get('page.front'), $type);
+    $type = str_replace('<front>', Drupal::config('system.site')->get('page.front'), $type);
   }
   drupal_add_js(array('overlay' => array('paths' => $paths)), 'setting');
   $path_prefixes = array();
   if (module_exists('language')) {
     language_negotiation_include();
-    if (config('language.negotiation')->get('url.source') == LANGUAGE_NEGOTIATION_URL_PREFIX) {
+    if (Drupal::config('language.negotiation')->get('url.source') == LANGUAGE_NEGOTIATION_URL_PREFIX) {
       // Skip the empty string indicating the default language. We always accept
       // paths without a prefix.
       $path_prefixes = language_negotiation_url_prefixes();
@@ -586,7 +521,8 @@ function overlay_overlay_child_initialize() {
   // actually did change, and, if so, trigger an immediate Ajax refresh
   // of the parent window.
   $token = Drupal::request()->query->get('token');
-  if (!empty($_POST) || isset($token)) {
+  $post = Drupal::request()->request->count();
+  if (!empty($post) || isset($token)) {
     foreach (overlay_supplemental_regions() as $region) {
       overlay_store_rendered_content($region, overlay_render_region($region));
     }
@@ -892,18 +828,4 @@ function overlay_trigger_refresh() {
     drupal_add_js(array('overlayChild' => array('refreshPage' => TRUE)), array('type' => 'setting'));
     unset($_SESSION['overlay_refresh_parent']);
   }
-}
-
-/**
- * Prints the markup obtained by rendering a single region of the page.
- *
- * This function is intended to be called via Ajax.
- *
- * @param $region
- *   The name of the page region to render.
- *
- * @see Drupal.overlay.refreshRegions()
- */
-function overlay_ajax_render_region($region) {
-  return new Response(overlay_render_region($region));
 }

@@ -115,8 +115,8 @@ function hook_search_admin() {
 
   // Note: reversed to reflect that higher number = higher ranking.
   $options = drupal_map_assoc(range(0, 10));
-  $ranks = config('node.settings')->get('search_rank');
-  foreach (module_invoke_all('ranking') as $var => $values) {
+  $ranks = Drupal::config('node.settings')->get('search_rank');
+  foreach (Drupal::moduleHandler()->invokeAll('ranking') as $var => $values) {
     $form['content_ranking']['factors'][$var] = array(
       '#title' => $values['title'],
       '#type' => 'select',
@@ -213,7 +213,7 @@ function hook_search_execute($keys = NULL, $conditions = NULL) {
     // Fetch comments for snippet.
     $node->rendered .= ' ' . module_invoke('comment', 'node_update_index', $node, $item->langcode);
 
-    $extra = module_invoke_all('node_search_result', $node, $item->langcode);
+    $extra = Drupal::moduleHandler()->invokeAll('node_search_result', array($node, $item->langcode));
 
     $language = language_load($item->langcode);
     $uri = $node->uri();
@@ -226,12 +226,12 @@ function hook_search_execute($keys = NULL, $conditions = NULL) {
       'type' => check_plain(node_get_type_label($node)),
       'title' => $node->label($item->langcode),
       'user' => drupal_render($username),
-      'date' => $node->changed,
+      'date' => $node->getChangedTime(),
       'node' => $node,
       'extra' => $extra,
       'score' => $item->calculated_score,
       'snippet' => search_excerpt($keys, $node->rendered, $item->langcode),
-      'langcode' => $node->langcode,
+      'langcode' => $node->language()->id,
     );
   }
   return $results;
@@ -329,7 +329,7 @@ function hook_search_preprocess($text, $langcode = NULL) {
  * When implementing this hook, your module should index content items that
  * were modified or added since the last run. PHP has a time limit
  * for cron, though, so it is advisable to limit how many items you index
- * per run using config('search.settings')->get('index.cron_limit') (see
+ * per run using Drupal::config('search.settings')->get('index.cron_limit') (see
  * example below). Also, since the cron run could time out and abort in the
  * middle of your run, you should update your module's internal bookkeeping on
  * when items have last been indexed as you go rather than waiting to the end
@@ -338,16 +338,16 @@ function hook_search_preprocess($text, $langcode = NULL) {
  * @ingroup search
  */
 function hook_update_index() {
-  $limit = (int) config('search.settings')->get('index.cron_limit');
+  $limit = (int) Drupal::config('search.settings')->get('index.cron_limit');
 
   $result = db_query_range("SELECT n.nid FROM {node} n LEFT JOIN {search_dataset} d ON d.type = 'node' AND d.sid = n.nid WHERE d.sid IS NULL OR d.reindex <> 0 ORDER BY d.reindex ASC, n.nid ASC", 0, $limit);
 
   foreach ($result as $node) {
-    $node = node_load($node->nid);
+    $node = node_load($node->id());
 
     // Save the changed time of the most recent indexed node, for the search
     // results half-life calculation.
-    \Drupal::state()->set('node.cron_last', $node->changed);
+    \Drupal::state()->set('node.cron_last', $node->getChangedTime());
 
     // Render the node.
     $build = node_view($node, 'search_index');
@@ -356,13 +356,13 @@ function hook_update_index() {
     $text = '<h1>' . check_plain($node->label()) . '</h1>' . $node->rendered;
 
     // Fetch extra data normally not visible
-    $extra = module_invoke_all('node_update_index', $node);
+    $extra = Drupal::moduleHandler()->invokeAll('node_update_index', array($node));
     foreach ($extra as $t) {
       $text .= $t;
     }
 
     // Update index
-    search_index($node->nid, 'node', $text);
+    search_index($node->id(), 'node', $text);
   }
 }
 
@@ -402,7 +402,7 @@ function callback_search_conditions($keys) {
   if (!empty($_REQUEST['sample_search_keys'])) {
     $conditions['sample_search_keys'] = $_REQUEST['sample_search_keys'];
   }
-  if ($force_keys = config('sample_search.settings')->get('force_keywords')) {
+  if ($force_keys = Drupal::config('sample_search.settings')->get('force_keywords')) {
     $conditions['sample_search_force_keywords'] = $force_keys;
   }
   return $conditions;

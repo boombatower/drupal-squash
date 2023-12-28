@@ -200,7 +200,7 @@ class Connection extends DatabaseConnection {
    * @param string $database
    *   The name of the database to create.
    *
-   * @throws DatabaseNotFoundException
+   * @throws \Drupal\Core\Database\DatabaseNotFoundException
    */
   public function createDatabase($database) {
     // Escape the database name.
@@ -230,6 +230,7 @@ class Connection extends DatabaseConnection {
       // statements, we need to use ILIKE instead.
       'LIKE' => array('operator' => 'ILIKE'),
       'NOT LIKE' => array('operator' => 'NOT ILIKE'),
+      'REGEXP' => array('operator' => '~*'),
     );
     return isset($specials[$operator]) ? $specials[$operator] : NULL;
   }

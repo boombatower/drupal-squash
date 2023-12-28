@@ -70,7 +70,6 @@ class EntityReferenceAdminTest extends WebTestBase {
       'fields[_add_new_field][label]' => 'Test label',
       'fields[_add_new_field][field_name]' => 'test',
       'fields[_add_new_field][type]' => 'entity_reference',
-      'fields[_add_new_field][widget_type]' => 'entity_reference_autocomplete',
     ), t('Save'));
 
     // Node should be selected by default.
@@ -105,6 +104,6 @@ class EntityReferenceAdminTest extends WebTestBase {
     ), t('Save settings'));
 
     // Check that the field appears in the overview form.
-    $this->assertFieldByXPath('//table[@id="field-overview"]//td[1]', 'Test label', t('Field was created and appears in the overview page.'));
+    $this->assertFieldByXPath('//table[@id="field-overview"]//td[1]', 'Test label', 'Field was created and appears in the overview page.');
   }
 }

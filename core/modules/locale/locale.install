@@ -12,9 +12,9 @@ use Drupal\Core\Language\Language;
  */
 function locale_install() {
   // Create the interface translations directory and ensure it's writable.
-  if (!$directory = config('locale.settings')->get('translation.path')) {
+  if (!$directory = Drupal::config('locale.settings')->get('translation.path')) {
     $directory = conf_path() . '/files/translations';
-    config('locale.settings')->set('translation.path', $directory)->save();
+    Drupal::config('locale.settings')->set('translation.path', $directory)->save();
   }
   file_prepare_directory($directory, FILE_CREATE_DIRECTORY | FILE_MODIFY_PERMISSIONS);
 }
@@ -23,7 +23,7 @@ function locale_install() {
  * Implements hook_uninstall().
  */
 function locale_uninstall() {
-  $config = config('locale.settings');
+  $config = Drupal::config('locale.settings');
   // Delete all JavaScript translation files.
   $locale_js_directory = 'public://' . $config->get('javascript.directory');
 
@@ -292,17 +292,17 @@ function locale_requirements($phase) {
   $requirements = array();
   if ($phase == 'runtime') {
     $available_updates = array();
-    $updates_not_found = array();
+    $untranslated = array();
     $languages = locale_translatable_language_list();
 
     if ($languages) {
       // Determine the status of the translation updates per lanuage.
-      $status = Drupal::state()->get('locale.translation_status');
+      $status = locale_translation_get_status();
       if ($status) {
         foreach ($status as $project_id => $project) {
           foreach ($project as $langcode => $project_info) {
-            if (!isset($project_info->type)) {
-              $updates_not_found[$langcode] = $languages[$langcode]->name;
+            if (empty($project_info->type)) {
+              $untranslated[$langcode] = $languages[$langcode]->name;
             }
             elseif ($project_info->type == LOCALE_TRANSLATION_LOCAL || $project_info->type == LOCALE_TRANSLATION_REMOTE) {
               $available_updates[$langcode] = $languages[$langcode]->name;
@@ -310,7 +310,7 @@ function locale_requirements($phase) {
           }
         }
 
-        if ($available_updates || $updates_not_found) {
+        if ($available_updates || $untranslated) {
           if ($available_updates) {
             $requirements['locale_translation'] = array(
               'title' => 'Translation update status',
@@ -324,7 +324,7 @@ function locale_requirements($phase) {
               'title' => 'Translation update status',
               'value' => t('Missing translations'),
               'severity' => REQUIREMENT_INFO,
-              'description' => t('Missing translations for: @languages. See the <a href="@updates">Available translation updates</a> page for more information.', array('@languages' => implode(', ', $updates_not_found), '@updates' => url('admin/reports/translations'))),
+              'description' => t('Missing translations for: @languages. See the <a href="@updates">Available translation updates</a> page for more information.', array('@languages' => implode(', ', $untranslated), '@updates' => url('admin/reports/translations'))),
             );
           }
         }
@@ -468,7 +468,7 @@ function locale_update_8002() {
  */
 function locale_update_8003() {
   $message = '';
-  $config = config('language.negotiation');
+  $config = Drupal::config('language.negotiation');
 
   $domains = $config->get('url.domains') ?: array();
   // $used_domains keeps track of the domain names in use.
@@ -948,22 +948,14 @@ function locale_update_8015() {
  * Converts localized date formats.
  */
 function locale_update_8016() {
-  $configs = array();
-
   // Fetch all date types from {date_format_type}.
   $result = db_query('SELECT * FROM {date_format_locale}');
   foreach ($result as $format) {
     $language = $format->language;
     // Create config objects for the language if not yet done.
-    if (!isset($configs[$language])) {
-      $configs[$language] = config('locale.config.' . $language . '.system.date');
-    }
-    $configs[$language]->set('formats.' . $format->type . '.pattern.php', $format->format);
-  }
-
-  // Save all instantiated config objects.
-  foreach ($configs as $config) {
-    $config->save();
+    Drupal::config("locale.config.$language.system.date_format." . $format->type)
+      ->set('pattern.php', $format->format)
+      ->save();
   }
 }
 

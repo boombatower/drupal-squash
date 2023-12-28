@@ -7,7 +7,6 @@
 
 namespace Drupal\views_ui;
 
-use Drupal\Core\Entity\EntityControllerInterface;
 use Drupal\views\Plugin\views\wizard\WizardPluginBase;
 use Drupal\views\Plugin\views\wizard\WizardException;
 use Drupal\views\Plugin\ViewsPluginManager;
@@ -16,7 +15,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
 /**
  * Form controller for the Views edit form.
  */
-class ViewAddFormController extends ViewFormControllerBase implements EntityControllerInterface {
+class ViewAddFormController extends ViewFormControllerBase {
 
   /**
    * The wizard plugin manager.
@@ -28,23 +27,18 @@ class ViewAddFormController extends ViewFormControllerBase implements EntityCont
   /**
    * Constructs a new ViewEditFormController object.
    *
-   * @param string $operation
-   *   The name of the current operation.
    * @param \Drupal\views\Plugin\ViewsPluginManager $wizard_manager
    *   The wizard plugin manager.
    */
-  public function __construct($operation, ViewsPluginManager $wizard_manager) {
-    parent::__construct($operation);
-
+  public function __construct(ViewsPluginManager $wizard_manager) {
     $this->wizardManager = $wizard_manager;
   }
 
   /**
    * {@inheritdoc}
    */
-  public static function createInstance(ContainerInterface $container, $entity_type, array $entity_info, $operation = NULL) {
+  public static function create(ContainerInterface $container) {
     return new static(
-      $operation,
       $container->get('plugin.manager.views.wizard')
     );
   }
@@ -55,18 +49,18 @@ class ViewAddFormController extends ViewFormControllerBase implements EntityCont
   public function init(array &$form_state) {
     parent::init($form_state);
 
-    drupal_set_title(t('Add new view'));
+    drupal_set_title($this->t('Add new view'));
   }
 
   /**
-   * Overrides Drupal\Core\Entity\EntityFormController::prepareForm().
+   * {@inheritdoc}
    */
   protected function prepareEntity() {
     // Do not prepare the entity while it is being added.
   }
 
   /**
-   * Overrides Drupal\Core\Entity\EntityFormController::form().
+   * {@inheritdoc}
    */
   public function form(array $form, array &$form_state) {
     $form['#attached']['css'] = static::getAdminCSS();
@@ -80,7 +74,7 @@ class ViewAddFormController extends ViewFormControllerBase implements EntityCont
 
     $form['name']['label'] = array(
       '#type' => 'textfield',
-      '#title' => t('View name'),
+      '#title' => $this->t('View name'),
       '#required' => TRUE,
       '#size' => 32,
       '#default_value' => '',
@@ -93,16 +87,16 @@ class ViewAddFormController extends ViewFormControllerBase implements EntityCont
         'exists' => 'views_get_view',
         'source' => array('name', 'label'),
       ),
-      '#description' => t('A unique machine-readable name for this View. It must only contain lowercase letters, numbers, and underscores.'),
+      '#description' => $this->t('A unique machine-readable name for this View. It must only contain lowercase letters, numbers, and underscores.'),
     );
 
     $form['name']['description_enable'] = array(
       '#type' => 'checkbox',
-      '#title' => t('Description'),
+      '#title' => $this->t('Description'),
     );
     $form['name']['description'] = array(
       '#type' => 'textfield',
-      '#title' => t('Provide description'),
+      '#title' => $this->t('Provide description'),
       '#title_display' => 'invisible',
       '#size' => 64,
       '#default_value' => '',
@@ -137,7 +131,7 @@ class ViewAddFormController extends ViewFormControllerBase implements EntityCont
     }
     $form['displays']['show']['wizard_key'] = array(
       '#type' => 'select',
-      '#title' => t('Show'),
+      '#title' => $this->t('Show'),
       '#options' => $options,
     );
     $show_form = &$form['displays']['show'];
@@ -156,14 +150,14 @@ class ViewAddFormController extends ViewFormControllerBase implements EntityCont
   }
 
   /**
-   * Overrides Drupal\Core\Entity\EntityFormController::actions().
+   * {@inheritdoc}
    */
   protected function actions(array $form, array &$form_state) {
     $actions = parent::actions($form, $form_state);
-    $actions['submit']['#value'] = t('Save and edit');
+    $actions['submit']['#value'] = $this->t('Save and edit');
 
     $actions['cancel'] = array(
-      '#value' => t('Cancel'),
+      '#value' => $this->t('Cancel'),
       '#submit' => array(
         array($this, 'cancel'),
       ),
@@ -173,7 +167,7 @@ class ViewAddFormController extends ViewFormControllerBase implements EntityCont
   }
 
   /**
-   * Overrides Drupal\Core\Entity\EntityFormController::validate().
+   * {@inheritdoc}
    */
   public function validate(array $form, array &$form_state) {
     $wizard_type = $form_state['values']['show']['wizard_key'];
@@ -190,7 +184,7 @@ class ViewAddFormController extends ViewFormControllerBase implements EntityCont
   }
 
   /**
-   * Overrides Drupal\Core\Entity\EntityFormController::submit().
+   * {@inheritdoc}
    */
   public function submit(array $form, array &$form_state) {
     try {

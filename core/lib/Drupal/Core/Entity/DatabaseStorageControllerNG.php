@@ -8,13 +8,13 @@
 namespace Drupal\Core\Entity;
 
 use Drupal\Core\Language\Language;
+use Drupal\field\FieldInfo;
 use PDO;
 
 use Drupal\Core\Entity\Query\QueryInterface;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Entity\DatabaseStorageController;
 use Drupal\Core\Entity\EntityStorageException;
-use Drupal\Core\TypedData\ComplexDataInterface;
 use Drupal\Component\Uuid\Uuid;
 use Drupal\Core\Database\Connection;
 
@@ -54,8 +54,8 @@ class DatabaseStorageControllerNG extends DatabaseStorageController {
   /**
    * Overrides DatabaseStorageController::__construct().
    */
-  public function __construct($entity_type, array $entity_info, Connection $database) {
-    parent::__construct($entity_type,$entity_info, $database);
+  public function __construct($entity_type, array $entity_info, Connection $database, FieldInfo $field_info) {
+    parent::__construct($entity_type,$entity_info, $database, $field_info);
     $this->bundleKey = !empty($this->entityInfo['entity_keys']['bundle']) ? $this->entityInfo['entity_keys']['bundle'] : FALSE;
     $this->entityClass = $this->entityInfo['class'];
 
@@ -190,7 +190,7 @@ class DatabaseStorageControllerNG extends DatabaseStorageController {
       // Remove all fields from the base table that are also fields by the same
       // name in the revision table.
       $entity_field_keys = array_flip($entity_fields);
-      foreach ($entity_revision_fields as $key => $name) {
+      foreach ($entity_revision_fields as $name) {
         if (isset($entity_field_keys[$name])) {
           unset($entity_fields[$entity_field_keys[$name]]);
         }
@@ -219,28 +219,7 @@ class DatabaseStorageControllerNG extends DatabaseStorageController {
   protected function attachLoad(&$queried_entities, $load_revision = FALSE) {
     // Map the loaded stdclass records into entity objects and according fields.
     $queried_entities = $this->mapFromStorageRecords($queried_entities, $load_revision);
-
-    if ($this->entityInfo['fieldable']) {
-      if ($load_revision) {
-        field_attach_load_revision($this->entityType, $queried_entities);
-      }
-      else {
-        field_attach_load($this->entityType, $queried_entities);
-      }
-    }
-
-    // Call hook_entity_load().
-    foreach (module_implements('entity_load') as $module) {
-      $function = $module . '_entity_load';
-      $function($queried_entities, $this->entityType);
-    }
-    // Call hook_TYPE_load(). The first argument for hook_TYPE_load() are
-    // always the queried entities, followed by additional arguments set in
-    // $this->hookLoadArguments.
-    $args = array_merge(array($queried_entities), $this->hookLoadArguments);
-    foreach (module_implements($this->entityType . '_load') as $module) {
-      call_user_func_array($module . '_' . $this->entityType . '_load', $args);
-    }
+    parent::attachLoad($queried_entities, $load_revision);
   }
 
   /**
@@ -301,7 +280,7 @@ class DatabaseStorageControllerNG extends DatabaseStorageController {
         else {
           // Get the revision IDs.
           $revision_ids = array();
-          foreach ($entities as $id => $values) {
+          foreach ($entities as $values) {
             $revision_ids[] = $values[$this->revisionKey];
           }
           $query->condition($this->revisionKey, $revision_ids);
@@ -310,6 +289,7 @@ class DatabaseStorageControllerNG extends DatabaseStorageController {
 
       $data = $query->execute();
       $field_definition = \Drupal::entityManager()->getFieldDefinitions($this->entityType);
+      $translations = array();
       if ($this->revisionTable) {
         $data_fields = array_flip(array_diff(drupal_schema_fields_sql($this->entityInfo['revision_table']), drupal_schema_fields_sql($this->entityInfo['base_table'])));
       }
@@ -323,6 +303,7 @@ class DatabaseStorageControllerNG extends DatabaseStorageController {
         // Field values in default language are stored with
         // Language::LANGCODE_DEFAULT as key.
         $langcode = empty($values['default_langcode']) ? $values['langcode'] : Language::LANGCODE_DEFAULT;
+        $translations[$id][$langcode] = TRUE;
 
         foreach ($field_definition as $name => $definition) {
           // Set only translatable properties, unless we are dealing with a
@@ -338,7 +319,7 @@ class DatabaseStorageControllerNG extends DatabaseStorageController {
       foreach ($entities as $id => $values) {
         $bundle = $this->bundleKey ? $values[$this->bundleKey][Language::LANGCODE_DEFAULT] : FALSE;
         // Turn the record into an entity class.
-        $entities[$id] = new $this->entityClass($values, $this->entityType, $bundle);
+        $entities[$id] = new $this->entityClass($values, $this->entityType, $bundle, array_keys($translations[$id]));
       }
     }
   }
@@ -363,6 +344,7 @@ class DatabaseStorageControllerNG extends DatabaseStorageController {
       }
 
       $entity->preSave($this);
+      $this->invokeFieldMethod('preSave', $entity);
       $this->invokeHook('presave', $entity);
 
       // Create the storage record to be saved.
@@ -385,7 +367,12 @@ class DatabaseStorageControllerNG extends DatabaseStorageController {
         }
         $this->resetCache(array($entity->id()));
         $entity->postSave($this, TRUE);
+        $this->invokeFieldMethod('update', $entity);
+        $this->saveFieldItems($entity, TRUE);
         $this->invokeHook('update', $entity);
+        if ($this->dataTable) {
+          $this->invokeTranslationHooks($entity);
+        }
       }
       else {
         $return = drupal_write_record($this->entityInfo['base_table'], $record);
@@ -403,6 +390,8 @@ class DatabaseStorageControllerNG extends DatabaseStorageController {
 
         $entity->enforceIsNew(FALSE);
         $entity->postSave($this, FALSE);
+        $this->invokeFieldMethod('insert', $entity);
+        $this->saveFieldItems($entity, FALSE);
         $this->invokeHook('insert', $entity);
       }
 
@@ -430,7 +419,7 @@ class DatabaseStorageControllerNG extends DatabaseStorageController {
    */
   protected function saveRevision(EntityInterface $entity) {
     $return = $entity->id();
-    $default_langcode = $entity->language()->langcode;
+    $default_langcode = $entity->getUntranslated()->language()->id;
 
     if (!$entity->isNewRevision()) {
       // Delete to handle removed values.
@@ -440,9 +429,9 @@ class DatabaseStorageControllerNG extends DatabaseStorageController {
         ->execute();
     }
 
-    $languages = $this->dataTable ? $entity->getTranslationLanguages(TRUE) : array($default_langcode => $entity->language());
+    $languages = $this->dataTable ? $entity->getTranslationLanguages() : array($default_langcode => $entity->language());
     foreach ($languages as $langcode => $language) {
-      $translation = $entity->getTranslation($langcode, FALSE);
+      $translation = $entity->getTranslation($langcode);
       $record = $this->mapToRevisionStorageRecord($translation);
       $record->langcode = $langcode;
       $record->default_langcode = $langcode == $default_langcode;
@@ -504,28 +493,6 @@ class DatabaseStorageControllerNG extends DatabaseStorageController {
   }
 
   /**
-   * Overrides DatabaseStorageController::invokeHook().
-   *
-   * Invokes field API attachers with a BC entity.
-   */
-  protected function invokeHook($hook, EntityInterface $entity) {
-    $function = 'field_attach_' . $hook;
-    // @todo: field_attach_delete_revision() is named the wrong way round,
-    // consider renaming it.
-    if ($function == 'field_attach_revision_delete') {
-      $function = 'field_attach_delete_revision';
-    }
-    if (!empty($this->entityInfo['fieldable']) && function_exists($function)) {
-      $function($entity);
-    }
-
-    // Invoke the hook.
-    module_invoke_all($this->entityType . '_' . $hook, $entity);
-    // Invoke the respective entity-level hook.
-    module_invoke_all('entity_' . $hook, $entity, $this->entityType);
-  }
-
-  /**
    * Maps from an entity object to the storage record of the base table.
    *
    * @param \Drupal\Core\Entity\EntityInterface $entity
@@ -551,7 +518,7 @@ class DatabaseStorageControllerNG extends DatabaseStorageController {
    * @return \stdClass
    *   The record to store.
    */
-  protected function mapToRevisionStorageRecord(ComplexDataInterface $entity) {
+  protected function mapToRevisionStorageRecord(EntityInterface $entity) {
     $record = new \stdClass();
     $definitions = $entity->getPropertyDefinitions();
     foreach (drupal_schema_fields_sql($this->entityInfo['revision_table']) as $name) {
@@ -574,10 +541,10 @@ class DatabaseStorageControllerNG extends DatabaseStorageController {
    *   The record to store.
    */
   protected function mapToDataStorageRecord(EntityInterface $entity, $langcode) {
-    $default_langcode = $entity->language()->langcode;
+    $default_langcode = $entity->getUntranslated()->language()->id;
     // Don't use strict mode, this way there's no need to do checks here, as
     // non-translatable properties are replicated for each language.
-    $translation = $entity->getTranslation($langcode, FALSE);
+    $translation = $entity->getTranslation($langcode);
     $definitions = $translation->getPropertyDefinitions();
     $schema = drupal_get_schema($this->entityInfo['data_table']);
 
@@ -612,7 +579,7 @@ class DatabaseStorageControllerNG extends DatabaseStorageController {
         $entities[$id] = $entity->getNGEntity();
       }
 
-      foreach ($entities as $id => $entity) {
+      foreach ($entities as $entity) {
         $this->invokeHook('predelete', $entity);
       }
       $ids = array_keys($entities);
@@ -637,7 +604,9 @@ class DatabaseStorageControllerNG extends DatabaseStorageController {
       $this->resetCache($ids);
 
       $entity_class::postDelete($this, $entities);
-      foreach ($entities as $id => $entity) {
+      foreach ($entities as $entity) {
+        $this->invokeFieldMethod('delete', $entity);
+        $this->deleteFieldItems($entity);
         $this->invokeHook('delete', $entity);
       }
       // Ignore slave server temporarily.

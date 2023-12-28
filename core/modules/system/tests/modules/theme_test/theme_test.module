@@ -24,6 +24,9 @@ function theme_test_theme($existing, $type, $theme, $path) {
   $items['theme_test_render_element_children'] = array(
     'render element' => 'element',
   );
+  $items['theme_test_function_template_override'] = array(
+    'variables' => array(),
+  );
   return $items;
 }
 
@@ -70,6 +73,10 @@ function theme_test_menu() {
     'page callback' => 'theme_test_info_stylesheets',
     'access callback' => TRUE,
     'type' => MENU_CALLBACK,
+  );
+  $items['theme-test/function-template-overridden'] = array(
+    'theme callback' => '_theme_custom_theme',
+    'route_name' => 'function_template_override',
   );
   return $items;
 }
@@ -148,6 +155,18 @@ function _theme_test_suggestion() {
 function theme_test_preprocess_html(&$variables) {
   $variables['html_attributes']['theme_test_html_attribute'] = 'theme test html attribute value';
   $variables['attributes']['theme_test_body_attribute'] = 'theme test body attribute value';
+
+  // Check that the page variable is not flattened yet.
+  if (is_array($variables['page'])) {
+    $variables['attributes']['theme_test_page_variable'] = 'Page variable is an array.';
+  }
+}
+
+/**
+ * Implements hook_page_alter().
+ */
+function theme_test_page_alter(&$page) {
+  $page['page_bottom']['theme_test_page_bottom'] = array('#markup' => 'theme test page bottom markup');
 }
 
 /**
@@ -155,6 +174,13 @@ function theme_test_preprocess_html(&$variables) {
  */
 function theme_theme_test_foo($variables) {
   return $variables['foo'];
+}
+
+/**
+ * Theme function for testing theme('theme_test_function_template_override').
+ */
+function theme_theme_test_function_template_override($variables) {
+  return 'theme_test_function_template_override test failed.';
 }
 
 /**

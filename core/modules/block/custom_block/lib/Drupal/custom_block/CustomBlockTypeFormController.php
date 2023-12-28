@@ -21,6 +21,7 @@ class CustomBlockTypeFormController extends EntityFormController {
     $form = parent::form($form, $form_state);
 
     $block_type = $this->entity;
+
     $form['label'] = array(
       '#type' => 'textfield',
       '#title' => t('Label'),
@@ -52,7 +53,7 @@ class CustomBlockTypeFormController extends EntityFormController {
       '#description' => t('Create a new revision by default for this block type.')
     );
 
-    if (module_exists('translation_entity')) {
+    if (module_exists('content_translation')) {
       $form['language'] = array(
         '#type' => 'details',
         '#title' => t('Language settings'),
@@ -100,7 +101,7 @@ class CustomBlockTypeFormController extends EntityFormController {
       watchdog('custom_block', 'Custom block type %label has been added.', array('%label' => $block_type->label()), WATCHDOG_NOTICE, l(t('Edit'), $uri['path'] . '/edit'));
     }
 
-    $form_state['redirect'] = 'admin/structure/custom-blocks';
+    $form_state['redirect'] = 'admin/structure/custom-blocks/types';
   }
 
   /**

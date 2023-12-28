@@ -34,8 +34,14 @@
   background-position: 100% 2px; /* LTR */
   background-repeat: no-repeat;
 }
+.js[dir="rtl"] input.form-autocomplete {
+  background-position: 0% 2px;
+}
 .js input.throbbing {
   background-position: 100% -18px; /* LTR */
+}
+.js[dir="rtl"] input.throbbing {
+  background-position: 0% -18px;
 }
 
 /**
@@ -91,6 +97,11 @@ body.drag {
   overflow: hidden;
   text-decoration: none;
 }
+[dir="rtl"] .draggable a.tabledrag-handle {
+  float: right;
+  margin-right: -1em;
+  margin-left: 0;
+}
 a.tabledrag-handle:hover {
   text-decoration: none;
 }
@@ -100,6 +111,10 @@ a.tabledrag-handle .handle {
   margin: -0.4em 0.5em; /* LTR */
   padding: 0.42em 0.5em; /* LTR */
   width: 13px;
+}
+[dir="rtl"] a.tabledrag-handle .handle {
+  margin: -0.4em 0.5em;
+  padding: 0.42em 0.5em;
 }
 .touch .draggable td {
   padding: 0 10px;
@@ -130,17 +145,29 @@ div.indentation {
   padding: 0.42em 0 0.42em 0.6em; /* LTR */
   width: 20px;
 }
+[dir="rtl"] div.indentation {
+  float: right;
+  margin: -0.4em -0.4em -0.4em 0.2em;
+  padding: 0.42em 0.6em 0.42em 0;
+}
 div.tree-child {
   background: url(../../../misc/tree.png) no-repeat 11px center; /* LTR */
 }
 div.tree-child-last {
   background: url(../../../misc/tree-bottom.png) no-repeat 11px center; /* LTR */
 }
+[dir="rtl"] div.tree-child,
+[dir="rtl"] div.tree-child-last {
+  background-position: -65px center;
+}
 div.tree-child-horizontal {
   background: url(../../../misc/tree.png) no-repeat -11px center;
 }
 .tabledrag-toggle-weight-wrapper {
   text-align: right; /* LTR */
+}
+[dir="rtl"] .tabledrag-toggle-weight-wrapper {
+  text-align: left;
 }
 
 /**
@@ -159,23 +186,57 @@ table.sticky-header {
  *
  * @see progress.js
  */
-/* Bar */
-.progress .bar {
+.progress {
+  position: relative;
+}
+.progress__track {
   background-color: #fff;
   border: 1px solid;
+  margin-top: 5px;
+  max-width: 100%;
+  min-width: 100px;
+  height: 16px;
+  background-color: #fff;
 }
-.progress .filled {
+.progress__bar {
   background-color: #000;
   height: 1.5em;
-  width: 5px;
+  width: 3%;
 }
-.progress .percentage {
+.progress__description,
+.progress__percentage {
+  color: #555;
+  overflow: hidden;
+  font-size: .875em;
+  margin-top: 0.2em;
+}
+.progress__description {
+  float: left; /* LTR */
+}
+[dir="rtl"] .progress__description {
+  float: right;
+}
+.progress__percentage {
   float: right; /* LTR */
 }
+[dir="rtl"] .progress__percentage {
+  float: left;
+}
+.progress--small .progress__track {
+  height: 7px;
+}
+.progress--small .progress__bar {
+  height: 7px;
+  background-size: 20px 20px;
+}
+
 /* Throbber */
 .ajax-progress {
   display: inline-block;
   padding: 1px 5px 2px 5px;
+}
+[dir="rtl"] .ajax-progress {
+  float: right;
 }
 .ajax-progress-throbber .throbber {
   background: transparent url(../../../misc/throbber.gif) no-repeat 0px -18px;
@@ -191,16 +252,6 @@ tr .ajax-progress-throbber .throbber {
 }
 .ajax-progress-bar {
   width: 16em;
-}
-
-/**
- *  Keep form elements from overflowing their containers.
- */
-input {
-  max-width: 100%;
-  -moz-box-sizing: border-box;
-  -webkit-box-sizing: border-box;
-  box-sizing: border-box;
 }
 
 /**
@@ -266,6 +317,7 @@ input {
   overflow: hidden;
   height: 1px;
   width: 1px;
+  word-wrap: normal;
 }
 
 /**
@@ -303,23 +355,17 @@ input {
 }
 
 /**
- * Block-level HTML5 display definition.
- *
- * Provides display values for browsers that don't recognize the new elements
- * and therefore display them inline by default.
+ * Content display classes.
  */
-article,
-aside,
-details,
-figcaption,
-figure,
-footer,
-header,
-hgroup,
-main,
-menu,
-nav,
-section,
-summary {
-  display: block;
+.align-left {
+  text-align: left;
+}
+.align-right {
+  text-align: right;
+}
+.align-center {
+  text-align: center;
+}
+.align-justify {
+  text-align: justify;
 }

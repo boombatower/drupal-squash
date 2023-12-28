@@ -12,10 +12,10 @@
  * This hook runs after a new file object has just been instantiated. It can be
  * used to set initial values, e.g. to provide defaults.
  *
- * @param \Drupal\file\Plugin\Core\Entity\File $file
+ * @param \Drupal\file\Entity\File $file
  *   The file object.
  */
-function hook_file_create(\Drupal\file\Plugin\Core\Entity\File $file) {
+function hook_file_create(\Drupal\file\Entity\File $file) {
   if (!isset($file->foo)) {
     $file->foo = 'some_initial_value';
   }
@@ -38,7 +38,7 @@ function hook_file_load($files) {
   $result = db_query('SELECT * FROM {upload} u WHERE u.fid IN (:fids)', array(':fids' => array_keys($files)))->fetchAll(PDO::FETCH_ASSOC);
   foreach ($result as $record) {
     foreach ($record as $key => $value) {
-      $files[$record['fid']]->$key = $value;
+      $files[$record['target_id']]->$key = $value;
     }
   }
 }

@@ -112,7 +112,7 @@ class DefaultPluginManagerTest extends UnitTestCase {
       ->method('set')
       ->with($cid . ':en', $this->expectedDefinitions);
 
-    $language = new Language(array('langcode' => 'en'));
+    $language = new Language(array('id' => 'en'));
     $language_manager = $this->getMock('Drupal\Core\Language\LanguageManager');
     $language_manager->expects($this->once())
       ->method('getLanguage')
@@ -143,7 +143,7 @@ class DefaultPluginManagerTest extends UnitTestCase {
       ->expects($this->never())
       ->method('set');
 
-    $language = new Language(array('langcode' => 'en'));
+    $language = new Language(array('id' => 'en'));
     $language_manager = $this->getMock('Drupal\Core\Language\LanguageManager');
     $language_manager->expects($this->once())
       ->method('getLanguage')
@@ -154,6 +154,35 @@ class DefaultPluginManagerTest extends UnitTestCase {
     $plugin_manager->setCacheBackend($cache_backend, $language_manager, $cid);
 
     $this->assertEquals($this->expectedDefinitions, $plugin_manager->getDefinitions());
+  }
+
+  /**
+   * Tests the plugin manager cache clear with tags.
+   */
+  public function testCacheClearWithTags() {
+    $cid = $this->randomName();
+    $cache_backend = $this->getMockBuilder('Drupal\Core\Cache\MemoryBackend')
+      ->disableOriginalConstructor()
+      ->getMock();
+    $cache_backend
+      ->expects($this->once())
+      ->method('deleteTags')
+      ->with(array('tag' => TRUE));
+    $cache_backend
+      ->expects($this->never())
+      ->method('deleteMultiple');
+
+    $language = new Language(array('id' => 'en'));
+    $language_manager = $this->getMock('Drupal\Core\Language\LanguageManager');
+    $language_manager->expects($this->once())
+      ->method('getLanguage')
+      ->with(Language::TYPE_INTERFACE)
+      ->will($this->returnValue($language));
+
+    $plugin_manager = new TestPluginManager($this->namespaces, $this->expectedDefinitions);
+    $plugin_manager->setCacheBackend($cache_backend, $language_manager, $cid, array('tag' => TRUE));
+
+    $plugin_manager->clearCachedDefinitions();
   }
 
 }

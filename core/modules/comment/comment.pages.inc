@@ -6,7 +6,7 @@
  */
 
 use Drupal\Core\Entity\EntityInterface;
-use Drupal\comment\Plugin\Core\Entity\Comment;
+use Drupal\comment\Entity\Comment;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
@@ -37,7 +37,7 @@ use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
  */
 function comment_reply(EntityInterface $node, $pid = NULL) {
   // Set the breadcrumb trail.
-  drupal_set_breadcrumb(array(l(t('Home'), NULL), l($node->label(), 'node/' . $node->nid)));
+  drupal_set_breadcrumb(array(l(t('Home'), NULL), l($node->label(), 'node/' . $node->id())));
   $op = Drupal::request()->request->get('op');
   $build = array();
 
@@ -48,7 +48,7 @@ function comment_reply(EntityInterface $node, $pid = NULL) {
     }
     else {
       drupal_set_message(t('You are not authorized to post comments.'), 'error');
-      return new RedirectResponse(url("node/$node->nid", array('absolute' => TRUE)));
+      return new RedirectResponse(url('node/' . $node->id(), array('absolute' => TRUE)));
     }
   }
   else {
@@ -60,22 +60,22 @@ function comment_reply(EntityInterface $node, $pid = NULL) {
         if ($comment->status->value == COMMENT_PUBLISHED) {
           // If that comment exists, make sure that the current comment and the
           // parent comment both belong to the same parent node.
-          if ($comment->nid->target_id != $node->nid) {
+          if ($comment->nid->target_id != $node->id()) {
             // Attempting to reply to a comment not belonging to the current nid.
             drupal_set_message(t('The comment you are replying to does not exist.'), 'error');
-            return new RedirectResponse(url("node/$node->nid", array('absolute' => TRUE)));
+            return new RedirectResponse(url('node/' . $node->id(), array('absolute' => TRUE)));
           }
           // Display the parent comment
           $build['comment_parent'] = comment_view($comment);
         }
         else {
           drupal_set_message(t('The comment you are replying to does not exist.'), 'error');
-          return new RedirectResponse(url("node/$node->nid", array('absolute' => TRUE)));
+          return new RedirectResponse(url('node/' . $node->id(), array('absolute' => TRUE)));
         }
       }
       else {
         drupal_set_message(t('You are not authorized to view comments.'), 'error');
-        return new RedirectResponse(url("node/$node->nid", array('absolute' => TRUE)));
+        return new RedirectResponse(url('node/' . $node->id(), array('absolute' => TRUE)));
       }
     }
     // This is the case where the comment is in response to a node. Display the node.
@@ -84,42 +84,18 @@ function comment_reply(EntityInterface $node, $pid = NULL) {
     }
 
     // Should we show the reply box?
-    if ($node->comment != COMMENT_NODE_OPEN) {
+    if ($node->comment->value != COMMENT_NODE_OPEN) {
       drupal_set_message(t("This discussion is closed: you can't post new comments."), 'error');
-      return new RedirectResponse(url("node/$node->nid", array('absolute' => TRUE)));
+      return new RedirectResponse(url('node/' . $node->id(), array('absolute' => TRUE)));
     }
     elseif (user_access('post comments')) {
       $build['comment_form'] = comment_add($node, $pid);
     }
     else {
       drupal_set_message(t('You are not authorized to post comments.'), 'error');
-      return new RedirectResponse(url("node/$node->nid", array('absolute' => TRUE)));
+      return new RedirectResponse(url('node/' . $node->id(), array('absolute' => TRUE)));
     }
   }
 
   return $build;
-}
-
-/**
- * Page callback: Publishes the specified comment.
- *
- * @param \Drupal\comment\Plugin\Core\Entity\Comment $comment
- *   A comment entity.
- *
- * @see comment_menu()
- */
-function comment_approve(Comment $comment) {
-  // @todo CSRF tokens are validated in page callbacks rather than access
-  //   callbacks, because access callbacks are also invoked during menu link
-  //   generation. Add token support to routing: http://drupal.org/node/755584.
-  $token = drupal_container()->get('request')->query->get('token');
-  if (!isset($token) || !drupal_valid_token($token, 'comment/' . $comment->id() . '/approve')) {
-    throw new AccessDeniedHttpException();
-  }
-
-  $comment->status->value = COMMENT_PUBLISHED;
-  $comment->save();
-
-  drupal_set_message(t('Comment approved.'));
-  return new RedirectResponse('node/' . $comment->nid->target_id, array('absolute' => TRUE));
 }

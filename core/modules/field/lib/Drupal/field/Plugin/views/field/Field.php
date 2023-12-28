@@ -7,8 +7,9 @@
 
 namespace Drupal\field\Plugin\views\field;
 
-use Drupal\Core\Language\Language;
+use Drupal\Core\Entity\DatabaseStorageController;
 use Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Language\Language;
 use Drupal\field\Plugin\Type\Formatter\FormatterPluginManager;
 use Drupal\views\ViewExecutable;
 use Drupal\views\Plugin\views\display\DisplayPluginBase;
@@ -111,7 +112,7 @@ class Field extends FieldPluginBase {
   public function init(ViewExecutable $view, DisplayPluginBase $display, array &$options = NULL) {
     parent::init($view, $display, $options);
 
-    $this->field_info = $field = field_info_field($this->definition['field_name']);
+    $this->field_info = $field = field_info_field($this->definition['entity_type'], $this->definition['field_name']);
     $this->multiple = FALSE;
     $this->limit_values = FALSE;
 
@@ -226,9 +227,9 @@ class Field extends FieldPluginBase {
         $column = $this->tableAlias . '.langcode';
         // By the same reason as field_language the field might be Language::LANGCODE_NOT_SPECIFIED in reality so allow it as well.
         // @see this::field_langcode()
-        $default_langcode = language_default()->langcode;
+        $default_langcode = language_default()->id;
         $langcode = str_replace(array('***CURRENT_LANGUAGE***', '***DEFAULT_LANGUAGE***'),
-                                array(drupal_container()->get(Language::TYPE_CONTENT)->langcode, $default_langcode),
+                                array(drupal_container()->get(Language::TYPE_CONTENT)->id, $default_langcode),
                                 $this->view->display_handler->options['field_langcode']);
         $placeholder = $this->placeholder();
         $langcode_fallback_candidates = array($langcode);
@@ -286,7 +287,8 @@ class Field extends FieldPluginBase {
     }
 
     $this->ensureMyTable();
-    $column = _field_sql_storage_columnname($this->definition['field_name'], $this->options['click_sort_column']);
+    $field = field_info_field($this->definition['entity_type'], $this->definition['field_name']);
+    $column = DatabaseStorageController::_fieldColumnName($field, $this->options['click_sort_column']);
     if (!isset($this->aliases[$column])) {
       // Column is not in query; add a sort on it (without adding the column).
       $this->aliases[$column] = $this->tableAlias . '.' . $column;
@@ -298,8 +300,8 @@ class Field extends FieldPluginBase {
     $options = parent::defineOptions();
 
     // defineOptions runs before init/construct, so no $this->field_info
-    $field = field_info_field($this->definition['field_name']);
-    $field_type = field_info_field_types($field['type']);
+    $field = field_info_field($this->definition['entity_type'], $this->definition['field_name']);
+    $field_type = \Drupal::service('plugin.manager.entity.field.field_type')->getDefinition($field['type']);
     $column_names = array_keys($field['columns']);
     $default_column = '';
     // Try to determine a sensible default.
@@ -393,7 +395,6 @@ class Field extends FieldPluginBase {
         '#options' => drupal_map_assoc($column_names),
         '#default_value' => $this->options['click_sort_column'],
         '#description' => t('Used by Style: Table to determine the actual column to click sort the field on. The default is usually fine.'),
-        '#fieldset' => 'more',
       );
     }
 
@@ -425,7 +426,7 @@ class Field extends FieldPluginBase {
     // Get the currently selected formatter.
     $format = $this->options['type'];
 
-    $settings = $this->options['settings'] + field_info_formatter_settings($format);
+    $settings = $this->options['settings'] + \Drupal::service('plugin.manager.field.formatter')->getDefaultSettings($format);
 
     $options = array(
       'field_definition' => $field,
@@ -625,12 +626,13 @@ class Field extends FieldPluginBase {
         return implode(filter_xss_admin($this->options['separator']), $items);
       }
       else {
-        return theme('item_list',
-          array(
-            'items' => $items,
-            'title' => NULL,
-            'list_type' => $this->options['multi_type'],
-          ));
+        $item_list = array(
+          '#theme' => 'item_list',
+          '#items' => $items,
+          '#title' => NULL,
+          '#list_type' => $this->options['multi_type'],
+        );
+        return drupal_render($item_list);
       }
     }
   }
@@ -726,10 +728,10 @@ class Field extends FieldPluginBase {
       if ($data) {
         // Now, overwrite the original value with our aggregated value.
         // This overwrites it so there is always just one entry.
-        $processed_entity->{$this->definition['field_name']}[$langcode] = array($base_value);
+        $processed_entity->getTranslation($langcode)->{$this->definition['field_name']} = array($base_value);
       }
       else {
-        $processed_entity->{$this->definition['field_name']}[$langcode] = array();
+        $processed_entity->getTranslation($langcode)->{$this->definition['field_name']} = array();
       }
     }
 
@@ -740,7 +742,7 @@ class Field extends FieldPluginBase {
 
     // We are supposed to show only certain deltas.
     if ($this->limit_values && !empty($processed_entity->{$this->definition['field_name']})) {
-      $all_values = !empty($processed_entity->{$this->definition['field_name']}[$langcode]) ? $processed_entity->{$this->definition['field_name']}[$langcode] : array();
+      $all_values = !empty($processed_entity->getTranslation($langcode)->{$this->definition['field_name']}) ? $processed_entity->getTranslation($langcode)->{$this->definition['field_name']}->getValue() : array();
       if ($this->options['delta_reversed']) {
         $all_values = array_reverse($all_values);
       }
@@ -786,7 +788,7 @@ class Field extends FieldPluginBase {
           }
         }
       }
-      $processed_entity->{$this->definition['field_name']}[$langcode] = $new_values;
+      $processed_entity->getTranslation($langcode)->{$this->definition['field_name']} = $new_values;
     }
 
     return $processed_entity;
@@ -831,9 +833,9 @@ class Field extends FieldPluginBase {
    */
   function field_langcode(EntityInterface $entity) {
     if (field_is_translatable($entity->entityType(), $this->field_info)) {
-      $default_langcode = language_default()->langcode;
+      $default_langcode = language_default()->id;
       $langcode = str_replace(array('***CURRENT_LANGUAGE***', '***DEFAULT_LANGUAGE***'),
-                              array(drupal_container()->get(Language::TYPE_CONTENT)->langcode, $default_langcode),
+                              array(drupal_container()->get(Language::TYPE_CONTENT)->id, $default_langcode),
                               $this->view->display_handler->options['field_language']);
 
       // Give the Field Language API a chance to fallback to a different language

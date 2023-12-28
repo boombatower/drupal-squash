@@ -2,17 +2,18 @@
 
 /**
  * @file
- * Contains \Drupal\comment\Plugin\Core\Entity\CommentInterface.
+ * Contains \Drupal\comment\Entity\CommentInterface.
  */
 
 namespace Drupal\comment;
 
 use Drupal\Core\Entity\ContentEntityInterface;
+use Drupal\Core\Entity\EntityChangedInterface;
 
 /**
  * Provides an interface defining a comment entity.
  */
-interface CommentInterface extends ContentEntityInterface {
+interface CommentInterface extends ContentEntityInterface, EntityChangedInterface {
 
   /**
    * Returns the permalink URL for this comment.

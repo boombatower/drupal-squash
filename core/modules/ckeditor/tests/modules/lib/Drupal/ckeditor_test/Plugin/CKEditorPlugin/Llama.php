@@ -11,7 +11,7 @@ use Drupal\ckeditor\CKEditorPluginInterface;
 use Drupal\Component\Plugin\PluginBase;
 use Drupal\ckeditor\Annotation\CKEditorPlugin;
 use Drupal\Core\Annotation\Translation;
-use Drupal\editor\Plugin\Core\Entity\Editor;
+use Drupal\editor\Entity\Editor;
 
 /**
  * Defines the "Llama" plugin, with a CKEditor "llama" feature.
@@ -33,6 +33,20 @@ use Drupal\editor\Plugin\Core\Entity\Editor;
 class Llama extends PluginBase implements CKEditorPluginInterface {
 
   /**
+   * Implements \Drupal\ckeditor\Plugin\CKEditorPluginInterface::getDependencies().
+   */
+  function getDependencies(Editor $editor) {
+    return array();
+  }
+
+  /**
+   * Implements \Drupal\ckeditor\Plugin\CKEditorPluginInterface::getLibraries().
+   */
+  function getLibraries(Editor $editor) {
+    return array();
+  }
+
+  /**
    * Implements \Drupal\ckeditor\Plugin\CKEditorPluginInterface::isInternal().
    */
   function isInternal() {
@@ -47,7 +61,7 @@ class Llama extends PluginBase implements CKEditorPluginInterface {
   }
 
   /**
-   * Implements \Drupal\ckeditor\Plugin\CKEditorPluginInterface::getButtons().
+   * Implements \Drupal\ckeditor\Plugin\CKEditorPluginInterface::getConfig().
    */
   public function getConfig(Editor $editor) {
     return array();

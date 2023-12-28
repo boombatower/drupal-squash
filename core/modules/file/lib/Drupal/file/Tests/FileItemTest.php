@@ -26,7 +26,7 @@ class FileItemTest extends FieldUnitTestBase {
   /**
    * Created file entity.
    *
-   * @var \Drupal\file\Plugin\Core\Entity\File
+   * @var \Drupal\file\Entity\File
    */
   protected $file;
 
@@ -45,7 +45,8 @@ class FileItemTest extends FieldUnitTestBase {
     $this->installSchema('file', 'file_usage');
 
     entity_create('field_entity', array(
-      'field_name' => 'file_test',
+      'name' => 'file_test',
+      'entity_type' => 'entity_test',
       'type' => 'file',
       'cardinality' => FIELD_CARDINALITY_UNLIMITED,
     ))->save();
@@ -67,7 +68,7 @@ class FileItemTest extends FieldUnitTestBase {
   public function testFileItem() {
     // Create a test entity with the
     $entity = entity_create('entity_test', array());
-    $entity->file_test->fid = $this->file->id();
+    $entity->file_test->target_id = $this->file->id();
     $entity->file_test->display = 1;
     $entity->file_test->description = $description = $this->randomName();
     $entity->name->value = $this->randomName();
@@ -76,7 +77,7 @@ class FileItemTest extends FieldUnitTestBase {
     $entity = entity_load('entity_test', $entity->id());
     $this->assertTrue($entity->file_test instanceof FieldInterface, 'Field implements interface.');
     $this->assertTrue($entity->file_test[0] instanceof FieldItemInterface, 'Field item implements interface.');
-    $this->assertEqual($entity->file_test->fid, $this->file->id());
+    $this->assertEqual($entity->file_test->target_id, $this->file->id());
     $this->assertEqual($entity->file_test->display, 1);
     $this->assertEqual($entity->file_test->description, $description);
     $this->assertEqual($entity->file_test->entity->getFileUri(), $this->file->getFileUri());
@@ -90,7 +91,7 @@ class FileItemTest extends FieldUnitTestBase {
     ));
     $file2->save();
 
-    $entity->file_test->fid = $file2->id();
+    $entity->file_test->target_id = $file2->id();
     $this->assertEqual($entity->file_test->entity->id(), $file2->id());
     $this->assertEqual($entity->file_test->entity->getFileUri(), $file2->getFileUri());
   }

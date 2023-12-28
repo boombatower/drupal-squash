@@ -7,25 +7,24 @@
 
 namespace Drupal\file\Plugin\field\widget;
 
-use Drupal\Component\Annotation\Plugin;
+use Drupal\field\Annotation\FieldWidget;
 use Drupal\Core\Annotation\Translation;
 use Drupal\field\Plugin\Type\Widget\WidgetBase;
 use Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Entity\Field\FieldInterface;
 
 /**
  * Plugin implementation of the 'file_generic' widget.
  *
- * @Plugin(
+ * @FieldWidget(
  *   id = "file_generic",
- *   module = "file",
  *   label = @Translation("File"),
  *   field_types = {
  *     "file"
  *   },
  *   settings = {
  *     "progress_indicator" = "throbber"
- *   },
- *   default_value = FALSE
+ *   }
  * )
  */
 class FileWidget extends WidgetBase {
@@ -51,10 +50,19 @@ class FileWidget extends WidgetBase {
 
   /**
    * {@inheritdoc}
+   */
+  public function settingsSummary() {
+    $summary = array();
+    $summary[] = t('Progress indicator: @progress_indicator', array('@progress_indicator' => $this->getSetting('progress_indicator')));
+    return $summary;
+  }
+
+  /**
+   * Overrides \Drupal\field\Plugin\Type\Widget\WidgetBase::formMultipleElements().
    *
    * Special handling for draggable multiple widgets and 'add more' button.
    */
-  protected function formMultipleElements(EntityInterface $entity, array $items, $langcode, array &$form, array &$form_state) {
+  protected function formMultipleElements(EntityInterface $entity, FieldInterface $items, $langcode, array &$form, array &$form_state) {
     $field_name = $this->fieldDefinition->getFieldName();
 
     $parents = $form['#parents'];
@@ -64,7 +72,7 @@ class FileWidget extends WidgetBase {
     // only passed in as $items when editing existing entities.
     $field_state = field_form_get_state($parents, $field_name, $langcode, $form_state);
     if (isset($field_state['items'])) {
-      $items = $field_state['items'];
+      $items->setValue($field_state['items']);
     }
 
     // Determine the number of widgets to display.
@@ -80,9 +88,6 @@ class FileWidget extends WidgetBase {
         $is_multiple = ($cardinality > 1);
         break;
     }
-
-    $id_prefix = implode('-', array_merge($parents, array($field_name)));
-    $wrapper_id = drupal_html_id($id_prefix . '-add-more-wrapper');
 
     $title = check_plain($this->fieldDefinition->getFieldLabel());
     $description = field_filter_xss($this->fieldDefinition->getFieldDescription());
@@ -109,7 +114,7 @@ class FileWidget extends WidgetBase {
             '#title_display' => 'invisible',
             // Note: this 'delta' is the FAPI #type 'weight' element's property.
             '#delta' => $max,
-            '#default_value' => isset($item['_weight']) ? $item['_weight'] : $delta,
+            '#default_value' => $item->_weight ?: $delta,
             '#weight' => 100,
           );
         }
@@ -155,7 +160,12 @@ class FileWidget extends WidgetBase {
       // field. These are added here so that they may be referenced easily
       // through a hook_form_alter().
       $elements['#file_upload_title'] = t('Add a new file');
-      $elements['#file_upload_description'] = theme('file_upload_help', array('description' => '', 'upload_validators' => $elements[0]['#upload_validators'], 'cardinality' => $cardinality));
+      $elements['#file_upload_description'] = array(
+        '#theme' => 'file_upload_help',
+        '#description' => '',
+        '#upload_validators' => $elements[0]['#upload_validators'],
+        '#cardinality' => $cardinality,
+      );
     }
 
     return $elements;
@@ -164,7 +174,7 @@ class FileWidget extends WidgetBase {
   /**
    * {@inheritdoc}
    */
-  public function formElement(array $items, $delta, array $element, $langcode, array &$form, array &$form_state) {
+  public function formElement(FieldInterface $items, $delta, array $element, $langcode, array &$form, array &$form_state) {
     $field_settings = $this->getFieldSettings();
 
     // The field settings include defaults for the field type. However, this
@@ -209,14 +219,20 @@ class FileWidget extends WidgetBase {
 
     // Field stores FID value in a single mode, so we need to transform it for
     // form element to recognize it correctly.
-    if (!isset($items[$delta]['fids']) && isset($items[$delta]['fid'])) {
-      $items[$delta]['fids'][0] = $items[$delta]['fid'];
+    if (!isset($items[$delta]->fids) && isset($items[$delta]->target_id)) {
+      $items[$delta]->fids = array($items[$delta]->target_id);
     }
-    $element['#default_value'] = !empty($items[$delta]) ? $items[$delta] : $defaults;
+    $element['#default_value'] = $items[$delta]->getValue() + $defaults;
 
     $default_fids = $element['#extended'] ? $element['#default_value']['fids'] : $element['#default_value'];
     if (empty($default_fids)) {
-      $element['#description'] = theme('file_upload_help', array('description' => $element['#description'], 'upload_validators' => $element['#upload_validators'], 'cardinality' => $cardinality));
+      $file_upload_help = array(
+        '#theme' => 'file_upload_help',
+        '#description' => $element['#description'],
+        '#upload_validators' => $element['#upload_validators'],
+        '#cardinality' => $cardinality,
+      );
+      $element['#description'] = drupal_render($file_upload_help);
       $element['#multiple'] = $cardinality != 1 ? TRUE : FALSE;
       if ($cardinality != 1 && $cardinality != -1) {
         $element['#element_validate'] = array('file_field_widget_multiple_count_validate');
@@ -237,7 +253,7 @@ class FileWidget extends WidgetBase {
     foreach ($values as &$value) {
       foreach ($value['fids'] as $fid) {
         $new_value = $value;
-        $new_value['fid'] = $fid;
+        $new_value['target_id'] = $fid;
         unset($new_value['fids']);
         $new_values[] = $new_value;
       }

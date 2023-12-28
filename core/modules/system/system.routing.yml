@@ -1,9 +1,24 @@
+system.ajax:
+  pattern: '/system/ajax'
+  defaults:
+    _controller: '\Drupal\system\Controller\FormAjaxController::content'
+  requirements:
+    _access: 'TRUE'
 system.cron:
   pattern: '/cron/{key}'
   defaults:
     _controller: '\Drupal\system\CronController::run'
   requirements:
     _access_system_cron: 'TRUE'
+
+system_admin_compact_page:
+  pattern: '/admin/compact/{mode}'
+  defaults:
+    _controller: 'Drupal\system\Controller\SystemController::compactPage'
+    mode: 'off'
+  requirements:
+    _permission: 'access administration pages'
+
 system.machine_name_transliterate:
   pattern: '/machine_name/transliterate'
   defaults:
@@ -74,20 +89,6 @@ system_site_maintenance_mode:
   requirements:
     _permission: 'administer site configuration'
 
-date_format_add:
-  pattern: '/admin/config/regional/date-time/formats/add'
-  defaults:
-    _form: '\Drupal\system\Form\DateFormatAddForm'
-  requirements:
-    _permission: 'administer site configuration'
-
-date_format_edit:
-  pattern: '/admin/config/regional/date-time/formats/{date_format_id}/edit'
-  defaults:
-    _form: '\Drupal\system\Form\DateFormatEditForm'
-  requirements:
-    _permission: 'administer site configuration'
-
 system_run_cron:
   pattern: '/admin/reports/status/run-cron'
   defaults:
@@ -95,12 +96,33 @@ system_run_cron:
   requirements:
     _permission: 'administer site configuration'
 
-date_format_delete:
-  pattern: 'admin/config/regional/date-time/formats/{format_id}/delete'
+date_format_list:
+  pattern: '/admin/config/regional/date-time'
   defaults:
-    _form: '\Drupal\system\Form\DateFormatDeleteForm'
+    _entity_list: 'date_format'
   requirements:
     _permission: 'administer site configuration'
+
+date_format_add:
+  pattern: '/admin/config/regional/date-time/formats/add'
+  defaults:
+    _entity_form: 'date_format.add'
+  requirements:
+    _permission: 'administer site configuration'
+
+date_format_edit:
+  pattern: '/admin/config/regional/date-time/formats/manage/{date_format}'
+  defaults:
+    _entity_form: 'date_format.edit'
+  requirements:
+    _entity_access: 'date_format.update'
+
+date_format_delete:
+  pattern: 'admin/config/regional/date-time/formats/manage/{date_format}/delete'
+  defaults:
+    _entity_form: 'date_format.delete'
+  requirements:
+    _entity_access: 'date_format.delete'
 
 date_format_localize_reset:
   pattern: 'admin/config/regional/date-time/locale/{langcode}/reset'
@@ -108,6 +130,20 @@ date_format_localize_reset:
     _form: '\Drupal\system\Form\DateFormatLocalizeResetForm'
   requirements:
     _permission: 'administer site configuration'
+
+system_modules_list:
+  pattern: 'admin/modules'
+  defaults:
+    _form: 'Drupal\system\Form\ModulesListForm'
+  requirements:
+    _permission: 'administer modules'
+
+system_modules_list_confirm:
+  pattern: 'admin/modules/list/confirm'
+  defaults:
+    _form: 'Drupal\system\Form\ModulesListConfirmForm'
+  requirements:
+    _permission: 'administer modules'
 
 system_theme_disable:
   pattern: '/admin/appearance/disable'
@@ -144,6 +180,14 @@ system_admin_index:
   requirements:
     _permission: 'access administration pages'
 
+system_files:
+  pattern: '/system/files/{scheme}'
+  defaults:
+    _controller: 'Drupal\system\FileDownloadController::download'
+    scheme: private
+  requirements:
+    _access: 'TRUE'
+
 system_theme_settings:
   pattern: '/admin/appearance/settings'
   defaults:
@@ -157,3 +201,36 @@ system_theme_settings_global:
     _form: '\Drupal\system\Form\ThemeSettingsForm'
   requirements:
     _permission: 'administer themes'
+
+'<front>':
+  pattern: '/'
+  requirements:
+    _access: 'TRUE'
+
+system_modules_uninstall:
+  pattern: 'admin/modules/uninstall'
+  defaults:
+    _form: 'Drupal\system\Form\ModulesUninstallForm'
+  requirements:
+    _permission: 'administer modules'
+
+system_modules_uninstall_confirm:
+  pattern: 'admin/modules/uninstall/confirm'
+  defaults:
+    _form: 'Drupal\system\Form\ModulesUninstallConfirmForm'
+  requirements:
+    _permission: 'administer modules'
+
+system_timezone:
+  pattern: '/system/timezone'
+  defaults:
+    _controller: '\Drupal\system\Controller\TimezoneController::getTimezone'
+  requirements:
+    _access: 'TRUE'
+
+system_admin_config:
+  pattern: '/admin/config'
+  defaults:
+    _content: '\Drupal\system\Controller\SystemController::overview'
+  requirements:
+    _permission: 'access administration pages'

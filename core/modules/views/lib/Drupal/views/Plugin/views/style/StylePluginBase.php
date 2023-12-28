@@ -202,11 +202,6 @@ abstract class StylePluginBase extends PluginBase {
    */
   public function tokenizeValue($value, $row_index) {
     if (strpos($value, '[') !== FALSE || strpos($value, '!') !== FALSE || strpos($value, '%') !== FALSE) {
-      $fake_item = array(
-        'alter_text' => TRUE,
-        'text' => $value,
-      );
-
       // Row tokens might be empty, for example for node row style.
       $tokens = isset($this->row_tokens[$row_index]) ? $this->row_tokens[$row_index] : array();
       if (!empty($this->view->build_info['substitutions'])) {
@@ -425,7 +420,7 @@ abstract class StylePluginBase extends PluginBase {
   /**
    * Render the display in this style.
    */
-  function render() {
+  public function render() {
     if ($this->usesRowPlugin() && empty($this->view->rowPlugin)) {
       debug('Drupal\views\Plugin\views\style\StylePluginBase: Missing row plugin');
       return;
@@ -457,7 +452,7 @@ abstract class StylePluginBase extends PluginBase {
    */
   public function renderGroupingSets($sets, $level = 0) {
     $output = array();
-    $theme_functions = views_theme_functions($this->groupingTheme, $this->view, $this->view->display_handler->display);
+    $theme_functions = $this->view->buildThemeFunctions($this->groupingTheme);
     foreach ($sets as $set) {
       $row = reset($set['rows']);
       // Render as a grouping set.

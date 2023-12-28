@@ -32,7 +32,7 @@ const REQUIRED_D7_SCHEMA_VERSION = '7069';
  */
 function update_fix_compatibility() {
   foreach (array('module', 'theme') as $type) {
-    $config = config("system.$type");
+    $config = Drupal::config("system.$type");
     $save = FALSE;
     foreach ($config->get('enabled') as $name => $weight) {
       if (update_check_incompatibility($name, $type)) {
@@ -103,10 +103,9 @@ function update_prepare_d8_bootstrap() {
   $settings['cache']['default'] = 'cache.backend.memory';
   new Settings($settings);
 
-  // Enable UpdateBundle service overrides. While the container_bundles array
-  // does not need a key, let's use so it can be removed once the upgrade are
-  // finished. @see update_flush_all_caches()
-  $GLOBALS['conf']['container_bundles']['UpdateBundle'] = 'Drupal\Core\DependencyInjection\UpdateBundle';
+  // Enable UpdateServiceProvider service overrides.
+  // @see update_flush_all_caches()
+  $GLOBALS['conf']['container_service_providers']['UpdateServiceProvider'] = 'Drupal\Core\DependencyInjection\UpdateServiceProvider';
 
   // Check whether settings.php needs to be rewritten.
   $settings_exist = !empty($GLOBALS['config_directories']);
@@ -117,7 +116,7 @@ function update_prepare_d8_bootstrap() {
 
   // Bootstrap the kernel.
   // Do not attempt to dump and write it.
-  $kernel = new DrupalKernel('update', FALSE, drupal_classloader(), FALSE);
+  $kernel = new DrupalKernel('update', drupal_classloader(), FALSE);
   $kernel->boot();
 
   // If any of the required settings needs to be written, then settings.php
@@ -143,6 +142,10 @@ function update_prepare_d8_bootstrap() {
 
   // Bootstrap the database.
   drupal_bootstrap(DRUPAL_BOOTSTRAP_DATABASE);
+
+  // module.inc is not yet loaded but there are calls to module_config_sort()
+  // below.
+  require_once __DIR__ . '/module.inc';
 
   // If the site has not updated to Drupal 8 yet, check to make sure that it is
   // running an up-to-date version of Drupal 7 before proceeding. Note this has
@@ -320,9 +323,9 @@ function update_prepare_d8_bootstrap() {
       // triggers a call into system_stream_wrappers(), which calls t(), which
       // calls into language_default().
       $language_default = variable_get('language_default');
-      if (!empty($language_default) && (isset($language_default->langcode) || isset($language_default->language))) {
-        if (!isset($language_default->langcode)) {
-          $language_default->langcode = $language_default->language;
+      if (!empty($language_default) && (isset($language_default->id) || isset($language_default->language))) {
+        if (!isset($language_default->id)) {
+          $language_default->id = $language_default->language;
         }
         unset($language_default->language);
         // In D8, the 'language_default' is not anymore an object, but an array,
@@ -331,10 +334,10 @@ function update_prepare_d8_bootstrap() {
         variable_set('language_default', (array) $language_default);
       }
 
-      $module_config = config('system.module');
-      $disabled_modules = config('system.module.disabled');
-      $theme_config = config('system.theme');
-      $disabled_themes = config('system.theme.disabled');
+      $module_config = Drupal::config('system.module');
+      $disabled_modules = Drupal::config('system.module.disabled');
+      $theme_config = Drupal::config('system.theme');
+      $disabled_themes = Drupal::config('system.theme.disabled');
       $schema_store = Drupal::keyValue('system.schema');
 
       // Load system.module, because update_prepare_d8_bootstrap() is called in
@@ -440,7 +443,7 @@ function update_prepare_d8_bootstrap() {
   $settings = settings()->getAll();
   unset($settings['cache']['default']);
   new Settings($settings);
-  $kernel = new DrupalKernel('update', FALSE, drupal_classloader(), FALSE);
+  $kernel = new DrupalKernel('update', drupal_classloader(), FALSE);
   $kernel->boot();
 }
 
@@ -448,15 +451,20 @@ function update_prepare_d8_bootstrap() {
  * Fixes stored include paths to match the "/core" migration.
  */
 function update_prepare_stored_includes() {
+  // Retrieve the currently stored language types. Default to the hardcoded D7
+  // values.
+  $default_language_types = array('language' => TRUE, 'language_content' => FALSE, 'language_url' => FALSE);
+  $language_types = array_keys(update_variable_get('language_types', $default_language_types));
+
   // Update language negotiation settings.
-  foreach (language_types_get_all() as $language_type) {
-    $negotiation = variable_get("language_negotiation_$language_type", array());
+  foreach ($language_types as $language_type) {
+    $negotiation = update_variable_get("language_negotiation_$language_type", array());
     foreach ($negotiation as &$method) {
       if (isset($method['file']) && $method['file'] == 'includes/locale.inc') {
         $method['file'] = 'core/modules/language/language.negotiation.inc';
       }
     }
-    variable_set("language_negotiation_$language_type", $negotiation);
+    update_variable_set("language_negotiation_$language_type", $negotiation);
   }
 }
 
@@ -486,7 +494,7 @@ function update_prepare_d8_language() {
     }
     Drupal::state()->set('locale.translation.plurals', $plurals);
     Drupal::state()->set('locale.translation.javascript', $javascript);
-    config('language.negotiation')
+    Drupal::config('language.negotiation')
       ->set('url.prefixes', $prefixes)
       ->set('url.domains', $domains)
       ->save();
@@ -501,7 +509,7 @@ function update_prepare_d8_language() {
     db_drop_field('languages', 'enabled');
 
     // Update language count.
-    variable_set('language_count', db_query('SELECT COUNT(language) FROM {languages}')->fetchField());
+    Drupal::state()->set('language_count', db_query('SELECT COUNT(language) FROM {languages}')->fetchField());
 
     // Rename the languages table to language.
     db_rename_table('languages', 'language');
@@ -535,7 +543,7 @@ function update_prepare_d8_language() {
       foreach ($languages as $language) {
         db_insert('language')
           ->fields(array(
-            'langcode' => $language->langcode,
+            'langcode' => $language->id,
             'name' => $language->name,
             'weight' => $language->weight,
             // These languages are locked, default to enabled.
@@ -549,14 +557,31 @@ function update_prepare_d8_language() {
     $language_default = variable_get('language_default');
     if (!empty($language_default)) {
       if (isset($language_default->language)) {
-        $language_default->langcode = $language_default->language;
+        $language_default->id = $language_default->language;
         unset($language_default->language);
       }
       unset($language_default->enabled);
       // In D8, the 'language_default' is not anymore an object, but an array,
       // so make sure that the new value that is saved into this variable is an
       // array.
-      variable_set('language_default', (array) $language_default);
+      $language_default = (array) $language_default;
+      $language_default['langcode'] = 'en';
+      variable_set('language_default', $language_default);
+    }
+
+    // Convert languages to config entities.
+    $result = db_query('SELECT * FROM {language}');
+    $uuid = new Uuid();
+    foreach ($result as $language) {
+      Drupal::config('language.entity.' . $language->langcode)
+        ->set('id', $language->langcode)
+        ->set('uuid', $uuid->generate())
+        ->set('label', $language->name)
+        ->set('direction', $language->direction)
+        ->set('weight', $language->weight)
+        ->set('locked', $language->locked)
+        ->set('langcode', 'en')
+        ->save();
     }
 
     // Add column to track customized string status to locales_target.
@@ -685,7 +710,7 @@ function update_fix_d8_requirements() {
     // views configurations.
     // Like any other module APIs and services, Views' services are not available
     // in update.php. Existing listings are migrated into configuration, using
-    // the limited standard tools of raw database queries and config().
+    // the limited standard tools of raw database queries and Drupal::config().
     module_enable(array('views'));
 
     update_variable_set('update_d8_requirements', TRUE);
@@ -833,7 +858,7 @@ function update_do_one($module, $number, $dependency_map, &$context) {
 function update_batch($start, $redirect = NULL, $url = NULL, $batch = array(), $redirect_callback = NULL) {
   // During the update, bring the site offline so that schema changes do not
   // affect visiting users.
-  $maintenance_mode = config('system.maintenance')->get('enabled');
+  $maintenance_mode = Drupal::config('system.maintenance')->get('enabled');
   if (isset($maintenance_mode)) {
     $_SESSION['maintenance_mode'] = $maintenance_mode;
   }
@@ -842,7 +867,7 @@ function update_batch($start, $redirect = NULL, $url = NULL, $batch = array(), $
     // @todo This is borderline state, not config. Or a global system
     //   "maintenance lock".
     if (db_table_exists('config')) {
-      config('system.maintenance')->set('enabled', TRUE)->save();
+      Drupal::config('system.maintenance')->set('enabled', TRUE)->save();
     }
   }
 
@@ -916,7 +941,7 @@ function update_finished($success, $results, $operations) {
   if (isset($_SESSION['maintenance_mode'])) {
     $GLOBALS['conf']['system.maintenance']['enabled'] = FALSE;
     // At this point, the configuration system should exist.
-    config('system.maintenance')->set('enabled', FALSE)->save();
+    Drupal::config('system.maintenance')->set('enabled', FALSE)->save();
     unset($_SESSION['maintenance_mode']);
   }
 }
@@ -1220,22 +1245,22 @@ function update_already_performed($module, $number) {
 /**
  * Invokes hook_update_dependencies() in all installed modules.
  *
- * This function is similar to module_invoke_all(), with the main difference
- * that it does not require that a module be enabled to invoke its hook, only
- * that it be installed. This allows the update system to properly perform
- * updates even on modules that are currently disabled.
+ * This function is similar to \Drupal::moduleHandler()->invokeAll(), with the
+ * main difference that it does not require that a module be enabled to invoke
+ * its hook, only that it be installed. This allows the update system to
+ * properly perform updates even on modules that are currently disabled.
  *
  * @return
  *   An array of return values obtained by merging the results of the
  *   hook_update_dependencies() implementations in all installed modules.
  *
- * @see module_invoke_all()
+ * @see \Drupal::moduleHandler()->invokeAll()
  * @see hook_update_dependencies()
  */
 function update_retrieve_dependencies() {
   $return = array();
   // Get a list of installed modules, arranged so that we invoke their hooks in
-  // the same order that module_invoke_all() does.
+  // the same order that \Drupal::moduleHandler()->invokeAll() does.
   foreach (Drupal::keyValue('system.schema')->getAll() as $module => $schema) {
     if ($schema == SCHEMA_UNINSTALLED) {
       // Nothing to upgrade.
@@ -1380,7 +1405,7 @@ function update_variables_to_config($config_name, array $variable_map) {
   // Build the new configuration object.
   // This potentially loads an existing configuration object, in case another
   // update function migrated configuration values into $config_name already.
-  $config = config($config_name);
+  $config = Drupal::config($config_name);
   $original_data = $config->get();
 
   // Extract the module namespace/owner from the configuration object name.
@@ -1410,7 +1435,7 @@ function update_variables_to_config($config_name, array $variable_map) {
     // This function migrates variables regardless of their value, including
     // NULL values. Any possibly required customizations need to be performed
     // manually, either via variable_set() before calling this function or via
-    // config() after calling this function.
+    // Drupal::config() after calling this function.
     if (isset($variables[$variable_name])) {
       $value = unserialize($variables[$variable_name]);
       $config->set($config_key, $value);
@@ -1435,16 +1460,21 @@ function update_variables_to_config($config_name, array $variable_map) {
  *   The extension type; e.g., 'module' or 'theme'.
  * @param string $config_name
  *   The configuration object name to retrieve.
+ * @param string $name
+ *   (optional) The owner of the config. Defaults to NULL, in which case the
+ *   name will be derived from the $config_name.
  *
  * @return boolean
  *   True on success, false if config file does not exist.
  */
-function update_7_to_8_install_default_config($type, $config_name) {
+function update_install_default_config($type, $config_name, $name = NULL) {
   // Build the new configuration object.
   $config = Drupal::config($config_name);
 
   // Extract the extension namespace/owner from the configuration object name.
-  $name = strtok($config_name, '.');
+  if (!$name) {
+    $name = strtok($config_name, '.');
+  }
 
   // Load and set default configuration values.
   $file = new FileStorage(drupal_get_path($type, $name) . '/config');
@@ -1541,4 +1571,110 @@ function update_add_cache_columns($table) {
       'default' => 0,
     ));
   }
+}
+
+/**
+ * Replace permissions during update.
+ *
+ * This function can replace one permission to several or even delete an old
+ * one.
+ *
+ * @param array $replace
+ *   An associative array. The keys are the old permissions the values are lists
+ *   of new permissions. If the list is an empty array, the old permission is
+ *   removed.
+ */
+function update_replace_permissions($replace) {
+  $prefix = 'user.role.';
+  $cut = strlen($prefix);
+  $role_names = Drupal::service('config.storage')->listAll($prefix);
+  foreach ($role_names as $role_name) {
+    $rid = substr($role_name, $cut);
+    $config = Drupal::config("user.role.$rid");
+    $permissions = $config->get('permissions') ?: array();
+    foreach ($replace as $old_permission => $new_permissions) {
+      if (($index = array_search($old_permission, $permissions)) !== FALSE) {
+        unset($permissions[$index]);
+        $permissions = array_unique(array_merge($permissions, $new_permissions));
+      }
+    }
+    $config
+      ->set('permissions', $permissions)
+      ->save();
+  }
+}
+
+/**
+ * Returns a list of languages set up on the site during upgrades.
+ *
+ * @param $flags
+ *   (optional) Specifies the state of the languages that have to be returned.
+ *   It can be: Language::STATE_CONFIGURABLE, Language::STATE_LOCKED,
+ *   Language::STATE_ALL.
+ *
+ * @return array
+ *   An associative array of languages, keyed by the language code, ordered by
+ *   weight ascending and name ascending.
+ */
+function update_language_list($flags = Language::STATE_CONFIGURABLE) {
+
+  $languages = &drupal_static(__FUNCTION__);
+
+  // Initialize master language list.
+  if (!isset($languages)) {
+    // Initialize local language list cache.
+   $languages = array();
+
+    // Fill in master language list based on current configuration.
+    $default = language_default();
+    if (language_multilingual() || module_exists('language')) {
+      // Use language module configuration if available. We can not use
+      // entity_load_multiple() because this breaks during updates.
+      $language_entities = config_get_storage_names_with_prefix('language.entity');
+
+      // Initialize default property so callers have an easy reference and can
+      // save the same object without data loss.
+      foreach ($language_entities as $langcode_config_name) {
+        $langcode = substr($langcode_config_name, strlen('language.entity.'));
+        $info = Drupal::config($langcode_config_name)->get();
+        $languages[$langcode] = new Language(array(
+          'default' => ($info['id'] == $default->id),
+          'name' => $info['label'],
+          'id' => $info['id'],
+          'direction' => $info['direction'],
+          'locked' => $info['locked'],
+          'weight' => $info['weight'],
+        ));
+      }
+      Language::sort($languages);
+    }
+    else {
+      // No language module, so use the default language only.
+      $languages = array($default->id => $default);
+      // Add the special languages, they will be filtered later if needed.
+      $languages += language_default_locked_languages($default->weight);
+    }
+  }
+
+  // Filter the full list of languages based on the value of the $all flag. By
+  // default we remove the locked languages, but the caller may request for
+  // those languages to be added as well.
+  $filtered_languages = array();
+
+  // Add the site's default language if flagged as allowed value.
+  if ($flags & Language::STATE_SITE_DEFAULT) {
+    $default = isset($default) ? $default : language_default();
+    // Rename the default language.
+    $default->name = t("Site's default language (@lang_name)", array('@lang_name' => $default->name));
+    $filtered_languages['site_default'] = $default;
+  }
+
+  foreach ($languages as $langcode => $language) {
+    if (($language->locked && !($flags & Language::STATE_LOCKED)) || (!$language->locked && !($flags & Language::STATE_CONFIGURABLE))) {
+      continue;
+     }
+    $filtered_languages[$langcode] = $language;
+  }
+
+  return $filtered_languages;
 }

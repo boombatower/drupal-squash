@@ -2,7 +2,7 @@
 
 /**
  * @file
- * Definition of Drupal\system\Tests\Plugin\PluginTestBase.
+ * Contains \Drupal\system\Tests\Plugin\PluginTestBase.
  */
 
 namespace Drupal\system\Tests\Plugin;
@@ -89,7 +89,7 @@ abstract class PluginTestBase extends UnitTestBase {
         'class' => 'Drupal\plugin_test\Plugin\plugin_test\mock_block\MockComplexContextBlock',
         'context' => array(
           'user' => array('class' => 'Drupal\user\UserInterface'),
-          'node' => array('class' => 'Drupal\Core\Entity\EntityBCDecorator'),
+          'node' => array('class' => 'Drupal\node\NodeInterface'),
         ),
       ),
     );

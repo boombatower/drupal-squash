@@ -97,9 +97,10 @@ class CKEditorLoadingTest extends WebTestBase {
     $this->drupalLogin($this->normal_user);
     $this->drupalGet('node/add/article');
     list($settings, $editor_settings_present, $editor_js_present, $body, $format_selector) = $this->getThingsToCheck();
-    $ckeditor_plugin = drupal_container()->get('plugin.manager.editor')->createInstance('ckeditor');
+    $ckeditor_plugin = $this->container->get('plugin.manager.editor')->createInstance('ckeditor');
     $editor = entity_load('editor', 'filtered_html');
     $expected = array('formats' => array('filtered_html' => array(
+      'format' => 'filtered_html',
       'editor' => 'ckeditor',
       'editorSettings' => $ckeditor_plugin->getJSSettings($editor),
     )));
@@ -111,7 +112,7 @@ class CKEditorLoadingTest extends WebTestBase {
     $specific_format_selector = $this->xpath('//select[contains(@class, "filter-list") and contains(@class, "editor") and @data-editor-for="edit-body-und-0-value"]');
     $this->assertTrue(count($specific_format_selector) === 1, 'A single text format selector exists on the page and has the "editor" class and a "data-editor-for" attribute with the correct value.');
     $this->assertTrue(isset($settings['ajaxPageState']['js']['core/modules/ckeditor/js/ckeditor.js']), 'CKEditor glue JS is present.');
-    $this->assertTrue(isset($settings['ajaxPageState']['js']['core/misc/ckeditor/ckeditor.js']), 'CKEditor lib JS is present.');
+    $this->assertTrue(isset($settings['ajaxPageState']['js']['core/assets/vendor/ckeditor/ckeditor.js']), 'CKEditor lib JS is present.');
 
     // Enable the ckeditor_test module, customize configuration. In this case,
     // there is additional CSS and JS to be loaded.
@@ -119,13 +120,13 @@ class CKEditorLoadingTest extends WebTestBase {
     // configuration also results in modified CKEditor configuration, so we
     // don't test that here.
     module_enable(array('ckeditor_test'));
-    drupal_container()->get('plugin.manager.ckeditor.plugin')->clearCachedDefinitions();
+    $this->container->get('plugin.manager.ckeditor.plugin')->clearCachedDefinitions();
     $editor->settings['toolbar']['buttons'][0][] = 'Llama';
-    $editor->settings['plugins']['internal']['link_shortcut'] = 'CTRL+K';
     $editor->save();
     $this->drupalGet('node/add/article');
     list($settings, $editor_settings_present, $editor_js_present, $body, $format_selector) = $this->getThingsToCheck();
     $expected = array('formats' => array('filtered_html' => array(
+      'format' => 'filtered_html',
       'editor' => 'ckeditor',
       'editorSettings' => $ckeditor_plugin->getJSSettings($editor),
     )));
@@ -133,7 +134,7 @@ class CKEditorLoadingTest extends WebTestBase {
     $this->assertIdentical($expected, $settings['editor'], "Text Editor module's JavaScript settings on the page are correct.");
     $this->assertTrue($editor_js_present, 'Text Editor JavaScript is present.');
     $this->assertTrue(isset($settings['ajaxPageState']['js']['core/modules/ckeditor/js/ckeditor.js']), 'CKEditor glue JS is present.');
-    $this->assertTrue(isset($settings['ajaxPageState']['js']['core/misc/ckeditor/ckeditor.js']), 'CKEditor lib JS is present.');
+    $this->assertTrue(isset($settings['ajaxPageState']['js']['core/assets/vendor/ckeditor/ckeditor.js']), 'CKEditor lib JS is present.');
   }
 
   protected function getThingsToCheck() {

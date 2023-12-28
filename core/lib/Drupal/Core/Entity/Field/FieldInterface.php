@@ -28,6 +28,14 @@ use Drupal\Core\TypedData\ListInterface;
 interface FieldInterface extends ListInterface, AccessibleInterface {
 
   /**
+   * Gets the field definition.
+   *
+   * @return \Drupal\Core\Entity\Field\FieldDefinitionInterface
+   *   The field definition.
+   */
+  public function getFieldDefinition();
+
+  /**
    * Filters out empty field items and re-numbers the item deltas.
    */
   public function filterEmptyValues();
@@ -80,4 +88,46 @@ interface FieldInterface extends ListInterface, AccessibleInterface {
    * @see \Drupal\Core\Entity\Field\FieldItemInterface::getPropertyDefinitions()
    */
   public function getPropertyDefinitions();
+
+  /**
+   * Defines custom presave behavior for field values.
+   *
+   * This method is called before either insert() or update() methods, and
+   * before values are written into storage.
+   */
+  public function preSave();
+
+  /**
+   * Defines custom insert behavior for field values.
+   *
+   * This method is called after the save() method, and before values are
+   * written into storage.
+   */
+  public function insert();
+
+  /**
+   * Defines custom update behavior for field values.
+   *
+   * This method is called after the save() method, and before values are
+   * written into storage.
+   */
+  public function update();
+
+  /**
+   * Defines custom delete behavior for field values.
+   *
+   * This method is called during the process of deleting an entity, just before
+   * values are deleted from storage.
+   */
+  public function delete();
+
+  /**
+   * Defines custom revision delete behavior for field values.
+   *
+   * This method is called from during the process of deleting an entity
+   * revision, just before the field values are deleted from storage. It is only
+   * called for entity types that support revisioning.
+   */
+  public function deleteRevision();
+
 }

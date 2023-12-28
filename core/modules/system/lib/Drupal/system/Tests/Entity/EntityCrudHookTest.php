@@ -44,7 +44,7 @@ class EntityCrudHookTest extends EntityUnitTestBase {
   public function setUp() {
     parent::setUp();
     $this->installSchema('user', array('users_roles', 'users_data'));
-    $this->installSchema('node', array('node', 'node_field_data', 'node_field_revision', 'node_type', 'node_access'));
+    $this->installSchema('node', array('node', 'node_field_data', 'node_field_revision', 'node_access'));
     $this->installSchema('comment', array('comment', 'node_comment_statistics'));
   }
 
@@ -134,7 +134,7 @@ class EntityCrudHookTest extends EntityUnitTestBase {
     $account = $this->createUser();
 
     $node = entity_create('node', array(
-      'uid' => $account->uid,
+      'uid' => $account->id(),
       'type' => 'article',
       'title' => 'Test node',
       'status' => 1,
@@ -146,7 +146,7 @@ class EntityCrudHookTest extends EntityUnitTestBase {
       'changed' => REQUEST_TIME,
     ));
     $node->save();
-    $nid = $node->nid;
+    $nid = $node->id();
     $_SESSION['entity_crud_hook_test'] = array();
 
     $comment = entity_create('comment', array(
@@ -154,7 +154,7 @@ class EntityCrudHookTest extends EntityUnitTestBase {
       'cid' => NULL,
       'pid' => 0,
       'nid' => $nid,
-      'uid' => $account->uid,
+      'uid' => $account->id(),
       'subject' => 'Test comment',
       'created' => REQUEST_TIME,
       'changed' => REQUEST_TIME,
@@ -305,7 +305,7 @@ class EntityCrudHookTest extends EntityUnitTestBase {
     ));
 
     $_SESSION['entity_crud_hook_test'] = array();
-    $node = node_load($node->nid);
+    $node = node_load($node->id());
 
     $this->assertHookMessageOrder(array(
       'entity_crud_hook_test_entity_load called for type node',
@@ -374,7 +374,7 @@ class EntityCrudHookTest extends EntityUnitTestBase {
     ));
 
     $_SESSION['entity_crud_hook_test'] = array();
-    $term = taxonomy_term_load($term->id());
+    $term = entity_load('taxonomy_term', $term->id());
 
     $this->assertHookMessageOrder(array(
       'entity_crud_hook_test_entity_load called for type taxonomy_term',
@@ -433,7 +433,7 @@ class EntityCrudHookTest extends EntityUnitTestBase {
     ));
 
     $_SESSION['entity_crud_hook_test'] = array();
-    $vocabulary = taxonomy_vocabulary_load($vocabulary->id());
+    $vocabulary = entity_load('taxonomy_vocabulary', $vocabulary->id());
 
     $this->assertHookMessageOrder(array(
       'entity_crud_hook_test_entity_load called for type taxonomy_vocabulary',
@@ -490,7 +490,7 @@ class EntityCrudHookTest extends EntityUnitTestBase {
     ));
 
     $_SESSION['entity_crud_hook_test'] = array();
-    user_load($account->uid);
+    user_load($account->id());
 
     $this->assertHookMessageOrder(array(
       'entity_crud_hook_test_entity_load called for type user',
@@ -509,7 +509,7 @@ class EntityCrudHookTest extends EntityUnitTestBase {
     ));
 
     $_SESSION['entity_crud_hook_test'] = array();
-    user_delete($account->uid);
+    user_delete($account->id());
 
     $this->assertHookMessageOrder(array(
       'entity_crud_hook_test_user_predelete called',

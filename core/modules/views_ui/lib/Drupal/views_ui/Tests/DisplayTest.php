@@ -7,6 +7,8 @@
 
 namespace Drupal\views_ui\Tests;
 
+use Drupal\Component\Utility\String;
+
 /**
  * Tests the handling of displays in the UI, adding removing etc.
  */
@@ -94,7 +96,7 @@ class DisplayTest extends UITestBase {
    */
   public function testAddDisplay() {
     // Show the master display.
-    config('views.settings')->set('ui.show.master_display', TRUE)->save();
+    \Drupal::config('views.settings')->set('ui.show.master_display', TRUE)->save();
 
     $settings['page[create]'] = FALSE;
     $view = $this->randomView($settings);
@@ -232,7 +234,7 @@ class DisplayTest extends UITestBase {
    */
   public function testDisplayAreas() {
     // Show the advanced column.
-    config('views.settings')->set('ui.show.advanced_column', TRUE)->save();
+    \Drupal::config('views.settings')->set('ui.show.advanced_column', TRUE)->save();
 
     // Add a new data display to the view.
     $view = views_get_view('test_display');
@@ -251,7 +253,7 @@ class DisplayTest extends UITestBase {
     // Assert that the expected text is found in each area category.
     foreach ($areas as $type => $class) {
       $element = $this->xpath('//div[contains(@class, :class)]/div', array(':class' => $class));
-      $this->assertEqual((string) $element[0], "The selected display type does not utilize $type plugins");
+      $this->assertEqual((string) $element[0], String::format('The selected display type does not utilize @type plugins', array('@type' => $type)));
     }
   }
 

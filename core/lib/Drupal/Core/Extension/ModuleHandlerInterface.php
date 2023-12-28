@@ -35,11 +35,6 @@ interface ModuleHandlerInterface {
   public function loadAll();
 
   /**
-   * Loads all enabled bootstrap modules.
-   */
-  public function loadBootstrapModules();
-
-  /**
    * Returns whether all modules have been loaded.
    *
    * @return bool
@@ -70,11 +65,6 @@ interface ModuleHandlerInterface {
    *   values are the module filenames.
    */
   public function setModuleList(array $module_list = array());
-
-  /**
-   * Retrieves the list of bootstrap modules.
-   */
-  public function getBootstrapModules();
 
   /**
    * Determines which modules require and are required by each module.
@@ -334,5 +324,13 @@ interface ModuleHandlerInterface {
    *   included in $module_list).
    */
   public function uninstall($module_list = array(), $uninstall_dependents = TRUE);
+
+  /**
+   * Returns an array of directories for all enabled modules. Useful for
+   * tasks such as finding a file that exists in all module directories.
+   *
+   * @return array
+   */
+  public function getModuleDirectories();
 
 }

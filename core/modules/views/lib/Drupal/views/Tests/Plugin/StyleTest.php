@@ -10,6 +10,7 @@ namespace Drupal\views\Tests\Plugin;
 use Drupal\views\Tests\ViewTestBase;
 use Drupal\views_test_data\Plugin\views\row\RowTest;
 use Drupal\views\Plugin\views\row\Fields;
+use Drupal\views\ResultRow;
 use Drupal\views_test_data\Plugin\views\style\StyleTest as StyleTestPlugin;
 
 /**
@@ -149,14 +150,14 @@ class StyleTest extends ViewTestBase {
     $expected['Job: Singer']['group'] = 'Job: Singer';
     $expected['Job: Singer']['rows']['Age: 25'] = array();
     $expected['Job: Singer']['rows']['Age: 25']['group'] = 'Age: 25';
-    $expected['Job: Singer']['rows']['Age: 25']['rows'][0] = new \stdClass();
+    $expected['Job: Singer']['rows']['Age: 25']['rows'][0] = new ResultRow();
     $expected['Job: Singer']['rows']['Age: 25']['rows'][0]->views_test_data_name = 'John';
     $expected['Job: Singer']['rows']['Age: 25']['rows'][0]->views_test_data_job = 'Singer';
     $expected['Job: Singer']['rows']['Age: 25']['rows'][0]->views_test_data_age = '25';
     $expected['Job: Singer']['rows']['Age: 25']['rows'][0]->views_test_data_id = '1';
     $expected['Job: Singer']['rows']['Age: 27'] = array();
     $expected['Job: Singer']['rows']['Age: 27']['group'] = 'Age: 27';
-    $expected['Job: Singer']['rows']['Age: 27']['rows'][1] = new \stdClass();
+    $expected['Job: Singer']['rows']['Age: 27']['rows'][1] = new ResultRow();
     $expected['Job: Singer']['rows']['Age: 27']['rows'][1]->views_test_data_name = 'George';
     $expected['Job: Singer']['rows']['Age: 27']['rows'][1]->views_test_data_job = 'Singer';
     $expected['Job: Singer']['rows']['Age: 27']['rows'][1]->views_test_data_age = '27';
@@ -165,7 +166,7 @@ class StyleTest extends ViewTestBase {
     $expected['Job: Drummer']['group'] = 'Job: Drummer';
     $expected['Job: Drummer']['rows']['Age: 28'] = array();
     $expected['Job: Drummer']['rows']['Age: 28']['group'] = 'Age: 28';
-    $expected['Job: Drummer']['rows']['Age: 28']['rows'][2] = new \stdClass();
+    $expected['Job: Drummer']['rows']['Age: 28']['rows'][2] = new ResultRow();
     $expected['Job: Drummer']['rows']['Age: 28']['rows'][2]->views_test_data_name = 'Ringo';
     $expected['Job: Drummer']['rows']['Age: 28']['rows'][2]->views_test_data_job = 'Drummer';
     $expected['Job: Drummer']['rows']['Age: 28']['rows'][2]->views_test_data_age = '28';
@@ -196,7 +197,7 @@ class StyleTest extends ViewTestBase {
     // The newer api passes the value of the grouping as well.
     $sets_new_rendered = $view->style_plugin->renderGrouping($view->result, $view->style_plugin->options['grouping'], TRUE);
 
-    $this->assertEqual($sets_new_rendered, $expected, t('The style plugins should proper group the results with grouping by the rendered output.'));
+    $this->assertEqual($sets_new_rendered, $expected, 'The style plugins should proper group the results with grouping by the rendered output.');
 
     // Don't test stripped case, because the actual value is not stripped.
     if (!$stripped) {
@@ -214,7 +215,7 @@ class StyleTest extends ViewTestBase {
       unset($expected['Job: Drummer']);
       unset($expected['Drummer']['rows']['Age: 28']);
 
-      $this->assertEqual($sets_new_value, $expected, t('The style plugins should proper group the results with grouping by the value.'));
+      $this->assertEqual($sets_new_value, $expected, 'The style plugins should proper group the results with grouping by the value.');
     }
   }
 

@@ -60,7 +60,7 @@ class MenuRouterTest extends WebTestBase {
     $this->admin_theme = 'seven';
     $this->alternate_theme = 'stark';
     theme_enable(array($this->default_theme));
-    config('system.theme')
+    \Drupal::config('system.theme')
       ->set('default', $this->default_theme)
       ->set('admin', $this->admin_theme)
       ->save();
@@ -160,7 +160,7 @@ class MenuRouterTest extends WebTestBase {
    * Test the theme callback when the site is in maintenance mode.
    */
   function testThemeCallbackMaintenanceMode() {
-    config('system.maintenance')->set('enabled', 1)->save();
+    \Drupal::config('system.maintenance')->set('enabled', 1)->save();
     theme_enable(array($this->admin_theme));
 
     // For a regular user, the fact that the site is in maintenance mode means
@@ -175,7 +175,7 @@ class MenuRouterTest extends WebTestBase {
     $this->assertText('Custom theme: seven. Actual theme: seven.', 'The theme callback system is correctly triggered for an administrator when the site is in maintenance mode.');
     $this->assertRaw('seven/style.css', "The administrative theme's CSS appears on the page.");
 
-    config('system.maintenance')->set('enabled', 0)->save();
+    \Drupal::config('system.maintenance')->set('enabled', 0)->save();
   }
 
   /**
@@ -184,15 +184,15 @@ class MenuRouterTest extends WebTestBase {
    * @see \Drupal\menu_test\EventSubscriber\MaintenanceModeSubscriber::onKernelRequestMaintenance().
    */
   function testMaintenanceModeLoginPaths() {
-    config('system.maintenance')->set('enabled', 1)->save();
+    \Drupal::config('system.maintenance')->set('enabled', 1)->save();
 
-    $offline_message = t('@site is currently under maintenance. We should be back shortly. Thank you for your patience.', array('@site' => config('system.site')->get('name')));
+    $offline_message = t('@site is currently under maintenance. We should be back shortly. Thank you for your patience.', array('@site' => \Drupal::config('system.site')->get('name')));
     $this->drupalGet('test-page');
     $this->assertText($offline_message);
     $this->drupalGet('menu_login_callback');
-    $this->assertText('This is menu_login_callback().', 'Maintenance mode can be bypassed using an event subscriber.');
+    $this->assertText('This is TestControllers::testLogin.', 'Maintenance mode can be bypassed using an event subscriber.');
 
-    config('system.maintenance')->set('enabled', 0)->save();
+    \Drupal::config('system.maintenance')->set('enabled', 0)->save();
   }
 
   /**
@@ -205,11 +205,11 @@ class MenuRouterTest extends WebTestBase {
 
     $this->drupalGet('user/login');
     // Check that we got to 'user'.
-    $this->assertTrue($this->url == url('user/' . $this->loggedInUser->uid, array('absolute' => TRUE)), "Logged-in user redirected to user on accessing user/login");
+    $this->assertTrue($this->url == url('user/' . $this->loggedInUser->id(), array('absolute' => TRUE)), "Logged-in user redirected to user on accessing user/login");
 
     // user/register should redirect to user/UID/edit.
     $this->drupalGet('user/register');
-    $this->assertTrue($this->url == url('user/' . $this->loggedInUser->uid . '/edit', array('absolute' => TRUE)), "Logged-in user redirected to user/UID/edit on accessing user/register");
+    $this->assertTrue($this->url == url('user/' . $this->loggedInUser->id() . '/edit', array('absolute' => TRUE)), "Logged-in user redirected to user/UID/edit on accessing user/register");
   }
 
   /**
@@ -614,4 +614,18 @@ class MenuRouterTest extends WebTestBase {
       $this->assertIdentical(unserialize($router_item['load_functions']), $load_functions, format_string('Expected load functions for router %router_path' , array('%router_path' => $router_path)));
     }
   }
+
+  /**
+   * Test menu links that have optional placeholders.
+   */
+  public function testMenuOptionalPlaceholders() {
+    $this->drupalGet('menu-test/optional');
+    $this->assertResponse(200);
+    $this->assertText('Sometimes there is no placeholder.');
+
+    $this->drupalGet('menu-test/optional/foobar');
+    $this->assertResponse(200);
+    $this->assertText("Sometimes there is a placeholder: 'foobar'.");
+  }
+
 }

@@ -7,16 +7,17 @@
 
 namespace Drupal\menu\Tests;
 
-use Drupal\simpletest\WebTestBase;
-
-class MenuTest extends WebTestBase {
+/**
+ * Defines a test class for testing menu and menu link functionality.
+ */
+class MenuTest extends MenuWebTestBase {
 
   /**
    * Modules to enable.
    *
    * @var array
    */
-  public static $modules = array('menu', 'block', 'test_page_test', 'contextual');
+  public static $modules = array('block', 'test_page_test', 'contextual', 'path');
 
   protected $big_user;
   protected $std_user;
@@ -160,7 +161,7 @@ class MenuTest extends WebTestBase {
     // Enable the custom menu block.
     $menu_name = 'menu-' . $menu_name; // Drupal prepends the name with 'menu-'.
     // Confirm that the custom menu block is available.
-    $this->drupalGet('admin/structure/block/list/block_plugin_ui:' . config('system.theme')->get('default') . '/add');
+    $this->drupalGet('admin/structure/block/list/' . \Drupal::config('system.theme')->get('default'));
     $this->assertText($label);
 
     // Enable the block.
@@ -187,7 +188,7 @@ class MenuTest extends WebTestBase {
     $this->assertFalse($result, 'All menu links associated to the custom menu were deleted.');
 
     // Make sure there's no delete button on system menus.
-    $this->drupalGet('admin/structure/menu/manage/main/edit');
+    $this->drupalGet('admin/structure/menu/manage/main');
     $this->assertNoRaw('edit-delete', 'The delete button was not found');
 
     // Try to delete the main menu.
@@ -204,15 +205,45 @@ class MenuTest extends WebTestBase {
     $node2 = $this->drupalCreateNode(array('type' => 'article'));
     $node3 = $this->drupalCreateNode(array('type' => 'article'));
     $node4 = $this->drupalCreateNode(array('type' => 'article'));
-    $node5 = $this->drupalCreateNode(array('type' => 'article'));
+    // Create a node with an alias.
+    $node5 = $this->drupalCreateNode(array(
+      'type' => 'article',
+      'path' => array(
+        'alias' => 'node5',
+      ),
+    ));
 
     // Add menu links.
-    $item1 = $this->addMenuLink(0, 'node/' . $node1->nid, $menu_name);
-    $item2 = $this->addMenuLink($item1['mlid'], 'node/' . $node2->nid, $menu_name, FALSE);
-    $item3 = $this->addMenuLink($item2['mlid'], 'node/' . $node3->nid, $menu_name);
-    $this->assertMenuLink($item1['mlid'], array('depth' => 1, 'has_children' => 1, 'p1' => $item1['mlid'], 'p2' => 0));
-    $this->assertMenuLink($item2['mlid'], array('depth' => 2, 'has_children' => 1, 'p1' => $item1['mlid'], 'p2' => $item2['mlid'], 'p3' => 0));
-    $this->assertMenuLink($item3['mlid'], array('depth' => 3, 'has_children' => 0, 'p1' => $item1['mlid'], 'p2' => $item2['mlid'], 'p3' => $item3['mlid'], 'p4' => 0));
+    $item1 = $this->addMenuLink(0, 'node/' . $node1->id(), $menu_name);
+    $item2 = $this->addMenuLink($item1['mlid'], 'node/' . $node2->id(), $menu_name, FALSE);
+    $item3 = $this->addMenuLink($item2['mlid'], 'node/' . $node3->id(), $menu_name);
+    $this->assertMenuLink($item1['mlid'], array(
+      'depth' => 1,
+      'has_children' => 1,
+      'p1' => $item1['mlid'],
+      'p2' => 0,
+      // We assert the language code here to make sure that the language
+      // selection element degrades gracefully without Language module.
+      'langcode' => 'en',
+    ));
+    $this->assertMenuLink($item2['mlid'], array(
+      'depth' => 2, 'has_children' => 1,
+      'p1' => $item1['mlid'],
+      'p2' => $item2['mlid'],
+      'p3' => 0,
+      // See above.
+      'langcode' => 'en',
+    ));
+    $this->assertMenuLink($item3['mlid'], array(
+      'depth' => 3,
+      'has_children' => 0,
+      'p1' => $item1['mlid'],
+      'p2' => $item2['mlid'],
+      'p3' => $item3['mlid'],
+      'p4' => 0,
+      // See above.
+      'langcode' => 'en',
+    ));
 
     // Verify menu links.
     $this->verifyMenuLink($item1, $node1);
@@ -220,10 +251,37 @@ class MenuTest extends WebTestBase {
     $this->verifyMenuLink($item3, $node3, $item2, $node2);
 
     // Add more menu links.
-    $item4 = $this->addMenuLink(0, 'node/' . $node4->nid, $menu_name);
-    $item5 = $this->addMenuLink($item4['mlid'], 'node/' . $node5->nid, $menu_name);
-    $this->assertMenuLink($item4['mlid'], array('depth' => 1, 'has_children' => 1, 'p1' => $item4['mlid'], 'p2' => 0));
-    $this->assertMenuLink($item5['mlid'], array('depth' => 2, 'has_children' => 0, 'p1' => $item4['mlid'], 'p2' => $item5['mlid'], 'p3' => 0));
+    $item4 = $this->addMenuLink(0, 'node/' . $node4->id(), $menu_name);
+    $item5 = $this->addMenuLink($item4['mlid'], 'node/' . $node5->id(), $menu_name);
+    // Create a menu link pointing to an alias.
+    $item6 = $this->addMenuLink($item4['mlid'], 'node5', $menu_name, TRUE, '0', 'node/' . $node5->id());
+    $this->assertMenuLink($item4['mlid'], array(
+      'depth' => 1,
+      'has_children' => 1,
+      'p1' => $item4['mlid'],
+      'p2' => 0,
+      // See above.
+      'langcode' => 'en',
+    ));
+    $this->assertMenuLink($item5['mlid'], array(
+      'depth' => 2,
+      'has_children' => 0,
+      'p1' => $item4['mlid'],
+      'p2' => $item5['mlid'],
+      'p3' => 0,
+      // See above.
+      'langcode' => 'en',
+    ));
+    $this->assertMenuLink($item6['mlid'], array(
+      'depth' => 2,
+      'has_children' => 0,
+      'p1' => $item4['mlid'],
+      'p2' => $item6['mlid'],
+      'p3' => 0,
+      'link_path' => 'node/' . $node5->id(),
+      // See above.
+      'langcode' => 'en',
+    ));
 
     // Modify menu links.
     $this->modifyMenuLink($item1);
@@ -235,17 +293,58 @@ class MenuTest extends WebTestBase {
 
     // Move link and verify that descendants are updated.
     $this->moveMenuLink($item2, $item5['mlid'], $menu_name);
-    $this->assertMenuLink($item1['mlid'], array('depth' => 1, 'has_children' => 0, 'p1' => $item1['mlid'], 'p2' => 0));
-    $this->assertMenuLink($item4['mlid'], array('depth' => 1, 'has_children' => 1, 'p1' => $item4['mlid'], 'p2' => 0));
-    $this->assertMenuLink($item5['mlid'], array('depth' => 2, 'has_children' => 1, 'p1' => $item4['mlid'], 'p2' => $item5['mlid'], 'p3' => 0));
-    $this->assertMenuLink($item2['mlid'], array('depth' => 3, 'has_children' => 1, 'p1' => $item4['mlid'], 'p2' => $item5['mlid'], 'p3' => $item2['mlid'], 'p4' => 0));
-    $this->assertMenuLink($item3['mlid'], array('depth' => 4, 'has_children' => 0, 'p1' => $item4['mlid'], 'p2' => $item5['mlid'], 'p3' => $item2['mlid'], 'p4' => $item3['mlid'], 'p5' => 0));
+    $this->assertMenuLink($item1['mlid'], array(
+      'depth' => 1,
+      'has_children' => 0,
+      'p1' => $item1['mlid'],
+      'p2' => 0,
+      // See above.
+      'langcode' => 'en',
+    ));
+    $this->assertMenuLink($item4['mlid'], array(
+      'depth' => 1,
+      'has_children' => 1,
+      'p1' => $item4['mlid'],
+      'p2' => 0,
+      // See above.
+      'langcode' => 'en',
+    ));
+    $this->assertMenuLink($item5['mlid'], array(
+      'depth' => 2,
+      'has_children' => 1,
+      'p1' => $item4['mlid'],
+      'p2' => $item5['mlid'],
+      'p3' => 0,
+      // See above.
+      'langcode' => 'en',
+    ));
+    $this->assertMenuLink($item2['mlid'], array(
+      'depth' => 3,
+      'has_children' => 1,
+      'p1' => $item4['mlid'],
+      'p2' => $item5['mlid'],
+      'p3' => $item2['mlid'],
+      'p4' => 0,
+      // See above.
+      'langcode' => 'en',
+    ));
+    $this->assertMenuLink($item3['mlid'], array(
+      'depth' => 4,
+      'has_children' => 0,
+      'p1' => $item4['mlid'],
+      'p2' => $item5['mlid'],
+      'p3' => $item2['mlid'],
+      'p4' => $item3['mlid'],
+      'p5' => 0,
+      // See above.
+      'langcode' => 'en',
+    ));
 
     // Add 102 menu links with increasing weights, then make sure the last-added
     // item's weight doesn't get changed because of the old hardcoded delta=50
     $items = array();
     for ($i = -50; $i <= 51; $i++) {
-      $items[$i] = $this->addMenuLink(0, 'node/' . $node1->nid, $menu_name, TRUE, strval($i));
+      $items[$i] = $this->addMenuLink(0, 'node/' . $node1->id(), $menu_name, TRUE, strval($i));
     }
     $this->assertMenuLink($items[51]['mlid'], array('weight' => '51'));
 
@@ -294,11 +393,11 @@ class MenuTest extends WebTestBase {
     $edit = array(
       'label' => $this->randomName(16),
     );
-    $this->drupalPost('admin/structure/menu/manage/main/edit', $edit, t('Save'));
+    $this->drupalPost('admin/structure/menu/manage/main', $edit, t('Save'));
 
     // Make sure menu shows up with new name in block addition.
     $default_theme = variable_get('theme_default', 'stark');
-    $this->drupalget('admin/structure/block/list/block_plugin_ui:' . $default_theme . '/add');
+    $this->drupalget('admin/structure/block/list/' . $default_theme);
     $this->assertText($edit['label']);
   }
 
@@ -338,8 +437,10 @@ class MenuTest extends WebTestBase {
   public function testMenuBundles() {
     $this->drupalLogin($this->big_user);
     $menu = $this->addCustomMenu();
+    // Clear the entity info cache to ensure the static caches are rebuilt.
+    entity_info_cache_clear();
     $bundles = entity_get_bundles('menu_link');
-    $this->assertTrue($bundles[$menu->id()]);
+    $this->assertTrue(isset($bundles[$menu->id()]));
     $menus = menu_list_system_menus();
     $menus[$menu->id()] = $menu->label();
     ksort($menus);
@@ -347,7 +448,7 @@ class MenuTest extends WebTestBase {
 
     // Test if moving a menu link between menus changes the bundle.
     $node = $this->drupalCreateNode(array('type' => 'article'));
-    $item = $this->addMenuLink(0, 'node/' . $node->nid, 'tools');
+    $item = $this->addMenuLink(0, 'node/' . $node->id(), 'tools');
     $this->moveMenuLink($item, 0, $menu->id());
     $this->assertEqual($item->bundle(), 'tools', 'Menu link bundle matches the menu');
 
@@ -368,11 +469,13 @@ class MenuTest extends WebTestBase {
    * @param string $link Link path.
    * @param string $menu_name Menu name.
    * @param string $weight Menu weight
+   * @param string $actual_link
+   *   Actual link path in case $link is an alias.
    *
-   * @return \Drupal\menu_link\Plugin\Core\Entity\MenuLink $menu_link
+   * @return \Drupal\menu_link\Entity\MenuLink $menu_link
    *   A menu link entity.
    */
-  function addMenuLink($plid = 0, $link = '<front>', $menu_name = 'tools', $expanded = TRUE, $weight = '0') {
+  function addMenuLink($plid = 0, $link = '<front>', $menu_name = 'tools', $expanded = TRUE, $weight = '0', $actual_link = FALSE) {
     // View add menu link page.
     $this->drupalGet("admin/structure/menu/manage/$menu_name/add");
     $this->assertResponse(200);
@@ -388,6 +491,9 @@ class MenuTest extends WebTestBase {
       'weight' => $weight,
     );
 
+    if (!$actual_link) {
+      $actual_link = $link;
+    }
     // Add menu link.
     $this->drupalPost(NULL, $edit, t('Save'));
     $this->assertResponse(200);
@@ -395,8 +501,8 @@ class MenuTest extends WebTestBase {
 
     $menu_links = entity_load_multiple_by_properties('menu_link', array('link_title' => $title));
     $menu_link = reset($menu_links);
-    $this->assertTrue('Menu link was found in database.');
-    $this->assertMenuLink($menu_link->id(), array('menu_name' => $menu_name, 'link_path' => $link, 'has_children' => 0, 'plid' => $plid));
+    $this->assertTrue($menu_link, 'Menu link was found in database.');
+    $this->assertMenuLink($menu_link->id(), array('menu_name' => $menu_name, 'link_path' => $actual_link, 'has_children' => 0, 'plid' => $plid));
 
     return $menu_link;
   }
@@ -578,27 +684,21 @@ class MenuTest extends WebTestBase {
   }
 
   /**
-   * Fetch the menu item from the database and compare it to the specified
-   * array.
-   *
-   * @param $mlid
-   *   Menu item id.
-   * @param $item
-   *   Array containing properties to verify.
+   * Test administrative users other than user 1 can access the menu parents AJAX callback.
    */
-  function assertMenuLink($mlid, array $expected_item) {
-    // Retrieve menu link.
-    $item = entity_load('menu_link', $mlid);
-    $options = $item->options;
-    if (!empty($options['query'])) {
-      $item['link_path'] .= '?' . drupal_http_build_query($options['query']);
-    }
-    if (!empty($options['fragment'])) {
-      $item['link_path'] .= '#' . $options['fragment'];
-    }
-    foreach ($expected_item as $key => $value) {
-      $this->assertEqual($item[$key], $value, format_string('Parameter %key had expected value.', array('%key' => $key)));
-    }
+  public function testMenuParentsJsAccess() {
+
+    $admin = $this->drupalCreateUser(array('administer menu'));
+    $this->drupalLogin($admin);
+    // Just check access to the callback overall, the POST data is irrelevant.
+    $this->drupalGetAJAX('admin/structure/menu/parents');
+    $this->assertResponse(200);
+
+    // Do standard user tests.
+    // Login the user.
+    $this->drupalLogin($this->std_user);
+    $this->drupalGetAJAX('admin/structure/menu/parents');
+    $this->assertResponse(403);
   }
 
   /**

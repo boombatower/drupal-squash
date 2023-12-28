@@ -7,11 +7,12 @@
 
 namespace Drupal\Core\TypedData;
 
+use Drupal\Component\Plugin\Exception\PluginException;
+use Drupal\Core\Cache\CacheBackendInterface;
+use Drupal\Core\Extension\ModuleHandlerInterface;
+use Drupal\Core\Language\LanguageManager;
+use Drupal\Core\Plugin\DefaultPluginManager;
 use InvalidArgumentException;
-use Drupal\Component\Plugin\Discovery\ProcessDecorator;
-use Drupal\Component\Plugin\PluginManagerBase;
-use Drupal\Core\Plugin\Discovery\CacheDecorator;
-use Drupal\Core\Plugin\Discovery\HookDiscovery;
 use Drupal\Core\TypedData\Validation\MetadataFactory;
 use Drupal\Core\Validation\ConstraintManager;
 use Drupal\Core\Validation\DrupalTranslator;
@@ -21,7 +22,7 @@ use Symfony\Component\Validator\Validation;
 /**
  * Manages data type plugins.
  */
-class TypedDataManager extends PluginManagerBase {
+class TypedDataManager extends DefaultPluginManager {
 
   /**
    * The validator used for validating typed data.
@@ -38,29 +39,20 @@ class TypedDataManager extends PluginManagerBase {
   protected $constraintManager;
 
   /**
-   * Type definition defaults which are merged in by the ProcessDecorator.
-   *
-   * @see \Drupal\Component\Plugin\PluginManagerBase::processDefinition()
-   *
-   * @var array
-   */
-  protected $defaults = array(
-    'list class' => '\Drupal\Core\TypedData\ItemList',
-  );
-
-  /**
    * An array of typed data property prototypes.
    *
    * @var array
    */
   protected $prototypes = array();
 
-  public function __construct() {
-    $this->discovery = new HookDiscovery('data_type_info');
-    $this->discovery = new ProcessDecorator($this->discovery, array($this, 'processDefinition'));
-    $this->discovery = new CacheDecorator($this->discovery, 'typed_data:types');
+  public function __construct(\Traversable $namespaces, CacheBackendInterface $cache_backend, LanguageManager $language_manager, ModuleHandlerInterface $module_handler) {
+    $this->alterInfo($module_handler, 'data_type_info');
+    $this->setCacheBackend($cache_backend, $language_manager, 'typed_data:types');
 
-    $this->factory = new TypedDataFactory($this->discovery);
+    $annotation_namespaces = array(
+      'Drupal\Core\TypedData\Annotation' => DRUPAL_ROOT . '/core/lib',
+    );
+    parent::__construct('Plugin/DataType', $namespaces, $annotation_namespaces, 'Drupal\Core\TypedData\Annotation\DataType');
   }
 
   /**
@@ -82,7 +74,26 @@ class TypedDataManager extends PluginManagerBase {
    *   The instantiated typed data object.
    */
   public function createInstance($plugin_id, array $configuration, $name = NULL, $parent = NULL) {
-    return $this->factory->createInstance($plugin_id, $configuration, $name, $parent);
+    $type_definition = $this->getDefinition($plugin_id);
+
+    if (!isset($type_definition)) {
+      throw new InvalidArgumentException(format_string('Invalid data type %plugin_id has been given.', array('%plugin_id' => $plugin_id)));
+    }
+
+    // Allow per-data definition overrides of the used classes, i.e. take over
+    // classes specified in the data definition.
+    $key = empty($configuration['list']) ? 'class' : 'list_class';
+    if (isset($configuration[$key])) {
+      $class = $configuration[$key];
+    }
+    elseif (isset($type_definition[$key])) {
+      $class = $type_definition[$key];
+    }
+
+    if (!isset($class)) {
+      throw new PluginException(sprintf('The plugin (%s) did not specify an instance class.', $plugin_id));
+    }
+    return new $class($configuration, $name, $parent);
   }
 
   /**
@@ -102,13 +113,13 @@ class TypedDataManager extends PluginManagerBase {
    *   - class: If set and 'list' is FALSE, the class to use for creating the
    *     typed data object; otherwise the default class of the data type will be
    *     used.
-   *   - list class: If set and 'list' is TRUE, the class to use for creating
+   *   - list_class: If set and 'list' is TRUE, the class to use for creating
    *     the typed data object; otherwise the default list class of the data
    *     type will be used.
    *   - settings: An array of settings, as required by the used 'class'. See
    *     the documentation of the class for supported or required settings.
-   *   - list settings: An array of settings as required by the used
-   *     'list class'. See the documentation of the list class for support or
+   *   - list_settings: An array of settings as required by the used
+   *     'list_class'. See the documentation of the list class for support or
    *     required settings.
    *   - constraints: An array of validation constraints. See
    *     \Drupal\Core\TypedData\TypedDataManager::getConstraints() for details.
@@ -132,18 +143,18 @@ class TypedDataManager extends PluginManagerBase {
    *
    * @see \Drupal::typedData()
    * @see \Drupal\Core\TypedData\TypedDataManager::getPropertyInstance()
-   * @see \Drupal\Core\TypedData\Type\Integer
-   * @see \Drupal\Core\TypedData\Type\Float
-   * @see \Drupal\Core\TypedData\Type\String
-   * @see \Drupal\Core\TypedData\Type\Boolean
-   * @see \Drupal\Core\TypedData\Type\Duration
-   * @see \Drupal\Core\TypedData\Type\Date
-   * @see \Drupal\Core\TypedData\Type\Uri
-   * @see \Drupal\Core\TypedData\Type\Binary
+   * @see \Drupal\Core\TypedData\Plugin\DataType\Integer
+   * @see \Drupal\Core\TypedData\Plugin\DataType\Float
+   * @see \Drupal\Core\TypedData\Plugin\DataType\String
+   * @see \Drupal\Core\TypedData\Plugin\DataType\Boolean
+   * @see \Drupal\Core\TypedData\Plugin\DataType\Duration
+   * @see \Drupal\Core\TypedData\Plugin\DataType\Date
+   * @see \Drupal\Core\TypedData\Plugin\DataType\Uri
+   * @see \Drupal\Core\TypedData\Plugin\DataType\Binary
    * @see \Drupal\Core\Entity\Field\EntityWrapper
    */
   public function create(array $definition, $value = NULL, $name = NULL, $parent = NULL) {
-    $wrapper = $this->factory->createInstance($definition['type'], $definition, $name, $parent);
+    $wrapper = $this->createInstance($definition['type'], $definition, $name, $parent);
     if (isset($value)) {
       $wrapper->setValue($value, FALSE);
     }
@@ -204,22 +215,17 @@ class TypedDataManager extends PluginManagerBase {
    *   The new property instance.
    *
    * @see \Drupal\Core\TypedData\TypedDataManager::create()
-   *
-   * @todo: Add type-hinting to $object once entities implement the
-   *   TypedDataInterface.
    */
-  public function getPropertyInstance($object, $property_name, $value = NULL) {
-    if ($root = $object->getRoot()) {
-      $key = $root->getType() . ':' . $object->getPropertyPath() . '.';
-      // If we are creating list items, we always use 0 in the key as all list
-      // items look the same.
-      $key .= is_numeric($property_name) ? 0 : $property_name;
+  public function getPropertyInstance(TypedDataInterface $object, $property_name, $value = NULL) {
+    $definition = $object->getRoot()->getDefinition();
+    $key = $definition['type'];
+    if (isset($definition['settings'])) {
+      $key .= ':' . implode(',', $definition['settings']);
     }
-    else {
-      // Missing context, thus we cannot determine a unique key for prototyping.
-      // Fall back to create a new prototype on each call.
-      $key = FALSE;
-    }
+    $key .= ':' . $object->getPropertyPath() . '.';
+    // If we are creating list items, we always use 0 in the key as all list
+    // items look the same.
+    $key .= is_numeric($property_name) ? 0 : $property_name;
 
     // Make sure we have a prototype. Then, clone the prototype and set object
     // specific values, i.e. the value and the context.
@@ -346,13 +352,18 @@ class TypedDataManager extends PluginManagerBase {
     $validation_manager = $this->getValidationConstraintManager();
 
     $type_definition = $this->getDefinition($definition['type']);
-    // Auto-generate a constraint for the primitive type if we have a mapping.
-    if (isset($type_definition['primitive type'])) {
-      $constraints[] = $validation_manager->create('PrimitiveType', array('type' => $type_definition['primitive type']));
+    // Auto-generate a constraint for data types implementing a primitive
+    // interface.
+    if (is_subclass_of($type_definition['class'], '\Drupal\Core\TypedData\PrimitiveInterface')) {
+      $constraints[] = $validation_manager->create('PrimitiveType', array());
     }
     // Add in constraints specified by the data type.
     if (isset($type_definition['constraints'])) {
       foreach ($type_definition['constraints'] as $name => $options) {
+        // Annotations do not support empty arrays.
+        if ($options === TRUE) {
+          $options = array();
+        }
         $constraints[] = $validation_manager->create($name, $options);
       }
     }
@@ -366,6 +377,15 @@ class TypedDataManager extends PluginManagerBase {
     if (!empty($definition['required']) && empty($definition['constraints']['NotNull'])) {
       $constraints[] = $validation_manager->create('NotNull', array());
     }
+
+    // If the definition does not provide a class use the class from the type
+    // definition for performing interface checks.
+    $class = isset($definition['class']) ? $definition['class'] : $type_definition['class'];
+    // Check if the class provides allowed values.
+    if (array_key_exists('Drupal\Core\TypedData\AllowedValuesInterface', class_implements($class))) {
+      $constraints[] = $validation_manager->create('AllowedValues', array());
+    }
+
     return $constraints;
   }
 }

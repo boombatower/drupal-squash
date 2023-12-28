@@ -14,7 +14,7 @@ use Drupal\simpletest\WebTestBase;
  */
 class SelectionTest extends WebTestBase {
 
-  public static $modules = array('views', 'entity_reference', 'entity_reference_test');
+  public static $modules = array('views', 'entity_reference', 'entity_reference_test', 'entity_test');
 
   public static function getInfo() {
     return array(
@@ -36,24 +36,24 @@ class SelectionTest extends WebTestBase {
 
     $nodes = array();
     foreach (array($node1, $node2, $node3) as $node) {
-      $nodes[$node->type][$node->nid] = $node->label();
+      $nodes[$node->getType()][$node->id()] = $node->label();
     }
 
     // Create a field and instance.
     $field = entity_create('field_entity', array(
+      'name' => 'test_field',
+      'entity_type' => 'entity_test',
       'translatable' => FALSE,
-      'entity_types' => array(),
       'settings' => array(
         'target_type' => 'node',
       ),
-      'field_name' => 'test_field',
       'type' => 'entity_reference',
       'cardinality' => '1',
     ));
     $field->save();
     $instance = entity_create('field_instance', array(
       'field_name' => 'test_field',
-      'entity_type' => 'test_entity',
+      'entity_type' => 'entity_test',
       'bundle' => 'test_bundle',
       'settings' => array(
         'handler' => 'views',
@@ -70,8 +70,8 @@ class SelectionTest extends WebTestBase {
     $instance->save();
 
     // Get values from selection handler.
-    $handler = entity_reference_get_selection_handler($instance);
-    $result = $handler->getReferencableEntities();
+    $handler = $this->container->get('plugin.manager.entity_reference.selection')->getSelectionHandler($instance);
+    $result = $handler->getReferenceableEntities();
 
     $success = FALSE;
     foreach ($result as $node_type => $values) {

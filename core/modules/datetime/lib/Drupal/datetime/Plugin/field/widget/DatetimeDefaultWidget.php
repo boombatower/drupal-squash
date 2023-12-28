@@ -6,12 +6,13 @@
 
 namespace Drupal\datetime\Plugin\field\widget;
 
-use Drupal\Component\Annotation\Plugin;
+use Drupal\field\Annotation\FieldWidget;
 use Drupal\Core\Annotation\Translation;
 use Drupal\field\Plugin\Type\Widget\WidgetBase;
 use Drupal\Component\Plugin\Discovery\DiscoveryInterface;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Entity\Field\FieldDefinitionInterface;
+use Drupal\Core\Entity\Field\FieldInterface;
 use Drupal\field\Plugin\PluginSettingsBase;
 use Drupal\field\FieldInstanceInterface;
 use Drupal\Core\Datetime\DrupalDateTime;
@@ -19,9 +20,8 @@ use Drupal\Core\Datetime\DrupalDateTime;
 /**
  * Plugin implementation of the 'datetime_default' widget.
  *
- * @Plugin(
+ * @FieldWidget(
  *   id = "datetime_default",
- *   module = "datetime",
  *   label = @Translation("Date and time"),
  *   field_types = {
  *     "datetime"
@@ -29,6 +29,13 @@ use Drupal\Core\Datetime\DrupalDateTime;
  * )
  */
 class DateTimeDefaultWidget extends WidgetBase {
+
+  /**
+   * The date format storage.
+   *
+   * @var \Drupal\Core\Entity\EntityStorageControllerInterface
+   */
+  protected $dateStorage;
 
   /**
    * {@inheritdoc}
@@ -41,6 +48,9 @@ class DateTimeDefaultWidget extends WidgetBase {
       $field_definition->default_value_function = $this->defaultValueFunction();
     }
     parent::__construct($plugin_id, $plugin_definition, $field_definition, $settings);
+
+    // @todo Inject this once https://drupal.org/node/2035317 is in.
+    $this->dateStorage = \Drupal::entityManager()->getStorageController('date_format');
   }
 
   /**
@@ -56,7 +66,7 @@ class DateTimeDefaultWidget extends WidgetBase {
   /**
    * {@inheritdoc}
    */
-  public function formElement(array $items, $delta, array $element, $langcode, array &$form, array &$form_state) {
+  public function formElement(FieldInterface $items, $delta, array $element, $langcode, array &$form, array &$form_state) {
     $format_type = datetime_default_format_type();
 
     // We are nesting some sub-elements inside the parent, so we need a wrapper.
@@ -74,7 +84,7 @@ class DateTimeDefaultWidget extends WidgetBase {
       case 'date':
         $date_type = 'date';
         $time_type = 'none';
-        $date_format = config('system.date')->get('formats.html_date.pattern.' . $format_type);
+        $date_format = $this->dateStorage->load('html_date')->getPattern($format_type);
         $time_format = '';
         $element_format = $date_format;
         $storage_format = DATETIME_DATE_STORAGE_FORMAT;
@@ -83,8 +93,8 @@ class DateTimeDefaultWidget extends WidgetBase {
       default:
         $date_type = 'date';
         $time_type = 'time';
-        $date_format = config('system.date')->get('formats.html_date.pattern.' . $format_type);
-        $time_format = config('system.date')->get('formats.html_time.pattern.' . $format_type);
+        $date_format = $this->dateStorage->load('html_date')->getPattern($format_type);
+        $time_format = $this->dateStorage->load('html_time')->getPattern($format_type);
         $element_format = $date_format . ' ' . $time_format;
         $storage_format = DATETIME_DATETIME_STORAGE_FORMAT;
         break;
@@ -109,8 +119,8 @@ class DateTimeDefaultWidget extends WidgetBase {
     $element['value']['#date_element_format'] = $element_format;
     $element['value']['#date_storage_format'] = $storage_format;
 
-    if (!empty($items[$delta]['date'])) {
-      $date = $items[$delta]['date'];
+    if (!empty($items[$delta]->date)) {
+      $date = $items[$delta]->date;
       // The date was created and verified during field_load(), so it is safe to
       // use without further inspection.
       $date->setTimezone(new \DateTimeZone($element['value']['#date_timezone']));

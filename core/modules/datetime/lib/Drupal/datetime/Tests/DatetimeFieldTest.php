@@ -26,14 +26,14 @@ class DatetimeFieldTest extends WebTestBase {
   /**
    * A field to use in this test class.
    *
-   * @var \Drupal\field\Plugin\Core\Entity\Field
+   * @var \Drupal\field\Entity\Field
    */
   protected $field;
 
   /**
    * The instance used in this test class.
    *
-   * @var \Drupal\field\Plugin\Core\Entity\FieldInstance
+   * @var \Drupal\field\Entity\FieldInstance
    */
   protected $instance;
 
@@ -57,13 +57,14 @@ class DatetimeFieldTest extends WebTestBase {
 
     // Create a field with settings to validate.
     $this->field = entity_create('field_entity', array(
-      'field_name' => drupal_strtolower($this->randomName()),
+      'name' => drupal_strtolower($this->randomName()),
+      'entity_type' => 'entity_test',
       'type' => 'datetime',
       'settings' => array('datetime_type' => 'date'),
     ));
     $this->field->save();
     $this->instance = entity_create('field_instance', array(
-      'field_name' => $this->field->id(),
+      'field_name' => $this->field->name,
       'entity_type' => 'entity_test',
       'bundle' => 'entity_test',
       'settings' => array(
@@ -73,7 +74,7 @@ class DatetimeFieldTest extends WebTestBase {
     $this->instance->save();
 
     entity_get_form_display($this->instance->entity_type, $this->instance->bundle, 'default')
-      ->setComponent($this->field->id(), array(
+      ->setComponent($this->field->name, array(
         'type' => 'datetime_default',
       ))
       ->save();
@@ -84,7 +85,7 @@ class DatetimeFieldTest extends WebTestBase {
       'settings' => array('format_type' => 'medium'),
     );
     entity_get_display($this->instance->entity_type, $this->instance->bundle, 'full')
-      ->setComponent($this->field->id(), $this->display_options)
+      ->setComponent($this->field->name, $this->display_options)
       ->save();
   }
 
@@ -92,7 +93,7 @@ class DatetimeFieldTest extends WebTestBase {
    * Tests date field functionality.
    */
   function testDateField() {
-    $field_name = $this->field->id();
+    $field_name = $this->field->name;
 
     // Display creation form.
     $this->drupalGet('entity_test/add');
@@ -104,8 +105,8 @@ class DatetimeFieldTest extends WebTestBase {
     $value = '2012-12-31 00:00:00';
     $date = new DrupalDateTime($value);
     $format_type = $date->canUseIntl() ? DrupalDateTime::INTL : DrupalDateTime::PHP;
-    $date_format = config('system.date')->get('formats.html_date.pattern.' . $format_type);
-    $time_format = config('system.date')->get('formats.html_time.pattern.' . $format_type);
+    $date_format = entity_load('date_format', 'html_date')->getPattern($format_type);
+    $time_format = entity_load('date_format', 'html_time')->getPattern($format_type);
 
     $edit = array(
       'user_id' => 1,
@@ -160,7 +161,7 @@ class DatetimeFieldTest extends WebTestBase {
    * Tests date and time field.
    */
   function testDatetimeField() {
-    $field_name = $this->field->id();
+    $field_name = $this->field->name;
     // Change the field to a datetime field.
     $this->field['settings']['datetime_type'] = 'datetime';
     $this->field->save();
@@ -175,8 +176,8 @@ class DatetimeFieldTest extends WebTestBase {
     $value = '2012-12-31 00:00:00';
     $date = new DrupalDateTime($value);
     $format_type = $date->canUseIntl() ? DrupalDateTime::INTL : DrupalDateTime::PHP;
-    $date_format = config('system.date')->get('formats.html_date.pattern.' . $format_type);
-    $time_format = config('system.date')->get('formats.html_time.pattern.' . $format_type);
+    $date_format = entity_load('date_format', 'html_date')->getPattern($format_type);
+    $time_format = entity_load('date_format', 'html_time')->getPattern($format_type);
 
     $edit = array(
       'user_id' => 1,
@@ -229,7 +230,7 @@ class DatetimeFieldTest extends WebTestBase {
    * Tests Date List Widget functionality.
    */
   function testDatelistWidget() {
-    $field_name = $this->field->id();
+    $field_name = $this->field->name;
     // Change the field to a datetime field.
     $this->field->settings['datetime_type'] = 'datetime';
     $this->field->save();
@@ -299,7 +300,7 @@ class DatetimeFieldTest extends WebTestBase {
     // Change the field to a datetime field.
     $this->field->settings['datetime_type'] = 'datetime';
     $this->field->save();
-    $field_name = $this->field->id();
+    $field_name = $this->field->name;
 
     // Set the default value to 'now'.
     $this->instance->settings['default_value'] = 'now';
@@ -341,7 +342,7 @@ class DatetimeFieldTest extends WebTestBase {
     // Change the field to a datetime field.
     $this->field->settings['datetime_type'] = 'datetime';
     $this->field->save();
-    $field_name = $this->field->id();
+    $field_name = $this->field->name;
 
     // Display creation form.
     $this->drupalGet('entity_test/add');

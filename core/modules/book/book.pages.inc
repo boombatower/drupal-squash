@@ -10,81 +10,6 @@ use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 /**
- * Page callback: Generates representations of a book page and its children.
- *
- * The function delegates the generation of output to helper functions. The
- * function name is derived by prepending 'book_export_' to the given output
- * type. So, e.g., a type of 'html' results in a call to the function
- * book_export_html().
- *
- * @param $type
- *   A string encoding the type of output requested. The following types are
- *   currently supported in book module:
- *   - html: Printer-friendly HTML.
- *   Other types may be supported in contributed modules.
- * @param \Drupal\node\Plugin\Core\Entity\EntityInterface $node
- *   The node to export.
- *
- * @return
- *   A string representing the node and its children in the book hierarchy in a
- *   format determined by the $type parameter.
- *
- * @throws \Symfony\Component\HttpKernel\Exception\NotFoundHttpException
- *
- * @see book_menu()
- */
-function book_export($type, EntityInterface $node) {
-  $type = drupal_strtolower($type);
-
-  $export_function = 'book_export_' . $type;
-
-  if (function_exists($export_function)) {
-    print call_user_func($export_function, $node);
-  }
-  else {
-    drupal_set_message(t('Unknown export format.'));
-    throw new NotFoundHttpException();
-  }
-}
-
-/**
- * Generates HTML for export when invoked by book_export().
- *
- * The given node is embedded to its absolute depth in a top level section. For
- * example, a child node with depth 2 in the hierarchy is contained in
- * (otherwise empty) <div> elements corresponding to depth 0 and depth 1.
- * This is intended to support WYSIWYG output - e.g., level 3 sections always
- * look like level 3 sections, no matter their depth relative to the node
- * selected to be exported as printer-friendly HTML.
- *
- * @param \Drupal\node\Plugin\Core\Entity\Node
- *   The node to export.
- *
- * @return
- *   A string containing HTML representing the node and its children in
- *   the book hierarchy.
- *
- * @throws \Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException
- * @throws \Symfony\Component\HttpKernel\Exception\NotFoundHttpException
- */
-function book_export_html(EntityInterface $node) {
-  if (user_access('access printer-friendly version')) {
-    if (isset($node->book)) {
-      $tree = book_menu_subtree_data($node->book);
-      $contents = book_export_traverse($tree, 'book_node_export');
-      $book_exported_html = array('#theme' => 'book_export_html', '#title' => $node->label(), '#contents' => $contents, '#depth' => $node->book['depth']);
-      return drupal_render($book_exported_html);
-    }
-    else {
-      throw new NotFoundHttpException();
-    }
-  }
-  else {
-    throw new AccessDeniedHttpException();
-  }
-}
-
-/**
  * Page callback: Shows the outline form for a single node.
  *
  * @param \Drupal\Core\Entity\EntityInterface $node
@@ -115,7 +40,7 @@ function book_outline(EntityInterface $node) {
 function book_outline_form($form, &$form_state, EntityInterface $node) {
   if (!isset($node->book)) {
     // The node is not part of any book yet - set default options.
-    $node->book = _book_link_defaults($node->nid);
+    $node->book = _book_link_defaults($node->id());
   }
   else {
     $node->book['original_bid'] = $node->book['bid'];
@@ -154,7 +79,7 @@ function book_outline_form($form, &$form_state, EntityInterface $node) {
  * @see book_outline_form_submit()
  */
 function book_remove_button_submit($form, &$form_state) {
-  $form_state['redirect'] = 'node/' . $form['#node']->nid . '/outline/remove';
+  $form_state['redirect'] = 'node/' . $form['#node']->id() . '/outline/remove';
 }
 
 /**
@@ -164,7 +89,7 @@ function book_remove_button_submit($form, &$form_state) {
  */
 function book_outline_form_submit($form, &$form_state) {
   $node = $form['#node'];
-  $form_state['redirect'] = "node/" . $node->nid;
+  $form_state['redirect'] = "node/" . $node->id();
   $book_link = $form_state['values']['book'];
   if (!$book_link['bid']) {
     drupal_set_message(t('No changes were made'));
@@ -178,7 +103,7 @@ function book_outline_form_submit($form, &$form_state) {
     if ($node->book['parent_mismatch']) {
       // This will usually only happen when JS is disabled.
       drupal_set_message(t('The post has been added to the selected book. You may now position it relative to other pages.'));
-      $form_state['redirect'] = "node/" . $node->nid . "/outline";
+      $form_state['redirect'] = "node/" . $node->id() . "/outline";
     }
     else {
       drupal_set_message(t('The book outline has been updated.'));
@@ -210,7 +135,7 @@ function book_remove_form($form, &$form_state, EntityInterface $node) {
     $description = t('%title may be added to hierarchy again using the Outline tab.', $title);
   }
 
-  return confirm_form($form, t('Are you sure you want to remove %title from the book hierarchy?', $title), 'node/' . $node->nid, $description, t('Remove'));
+  return confirm_form($form, t('Are you sure you want to remove %title from the book hierarchy?', $title), 'node/' . $node->id(), $description, t('Remove'));
 }
 
 /**
@@ -221,9 +146,9 @@ function book_remove_form_submit($form, &$form_state) {
   if (_book_node_is_removable($node)) {
     menu_link_delete($node->book['mlid']);
     db_delete('book')
-      ->condition('nid', $node->nid)
+      ->condition('nid', $node->id())
       ->execute();
     drupal_set_message(t('The post has been removed from the book.'));
   }
-  $form_state['redirect'] = 'node/' . $node->nid;
+  $form_state['redirect'] = 'node/' . $node->id();
 }

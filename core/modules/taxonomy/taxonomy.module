@@ -5,11 +5,13 @@
  * Enables the organization of content into categories.
  */
 
-use Drupal\node\Plugin\Core\Entity\Node;
-use Drupal\taxonomy\Plugin\Core\Entity\Term;
-use Drupal\taxonomy\Plugin\Core\Entity\Vocabulary;
+use Drupal\Core\Entity\DatabaseStorageController;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Entity\Field\FieldDefinitionInterface;
+use Drupal\node\Entity\Node;
+use Drupal\taxonomy\Entity\Term;
+use Drupal\taxonomy\Entity\Vocabulary;
+use Drupal\taxonomy\VocabularyInterface;
 
 /**
  * Denotes that no term in the vocabulary has a parent.
@@ -70,7 +72,7 @@ function taxonomy_help($path, $arg) {
       $output = '<p>' . t('Taxonomy is for categorizing content. Terms are grouped into vocabularies. For example, a vocabulary called "Fruit" would contain the terms "Apple" and "Banana".') . '</p>';
       return $output;
     case 'admin/structure/taxonomy/manage/%':
-      $vocabulary = taxonomy_vocabulary_load($arg[4]);
+      $vocabulary = entity_load('taxonomy_vocabulary', $arg[4]);
       switch ($vocabulary->hierarchy) {
         case TAXONOMY_HIERARCHY_DISABLED:
           return '<p>' . t('You can reorganize the terms in %capital_name using their drag-and-drop handles, and group terms under a parent term by sliding them under and to the right of the parent.', array('%capital_name' => drupal_ucfirst($vocabulary->name), '%name' => $vocabulary->name)) . '</p>';
@@ -91,7 +93,7 @@ function taxonomy_permission() {
       'title' => t('Administer vocabularies and terms'),
     ),
   );
-  foreach (taxonomy_vocabulary_load_multiple() as $vocabulary) {
+  foreach (entity_load_multiple('taxonomy_vocabulary') as $vocabulary) {
     $permissions += array(
       'edit terms in ' . $vocabulary->id() => array(
         'title' => t('Edit terms in %vocabulary', array('%vocabulary' => $vocabulary->name)),
@@ -112,7 +114,7 @@ function taxonomy_permission() {
 function taxonomy_entity_bundle_info() {
   $bundles = array();
   foreach (taxonomy_vocabulary_get_names() as $id) {
-    $config = config('taxonomy.vocabulary.' . $id);
+    $config = Drupal::config('taxonomy.vocabulary.' . $id);
     $bundles['taxonomy_term'][$id]['label'] = $config->get('name');
   }
   return $bundles;
@@ -180,7 +182,7 @@ function taxonomy_field_extra_fields() {
  *   An array of nids matching the query.
  */
 function taxonomy_select_nodes($tid, $pager = TRUE, $limit = FALSE, $order = array('t.sticky' => 'DESC', 't.created' => 'DESC')) {
-  if (!config('taxonomy.settings')->get('maintain_index_table')) {
+  if (!Drupal::config('taxonomy.settings')->get('maintain_index_table')) {
     return array();
   }
   $query = db_select('taxonomy_index', 't');
@@ -240,12 +242,8 @@ function taxonomy_menu() {
     'type' => MENU_DEFAULT_LOCAL_TASK,
   );
   $items['admin/structure/taxonomy/add'] = array(
-    'title' => 'Add vocabulary',
-    'page callback' => 'taxonomy_vocabulary_add',
-    'access callback' => 'entity_page_create_access',
-    'access arguments' => array('taxonomy_vocabulary'),
-    'type' => MENU_LOCAL_ACTION,
-    'file' => 'taxonomy.admin.inc',
+    'route_name' => 'taxonomy_vocabulary_add',
+    'type' => MENU_SIBLING_LOCAL_TASK,
   );
 
   $items['taxonomy/term/%taxonomy_term'] = array(
@@ -264,27 +262,18 @@ function taxonomy_menu() {
   );
   $items['taxonomy/term/%taxonomy_term/edit'] = array(
     'title' => 'Edit',
-    'page callback' => 'entity_get_form',
-    // Pass a NULL argument to ensure that additional path components are not
-    // passed to taxonomy_term_form() as the vocabulary machine name argument.
-    'page arguments' => array(2),
-    'access callback' => 'entity_page_access',
-    'access arguments' => array(2, 'update'),
+    'title callback' => 'taxonomy_term_title',
+    'title arguments' => array(2),
     'type' => MENU_LOCAL_TASK,
     'context' => MENU_CONTEXT_PAGE | MENU_CONTEXT_INLINE,
     'weight' => 10,
-    'file' => 'taxonomy.admin.inc',
   );
   $items['taxonomy/term/%taxonomy_term/delete'] = array(
     'title' => 'Delete',
-    'page callback' => 'drupal_get_form',
-    'page arguments' => array('taxonomy_term_confirm_delete', 2),
-    'access callback' => 'entity_page_access',
-    'access arguments' => array(2, 'delete'),
     'type' => MENU_LOCAL_TASK,
     'context' => MENU_CONTEXT_INLINE,
     'weight' => 20,
-    'file' => 'taxonomy.admin.inc',
+    'route_name' => 'taxonomy_term_delete',
   );
   $items['taxonomy/term/%taxonomy_term/feed'] = array(
     'title' => 'Taxonomy term',
@@ -297,23 +286,11 @@ function taxonomy_menu() {
     'type' => MENU_CALLBACK,
     'file' => 'taxonomy.pages.inc',
   );
-  $items['taxonomy/autocomplete/%'] = array(
-    'title' => 'Autocomplete taxonomy',
-    'page callback' => 'taxonomy_autocomplete',
-    'page arguments' => array(2),
-    'access arguments' => array('access content'),
-    'type' => MENU_CALLBACK,
-    'file' => 'taxonomy.pages.inc',
-  );
 
   $items['admin/structure/taxonomy/manage/%taxonomy_vocabulary'] = array(
+    'route_name' => 'taxonomy_overview_terms',
     'title callback' => 'entity_page_label',
     'title arguments' => array(4),
-    'page callback' => 'drupal_get_form',
-    'page arguments' => array('taxonomy_overview_terms', 4),
-    'access callback' => 'entity_page_access',
-    'access arguments' => array(4, 'view'),
-    'file' => 'taxonomy.admin.inc',
   );
   $items['admin/structure/taxonomy/manage/%taxonomy_vocabulary/list'] = array(
     'title' => 'List',
@@ -326,33 +303,22 @@ function taxonomy_menu() {
     'access callback' => 'entity_page_access',
     'access arguments' => array(4, 'update'),
     'type' => MENU_LOCAL_TASK,
-    'file' => 'taxonomy.admin.inc',
+  );
+  $items['admin/structure/taxonomy/%taxonomy_vocabulary/delete'] = array(
+    'title' => 'Delete',
+    'type' => MENU_LOCAL_TASK,
+    'context' => MENU_CONTEXT_INLINE,
+    'weight' => 20,
+    'route_name' => 'taxonomy_vocabulary_delete',
   );
 
   $items['admin/structure/taxonomy/manage/%taxonomy_vocabulary/add'] = array(
     'title' => 'Add term',
-    'page callback' => 'taxonomy_term_add',
-    'page arguments' => array(4),
-    'access callback' => 'taxonomy_term_create_access',
-    'access arguments' => array(4),
+    'route_name' => 'taxonomy_term_add',
     'type' => MENU_LOCAL_ACTION,
-    'file' => 'taxonomy.admin.inc',
   );
 
   return $items;
-}
-
-/**
- * Access callback for creating a new taxonomy term.
- *
- * @param \Drupal\taxonomy\Plugin\Core\Entity\Vocabulary $vocabulary
- *   The vocabulary entity that represents the term bundle.
- *
- * @return bool
- *   TRUE if access is allowed, FALSE if not.
- */
-function taxonomy_term_create_access(Vocabulary $vocabulary) {
-  return entity_page_create_access('taxonomy_term', $vocabulary->id());
 }
 
 /**
@@ -379,7 +345,7 @@ function taxonomy_admin_paths() {
  * term has multiple parents then the vocabulary will be given a hierarchy of
  * TAXONOMY_HIERARCHY_MULTIPLE.
  *
- * @param Drupal\taxonomy\Plugin\Core\Entity\Vocabulary $vocabulary
+ * @param \Drupal\taxonomy\VocabularyInterface $vocabulary
  *   A taxonomy vocabulary entity.
  * @param $changed_term
  *   An array of the term structure that was updated.
@@ -387,7 +353,7 @@ function taxonomy_admin_paths() {
  * @return
  *   An integer that represents the level of the vocabulary's hierarchy.
  */
-function taxonomy_check_vocabulary_hierarchy(Vocabulary $vocabulary, $changed_term) {
+function taxonomy_check_vocabulary_hierarchy(VocabularyInterface $vocabulary, $changed_term) {
   $tree = taxonomy_get_tree($vocabulary->id());
   $hierarchy = TAXONOMY_HIERARCHY_DISABLED;
   foreach ($tree as $term) {
@@ -416,7 +382,7 @@ function taxonomy_check_vocabulary_hierarchy(Vocabulary $vocabulary, $changed_te
 /**
  * Generates an array which displays a term detail page.
  *
- * @param Drupal\taxonomy\Plugin\Core\Entity\Term $term
+ * @param Drupal\taxonomy\Entity\Term $term
  *   A taxonomy term object.
  * @param string $view_mode
  *   View mode, e.g. 'full', 'teaser'...
@@ -435,7 +401,7 @@ function taxonomy_term_view(Term $term, $view_mode = 'full', $langcode = NULL) {
  * Constructs a drupal_render() style array from an array of loaded terms.
  *
  * @param array $terms
- *   An array of taxonomy terms as returned by taxonomy_term_load_multiple().
+ *   An array of taxonomy terms as returned by entity_load_multiple('taxonomy_term').
  * @param string $view_mode
  *   View mode, e.g. 'full', 'teaser'...
  * @param string $langcode
@@ -498,7 +464,7 @@ function template_preprocess_taxonomy_term(&$variables) {
 /**
  * Returns whether the current page is the page of the passed-in term.
  *
- * @param Drupal\taxonomy\Plugin\Core\Entity\Term $term
+ * @param Drupal\taxonomy\Entity\Term $term
  *   A taxonomy term entity.
  */
 function taxonomy_term_is_page(Term $term) {
@@ -566,7 +532,7 @@ function taxonomy_term_load_parents($tid) {
     $query->orderBy('t.weight');
     $query->orderBy('t.name');
     $tids = $query->execute()->fetchCol();
-    $parents[$tid] = taxonomy_term_load_multiple($tids);
+    $parents[$tid] = entity_load_multiple('taxonomy_term', $tids);
   }
 
   return isset($parents[$tid]) ? $parents[$tid] : array();
@@ -583,7 +549,7 @@ function taxonomy_term_load_parents_all($tid) {
   }
 
   $parents = array();
-  if ($term = taxonomy_term_load($tid)) {
+  if ($term = entity_load('taxonomy_term', $tid)) {
     $parents[] = $term;
     $n = 0;
     while ($parent = taxonomy_term_load_parents($parents[$n]->id())) {
@@ -624,7 +590,7 @@ function taxonomy_term_load_children($tid, $vid = NULL) {
     $query->orderBy('t.weight');
     $query->orderBy('t.name');
     $tids = $query->execute()->fetchCol();
-    $children[$tid] = taxonomy_term_load_multiple($tids);
+    $children[$tid] = entity_load_multiple('taxonomy_term', $tids);
   }
 
   return isset($children[$tid]) ? $children[$tid] : array();
@@ -685,7 +651,7 @@ function taxonomy_get_tree($vid, $parent = 0, $max_depth = NULL, $load_entities 
   // Load full entities, if necessary. The entity controller statically
   // caches the results.
   if ($load_entities) {
-    $term_entities = taxonomy_term_load_multiple(array_keys($terms[$vid]));
+    $term_entities = entity_load_multiple('taxonomy_term', array_keys($terms[$vid]));
   }
 
   $max_depth = (!isset($max_depth)) ? count($children[$vid]) : $max_depth;
@@ -787,6 +753,8 @@ function taxonomy_term_load_multiple_by_name($name, $vocabulary = NULL) {
  * @see entity_load_multiple()
  * @see Drupal\Core\Entity\Query\EntityQueryInterface
  *
+ * @deprecated use entity_load_multiple('taxonomy_term', $tids) instead.
+ *
  * @param array $tids
  *   (optional) An array of entity IDs. If omitted, all entities are loaded.
  *
@@ -807,6 +775,8 @@ function taxonomy_term_load_multiple(array $tids = NULL) {
  *
  * @see entity_load_multiple()
  *
+ * @deprecated use entity_load_multiple('taxonomy_vocabulary', $vids) instead.
+ *
  * @param array $vids
  *   (optional) An array of entity IDs. If omitted, all entities are loaded.
  *
@@ -821,7 +791,7 @@ function taxonomy_vocabulary_load_multiple(array $vids = NULL) {
  * Sorts vocabularies by its weight and label.
  *
  * @param array $vocabularies
- *   An array of \Drupal\taxonomy\Plugin\Core\Entity\Vocabulary objects.
+ *   An array of \Drupal\taxonomy\Entity\Vocabulary objects.
  */
 function taxonomy_vocabulary_sort(array &$vocabularies = array()) {
   // @todo Remove error suppressing when http://drupal.org/node/1799600 is
@@ -832,11 +802,13 @@ function taxonomy_vocabulary_sort(array &$vocabularies = array()) {
 /**
  * Return the taxonomy vocabulary entity matching a vocabulary ID.
  *
+ * @deprecated use entity_load('taxonomy_vocabulary', $vid) instead.
+ *
  * @param int $vid
  *   The vocabulary's ID.
  *
- * @return Drupal\taxonomy\Plugin\Core\Entity\Vocabulary|false
- *   The taxonomy vocabulary entity, if exists, FALSE otherwise. Results are
+ * @return \Drupal\taxonomy\Entity\Vocabulary|null
+ *   The taxonomy vocabulary entity, if exists, NULL otherwise. Results are
  *   statically cached.
  */
 function taxonomy_vocabulary_load($vid) {
@@ -846,16 +818,18 @@ function taxonomy_vocabulary_load($vid) {
 /**
  * Return the taxonomy term entity matching a term ID.
  *
+ * @deprecated use entity_load('taxonomy_term', $tid) instead.
+ *
  * @param $tid
  *   A term's ID
  *
- * @return Drupal\taxonomy\Plugin\Core\Entity\Term|false
- *   A taxonomy term entity, or FALSE if the term was not found. Results are
+ * @return \Drupal\taxonomy\Entity\Term|null
+ *   A taxonomy term entity, or NULL if the term was not found. Results are
  *   statically cached.
  */
 function taxonomy_term_load($tid) {
   if (!is_numeric($tid)) {
-    return FALSE;
+    return NULL;
   }
   return entity_load('taxonomy_term', $tid);
 }
@@ -903,7 +877,7 @@ function taxonomy_field_info() {
       'description' => t('This field stores a reference to a taxonomy term.'),
       'default_widget' => 'options_select',
       'default_formatter' => 'taxonomy_term_reference_link',
-      'field item class' => 'Drupal\taxonomy\Type\TaxonomyTermReferenceItem',
+      'class' => 'Drupal\taxonomy\Type\TaxonomyTermReferenceItem',
       'settings' => array(
         'options_list_callback' => NULL,
         'allowed_values' => array(
@@ -946,14 +920,14 @@ function taxonomy_options_list(FieldDefinitionInterface $field_definition, Entit
  */
 function taxonomy_field_validate(EntityInterface $entity = NULL, $field, $instance, $langcode, $items, &$errors) {
   // Build an array of existing term IDs so they can be loaded with
-  // taxonomy_term_load_multiple();
+  // entity_load_multiple('taxonomy_term');
   foreach ($items as $delta => $item) {
     if (!empty($item['target_id']) && $item['target_id'] != 'autocreate') {
       $tids[] = $item['target_id'];
     }
   }
   if (!empty($tids)) {
-    $terms = taxonomy_term_load_multiple($tids);
+    $terms = entity_load_multiple('taxonomy_term', $tids);
 
     // Check each existing item to ensure it can be found in the
     // allowed values for this field.
@@ -1013,7 +987,7 @@ function taxonomy_field_is_empty($item, $field_type) {
 function taxonomy_allowed_values(FieldDefinitionInterface $field_definition, EntityInterface $entity) {
   $options = array();
   foreach ($field_definition->getFieldSetting('allowed_values') as $tree) {
-    if ($vocabulary = taxonomy_vocabulary_load($tree['vocabulary'])) {
+    if ($vocabulary = entity_load('taxonomy_vocabulary', $tree['vocabulary'])) {
       if ($terms = taxonomy_get_tree($vocabulary->id(), $tree['parent'], NULL, TRUE)) {
         foreach ($terms as $term) {
           $options[$term->id()] = str_repeat('-', $term->depth) . $term->label();
@@ -1027,7 +1001,7 @@ function taxonomy_allowed_values(FieldDefinitionInterface $field_definition, Ent
 /**
  * Title callback for term pages.
  *
- * @param Drupal\taxonomy\Plugin\Core\Entity\Term $term
+ * @param Drupal\taxonomy\Entity\Term $term
  *   A taxonomy term entity.
  *
  * @return
@@ -1055,7 +1029,7 @@ function taxonomy_autocomplete_validate($element, &$form_state) {
  */
 function taxonomy_field_settings_form($field, $instance) {
   // Get proper values for 'allowed_values_function', which is a core setting.
-  $vocabularies = taxonomy_vocabulary_load_multiple();
+  $vocabularies = entity_load_multiple('taxonomy_vocabulary');
   $options = array();
   foreach ($vocabularies as $vocabulary) {
     $options[$vocabulary->id()] = $vocabulary->name;
@@ -1081,51 +1055,6 @@ function taxonomy_field_settings_form($field, $instance) {
   }
 
   return $form;
-}
-
-/**
- * Implements hook_rdf_mapping().
- *
- * @return array
- *   The rdf mapping for vocabularies and terms.
- */
-function taxonomy_rdf_mapping() {
-  return array(
-    array(
-      'type' => 'taxonomy_term',
-      'bundle' => RDF_DEFAULT_BUNDLE,
-      'mapping' => array(
-        'rdftype' => array('skos:Concept'),
-        'name'   => array(
-          'predicates' => array('rdfs:label', 'skos:prefLabel'),
-        ),
-        'description'   => array(
-          'predicates' => array('skos:definition'),
-        ),
-        'vid'   => array(
-          'predicates' => array('skos:inScheme'),
-          'type' => 'rel',
-        ),
-        'parent'   => array(
-          'predicates' => array('skos:broader'),
-          'type' => 'rel',
-        ),
-      ),
-    ),
-    array(
-      'type' => 'taxonomy_vocabulary',
-      'bundle' => RDF_DEFAULT_BUNDLE,
-      'mapping' => array(
-        'rdftype' => array('skos:ConceptScheme'),
-        'name'   => array(
-          'predicates' => array('dc:title'),
-        ),
-        'description'   => array(
-          'predicates' => array('rdfs:comment'),
-        ),
-      ),
-    ),
-  );
 }
 
 /**
@@ -1174,48 +1103,30 @@ function taxonomy_node_insert(EntityInterface $node) {
  * The index lists all terms that are related to a given node entity, and is
  * therefore maintained at the entity level.
  *
- * @param \Drupal\node\Plugin\Core\Entity\Node $node
+ * @param \Drupal\node\Entity\Node $node
  *   The node entity.
  */
 function taxonomy_build_node_index($node) {
   // We maintain a denormalized table of term/node relationships, containing
   // only data for current, published nodes.
-  $status = NULL;
-  if (config('taxonomy.settings')->get('maintain_index_table')) {
-    // If a node property is not set in the node object when $node->save() is
-    // called, the old value from $node->original is used.
-    if (!empty($node->original)) {
-      $status = (int)(!empty($node->status) || (!isset($node->status) && !empty($node->original->status)));
-      $sticky = (int)(!empty($node->sticky) || (!isset($node->sticky) && !empty($node->original->sticky)));
-    }
-    else {
-      $status = (int)(!empty($node->status));
-      $sticky = (int)(!empty($node->sticky));
-    }
+  if (!Drupal::config('taxonomy.settings')->get('maintain_index_table') || !(Drupal::entityManager()->getStorageController('node') instanceof DatabaseStorageController)) {
+    return;
   }
+
+  $status = $node->isPublished();
+  $sticky = (int) $node->isSticky();
   // We only maintain the taxonomy index for published nodes.
   if ($status && $node->isDefaultRevision()) {
     // Collect a unique list of all the term IDs from all node fields.
     $tid_all = array();
-    foreach (field_info_instances('node', $node->type) as $instance) {
-      $field_name = $instance['field_name'];
-      $field = field_info_field($field_name);
-      if ($field['module'] == 'taxonomy' && $field['storage']['type'] == 'field_sql_storage') {
-        // If a field value is not set in the node object when $node->save() is
-        // called, the old value from $node->original is used.
-        if (isset($node->{$field_name})) {
-          $items = $node->{$field_name};
-        }
-        elseif (isset($node->original->{$field_name})) {
-          $items = $node->original->{$field_name};
-        }
-        else {
-          continue;
-        }
-        foreach (field_available_languages('node', $field) as $langcode) {
-          if (!empty($items[$langcode])) {
-            foreach ($items[$langcode] as $item) {
-              $tid_all[$item['target_id']] = $item['target_id'];
+    foreach (field_info_instances('node', $node->getType()) as $instance) {
+      $field = $instance->getField();
+      $field_name = $field->getFieldName();
+      if ($field['module'] == 'taxonomy') {
+        foreach ($node->getTranslationLanguages() as $language) {
+          foreach ($node->getTranslation($language->id)->$field_name as $item) {
+            if (!$item->isEmpty()) {
+              $tid_all[$item->target_id] = $item->target_id;
             }
           }
         }
@@ -1226,10 +1137,10 @@ function taxonomy_build_node_index($node) {
       $query = db_insert('taxonomy_index')->fields(array('nid', 'tid', 'sticky', 'created'));
       foreach ($tid_all as $tid) {
         $query->values(array(
-          'nid' => $node->nid,
+          'nid' => $node->id(),
           'tid' => $tid,
           'sticky' => $sticky,
-          'created' => $node->created,
+          'created' => $node->getCreatedTime(),
         ));
       }
       $query->execute();
@@ -1261,8 +1172,8 @@ function taxonomy_node_predelete(EntityInterface $node) {
  *   The node entity.
  */
 function taxonomy_delete_node_index(EntityInterface $node) {
-  if (config('taxonomy.settings')->get('maintain_index_table')) {
-    db_delete('taxonomy_index')->condition('nid', $node->nid)->execute();
+  if (Drupal::config('taxonomy.settings')->get('maintain_index_table')) {
+    db_delete('taxonomy_index')->condition('nid', $node->id())->execute();
   }
 }
 
@@ -1270,7 +1181,7 @@ function taxonomy_delete_node_index(EntityInterface $node) {
  * Implements hook_taxonomy_term_delete().
  */
 function taxonomy_taxonomy_term_delete(Term $term) {
-  if (config('taxonomy.settings')->get('maintain_index_table')) {
+  if (Drupal::config('taxonomy.settings')->get('maintain_index_table')) {
     // Clean up the {taxonomy_index} table when terms are deleted.
     db_delete('taxonomy_index')->condition('tid', $term->id())->execute();
   }

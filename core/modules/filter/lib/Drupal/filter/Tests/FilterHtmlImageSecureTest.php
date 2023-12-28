@@ -7,6 +7,7 @@
 
 namespace Drupal\filter\Tests;
 
+use Drupal\Core\StreamWrapper\PublicStream;
 use Drupal\simpletest\WebTestBase;
 
 /**
@@ -60,7 +61,7 @@ class FilterHtmlImageSecureTest extends WebTestBase {
       'access comments',
       'post comments',
       'skip comment approval',
-      filter_permission_name($filtered_html_format),
+      $filtered_html_format->getPermissionName(),
     ));
     $this->drupalLogin($this->web_user);
 
@@ -75,7 +76,7 @@ class FilterHtmlImageSecureTest extends WebTestBase {
   function testImageSource() {
     global $base_url;
 
-    $public_files_path = variable_get('file_public_path', conf_path() . '/files');
+    $public_files_path = PublicStream::basePath();
 
     $http_base_url = preg_replace('/^https?/', 'http', $base_url);
     $https_base_url = preg_replace('/^https?/', 'https', $base_url);
@@ -118,7 +119,7 @@ class FilterHtmlImageSecureTest extends WebTestBase {
     $edit = array(
       'comment_body[und][0][value]' => implode("\n", $comment),
     );
-    $this->drupalPost('node/' . $this->node->nid, $edit, t('Save'));
+    $this->drupalPost('node/' . $this->node->id(), $edit, t('Save'));
     foreach ($images as $image => $converted) {
       $found = FALSE;
       foreach ($this->xpath('//img[@testattribute="' . hash('sha256', $image) . '"]') as $element) {

@@ -72,10 +72,15 @@ class RouteSubscriber implements EventSubscriberInterface {
             $collection->add("rest.$name", $route);
             continue;
           }
+          // Check if there are authentication provider restrictions in the
+          // configuration and apply them to the route.
+          if (is_array($enabled_methods[$method]['supported_auth']) && !empty($enabled_methods[$method]['supported_auth'])) {
+            $route->setOption('_auth', $enabled_methods[$method]['supported_auth']);
+          }
           // If there is no format requirement or if it matches the
           // configuration also add the route.
           $format_requirement = $route->getRequirement('_format');
-          if (!$format_requirement || isset($enabled_methods[$method][$format_requirement])) {
+          if (!$format_requirement || empty($enabled_methods[$method]['supported_formats']) || in_array($format_requirement, $enabled_methods[$method]['supported_formats'])) {
             $collection->add("rest.$name", $route);
           }
         }

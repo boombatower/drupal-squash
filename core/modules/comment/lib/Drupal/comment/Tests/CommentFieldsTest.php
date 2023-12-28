@@ -45,7 +45,7 @@ class CommentFieldsTest extends CommentTestBase {
     }
 
     // Check that the 'comment_body' field is deleted.
-    $field = field_info_field('comment_body');
+    $field = field_info_field('comment', 'comment_body');
     $this->assertTrue(empty($field), 'The comment_body field was deleted');
 
     // Create a new content type.
@@ -54,7 +54,7 @@ class CommentFieldsTest extends CommentTestBase {
 
     // Check that the 'comment_body' field exists and has an instance on the
     // new comment bundle.
-    $field = field_info_field('comment_body');
+    $field = field_info_field('comment', 'comment_body');
     $this->assertTrue($field, 'The comment_body field exists');
     $instances = field_info_instances('comment');
     $this->assertTrue(isset($instances['comment_node_' . $type_name]['comment_body']), format_string('The comment_body field is present for comments on type @type', array('@type' => $type_name)));
@@ -112,6 +112,6 @@ class CommentFieldsTest extends CommentTestBase {
     // Post a comment without an explicit subject.
     $this->drupalLogin($this->web_user);
     $edit = array('comment_body[und][0][value]' => $this->randomName(8));
-    $this->drupalPost('node/' . $this->node->nid, $edit, t('Save'));
+    $this->drupalPost('node/' . $this->node->id(), $edit, t('Save'));
   }
 }

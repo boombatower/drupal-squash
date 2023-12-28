@@ -32,8 +32,8 @@ class LocaleSettingsForm extends SystemConfigFormBase {
       '#default_value' => $config->get('translation.update_interval_days'),
       '#options' => array(
         '0' => t('Never (manually)'),
-        '1' => t('Daily'),
         '7' => t('Weekly'),
+        '30' => t('Monthly'),
       ),
       '#description' => t('Select how frequently you want to check for new interface translations for your currently installed modules and themes. <a href="@url">Check updates now</a>.', array('@url' => url('admin/reports/translations/check'))),
     );
@@ -44,7 +44,7 @@ class LocaleSettingsForm extends SystemConfigFormBase {
       '#default_value' => $config->get('translation.check_disabled_modules'),
     );
 
-    if ($directory =config('locale.settings')->get('translation.path')) {
+    if ($directory =\Drupal::config('locale.settings')->get('translation.path')) {
       $description = t('Translation files are stored locally in the  %path directory. You can change this directory on the <a href="@url">File system</a> configuration page.', array('%path' => $directory, '@url' => url('admin/config/media/file-system')));
     }
     else {

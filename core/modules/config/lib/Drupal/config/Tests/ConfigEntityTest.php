@@ -35,7 +35,7 @@ class ConfigEntityTest extends WebTestBase {
    * Tests CRUD operations.
    */
   function testCRUD() {
-    $default_langcode = language_default()->langcode;
+    $default_langcode = language_default()->id;
     // Verify default properties on a newly created empty entity.
     $empty = entity_create('config_test', array());
     $this->assertIdentical($empty->id, NULL);
@@ -154,6 +154,8 @@ class ConfigEntityTest extends WebTestBase {
     $this->assertIdentical($same_id->label(), '');
     $this->assertNotEqual($same_id->uuid(), $config_test->uuid());
 
+    // Delete the overridden entity first.
+    $same_id->delete();
     // Revert to previous state.
     $config_test->save();
 

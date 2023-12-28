@@ -23,22 +23,23 @@ function contextual_menu() {
  * Implements hook_toolbar().
  */
 function contextual_toolbar() {
-  if (!user_access('access contextual links')) {
+
+  if (!Drupal::currentUser()->hasPermission('access contextual links')) {
     return;
   }
 
   $tab['contextual'] = array(
-    '#type' => 'toolbar_item',
     'tab' => array(
       '#type' => 'html_tag',
       '#tag' => 'button',
       '#value' => t('Edit'),
       '#attributes' => array(
-        'class' => array('icon', 'icon-edit'),
+        'class' => array('toolbar-icon', 'toolbar-icon-edit'),
         'role' => 'button',
         'aria-pressed' => 'false',
       ),
     ),
+    '#theme_wrappers' => array('toolbar_tab_wrapper'),
     '#wrapper_attributes' => array(
       'class' => array('hidden', 'contextual-toolbar-tab'),
     ),
@@ -61,7 +62,8 @@ function contextual_toolbar() {
  * @see contextual_preprocess()
  */
 function contextual_page_build(&$page) {
-  if (!user_access('access contextual links')) {
+
+  if (!Drupal::currentUser()->hasPermission('access contextual links')) {
     return;
   }
 
@@ -109,12 +111,13 @@ function contextual_library_info() {
     'version' => VERSION,
     'js' => array(
       // Add the JavaScript, with a group and weight such that it will run
-      // before modules/contextual/contextual.toolbar.js.
-      $path . '/contextual.js' => array('group' => JS_LIBRARY, 'weight' => -2),
+      // before modules/contextual/js/contextual.toolbar.js.
+      $path . '/js/contextual.js' => array('group' => JS_LIBRARY, 'weight' => -2),
     ),
     'css' => array(
       $path . '/css/contextual.module.css' => array(),
       $path . '/css/contextual.theme.css' => array(),
+      $path . '/css/contextual.icons.css' => array(),
     ),
     'dependencies' => array(
       array('system', 'jquery'),
@@ -131,7 +134,7 @@ function contextual_library_info() {
     'js' => array(
       // Add the JavaScript, with a group and weight such that it will run
       // before modules/overlay/overlay-parent.js.
-      $path . '/contextual.toolbar.js' => array('group' => JS_LIBRARY, 'weight' => -1),
+      $path . '/js/contextual.toolbar.js' => array('group' => JS_LIBRARY, 'weight' => -1),
     ),
     'css' => array(
       $path . '/css/contextual.toolbar.css' => array(),
@@ -347,7 +350,8 @@ function _contextual_id_to_links($id) {
   foreach ($contexts as $context) {
     list($module, $parent_path, $path_args, $metadata_raw) = explode(':', $context);
     $path_args = explode('/', $path_args);
-    $metadata = drupal_get_query_array($metadata_raw);
+    $metadata = array();
+    parse_str($metadata_raw, $metadata);
     $contextual_links[$module] = array($parent_path, $path_args, $metadata);
   }
   return $contextual_links;

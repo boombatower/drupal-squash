@@ -48,9 +48,9 @@ class DrupalDateTimeTest extends WebTestBase {
     $date_string = '2007-01-31 21:00:00';
 
     // Make sure no site timezone has been set.
-    config('system.timezone')
-      ->set('user.configurable', 0)
-      ->set('default', NULL)
+    \Drupal::config('system.date')
+      ->set('timezone.user.configurable', 0)
+      ->set('timezone.default', NULL)
       ->save();
 
     // Detect the system timezone.
@@ -68,7 +68,7 @@ class DrupalDateTimeTest extends WebTestBase {
     $this->assertTrue($timezone == 'America/Yellowknife', 'DrupalDateTime uses the specified timezone if provided.');
 
     // Set a site timezone.
-    config('system.timezone')->set('default', 'Europe/Warsaw')->save();
+    \Drupal::config('system.date')->set('timezone.default', 'Europe/Warsaw')->save();
 
     // Create a date object with an unspecified timezone, which should
     // end up using the site timezone.
@@ -77,19 +77,19 @@ class DrupalDateTimeTest extends WebTestBase {
     $this->assertTrue($timezone == 'Europe/Warsaw', 'DrupalDateTime uses the site timezone if provided.');
 
     // Create user.
-    config('system.timezone')->set('user.configurable', 1)->save();
+    \Drupal::config('system.date')->set('timezone.user.configurable', 1)->save();
     $test_user = $this->drupalCreateUser(array());
     $this->drupalLogin($test_user);
 
     // Set up the user with a different timezone than the site.
-    $edit = array('mail' => $test_user->mail, 'timezone' => 'Asia/Manila');
-    $this->drupalPost('user/' . $test_user->uid . '/edit', $edit, t('Save'));
+    $edit = array('mail' => $test_user->getEmail(), 'timezone' => 'Asia/Manila');
+    $this->drupalPost('user/' . $test_user->id() . '/edit', $edit, t('Save'));
 
     // Disable session saving as we are about to modify the global $user.
     drupal_save_session(FALSE);
     // Save the original user and then replace it with the test user.
     $real_user = $user;
-    $user = user_load($test_user->uid, TRUE);
+    $user = user_load($test_user->id(), TRUE);
 
     // Simulate a Drupal bootstrap with the logged-in user.
     date_default_timezone_set(drupal_get_user_timezone());

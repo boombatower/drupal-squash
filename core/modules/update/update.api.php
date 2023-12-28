@@ -28,11 +28,11 @@
  *   includes all the metadata documented in the comments below for each project
  *   (either module or theme) that is currently enabled. The array is initially
  *   populated inside update_get_projects() with the help of
- *   update_process_info_list(), so look there for examples of how to populate
- *   the array with real values.
+ *   \Drupal\Core\Utility\ProjectInfo->processInfoList(), so look there for
+ *   examples of how to populate the array with real values.
  *
  * @see update_get_projects()
- * @see update_process_info_list()
+ * @see \Drupal\Core\Utility\ProjectInfo->processInfoList()
  */
 function hook_update_projects_alter(&$projects) {
   // Hide a site-specific module from the list.
@@ -83,7 +83,7 @@ function hook_update_projects_alter(&$projects) {
  * @see update_calculate_project_data()
  */
 function hook_update_status_alter(&$projects) {
-  $settings = config('update_advanced.settings')->get('projects');
+  $settings = Drupal::config('update_advanced.settings')->get('projects');
   foreach ($projects as $project => $project_info) {
     if (isset($settings[$project]) && isset($settings[$project]['check']) &&
         ($settings[$project]['check'] == 'never' ||

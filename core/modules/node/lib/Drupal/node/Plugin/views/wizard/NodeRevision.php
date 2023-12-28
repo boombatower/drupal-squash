@@ -8,7 +8,7 @@
 namespace Drupal\node\Plugin\views\wizard;
 
 use Drupal\views\Plugin\views\wizard\WizardPluginBase;
-use Drupal\Component\Annotation\Plugin;
+use Drupal\views\Annotation\ViewsWizard;
 use Drupal\Core\Annotation\Translation;
 
 /**
@@ -18,7 +18,7 @@ use Drupal\Core\Annotation\Translation;
 /**
  * Tests creating node revision views with the wizard.
  *
- * @Plugin(
+ * @ViewsWizard(
  *   id = "node_revision",
  *   module = "node",
  *   base_table = "node_field_revision",
@@ -66,7 +66,8 @@ class NodeRevision extends WizardPluginBase {
     'status' => array(
       'value' => TRUE,
       'table' => 'node_field_revision',
-      'field' => 'status'
+      'field' => 'status',
+      'provider' => 'node'
     )
   );
 
@@ -99,6 +100,7 @@ class NodeRevision extends WizardPluginBase {
     $display_options['fields']['timestamp']['id'] = 'timestamp';
     $display_options['fields']['timestamp']['table'] = 'node_field_revision';
     $display_options['fields']['timestamp']['field'] = 'timestamp';
+    $display_options['fields']['timestamp']['provider'] = 'node';
     $display_options['fields']['timestamp']['alter']['alter_text'] = 0;
     $display_options['fields']['timestamp']['alter']['make_link'] = 0;
     $display_options['fields']['timestamp']['alter']['absolute'] = 0;
@@ -114,6 +116,7 @@ class NodeRevision extends WizardPluginBase {
     $display_options['fields']['title']['id'] = 'title';
     $display_options['fields']['title']['table'] = 'node_field_revision';
     $display_options['fields']['title']['field'] = 'title';
+    $display_options['fields']['title']['provider'] = 'node';
     $display_options['fields']['title']['label'] = '';
     $display_options['fields']['title']['alter']['alter_text'] = 0;
     $display_options['fields']['title']['alter']['make_link'] = 0;

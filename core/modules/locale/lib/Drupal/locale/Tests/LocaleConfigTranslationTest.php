@@ -53,7 +53,7 @@ class LocaleConfigTranslationTest extends WebTestBase {
       'direction' => '0',
     );
     $this->drupalPost('admin/config/regional/language/add', $edit, t('Add custom language'));
-    $language = new Language(array('langcode' => $langcode));
+    $language = new Language(array('id' => $langcode));
     // Set path prefix.
     $edit = array( "prefix[$langcode]" => $langcode );
     $this->drupalPost('admin/config/regional/language/detection/url', $edit, t('Save configuration'));
@@ -136,7 +136,7 @@ class LocaleConfigTranslationTest extends WebTestBase {
     $this->assertEqual($property->getValue(), $image_style_label, 'Got the right translation for image style name after translation');
 
     // Quick test to ensure translation file exists.
-    $this->assertEqual(config('locale.config.xx.image.style.medium')->get('label'), $image_style_label);
+    $this->assertEqual(\Drupal::config('locale.config.xx.image.style.medium')->get('label'), $image_style_label);
 
     // Disable and uninstall the module.
     $this->drupalPost('admin/modules', array('modules[Core][image][enable]' => FALSE), t('Save configuration'));
@@ -144,7 +144,7 @@ class LocaleConfigTranslationTest extends WebTestBase {
     $this->drupalPost(NULL, array(), t('Uninstall'));
 
     // Ensure that the translated configuration has been removed.
-    $this->assertFalse(config('locale.config.xx.image.style.medium')->get('label'), 'Translated configuration for image module removed.');
+    $this->assertFalse(\Drupal::config('locale.config.xx.image.style.medium')->get('label'), 'Translated configuration for image module removed.');
   }
 
 }

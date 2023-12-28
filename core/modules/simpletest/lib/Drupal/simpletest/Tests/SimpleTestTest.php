@@ -2,7 +2,7 @@
 
 /**
  * @file
- * Definition of Drupal\simpletest\Tests\SimpleTestTest.
+ * Definition of \Drupal\simpletest\Tests\SimpleTestTest.
  */
 
 namespace Drupal\simpletest\Tests;
@@ -25,8 +25,9 @@ class SimpleTestTest extends WebTestBase {
   protected $childTestResults;
 
   /**
-   * Store the test ID from each test run for comparison, to ensure they are
-   * incrementing.
+   * Stores the test ID from each test run for comparison.
+   *
+   * Used to ensure they are incrementing.
    */
   protected $test_ids = array();
 
@@ -60,7 +61,7 @@ class SimpleTestTest extends WebTestBase {
       $this->drupalGet('test-page');
       $this->assertTrue($this->drupalGetHeader('Date'), 'An HTTP header was received.');
       $this->assertTitle(t('Test page | @site-name', array(
-        '@site-name' => config('system.site')->get('name'),
+        '@site-name' => \Drupal::config('system.site')->get('name'),
       )));
       $this->assertNoTitle('Foo');
 
@@ -81,7 +82,7 @@ class SimpleTestTest extends WebTestBase {
       // Test the maximum redirection option.
       $this->drupalLogout();
       $edit = array(
-        'name' => $user->name,
+        'name' => $user->getUsername(),
         'pass' => $user->pass_raw
       );
       $this->maximumRedirects = 1;
@@ -131,8 +132,7 @@ class SimpleTestTest extends WebTestBase {
   }
 
   /**
-   * Make sure that tests selected through the web interface are run and
-   * that the results are displayed correctly.
+   * Ensures the tests selected through the web interface are run and displayed.
    */
   function testWebTestRunner() {
     $this->pass = t('SimpleTest pass.');
@@ -141,7 +141,8 @@ class SimpleTestTest extends WebTestBase {
     $this->invalid_permission = 'invalid permission';
 
     if ($this->inCURL()) {
-      // Only run following code if this test is running itself through a CURL request.
+      // Only run following code if this test is running itself through a CURL
+      // request.
       $this->stubTest();
     }
     else {
@@ -215,9 +216,9 @@ class SimpleTestTest extends WebTestBase {
     // Check that the backtracing code works for specific assert function.
     $this->assertAssertion('This is nothing.', 'Other', 'Pass', 'SimpleTestTest.php', 'Drupal\simpletest\Tests\SimpleTestTest->stubTest()');
 
-    // Check that errors that occur inside PHP internal functions are correctly reported.
-    // The exact error message differs between PHP versions so we check only
-    // the function name 'array_key_exists'.
+    // Check that errors that occur inside PHP internal functions are correctly
+    // reported. The exact error message differs between PHP versions so we
+    // check only the function name 'array_key_exists'.
     $this->assertAssertion('array_key_exists', 'Warning', 'Fail', 'SimpleTestTest.php', 'Drupal\simpletest\Tests\SimpleTestTest->stubTest()');
 
     $this->assertAssertion("Debug: 'Foo'", 'Debug', 'Fail', 'SimpleTestTest.php', 'Drupal\simpletest\Tests\SimpleTestTest->stubTest()');
@@ -241,14 +242,14 @@ class SimpleTestTest extends WebTestBase {
   }
 
   /**
-   * Assert that an assertion with the specified values is displayed
-   * in the test results.
+   * Asserts that an assertion with specified values is displayed in results.
    *
    * @param string $message Assertion message.
    * @param string $type Assertion type.
    * @param string $status Assertion status.
    * @param string $file File where the assertion originated.
    * @param string $functuion Function where the assertion originated.
+   *
    * @return Assertion result.
    */
   function assertAssertion($message, $type, $status, $file, $function) {
@@ -315,6 +316,7 @@ class SimpleTestTest extends WebTestBase {
    *
    * @param $element
    *   Element to extract text from.
+   *
    * @return
    *   Extracted text.
    */

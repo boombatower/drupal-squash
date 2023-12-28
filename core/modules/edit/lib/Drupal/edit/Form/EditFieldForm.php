@@ -8,6 +8,7 @@
 namespace Drupal\edit\Form;
 
 use Drupal\Core\Entity\EntityInterface;
+use Drupal\user\TempStoreFactory;
 
 /**
  * Builds and process a form for editing a single entity field.
@@ -15,12 +16,20 @@ use Drupal\Core\Entity\EntityInterface;
 class EditFieldForm {
 
   /**
+   * Stores the tempstore factory.
+   *
+   * @var \Drupal\user\TempStoreFactory
+   */
+  protected $tempStoreFactory;
+
+  /**
    * Builds a form for a single entity field.
    */
-  public function build(array $form, array &$form_state, EntityInterface $entity, $field_name) {
+  public function build(array $form, array &$form_state, EntityInterface $entity, $field_name, TempStoreFactory $temp_store_factory) {
     if (!isset($form_state['entity'])) {
       $this->init($form_state, $entity, $field_name);
     }
+    $this->tempStoreFactory = $temp_store_factory;
 
     // Add the field form.
     field_attach_form($form_state['entity'], $form, $form_state, $form_state['langcode'], array('field_name' =>  $form_state['field_name']));
@@ -47,9 +56,6 @@ class EditFieldForm {
    * Initialize the form state and the entity before the first form build.
    */
   protected function init(array &$form_state, EntityInterface $entity, $field_name) {
-    // @todo Remove when http://drupal.org/node/1346214 is complete.
-    $entity = $entity->getBCEntity();
-
     // @todo Rather than special-casing $node->revision, invoke prepareEdit()
     //   once http://drupal.org/node/1863258 lands.
     if ($entity->entityType() == 'node') {
@@ -88,7 +94,9 @@ class EditFieldForm {
    */
   public function submit(array $form, array &$form_state) {
     $form_state['entity'] = $this->buildEntity($form, $form_state);
-    $form_state['entity']->save();
+
+    // Store entity in tempstore with its UUID as tempstore key.
+    $this->tempStoreFactory->get('edit')->set($form_state['entity']->uuid(), $form_state['entity']);
   }
 
   /**

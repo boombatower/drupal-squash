@@ -47,10 +47,20 @@ class HandlerFieldFieldTest extends FieldTestBase {
     $this->setUpFields(3);
 
     // Setup a field with cardinality > 1.
-    $this->fields[3] = $field = entity_create('field_entity', array('field_name' => 'field_name_3', 'type' => 'text', 'cardinality' => FIELD_CARDINALITY_UNLIMITED));
+    $this->fields[3] = $field = entity_create('field_entity', array(
+      'name' => 'field_name_3',
+      'entity_type' => 'node',
+      'type' => 'text',
+      'cardinality' => FIELD_CARDINALITY_UNLIMITED,
+    ));
     $field->save();
     // Setup a field that will have no value.
-    $this->fields[4] = $field = entity_create('field_entity', array('field_name' => 'field_name_4', 'type' => 'text', 'cardinality' => FIELD_CARDINALITY_UNLIMITED));
+    $this->fields[4] = $field = entity_create('field_entity', array(
+      'name' => 'field_name_4',
+      'entity_type' => 'node',
+      'type' => 'text',
+      'cardinality' => FIELD_CARDINALITY_UNLIMITED,
+    ));
     $field->save();
 
     $this->setUpInstances();
@@ -86,7 +96,7 @@ class HandlerFieldFieldTest extends FieldTestBase {
     $view->initDisplay();
     foreach ($this->fields as $key => $field) {
       $view->display_handler->options['fields'][$field['field_name']]['id'] = $field['field_name'];
-      $view->display_handler->options['fields'][$field['field_name']]['table'] = 'field_data_' . $field['field_name'];
+      $view->display_handler->options['fields'][$field['field_name']]['table'] = 'node__' . $field['field_name'];
       $view->display_handler->options['fields'][$field['field_name']]['field'] = $field['field_name'];
     }
   }
@@ -107,7 +117,7 @@ class HandlerFieldFieldTest extends FieldTestBase {
       for ($key = 0; $key < 2; $key++) {
         $field = $this->fields[$key];
         $rendered_field = $view->style_plugin->getField($i, $field['field_name']);
-        $expected_field = $this->nodes[$i]->{$field['field_name']}[Language::LANGCODE_NOT_SPECIFIED][0]['value'];
+        $expected_field = $this->nodes[$i]->{$field['field_name']}->value;
         $this->assertEqual($rendered_field, $expected_field);
       }
     }
@@ -146,7 +156,7 @@ class HandlerFieldFieldTest extends FieldTestBase {
     for ($i = 0; $i < 3; $i++) {
       $rendered_field = $view->style_plugin->getField($i, $field_name);
       $items = array();
-      $pure_items = $this->nodes[$i]->{$field_name}[Language::LANGCODE_NOT_SPECIFIED];
+      $pure_items = $this->nodes[$i]->{$field_name}->getValue();
       $pure_items = array_splice($pure_items, 0, 3);
       foreach ($pure_items as $j => $item) {
         $items[] = $pure_items[$j]['value'];
@@ -169,7 +179,7 @@ class HandlerFieldFieldTest extends FieldTestBase {
     for ($i = 0; $i < 3; $i++) {
       $rendered_field = $view->style_plugin->getField($i, $field_name);
       $items = array();
-      $pure_items = $this->nodes[$i]->{$field_name}[Language::LANGCODE_NOT_SPECIFIED];
+      $pure_items = $this->nodes[$i]->{$field_name}->getValue();
       $pure_items = array_splice($pure_items, 1, 3);
       foreach ($pure_items as $j => $item) {
         $items[] = $pure_items[$j]['value'];
@@ -189,7 +199,7 @@ class HandlerFieldFieldTest extends FieldTestBase {
     for ($i = 0; $i < 3; $i++) {
       $rendered_field = $view->style_plugin->getField($i, $field_name);
       $items = array();
-      $pure_items = $this->nodes[$i]->{$field_name}[Language::LANGCODE_NOT_SPECIFIED];
+      $pure_items = $this->nodes[$i]->{$field_name}->getValue();
       array_splice($pure_items, 0, -3);
       $pure_items = array_reverse($pure_items);
       foreach ($pure_items as $j => $item) {
@@ -210,7 +220,7 @@ class HandlerFieldFieldTest extends FieldTestBase {
     for ($i = 0; $i < 3; $i++) {
       $rendered_field = $view->style_plugin->getField($i, $field_name);
       $items = array();
-      $pure_items = $this->nodes[$i]->{$field_name}[Language::LANGCODE_NOT_SPECIFIED];
+      $pure_items = $this->nodes[$i]->{$field_name}->getValue();
       $items[] = $pure_items[0]['value'];
       $items[] = $pure_items[4]['value'];
       $this->assertEqual($rendered_field, implode(', ', $items), 'Take sure that the amount of items are limited.');
@@ -228,7 +238,7 @@ class HandlerFieldFieldTest extends FieldTestBase {
     for ($i = 0; $i < 3; $i++) {
       $rendered_field = $view->style_plugin->getField($i, $field_name);
       $items = array();
-      $pure_items = $this->nodes[$i]->{$field_name}[Language::LANGCODE_NOT_SPECIFIED];
+      $pure_items = $this->nodes[$i]->{$field_name}->getValue();
       $pure_items = array_splice($pure_items, 0, 3);
       foreach ($pure_items as $j => $item) {
         $items[] = $pure_items[$j]['value'];

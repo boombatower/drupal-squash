@@ -12,80 +12,15 @@ use Drupal\Core\Ajax\ReplaceCommand;
 use Drupal\views\Ajax\ScrollTopCommand;
 use Drupal\views\Ajax\ViewAjaxResponse;
 use Drupal\Core\Ajax\AjaxResponse;
+use Drupal\Component\Utility\Tags;
+use Drupal\Component\Utility\Unicode;
+use Drupal\Component\Utility\String;
 
 /**
  * @defgroup views_ajax Views AJAX library
  * @{
  * Handles the server side AJAX interactions of Views.
  */
-
-/**
- * Menu callback to load a view via AJAX.
- */
-function views_ajax() {
-  $request = drupal_container()->get('request');
-  $name = $request->request->get('view_name');
-  $display_id = $request->request->get('view_display_id');
-  if (isset($name) && isset($display_id)) {
-    $args = $request->request->get('view_args');
-    $args = isset($args) && $args !== '' ? explode('/', $args) : array();
-    $path = $request->request->get('view_path');
-    $dom_id = $request->request->get('view_dom_id');
-    $dom_id = isset($dom_id) ? preg_replace('/[^a-zA-Z0-9_-]+/', '-', $dom_id) : NULL;
-    $pager_element = $request->request->get('pager_element');
-    $pager_element = isset($pager_element) ? intval($pager_element) : NULL;
-
-    $response = new ViewAjaxResponse();
-
-    // Remove all of this stuff from the query of the request so it doesn't end
-    // up in pagers and tablesort URLs.
-    foreach (array('view_name', 'view_display_id', 'view_args', 'view_path', 'view_dom_id', 'pager_element', 'view_base_path', 'ajax_html_ids', 'ajax_page_state') as $key) {
-      if ($request->query->has($key)) {
-        $request->query->remove($key);
-      }
-      if ($request->request->has($key)) {
-        $request->request->remove($key);
-      }
-    }
-
-    // Load the view.
-    $view = views_get_view($name);
-    if ($view && $view->access($display_id)) {
-      // Fix the current path for paging.
-      if (!empty($path)) {
-        _current_path($path);
-      }
-
-      // Add all $_POST data, because AJAX is always a post and many things,
-      // such as tablesorts, exposed filters and paging assume $_GET.
-      $request_all = $request->request->all();
-      $query_all = $request->query->all();
-      $request->query->replace($request_all + $query_all);
-
-      // Overwrite the destination.
-      // @see drupal_get_destination()
-      $origin_destination = $path;
-      $query = drupal_http_build_query($request->query->all());
-      if ($query != '') {
-        $origin_destination .= '?' . $query;
-      }
-      $destination = &drupal_static('drupal_get_destination');
-      $destination = array('destination' => $origin_destination);
-
-      // Override the display's pager_element with the one actually used.
-      if (isset($pager_element)) {
-        $response->addCommand(new ScrollTopCommand(".view-dom-id-$dom_id"));
-        $view->displayHandlers->get($display_id)->setOption('pager_element', $pager_element);
-      }
-      // Reuse the same DOM id so it matches that in Drupal.settings.
-      $view->dom_id = $dom_id;
-
-      $preview = $view->preview($display_id, $args);
-      $response->addCommand(new ReplaceCommand(".view-dom-id-$dom_id", drupal_render($preview)));
-    }
-    return $response;
-  }
-}
 
 /**
  * Wrapper around drupal_build_form to handle some AJAX stuff automatically.
@@ -153,13 +88,13 @@ function views_ajax_form_wrapper($form_id, &$form_state) {
  * @see taxonomy_autocomplete()
  */
 function views_ajax_autocomplete_taxonomy($vid) {
-  // The user enters a comma-separated list of tags. We only autocomplete the last tag.
-  $tags_typed = drupal_explode_tags(drupal_container()->get('request')->query->get('q'));
-  $tag_last = drupal_strtolower(array_pop($tags_typed));
+  // The user enters a comma-separated list of tags. We only autocomplete the
+  // last tag.
+  $tags_typed = Tags::explode(Drupal::request()->query->get('q'));
+  $tag_last = Unicode::strtolower(array_pop($tags_typed));
+  $term_matches = array();
 
-  $matches = array();
   if ($tag_last != '') {
-
     $query = db_select('taxonomy_term_data', 't');
     $query->addTag('term_access');
 
@@ -176,9 +111,8 @@ function views_ajax_autocomplete_taxonomy($vid) {
       ->execute()
       ->fetchAllKeyed();
 
-    $prefix = count($tags_typed) ? drupal_implode_tags($tags_typed) . ', ' : '';
+    $prefix = count($tags_typed) ? Tags::implode($tags_typed) . ', ' : '';
 
-    $term_matches = array();
     foreach ($tags_return as $tid => $name) {
       $n = $name;
       // Term names containing commas or quotes must be wrapped in quotes.
@@ -186,7 +120,7 @@ function views_ajax_autocomplete_taxonomy($vid) {
         $n = '"' . str_replace('"', '""', $name) . '"';
       }
       // Add term name to list of matches.
-      $term_matches[$prefix . $n] = check_plain($name);
+      $term_matches[$prefix . $n] = String::checkPlain($name);
     }
   }
 

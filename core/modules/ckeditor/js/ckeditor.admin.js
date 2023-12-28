@@ -151,7 +151,7 @@ Drupal.behaviors.ckeditorAdmin = {
         redrawToolbarGradient();
       }
       // Post the update to the aria-live message element.
-      $messages.text(Drupal.t('row removed. @count row@plural remaining.', {'@count': ($rows.length - 1), '@plural': ((($rows.length - 1) === 1 ) ? '' : 's')}));
+      $messages.text(Drupal.formatPlural($rows.length - 1, 'row removed. 1 row remaining.', 'row removed. @count rows remaining.'));
       event.preventDefault();
     }
 
@@ -247,6 +247,15 @@ Drupal.behaviors.ckeditorAdmin = {
       var hiddenCKEditorID = 'ckeditor-hidden';
       if (CKEDITOR.instances[hiddenCKEditorID]) {
         CKEDITOR.instances[hiddenCKEditorID].destroy(true);
+      }
+      // Load external plugins, if any.
+      if (hiddenCKEditorConfig.drupalExternalPlugins) {
+        var externalPlugins = hiddenCKEditorConfig.drupalExternalPlugins;
+        for (var pluginName in externalPlugins) {
+          if (externalPlugins.hasOwnProperty(pluginName)) {
+            CKEDITOR.plugins.addExternal(pluginName, externalPlugins[pluginName], '');
+          }
+        }
       }
       CKEDITOR.inline($('#' + hiddenCKEditorID).get(0), CKEditorConfig);
 

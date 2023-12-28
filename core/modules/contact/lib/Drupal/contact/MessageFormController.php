@@ -44,7 +44,7 @@ class MessageFormController extends EntityFormControllerNG {
       '#title' => t('Your e-mail address'),
       '#required' => TRUE,
     );
-    if (!$user->uid) {
+    if ($user->isAnonymous()) {
       $form['#attached']['library'][] = array('system', 'jquery.cookie');
       $form['#attributes']['class'][] = 'user-info-from-cookie';
     }
@@ -52,14 +52,14 @@ class MessageFormController extends EntityFormControllerNG {
     // prevent the impersonation of other users.
     else {
       $form['name']['#type'] = 'item';
-      $form['name']['#value'] = $user->name;
+      $form['name']['#value'] = $user->getUsername();
       $form['name']['#required'] = FALSE;
-      $form['name']['#markup'] = check_plain(user_format_name($user));
+      $form['name']['#markup'] = check_plain($user->getUsername());
 
       $form['mail']['#type'] = 'item';
-      $form['mail']['#value'] = $user->mail;
+      $form['mail']['#value'] = $user->getEmail();
       $form['mail']['#required'] = FALSE;
-      $form['mail']['#markup'] = check_plain($user->mail);
+      $form['mail']['#markup'] = check_plain($user->getEmail());
     }
 
     // The user contact form has a preset recipient.
@@ -93,7 +93,7 @@ class MessageFormController extends EntityFormControllerNG {
       '#title' => t('Send yourself a copy.'),
       // Do not allow anonymous users to send themselves a copy, because it can
       // be abused to spam people.
-      '#access' => !empty($user->uid),
+      '#access' => $user->isAuthenticated(),
     );
     return $form;
   }
@@ -136,8 +136,8 @@ class MessageFormController extends EntityFormControllerNG {
     $language_interface = language(Language::TYPE_INTERFACE);
     $message = $this->entity;
 
-    $sender = clone user_load($user->uid);
-    if (!$user->uid) {
+    $sender = clone user_load($user->id());
+    if ($user->isAnonymous()) {
       // At this point, $sender contains drupal_anonymous_user(), so we need to
       // take over the submitted form values.
       $sender->name = $message->getSenderName();
@@ -159,13 +159,13 @@ class MessageFormController extends EntityFormControllerNG {
       $params['contact_category'] = $category;
 
       $to = implode(', ', $category->recipients);
-      $recipient_langcode = language_default()->langcode;
+      $recipient_langcode = language_default()->id;
     }
     elseif ($recipient = $message->getPersonalRecipient()) {
       // Send to the user in the user's preferred language.
-      $to = $recipient->mail->value;
-      $recipient_langcode = user_preferred_langcode($recipient);
-      $params['recipient'] = $recipient->getBCEntity();
+      $to = $recipient->getEmail();
+      $recipient_langcode = $recipient->getPreferredLangcode();
+      $params['recipient'] = $recipient;
     }
     else {
       throw new \RuntimeException(t('Unable to determine message recipient.'));
@@ -173,32 +173,32 @@ class MessageFormController extends EntityFormControllerNG {
 
     // Send e-mail to the recipient(s).
     $key_prefix = $message->isPersonal() ? 'user' : 'page';
-    drupal_mail('contact', $key_prefix . '_mail', $to, $recipient_langcode, $params, $sender->mail);
+    drupal_mail('contact', $key_prefix . '_mail', $to, $recipient_langcode, $params, $sender->getEmail());
 
     // If requested, send a copy to the user, using the current language.
     if ($message->copySender()) {
-      drupal_mail('contact', $key_prefix . '_copy', $sender->mail, $language_interface->langcode, $params, $sender->mail);
+      drupal_mail('contact', $key_prefix . '_copy', $sender->getEmail(), $language_interface->id, $params, $sender->getEmail());
     }
 
     // If configured, send an auto-reply, using the current language.
     if (!$message->isPersonal() && $category->reply) {
       // User contact forms do not support an auto-reply message, so this
       // message always originates from the site.
-      drupal_mail('contact', 'page_autoreply', $sender->mail, $language_interface->langcode, $params);
+      drupal_mail('contact', 'page_autoreply', $sender->getEmail(), $language_interface->id, $params);
     }
 
-    \Drupal::service('flood')->register('contact', config('contact.settings')->get('flood.interval'));
+    \Drupal::service('flood')->register('contact', \Drupal::config('contact.settings')->get('flood.interval'));
     if (!$message->isPersonal()) {
       watchdog('contact', '%sender-name (@sender-from) sent an e-mail regarding %category.', array(
         '%sender-name' => $sender->name,
-        '@sender-from' => $sender->mail,
+        '@sender-from' => $sender->getEmail(),
         '%category' => $category->label(),
       ));
     }
     else {
       watchdog('contact', '%sender-name (@sender-from) sent %recipient-name an e-mail.', array(
         '%sender-name' => $sender->name,
-        '@sender-from' => $sender->mail,
+        '@sender-from' => $sender->getEmail(),
         '%recipient-name' => $message->recipient->name,
       ));
     }

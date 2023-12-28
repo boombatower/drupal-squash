@@ -5,7 +5,7 @@
  * Builds placeholder replacement tokens for node-related data.
  */
 
-
+use Drupal\Core\Language\Language;
 
 /**
  * Implements hook_token_info().
@@ -98,7 +98,7 @@ function node_tokens($type, $tokens, array $data = array(), array $options = arr
     $langcode = $options['langcode'];
   }
   else {
-    $langcode = NULL;
+    $langcode = Language::LANGCODE_DEFAULT;
   }
   $sanitize = !empty($options['sanitize']);
 
@@ -111,19 +111,19 @@ function node_tokens($type, $tokens, array $data = array(), array $options = arr
       switch ($name) {
         // Simple key values on the node.
         case 'nid':
-          $replacements[$original] = $node->nid;
+          $replacements[$original] = $node->id();
           break;
 
         case 'vid':
-          $replacements[$original] = $node->vid;
+          $replacements[$original] = $node->getRevisionId();
           break;
 
         case 'tnid':
-          $replacements[$original] = $node->tnid;
+          $replacements[$original] = $node->tnid->value;
           break;
 
         case 'type':
-          $replacements[$original] = $sanitize ? check_plain($node->type) : $node->type;
+          $replacements[$original] = $sanitize ? check_plain($node->getType()) : $node->getType();
           break;
 
         case 'type-name':
@@ -132,38 +132,39 @@ function node_tokens($type, $tokens, array $data = array(), array $options = arr
           break;
 
         case 'title':
-          $replacements[$original] = $sanitize ? check_plain($node->title) : $node->title;
+          $replacements[$original] = $sanitize ? check_plain($node->getTitle()) : $node->getTitle();
           break;
 
         case 'body':
         case 'summary':
-          if ($items = field_get_items($node, 'body', $langcode)) {
-            $instance = field_info_instance('node', 'body', $node->type);
+          if (($items = $node->getTranslation($langcode)->get('body')) && !$items->isEmpty()) {
+            $item = $items[0];
+            $instance = field_info_instance('node', 'body', $node->getType());
             $field_langcode = field_language($node, 'body', $langcode);
 
             // If the summary was requested and is not empty, use it.
-            if ($name == 'summary' && !empty($items[0]['summary'])) {
-              $output = $sanitize ? text_sanitize($instance['settings']['text_processing'], $field_langcode, $items[0], 'summary') : $items[0]['summary'];
+            if ($name == 'summary' && !empty($item->summary)) {
+              $output = $sanitize ? text_sanitize($instance['settings']['text_processing'], $field_langcode, $item->getValue(), 'summary') : $item->summary;
             }
             // Attempt to provide a suitable version of the 'body' field.
             else {
-              $output = $sanitize ? text_sanitize($instance['settings']['text_processing'], $field_langcode, $items[0], 'value') : $items[0]['value'];
+              $output = $sanitize ? text_sanitize($instance['settings']['text_processing'], $field_langcode, $item->getValue(), 'value') : $item->value;
               // A summary was requested.
               if ($name == 'summary') {
                 // Generate an optionally trimmed summary of the body field.
 
                 // Get the 'trim_length' size used for the 'teaser' mode, if
                 // present, or use the default trim_length size.
-                $display_options = entity_get_display('node', $node->type, 'teaser')->getComponent('body');
+                $display_options = entity_get_display('node', $node->getType(), 'teaser')->getComponent('body');
                 if (isset($display_options['settings']['trim_length'])) {
                   $length = $display_options['settings']['trim_length'];
                 }
                 else {
-                  $settings = field_info_formatter_settings('text_summary_or_trimmed');
+                  $settings = \Drupal::service('plugin.manager.field.formatter')->getDefaultSettings('text_summary_or_trimmed');
                   $length = $settings['trim_length'];
                 }
 
-                $output = text_summary($output, $instance['settings']['text_processing'] ? $items[0]['format'] : NULL, $length);
+                $output = text_summary($output, $instance['settings']['text_processing'] ? $item->format : NULL, $length);
               }
             }
             $replacements[$original] = $output;
@@ -171,45 +172,43 @@ function node_tokens($type, $tokens, array $data = array(), array $options = arr
           break;
 
         case 'langcode':
-          $replacements[$original] = $sanitize ? check_plain($node->langcode) : $node->langcode;
+          $replacements[$original] = $sanitize ? check_plain($node->language()->id) : $node->language()->id;
           break;
 
         case 'url':
-          $replacements[$original] = url('node/' . $node->nid, $url_options);
+          $replacements[$original] = url('node/' . $node->id(), $url_options);
           break;
 
         case 'edit-url':
-          $replacements[$original] = url('node/' . $node->nid . '/edit', $url_options);
+          $replacements[$original] = url('node/' . $node->id() . '/edit', $url_options);
           break;
 
         // Default values for the chained tokens handled below.
         case 'author':
-          $account = user_load($node->uid);
-          $name = user_format_name($account);
-          $replacements[$original] = $sanitize ? check_plain($name) : $name;
+          $account = $node->getAuthor() ? $node->getAuthor() : user_load(0);
+          $replacements[$original] = $sanitize ? check_plain($account->label()) : $account->label();
           break;
 
         case 'created':
-          $replacements[$original] = format_date($node->created, 'medium', '', NULL, $langcode);
+          $replacements[$original] = format_date($node->getCreatedTime(), 'medium', '', NULL, $langcode);
           break;
 
         case 'changed':
-          $replacements[$original] = format_date($node->changed, 'medium', '', NULL, $langcode);
+          $replacements[$original] = format_date($node->getChangedTime(), 'medium', '', NULL, $langcode);
           break;
       }
     }
 
     if ($author_tokens = $token_service->findWithPrefix($tokens, 'author')) {
-      $author = user_load($node->uid);
-      $replacements += $token_service->generate('user', $author_tokens, array('user' => $author), $options);
+      $replacements += $token_service->generate('user', $author_tokens, array('user' => $node->getAuthor()), $options);
     }
 
     if ($created_tokens = $token_service->findWithPrefix($tokens, 'created')) {
-      $replacements += $token_service->generate('date', $created_tokens, array('date' => $node->created), $options);
+      $replacements += $token_service->generate('date', $created_tokens, array('date' => $node->getCreatedTime()), $options);
     }
 
     if ($changed_tokens = $token_service->findWithPrefix($tokens, 'changed')) {
-      $replacements += $token_service->generate('date', $changed_tokens, array('date' => $node->changed), $options);
+      $replacements += $token_service->generate('date', $changed_tokens, array('date' => $node->getChangedTime()), $options);
     }
   }
 

@@ -6,7 +6,7 @@
  *
  * This provides a Twig extension that registers various Drupal specific extensions to Twig.
  *
- * @see \Drupal\Core\CoreBundle
+ * @see \Drupal\Core\CoreServiceProvider
  */
 
 namespace Drupal\Core\Template;
@@ -14,7 +14,7 @@ namespace Drupal\Core\Template;
 /**
  * A class for providing Twig extensions (specific Twig_NodeVisitors, filters and functions).
  *
- * @see \Drupal\Core\CoreBundle
+ * @see \Drupal\Core\CoreServiceProvider
  */
 class TwigExtension extends \Twig_Extension {
   public function getFunctions() {
@@ -32,6 +32,14 @@ class TwigExtension extends \Twig_Extension {
   public function getFilters() {
     return array(
       't' => new \Twig_Filter_Function('t'),
+      'trans' => new \Twig_Filter_Function('t'),
+      // The "raw" filter is not detectable when parsing "trans" tags. To detect
+      // which prefix must be used for translation (@, !, %), we must clone the
+      // "raw" filter and give it identifiable names. These filters should only
+      // be used in "trans" tags.
+      // @see TwigNodeTrans::compileString()
+      'passthrough' => new \Twig_Filter_Function('twig_raw_filter'),
+      'placeholder' => new \Twig_Filter_Function('twig_raw_filter'),
     );
   }
 
@@ -47,6 +55,7 @@ class TwigExtension extends \Twig_Extension {
     return array(
       new TwigFunctionTokenParser('hide'),
       new TwigFunctionTokenParser('show'),
+      new TwigTransTokenParser(),
     );
   }
 

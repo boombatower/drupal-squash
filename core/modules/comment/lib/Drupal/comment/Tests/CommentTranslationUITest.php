@@ -7,12 +7,12 @@
 
 namespace Drupal\comment\Tests;
 
-use Drupal\translation_entity\Tests\EntityTranslationUITest;
+use Drupal\content_translation\Tests\ContentTranslationUITest;
 
 /**
  * Tests the Comment Translation UI.
  */
-class CommentTranslationUITest extends EntityTranslationUITest {
+class CommentTranslationUITest extends ContentTranslationUITest {
 
   /**
    * The subject of the test comment.
@@ -24,7 +24,7 @@ class CommentTranslationUITest extends EntityTranslationUITest {
    *
    * @var array
    */
-  public static $modules = array('language', 'translation_entity', 'node', 'comment');
+  public static $modules = array('language', 'content_translation', 'node', 'comment');
 
   public static function getInfo() {
     return array(
@@ -44,7 +44,7 @@ class CommentTranslationUITest extends EntityTranslationUITest {
   }
 
   /**
-   * Overrides \Drupal\translation_entity\Tests\EntityTranslationUITest::setupBundle().
+   * Overrides \Drupal\content_translation\Tests\ContentTranslationUITest::setupBundle().
    */
   function setupBundle() {
     parent::setupBundle();
@@ -52,37 +52,37 @@ class CommentTranslationUITest extends EntityTranslationUITest {
   }
 
   /**
-   * Overrides \Drupal\translation_entity\Tests\EntityTranslationUITest::getTranslatorPermission().
+   * Overrides \Drupal\content_translation\Tests\ContentTranslationUITest::getTranslatorPermission().
    */
   protected function getTranslatorPermissions() {
     return array_merge(parent::getTranslatorPermissions(), array('post comments', 'administer comments'));
   }
 
   /**
-   * Overrides \Drupal\translation_entity\Tests\EntityTranslationUITest::setupTestFields().
+   * Overrides \Drupal\content_translation\Tests\ContentTranslationUITest::setupTestFields().
    */
   function setupTestFields() {
     parent::setupTestFields();
-    $field = field_info_field('comment_body');
+    $field = field_info_field('comment', 'comment_body');
     $field['translatable'] = TRUE;
     $field->save();
   }
 
   /**
-   * Overrides \Drupal\translation_entity\Tests\EntityTranslationUITest::createEntity().
+   * Overrides \Drupal\content_translation\Tests\ContentTranslationUITest::createEntity().
    */
   protected function createEntity($values, $langcode, $node_bundle = NULL) {
     if (!isset($node_bundle)) {
       $node_bundle = $this->nodeBundle;
     }
     $node = $this->drupalCreateNode(array('type' => $node_bundle));
-    $values['nid'] = $node->nid;
-    $values['uid'] = $node->uid;
+    $values['nid'] = $node->id();
+    $values['uid'] = $node->getAuthorId();
     return parent::createEntity($values, $langcode);
   }
 
   /**
-   * Overrides \Drupal\translation_entity\Tests\EntityTranslationUITest::getNewEntityValues().
+   * Overrides \Drupal\content_translation\Tests\ContentTranslationUITest::getNewEntityValues().
    */
   protected function getNewEntityValues($langcode) {
     // Comment subject is not translatable hence we use a fixed value.
@@ -93,7 +93,7 @@ class CommentTranslationUITest extends EntityTranslationUITest {
   }
 
   /**
-   * Overrides \Drupal\translation_entity\Tests\EntityTranslationUITest::assertPublishedStatus().
+   * Overrides \Drupal\content_translation\Tests\ContentTranslationUITest::assertPublishedStatus().
    */
   protected function assertPublishedStatus() {
     parent::assertPublishedStatus();

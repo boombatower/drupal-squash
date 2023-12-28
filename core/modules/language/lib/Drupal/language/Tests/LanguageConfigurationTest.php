@@ -51,6 +51,9 @@ class LanguageConfigurationTest extends WebTestBase {
     $this->drupalPost('admin/config/regional/language/add', $edit, 'Add language');
     $this->assertText('French');
     $this->assertEqual($this->getUrl(), url('admin/config/regional/language', array('absolute' => TRUE)), 'Correct page redirection.');
+    // Langcode for Languages is always 'en'.
+    $language = $this->container->get('config.factory')->get('language.entity.fr')->get();
+    $this->assertEqual($language['langcode'], 'en');
 
     // Check if the Default English language has no path prefix.
     $this->drupalGet('admin/config/regional/language/detection/url');
@@ -100,6 +103,16 @@ class LanguageConfigurationTest extends WebTestBase {
     );
     $this->drupalPost(NULL, $edit, t('Save configuration'));
     $this->assertText(t('The prefix may not contain a slash.'), 'English prefix cannot be changed to contain a slash.');
+
+    // Remove English language and add a new Language to check if langcode of
+    // Language entity is 'en'.
+    $this->assert(language_delete('en'), 'Deleted English language.');
+    $edit = array(
+      'predefined_langcode' => 'de',
+    );
+    $this->drupalPost('admin/config/regional/language/add', $edit, 'Add language');
+    $language = $this->container->get('config.factory')->get('language.entity.de')->get();
+    $this->assertEqual($language['langcode'], 'en');
   }
 
   /**
@@ -159,7 +172,16 @@ class LanguageConfigurationTest extends WebTestBase {
    *   Maximum weight of configurable languages.
    */
   protected function getHighestConfigurableLanguageWeight(){
-    return db_query('SELECT MAX(weight) FROM {language} WHERE locked = 0')->fetchField();
+    $max_weight = 0;
+
+    $languages = entity_load_multiple('language_entity', NULL, TRUE);
+    foreach ($languages as $language) {
+      if (!$language->locked && $language->weight > $max_weight) {
+        $max_weight = $language->weight;
+      }
+    }
+
+    return $max_weight;
   }
 
 }

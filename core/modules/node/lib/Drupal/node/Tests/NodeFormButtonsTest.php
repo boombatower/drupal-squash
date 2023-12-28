@@ -52,26 +52,26 @@ class NodeFormButtonsTest extends NodeTestBase {
 
     // Get the node.
     $node_1 = node_load(1);
-    $this->assertEqual(1, $node_1->status, 'Node is published');
+    $this->assertTrue($node_1->isPublished(), 'Node is published');
 
     // Verify the buttons on a node edit form.
-    $this->drupalGet('node/' . $node_1->nid . '/edit');
+    $this->drupalGet('node/' . $node_1->id() . '/edit');
     $this->assertButtons(array(t('Save and keep published'), t('Save and unpublish')));
 
     // Save the node and verify it's still published after clicking
     // 'Save and keep published'.
     $this->drupalPost(NULL, $edit, t('Save and keep published'));
     $node = node_load(1, TRUE);
-    $this->assertEqual(1, $node_1->status, 'Node is published');
+    $this->assertTrue($node_1->isPublished(), 'Node is published');
 
     // Save the node and verify it's unpublished after clicking
     // 'Save and unpublish'.
-    $this->drupalPost('node/' . $node_1->nid . '/edit', $edit, t('Save and unpublish'));
+    $this->drupalPost('node/' . $node_1->id() . '/edit', $edit, t('Save and unpublish'));
     $node_1 = node_load(1, TRUE);
-    $this->assertEqual(0, $node_1->status, 'Node is unpublished');
+    $this->assertFalse($node_1->isPublished(), 'Node is unpublished');
 
     // Verify the buttons on an unpublished node edit screen.
-    $this->drupalGet('node/' . $node_1->nid . '/edit');
+    $this->drupalGet('node/' . $node_1->id() . '/edit');
     $this->assertButtons(array(t('Save and keep unpublished'), t('Save and publish')));
 
     // Create a node as a normal user.
@@ -86,30 +86,30 @@ class NodeFormButtonsTest extends NodeTestBase {
     $edit = array('title' => $this->randomString());
     $this->drupalPost('node/add/article', $edit, t('Save'));
     $node_2 = node_load(2);
-    $this->assertEqual(1, $node_2->status, 'Node is published');
+    $this->assertTrue($node_2->isPublished(), 'Node is published');
 
     // Login as an administrator and unpublish the node that just
     // was created by the normal user.
     $this->drupalLogout();
     $this->drupalLogin($this->admin_user);
-    $this->drupalPost('node/' . $node_2->nid . '/edit', array(), t('Save and unpublish'));
+    $this->drupalPost('node/' . $node_2->id() . '/edit', array(), t('Save and unpublish'));
     $node_2 = node_load(2, TRUE);
-    $this->assertEqual(0, $node_2->status, 'Node is unpublished');
+    $this->assertFalse($node_2->isPublished(), 'Node is unpublished');
 
     // Login again as the normal user, save the node and verify
     // it's still unpublished.
     $this->drupalLogout();
     $this->drupalLogin($this->web_user);
-    $this->drupalPost('node/' . $node_2->nid . '/edit', array(), t('Save'));
+    $this->drupalPost('node/' . $node_2->id() . '/edit', array(), t('Save'));
     $node_2 = node_load(2, TRUE);
-    $this->assertEqual(0, $node_2->status, 'Node is still unpublished');
+    $this->assertFalse($node_2->isPublished(), 'Node is still unpublished');
     $this->drupalLogout();
 
     // Set article content type default to unpublished. This will change the
     // the initial order of buttons and/or status of the node when creating
     // a node.
     variable_set('node_options_article', array('promote'));
-    $this->refreshVariables();
+    \Drupal::config('node.type.article')->set('settings.node.options.status', 0)->save();
 
     // Verify the buttons on a node add form for an administrator.
     $this->drupalLogin($this->admin_user);
@@ -122,7 +122,7 @@ class NodeFormButtonsTest extends NodeTestBase {
     $edit = array('title' => $this->randomString());
     $this->drupalPost('node/add/article', $edit, t('Save'));
     $node_3 = node_load(3);
-    $this->assertEqual(0, $node_3->status, 'Node is unpublished');
+    $this->assertFalse($node_3->isPublished(), 'Node is unpublished');
   }
 
   /**

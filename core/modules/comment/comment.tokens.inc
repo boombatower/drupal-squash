@@ -133,14 +133,13 @@ function comment_tokens($type, $tokens, array $data = array(), array $options = 
           break;
 
         case 'name':
-          $name = ($comment->uid->target_id == 0) ? config('user.settings')->get('anonymous') : $comment->name->value;
+          $name = ($comment->uid->target_id == 0) ? Drupal::config('user.settings')->get('anonymous') : $comment->name->value;
           $replacements[$original] = $sanitize ? filter_xss($name) : $name;
           break;
 
         case 'mail':
           if ($comment->uid->target_id != 0) {
-            $account = user_load($comment->uid->target_id);
-            $mail = $account->mail;
+            $mail = $comment->uid->entity->getEmail();
           }
           else {
             $mail = $comment->mail->value;
@@ -218,7 +217,7 @@ function comment_tokens($type, $tokens, array $data = array(), array $options = 
     }
 
     if (($author_tokens = $token_service->findwithPrefix($tokens, 'author')) && $account = $comment->uid->entity) {
-      $replacements += $token_service->generate('user', $author_tokens, array('user' => $account->getBCEntity()), $options);
+      $replacements += $token_service->generate('user', $author_tokens, array('user' => $account), $options);
     }
   }
   elseif ($type == 'node' & !empty($data['node'])) {
@@ -231,7 +230,7 @@ function comment_tokens($type, $tokens, array $data = array(), array $options = 
           break;
 
         case 'comment-count-new':
-          $replacements[$original] = comment_num_new($node->nid);
+          $replacements[$original] = comment_num_new($node->id());
           break;
       }
     }

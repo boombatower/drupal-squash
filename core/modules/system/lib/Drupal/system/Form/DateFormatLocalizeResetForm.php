@@ -7,16 +7,15 @@
 
 namespace Drupal\system\Form;
 
-use Drupal\Core\Controller\ControllerInterface;
+use Drupal\Core\DependencyInjection\ContainerInjectionInterface;
 use Drupal\Core\Form\ConfirmFormBase;
 use Drupal\Core\Config\ConfigFactory;
 use Symfony\Component\DependencyInjection\ContainerInterface;
-use Symfony\Component\HttpFoundation\Request;
 
 /**
  * Builds a form for enabling a module.
  */
-class DateFormatLocalizeResetForm extends ConfirmFormBase implements ControllerInterface {
+class DateFormatLocalizeResetForm extends ConfirmFormBase implements ContainerInjectionInterface {
 
   /**
    * The language to be reset.
@@ -34,6 +33,9 @@ class DateFormatLocalizeResetForm extends ConfirmFormBase implements ControllerI
 
   /**
    * Constructs a DateFormatLocalizeResetForm object.
+   *
+   * @param \Drupal\Core\Config\ConfigFactory $config_factory
+   *   The config factory.
    */
   public function __construct(ConfigFactory $config_factory) {
     $this->configFactory = $config_factory;
@@ -92,17 +94,19 @@ class DateFormatLocalizeResetForm extends ConfirmFormBase implements ControllerI
    *   The language code.
    *
    */
-  public function buildForm(array $form, array &$form_state, $langcode = NULL, Request $request = NULL) {
+  public function buildForm(array $form, array &$form_state, $langcode = NULL) {
     $this->language = language_load($langcode);
 
-    return parent::buildForm($form, $form_state, $request);
+    return parent::buildForm($form, $form_state);
   }
 
   /**
    * {@inheritdoc}
    */
   public function submitForm(array &$form, array &$form_state) {
-    $this->configFactory->get('locale.config.' . $this->language->langcode . '.system.date')->delete();
+    foreach (config_get_storage_names_with_prefix('locale.config.' . $this->language->id . '.system.date_format.') as $config_id) {
+      $this->configFactory->get($config_id)->delete();
+    }
 
     $form_state['redirect'] = 'admin/config/regional/date-time/locale';
   }

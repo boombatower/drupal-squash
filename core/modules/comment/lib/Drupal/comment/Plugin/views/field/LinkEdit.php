@@ -8,6 +8,7 @@
 namespace Drupal\comment\Plugin\views\field;
 
 use Drupal\Component\Annotation\PluginID;
+use Drupal\views\ResultRow;
 
 /**
  * Field handler to present a link to edit a comment.
@@ -33,12 +34,11 @@ class LinkEdit extends Link {
       '#title' => t('Use destination'),
       '#description' => t('Add destination to the link'),
       '#default_value' => $this->options['destination'],
-      '#fieldset' => 'more',
     );
   }
 
-  function render_link($data, $values) {
-    parent::render_link($data, $values);
+  protected function renderLink($data, ResultRow $values) {
+    parent::renderLink($data, $values);
     // Ensure user has access to edit this comment.
     $comment = $this->getValue($values);
     if (!$comment->access('update')) {

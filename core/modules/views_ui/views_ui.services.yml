@@ -1,6 +1,6 @@
 services:
   paramconverter.views_ui:
     class: Drupal\views_ui\ParamConverter\ViewUIConverter
-    arguments: ['@user.tempstore']
+    arguments: ['@entity.manager', '@user.tempstore']
     tags:
-      - { name: paramconverter }
+      - { name: paramconverter, priority: 10 }

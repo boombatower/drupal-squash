@@ -80,9 +80,7 @@ function toolbar_element_info() {
       // The id cannot be simply "toolbar" or it will clash with the simpletest
       // tests listing which produces a checkbox with attribute id="toolbar"
       'id' => 'toolbar-administration',
-      // The 'overlay-displace-top' class pushes the overlay down, so it appears
-      // below the toolbar.
-      'class' => array('toolbar',),
+      'class' => array('toolbar'),
       'role' => 'navigation',
     ),
     // Metadata for the administration bar.
@@ -90,8 +88,7 @@ function toolbar_element_info() {
       '#heading' => t('Toolbar items'),
       '#attributes' => array(
         'id' => 'toolbar-bar',
-        'class' => array('bar', 'clearfix',),
-        'data-offset-top' => array(),
+        'class' => array('toolbar-bar', 'clearfix'),
       ),
     ),
   );
@@ -128,13 +125,11 @@ function _toolbar_initialize_page_cache() {
 
   // If we have a cache, serve it.
   // @see _drupal_bootstrap_page_cache()
-  $cache = drupal_page_get_cache();
+  $request = \Drupal::request();
+  $cache = drupal_page_get_cache($request);
   if (is_object($cache)) {
     $response = new Response();
-    $request = \Drupal::request();
     $response->headers->set('X-Drupal-Cache', 'HIT');
-    // Restore the metadata cached with the page.
-    $_GET['q'] = $cache->data['path'];
     date_default_timezone_set(drupal_get_user_timezone());
 
     drupal_serve_page_from_cache($cache, $response, $request);
@@ -204,7 +199,7 @@ function toolbar_pre_render($element) {
   }
 
   // Get toolbar items from all modules that implement hook_toolbar().
-  $items = module_invoke_all('toolbar');
+  $items = Drupal::moduleHandler()->invokeAll('toolbar');
   // Allow for altering of hook_toolbar().
   drupal_alter('toolbar', $items);
   // Sort the children.
@@ -254,22 +249,24 @@ function theme_toolbar(&$variables) {
  *   A renderable array.
  */
 function toolbar_pre_render_item($element) {
+  // Assign each item a unique ID.
+  $id = drupal_html_id('toolbar-item');
+
+  // Provide attributes for a toolbar item.
+  $attributes = array(
+    'id' => $id,
+  );
 
   // If tray content is present, markup the tray and its associated trigger.
   if (!empty($element['tray'])) {
-
-    // Trays are associated with their trigger by a unique ID.
-    $id = drupal_html_id('toolbar-tray');
-    $element['tab']['#tray_id'] = $id;
-
-    // Provide attributes for a tray trigger.
-    $attributes = array(
-      'id' => 'toolbar-tab-' . $id,
-      'data-toolbar-tray' => $id,
+    // Provide attributes necessary for trays.
+    $attributes += array(
+      'data-toolbar-tray' => $id . '-tray',
       'aria-owns' => $id,
       'role' => 'button',
       'aria-pressed' => 'false',
     );
+
     // Merge in module-provided attributes.
     $element['tab'] += array('#attributes' => array());
     $element['tab']['#attributes'] += $attributes;
@@ -277,27 +274,24 @@ function toolbar_pre_render_item($element) {
 
     // Provide attributes for the tray theme wrapper.
     $attributes = array(
-      'id' => $id,
-      'data-toolbar-tray' => $id,
-      'aria-owned-by' => 'toolbar-tab-' . $id,
+      'id' => $id . '-tray',
+      'data-toolbar-tray' => $id . '-tray',
+      'aria-owned-by' => $id,
     );
     // Merge in module-provided attributes.
     if (!isset($element['tray']['#wrapper_attributes'])) {
       $element['tray']['#wrapper_attributes'] = array();
     }
     $element['tray']['#wrapper_attributes'] += $attributes;
-    $element['tray']['#wrapper_attributes']['class'][] = 'tray';
+    $element['tray']['#wrapper_attributes']['class'][] = 'toolbar-tray';
 
     if (!isset($element['tray']['#theme_wrappers'])) {
       $element['tray']['#theme_wrappers'] = array();
     }
     // Add the standard theme_wrapper for trays.
     array_unshift($element['tray']['#theme_wrappers'], 'toolbar_tray_wrapper');
-    // If a #heading is provided for the tray, provided a #theme_wrapper
-    // function to append it.
-    if (!empty($element['tray']['#heading'])) {
-      array_unshift($element['tray']['#theme_wrappers'], 'toolbar_tray_heading_wrapper');
-    }
+    // Add the theme wrapper for the tray heading.
+    array_unshift($element['tray']['#theme_wrappers'], 'toolbar_tray_heading_wrapper');
   }
 
   return $element;
@@ -310,7 +304,7 @@ function template_preprocess_toolbar_tab_wrapper(&$variables) {
   if (!isset($variables['element']['#wrapper_attributes'])) {
     $variables['element']['#wrapper_attributes'] = array();
   }
-  $variables['element']['#wrapper_attributes']['class'][] = 'tab';
+  $variables['element']['#wrapper_attributes']['class'][] = 'toolbar-tab';
 }
 
 /**
@@ -363,7 +357,7 @@ function theme_toolbar_tab_wrapper(&$variables) {
 function theme_toolbar_tray_wrapper(&$variables) {
   if (!empty($variables['element']['#children'])) {
     $element = $variables['element'];
-    return '<div' . new Attribute($element['#wrapper_attributes']) . '><div class="lining clearfix">' . $element['#children'] . '</div></div>';
+    return '<div' . new Attribute($element['#wrapper_attributes']) . '><div class="toolbar-lining clearfix">' . $element['#children'] . '</div></div>';
   }
 }
 
@@ -376,9 +370,13 @@ function theme_toolbar_tray_wrapper(&$variables) {
  *     the tray. Properties used: #children and #heading.
  */
 function theme_toolbar_tray_heading_wrapper(&$variables) {
-  if (!empty($variables['element']['#children'])) {
-    $element = $variables['element'];
-    return '<h3 class="visually-hidden">' . $element['#heading'] . '</h3>' . $element['#children'];
+  $element = $variables['element'];
+  if (!empty($element['#children'])) {
+    $heading = '';
+    if (!empty($element['#heading'])) {
+      $heading = '<h3 class="toolbar-tray-name visually-hidden">' . $element['#heading'] . '</h3>';
+    }
+    return $heading . $element['#children'];
   }
 }
 
@@ -414,7 +412,7 @@ function toolbar_toolbar() {
       '#options' => array(
         'attributes' => array(
           'title' => t('Home page'),
-          'class' => array('icon', 'icon-home'),
+          'class' => array('toolbar-icon', 'toolbar-icon-home'),
         ),
       ),
     ),
@@ -456,7 +454,7 @@ function toolbar_toolbar() {
       '#options' => array(
         'attributes' => array(
           'title' => t('Admin menu'),
-          'class' => array('icon', 'icon-menu'),
+          'class' => array('toolbar-icon', 'toolbar-icon-menu'),
         ),
       ),
     ),
@@ -512,9 +510,10 @@ function toolbar_menu_navigation_links(&$tree) {
     $tree[$key]['link']['localized_options']['attributes'] = array(
       'id' => 'toolbar-link-' . str_replace(array('/', '<', '>'), array('-', '', ''), $item['link']['link_path']),
       'class' => array(
-        'icon',
-        'icon-' . strtolower(str_replace(' ', '-', $item['link']['link_title'])),
+        'toolbar-icon',
+        'toolbar-icon-' . strtolower(str_replace(' ', '-', $item['link']['link_title'])),
       ),
+      'title' => check_plain($item['link']['description']),
     );
   }
 }
@@ -596,12 +595,13 @@ function toolbar_library_info() {
       drupal_get_path('module', 'toolbar') . '/css/toolbar.icons.css',
     ),
     'dependencies' => array(
+      array('system', 'modernizr'),
       array('system', 'jquery'),
       array('system', 'drupal'),
       array('system', 'drupalSettings'),
+      array('system', 'backbone'),
       array('system', 'matchmedia'),
       array('system', 'jquery.once'),
-      array('system', 'drupal.debounce'),
       array('system', 'drupal.displace'),
       array('toolbar', 'toolbar.menu'),
     ),
@@ -630,8 +630,8 @@ function toolbar_library_info() {
  * Returns the hash of the per-user rendered toolbar subtrees.
  */
 function _toolbar_get_subtree_hash() {
-  global $user;
-  $cid = $user->uid . ':' . language(Language::TYPE_INTERFACE)->langcode;
+  $user = Drupal::currentUser();
+  $cid = $user->id() . ':' . language(Language::TYPE_INTERFACE)->id;
   if ($cache = cache('toolbar')->get($cid)) {
     $hash = $cache->data;
   }

@@ -13,10 +13,11 @@
 
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\block\BlockPluginInterface;
-use Drupal\system\Plugin\Core\Entity\Menu;
+use Drupal\system\Entity\Menu;
 use Symfony\Component\HttpFoundation\JsonResponse;
-use Drupal\menu_link\Plugin\Core\Entity\MenuLink;
+use Drupal\menu_link\Entity\MenuLink;
 use Drupal\menu_link\MenuLinkStorageController;
+use Drupal\node\NodeInterface;
 
 /**
  * Maximum length of menu name as entered by the user. Database length is 32
@@ -67,16 +68,7 @@ function menu_menu() {
   $items['admin/structure/menu'] = array(
     'title' => 'Menus',
     'description' => 'Add new menus to your site, edit existing menus, and rename and reorganize menu links.',
-    'page callback' => 'menu_overview_page',
-    'access callback' => 'user_access',
-    'access arguments' => array('administer menu'),
-    'file' => 'menu.admin.inc',
-  );
-  $items['admin/structure/menu/parents'] = array(
-    'title' => 'Parent menu items',
-    'page callback' => 'menu_parent_options_js',
-    'type' => MENU_CALLBACK,
-    'access arguments' => array(TRUE),
+    'route_name' => 'menu_overview_page',
   );
   $items['admin/structure/menu/list'] = array(
     'title' => 'List menus',
@@ -84,40 +76,29 @@ function menu_menu() {
   );
   $items['admin/structure/menu/add'] = array(
     'title' => 'Add menu',
-    'page callback' => 'menu_menu_add',
-    'access arguments' => array('administer menu'),
+    'route_name' => 'menu_menu_add',
     'type' => MENU_LOCAL_ACTION,
-    'file' => 'menu.admin.inc',
   );
   $items['admin/structure/menu/settings'] = array(
     'title' => 'Settings',
     'route_name' => 'menu_settings',
-    'access arguments' => array('administer menu'),
     'type' => MENU_LOCAL_TASK,
     'weight' => 100,
   );
   $items['admin/structure/menu/manage/%menu'] = array(
     'title' => 'Edit menu',
-    'page callback' => 'menu_menu_edit',
-    'page arguments' => array(4),
+    'route_name' => 'menu_menu_edit',
     'title callback' => 'entity_page_label',
     'title arguments' => array(4),
-    'access arguments' => array('administer menu'),
-    'file' => 'menu.admin.inc',
   );
-  // Not officially a local action, but displayed as such in
-  // menu_overview_form().
   $items['admin/structure/menu/manage/%menu/add'] = array(
-    'title' => 'Add menu link',
-    'page callback' => 'menu_link_add',
-    'page arguments' => array(4),
-    'access arguments' => array('administer menu'),
-    'file' => 'menu.admin.inc',
+    'title' => 'Add link',
+    'route_name' => 'menu_link_add',
+    'type' => MENU_LOCAL_ACTION,
   );
   $items['admin/structure/menu/manage/%menu/edit'] = array(
     'title' => 'Edit menu',
     'type' => MENU_DEFAULT_LOCAL_TASK,
-    'weight' => -10,
     'context' => MENU_CONTEXT_PAGE | MENU_CONTEXT_INLINE,
   );
   $items['admin/structure/menu/manage/%menu/delete'] = array(
@@ -126,9 +107,7 @@ function menu_menu() {
   );
   $items['admin/structure/menu/item/%menu_link/edit'] = array(
     'title' => 'Edit menu link',
-    'page callback' => 'entity_get_form',
-    'page arguments' => array(4),
-    'access arguments' => array('administer menu'),
+    'route_name' => 'menu_link_edit',
   );
   $items['admin/structure/menu/item/%menu_link/reset'] = array(
     'title' => 'Reset menu link',
@@ -148,7 +127,8 @@ function menu_entity_info(&$entity_info) {
   $entity_info['menu']['controllers']['list'] = 'Drupal\menu\MenuListController';
   $entity_info['menu']['uri_callback'] = 'menu_uri';
   $entity_info['menu']['controllers']['form'] = array(
-    'default' => 'Drupal\menu\MenuFormController',
+    'add' => 'Drupal\menu\MenuFormController',
+    'edit' => 'Drupal\menu\MenuFormController',
     'delete' => 'Drupal\menu\Form\MenuDeleteForm',
   );
 
@@ -163,7 +143,7 @@ function menu_entity_bundle_info() {
   $bundles = array();
   $config_names = config_get_storage_names_with_prefix('menu.menu.');
   foreach ($config_names as $config_name) {
-    $config = config($config_name);
+    $config = Drupal::config($config_name);
     $bundles['menu_link'][$config->get('id')] = array(
       'label' => $config->get('label'),
     );
@@ -175,7 +155,7 @@ function menu_entity_bundle_info() {
 /**
  * Entity URI callback.
  *
- * @param \Drupal\system\Plugin\Core\Entity\Menu $menu
+ * @param \Drupal\system\Entity\Menu $menu
  *   A Menu entity.
  */
 function menu_uri(Menu $menu) {
@@ -209,7 +189,7 @@ function menu_enable() {
 
   $base_link = entity_create('menu_link', array(
     'menu_name' => $system_link->menu_name,
-    'router_path' => 'admin/structure/menu/manage/%',
+    'router_path' => 'admin/structure/menu/manage/%menu',
     'module' => 'menu',
   ));
 
@@ -238,7 +218,7 @@ function menu_enable() {
  * @param $menu_name
  *   The unique name of a custom menu to load.
  * @return
- *   Array defining the custom menu, or FALSE if the menu doesn't exist.
+ *   Array defining the custom menu, or NULL if the menu doesn't exist.
  */
 function menu_load($menu_name) {
   return entity_load('menu', $menu_name);
@@ -256,7 +236,7 @@ function menu_menu_insert(Menu $menu) {
   // Make sure the menu is present in the active menus variable so that its
   // items may appear in the menu active trail.
   // See menu_set_active_menu_names().
-  $config = config('system.menu');
+  $config = Drupal::config('system.menu');
 
   $active_menus = $config->get('active_menus_default') ?: array_keys(menu_get_menus());
   if (!in_array($menu->id(), $active_menus)) {
@@ -313,7 +293,7 @@ function menu_menu_delete(Menu $menu) {
  *
  * @param array $menus
  *   An array of menu names and titles, such as from menu_get_menus().
- * @param \Drupal\menu_link\Plugin\Core\Entity\MenuLink $menu_link
+ * @param \Drupal\menu_link\Entity\MenuLink $menu_link
  *   The menu link for which to generate a list of parents.
  *   If $menu_link->id() == 0 then the complete tree is returned.
  * @param string $type
@@ -332,7 +312,7 @@ function menu_parent_options(array $menus, MenuLink $menu_link = NULL, $type = N
   // allow contrib modules to provide more scalable pattern choosers.
   // hook_form_alter is too late in itself because all the possible parents are
   // retrieved here, unless override_parent_selector is set to TRUE.
-  if (config('menu.settings')->get('override_parent_selector')) {
+  if (Drupal::config('menu.settings')->get('override_parent_selector')) {
     return array();
   }
 
@@ -354,23 +334,6 @@ function menu_parent_options(array $menus, MenuLink $menu_link = NULL, $type = N
   }
 
   return _menu_get_options($menus, $available_menus, $menu_link);
-}
-
-/**
- * Page callback.
- * Get all the available menus and menu items as a JavaScript array.
- */
-function menu_parent_options_js() {
-  $available_menus = array();
-  $menus = Drupal::request()->request->get('menus');
-  if (count($menus)) {
-    foreach ($menus as $menu) {
-      $available_menus[$menu] = $menu;
-    }
-  }
-  $options = _menu_get_options(menu_get_menus(), $available_menus, array('mlid' => 0));
-
-  return new JsonResponse($options);
 }
 
 /**
@@ -457,7 +420,7 @@ function menu_node_save(EntityInterface $node) {
     }
     elseif (trim($link['link_title'])) {
       $link['link_title'] = trim($link['link_title']);
-      $link['link_path'] = "node/$node->nid";
+      $link['link_path'] = 'node/' . $node->id();
       if (trim($link['description'])) {
         $link['options']['attributes']['title'] = trim($link['description']);
       }
@@ -479,7 +442,7 @@ function menu_node_save(EntityInterface $node) {
 function menu_node_predelete(EntityInterface $node) {
   // Delete all menu module links that point to this node.
   $query = Drupal::entityQuery('menu_link')
-    ->condition('link_path', 'node/' . $node->nid)
+    ->condition('link_path', 'node/' . $node->id())
     ->condition('module', 'menu');
   $result = $query->execute();
 
@@ -489,20 +452,20 @@ function menu_node_predelete(EntityInterface $node) {
 }
 
 /**
- * Implements hook_node_prepare().
+ * Implements hook_node_prepare_form().
  */
-function menu_node_prepare(EntityInterface $node) {
+function menu_node_prepare_form(NodeInterface $node, $form_display, $operation, array &$form_state) {
   if (empty($node->menu)) {
     // Prepare the node for the edit form so that $node->menu always exists.
-    $menu_name = strtok(variable_get('menu_parent_' . $node->type, 'main:0'), ':');
+    $menu_name = strtok(variable_get('menu_parent_' . $node->getType(), 'main:0'), ':');
     $menu_link = FALSE;
-    if (isset($node->nid)) {
+    if ($node->id()) {
       $mlid = FALSE;
       // Give priority to the default menu
-      $type_menus = variable_get('menu_options_' . $node->type, array('main' => 'main'));
+      $type_menus = variable_get('menu_options_' . $node->getType(), array('main' => 'main'));
       if (in_array($menu_name, $type_menus)) {
         $query = Drupal::entityQuery('menu_link')
-          ->condition('link_path', 'node/' . $node->nid)
+          ->condition('link_path', 'node/' . $node->id())
           ->condition('menu_name', $menu_name)
           ->condition('module', 'menu')
           ->sort('mlid', 'ASC')
@@ -514,7 +477,7 @@ function menu_node_prepare(EntityInterface $node) {
       // Check all allowed menus if a link does not exist in the default menu.
       if (!$mlid && !empty($type_menus)) {
         $query = Drupal::entityQuery('menu_link')
-          ->condition('link_path', 'node/' . $node->nid)
+          ->condition('link_path', 'node/' . $node->id())
           ->condition('menu_name', array_values($type_menus), 'IN')
           ->condition('module', 'menu')
           ->sort('mlid', 'ASC')
@@ -563,7 +526,7 @@ function menu_form_node_form_alter(&$form, $form_state) {
   // @todo This must be handled in a #process handler.
   $node = $form_state['controller']->getEntity();
   $link = $node->menu;
-  $type = $node->type;
+  $type = $node->getType();
   $options = menu_parent_options(menu_get_menus(), $link, $type);
   // If no possible parent menu items were found, there is nothing to display.
   if (empty($options)) {
@@ -670,7 +633,7 @@ function menu_node_submit(EntityInterface $node, $form, $form_state) {
  */
 function menu_form_node_type_form_alter(&$form, $form_state) {
   $menu_options = menu_get_menus();
-  $type = $form['#node_type'];
+  $type = $form_state['controller']->getEntity();
   $form['menu'] = array(
     '#type' => 'details',
     '#title' => t('Menu settings'),
@@ -683,7 +646,7 @@ function menu_form_node_type_form_alter(&$form, $form_state) {
   $form['menu']['menu_options'] = array(
     '#type' => 'checkboxes',
     '#title' => t('Available menus'),
-    '#default_value' => variable_get('menu_options_' . $type->type, array('main')),
+    '#default_value' => variable_get('menu_options_' . $type->id(), array('main')),
     '#options' => $menu_options,
     '#description' => t('The menus available to place links in for this content type.'),
   );
@@ -696,7 +659,7 @@ function menu_form_node_type_form_alter(&$form, $form_state) {
   $form['menu']['menu_parent'] = array(
     '#type' => 'select',
     '#title' => t('Default parent item'),
-    '#default_value' => variable_get('menu_parent_' . $type->type, 'main:0'),
+    '#default_value' => variable_get('menu_parent_' . $type->id(), 'main:0'),
     '#options' => $options,
     '#description' => t('Choose the menu item to be the default parent for a new link in the content authoring form.'),
     '#attributes' => array('class' => array('menu-title-select')),

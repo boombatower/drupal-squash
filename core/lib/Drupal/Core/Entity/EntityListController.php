@@ -8,7 +8,9 @@
 namespace Drupal\Core\Entity;
 
 use Drupal\Core\Extension\ModuleHandlerInterface;
+use Drupal\Core\StringTranslation\TranslationInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
+use Drupal\Component\Utility\String;
 
 /**
  * Provides a generic implementation of an entity list controller.
@@ -46,13 +48,20 @@ class EntityListController implements EntityListControllerInterface, EntityContr
   protected $entityInfo;
 
   /**
+   * The translation manager service.
+   *
+   * @var \Drupal\Core\StringTranslation\TranslationInterface
+   */
+  protected $translationManager;
+
+  /**
    * {@inheritdoc}
    */
   public static function createInstance(ContainerInterface $container, $entity_type, array $entity_info) {
     return new static(
       $entity_type,
       $entity_info,
-      $container->get('plugin.manager.entity')->getStorageController($entity_type),
+      $container->get('entity.manager')->getStorageController($entity_type),
       $container->get('module_handler')
     );
   }
@@ -87,26 +96,46 @@ class EntityListController implements EntityListControllerInterface, EntityContr
    * Implements \Drupal\Core\Entity\EntityListControllerInterface::load().
    */
   public function load() {
-    return $this->storage->load();
+    return $this->storage->loadMultiple();
   }
 
   /**
-   * Implements \Drupal\Core\Entity\EntityListControllerInterface::getOperations().
+   * Returns the escaped label of an entity.
+   *
+   * @param \Drupal\Core\Entity\EntityInterface $entity
+   *   The entity being listed.
+   *
+   * @return string
+   *   The escaped entity label.
+   */
+  protected function getLabel(EntityInterface $entity) {
+    return String::checkPlain($entity->label());
+  }
+
+  /**
+   * {@inheritdoc}
    */
   public function getOperations(EntityInterface $entity) {
     $uri = $entity->uri();
-    $operations['edit'] = array(
-      'title' => t('Edit'),
-      'href' => $uri['path'] . '/edit',
-      'options' => $uri['options'],
-      'weight' => 10,
-    );
-    $operations['delete'] = array(
-      'title' => t('Delete'),
-      'href' => $uri['path'] . '/delete',
-      'options' => $uri['options'],
-      'weight' => 100,
-    );
+
+    $operations = array();
+    if ($entity->access('update')) {
+      $operations['edit'] = array(
+        'title' => t('Edit'),
+        'href' => $uri['path'] . '/edit',
+        'options' => $uri['options'],
+        'weight' => 10,
+      );
+    }
+    if ($entity->access('delete')) {
+      $operations['delete'] = array(
+        'title' => t('Delete'),
+        'href' => $uri['path'] . '/delete',
+        'options' => $uri['options'],
+        'weight' => 100,
+      );
+    }
+
     return $operations;
   }
 
@@ -119,8 +148,6 @@ class EntityListController implements EntityListControllerInterface, EntityContr
    * @see Drupal\Core\Entity\EntityListController::render()
    */
   public function buildHeader() {
-    $row['label'] = t('Label');
-    $row['id'] = t('Machine name');
     $row['operations'] = t('Operations');
     return $row;
   }
@@ -137,10 +164,7 @@ class EntityListController implements EntityListControllerInterface, EntityContr
    * @see Drupal\Core\Entity\EntityListController::render()
    */
   public function buildRow(EntityInterface $entity) {
-    $row['label'] = $entity->label();
-    $row['id'] = $entity->id();
-    $operations = $this->buildOperations($entity);
-    $row['operations']['data'] = $operations;
+    $row['operations']['data'] = $this->buildOperations($entity);
     return $row;
   }
 
@@ -182,9 +206,47 @@ class EntityListController implements EntityListControllerInterface, EntityContr
       '#empty' => t('There is no @label yet.', array('@label' => $this->entityInfo['label'])),
     );
     foreach ($this->load() as $entity) {
-      $build['#rows'][$entity->id()] = $this->buildRow($entity);
+      if ($row = $this->buildRow($entity)) {
+        $build['#rows'][$entity->id()] = $row;
+      }
     }
     return $build;
+  }
+
+  /**
+   * Translates a string to the current language or to a given language.
+   *
+   * See the t() documentation for details.
+   */
+  protected function t($string, array $args = array(), array $options = array()) {
+    return $this->getTranslationManager()->translate($string, $args, $options);
+  }
+
+  /**
+   * Gets the translation manager.
+   *
+   * @return \Drupal\Core\StringTranslation\TranslationInterface
+   *   The translation manager.
+   */
+  protected function getTranslationManager() {
+    if (!$this->translationManager) {
+      $this->translationManager = \Drupal::translation();
+    }
+    return $this->translationManager;
+  }
+
+  /**
+   * Sets the translation manager for this form.
+   *
+   * @param \Drupal\Core\StringTranslation\TranslationInterface $translation_manager
+   *   The translation manager.
+   *
+   * @return self
+   *   The entity form.
+   */
+  public function setTranslationManager(TranslationInterface $translation_manager) {
+    $this->translationManager = $translation_manager;
+    return $this;
   }
 
 }

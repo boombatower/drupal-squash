@@ -34,8 +34,6 @@ class CustomBlockFormController extends EntityFormControllerNG {
     }
     // Always use the default revision setting.
     $block->setNewRevision($block_type->revision);
-
-    module_invoke_all('custom_block_prepare', $block);
   }
 
   /**
@@ -43,6 +41,11 @@ class CustomBlockFormController extends EntityFormControllerNG {
    */
   public function form(array $form, array &$form_state) {
     $block = $this->entity;
+
+    if ($this->operation == 'edit') {
+      // @todo Remove this once https://drupal.org/node/1981644 is in.
+      drupal_set_title(t('Edit custom block %label', array('%label' => $block->label())), PASS_THROUGH);
+    }
     // Override the default CSS class name, since the user-defined custom block
     // type name in 'TYPE-block-form' potentially clashes with third-party class
     // names.
@@ -71,7 +74,7 @@ class CustomBlockFormController extends EntityFormControllerNG {
     // Set the correct default language.
     if ($block->isNew() && !empty($language_configuration['langcode'])) {
       $language_default = language($language_configuration['langcode']);
-      $block->langcode->value = $language_default->langcode;
+      $block->langcode->value = $language_default->id;
     }
 
     $form['langcode'] = array(
@@ -184,11 +187,11 @@ class CustomBlockFormController extends EntityFormControllerNG {
           $form_state['redirect'] = 'admin/structure/block/add/custom_block:' . $block->uuid->value . '/' . $theme;
         }
         else {
-          $form_state['redirect'] = 'admin/structure/block/add/custom_block:' . $block->uuid->value . '/' . config('system.theme')->get('default');
+          $form_state['redirect'] = 'admin/structure/block/add/custom_block:' . $block->uuid->value . '/' . \Drupal::config('system.theme')->get('default');
         }
       }
       else {
-        $form_state['redirect'] = 'admin/structure/block';
+        $form_state['redirect'] = 'admin/structure/custom-blocks';
       }
     }
     else {
@@ -214,6 +217,21 @@ class CustomBlockFormController extends EntityFormControllerNG {
     }
     $block = $this->buildEntity($form, $form_state);
     $form_state['redirect'] = array('block/' . $block->id() . '/delete', array('query' => $destination));
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function validateForm(array &$form, array &$form_state) {
+    if ($this->entity->isNew()) {
+      // @todo Inject this once https://drupal.org/node/2060865 is in.
+      $exists = \Drupal::entityManager()->getStorageController('custom_block')->loadByProperties(array('info' => $form_state['values']['info']));
+      if (!empty($exists)) {
+        form_set_error('info', t('A block with description %name already exists.', array(
+        '%name' => $form_state['values']['info']
+      )));
+      }
+    }
   }
 
 }

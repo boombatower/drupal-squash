@@ -22,7 +22,7 @@ class FieldAccessTest extends FieldTestBase {
   /**
    * Node entity to use in this test.
    *
-   * @var \Drupal\node\Plugin\Core\Entity\Node
+   * @var \Drupal\node\Entity\Node
    */
   protected $node;
 
@@ -52,12 +52,13 @@ class FieldAccessTest extends FieldTestBase {
     $content_type = $content_type_info->type;
 
     $field = array(
-      'field_name' => 'test_view_field',
+      'name' => 'test_view_field',
+      'entity_type' => 'node',
       'type' => 'text',
     );
     entity_create('field_entity', $field)->save();
     $instance = array(
-      'field_name' => $field['field_name'],
+      'field_name' => $field['name'],
       'entity_type' => 'node',
       'bundle' => $content_type,
     );
@@ -66,7 +67,7 @@ class FieldAccessTest extends FieldTestBase {
     // Assign display properties for the 'default' and 'teaser' view modes.
     foreach (array('default', 'teaser') as $view_mode) {
       entity_get_display('node', $content_type, $view_mode)
-        ->setComponent($field['field_name'])
+        ->setComponent($field['name'])
         ->save();
     }
 
@@ -85,14 +86,14 @@ class FieldAccessTest extends FieldTestBase {
   function testFieldAccess() {
 
     // Assert the text is visible.
-    $this->drupalGet('node/' . $this->node->nid);
+    $this->drupalGet('node/' . $this->node->id());
     $this->assertText($this->test_view_field_value);
 
     // Assert the text is not visible for anonymous users.
     // The field_test module implements hook_field_access() which will
     // specifically target the 'test_view_field' field.
     $this->drupalLogout();
-    $this->drupalGet('node/' . $this->node->nid);
+    $this->drupalGet('node/' . $this->node->id());
     $this->assertNoText($this->test_view_field_value);
   }
 }

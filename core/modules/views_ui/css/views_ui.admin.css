@@ -23,31 +23,6 @@
 
 /* @end */
 
-/* @group Inline lists */
-
-.horizontal > * {
-  clear: none;
-  float: left; /* LTR */
-}
-
-.horizontal.right {
-  float: right;
-}
-
-.horizontal label {
-  position: absolute;
-}
-
-.horizontal .form-item > [class] {
-  margin-top: 25px;
-}
-
-.horizontal .form-item > [class] + [class] {
-  margin-top: 0;
-}
-
-/* @end */
-
 /* @group Columns */
 
 .views-left-25 {
@@ -129,6 +104,9 @@
   float: left; /* LTR */
   padding: 0;
 }
+[dir="rtl"] .views-displays .secondary > li {
+  float: right;
+}
 
 .views-displays .secondary .open > a {
   position: relative;
@@ -174,6 +152,10 @@
   top: 23px;
   z-index: 50;
 }
+[dir="rtl"] .views-displays .secondary .action-list {
+  left: auto;
+  right: 0;
+}
 
 .views-displays .secondary .action-list  li {
   display: block;
@@ -182,12 +164,6 @@
 /* @end */
 
 /* @group Attachment collapsible details */
-
-.views-display-columns details {
-  border: none;
-  margin: 0;
-  padding: 0;
-}
 
 .views-display-columns .details-wrapper {
   padding: 0;
@@ -217,9 +193,17 @@
     margin-bottom: 0;
     width: 32%;
   }
+  [dir="rtl"] .views-display-columns > * {
+    float: right;
+    margin-left: 0;
+    margin-right: 2%;
+  }
 
   .views-display-columns > *:first-child {
     margin-left: 0; /* LTR */
+  }
+  [dir="rtl"] .views-display-columns > *:first-child {
+    margin-right: 0;
   }
 }
 
@@ -296,6 +280,10 @@
 .views-display-setting .views-ajax-link {
   display: inline-block;
   float: left; /* LTR */
+}
+[dir="rtl"] .views-display-setting .label,
+[dir="rtl"] .views-display-setting .views-ajax-link {
+  float: right;
 }
 
 /* @end */

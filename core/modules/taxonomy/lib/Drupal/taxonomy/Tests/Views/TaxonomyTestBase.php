@@ -67,14 +67,9 @@ abstract class TaxonomyTestBase extends ViewTestBase {
    * @see http://drupal.org/node/1708692
    */
   protected function mockStandardInstall() {
-    $type = array(
+    $type = $this->drupalCreateContentType(array(
       'type' => 'article',
-    );
-
-    $type = node_type_set_defaults($type);
-    node_type_save($type);
-    node_add_body_field($type);
-
+    ));
     // Create the vocabulary for the tag field.
     $this->vocabulary = entity_create('taxonomy_vocabulary',  array(
       'name' => 'Views testing tags',
@@ -83,7 +78,8 @@ abstract class TaxonomyTestBase extends ViewTestBase {
     $this->vocabulary->save();
     $this->field_name = 'field_' . $this->vocabulary->id();
     entity_create('field_entity', array(
-      'field_name' => $this->field_name,
+      'name' => $this->field_name,
+      'entity_type' => 'node',
       'type' => 'taxonomy_term_reference',
       // Set cardinality to unlimited for tagging.
       'cardinality' => FIELD_CARDINALITY_UNLIMITED,

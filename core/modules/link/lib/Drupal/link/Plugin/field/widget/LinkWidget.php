@@ -7,16 +7,16 @@
 
 namespace Drupal\link\Plugin\field\widget;
 
-use Drupal\Component\Annotation\Plugin;
+use Drupal\field\Annotation\FieldWidget;
 use Drupal\Core\Annotation\Translation;
+use Drupal\Core\Entity\Field\FieldInterface;
 use Drupal\field\Plugin\Type\Widget\WidgetBase;
 
 /**
  * Plugin implementation of the 'link' widget.
  *
- * @Plugin(
+ * @FieldWidget(
  *   id = "link_default",
- *   module = "link",
  *   label = @Translation("Link"),
  *   field_types = {
  *     "link"
@@ -32,12 +32,12 @@ class LinkWidget extends WidgetBase {
   /**
    * {@inheritdoc}
    */
-  public function formElement(array $items, $delta, array $element, $langcode, array &$form, array &$form_state) {
+  public function formElement(FieldInterface $items, $delta, array $element, $langcode, array &$form, array &$form_state) {
     $element['url'] = array(
       '#type' => 'url',
       '#title' => t('URL'),
       '#placeholder' => $this->getSetting('placeholder_url'),
-      '#default_value' => isset($items[$delta]['url']) ? $items[$delta]['url'] : NULL,
+      '#default_value' => isset($items[$delta]->url) ? $items[$delta]->url : NULL,
       '#maxlength' => 2048,
       '#required' => $element['#required'],
     );
@@ -45,7 +45,7 @@ class LinkWidget extends WidgetBase {
       '#type' => 'textfield',
       '#title' => t('Link text'),
       '#placeholder' => $this->getSetting('placeholder_title'),
-      '#default_value' => isset($items[$delta]['title']) ? $items[$delta]['title'] : NULL,
+      '#default_value' => isset($items[$delta]->title) ? $items[$delta]->title : NULL,
       '#maxlength' => 255,
       '#access' => $this->getFieldSetting('title') != DRUPAL_DISABLED,
     );
@@ -62,7 +62,7 @@ class LinkWidget extends WidgetBase {
     $element['attributes'] = array(
       '#type' => 'value',
       '#tree' => TRUE,
-      '#value' => !empty($items[$delta]['attributes']) ? $items[$delta]['attributes'] : array(),
+      '#value' => !empty($items[$delta]->attributes) ? $items[$delta]->attributes : array(),
       '#attributes' => array('class' => array('link-field-widget-attributes')),
     );
 
@@ -103,6 +103,30 @@ class LinkWidget extends WidgetBase {
 
     return $elements;
   }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function settingsSummary() {
+    $summary = array();
+
+    $placeholder_title = $this->getSetting('placeholder_title');
+    $placeholder_url = $this->getSetting('placeholder_url');
+    if (empty($placeholder_title) && empty($placeholder_url)) {
+      $summary[] = t('No placeholders');
+    }
+    else {
+      if (!empty($placeholder_title)) {
+        $summary[] = t('Title placeholder: @placeholder_title', array('@placeholder_title' => $placeholder_title));
+      }
+      if (!empty($placeholder_url)) {
+        $summary[] = t('URL placeholder: @placeholder_url', array('@placeholder_url' => $placeholder_url));
+      }
+    }
+
+    return $summary;
+  }
+
 
   /**
    * Form element validation handler for link_field_widget_form().

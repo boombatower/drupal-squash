@@ -7,16 +7,15 @@
 
 namespace Drupal\entity_reference\Plugin\field\widget;
 
-use Drupal\Component\Annotation\Plugin;
+use Drupal\field\Annotation\FieldWidget;
 use Drupal\Core\Annotation\Translation;
 use Drupal\entity_reference\Plugin\field\widget\AutocompleteWidgetBase;
 
 /**
  * Plugin implementation of the 'entity_reference autocomplete-tags' widget.
  *
- * @Plugin(
+ * @FieldWidget(
  *   id = "entity_reference_autocomplete_tags",
- *   module = "entity_reference",
  *   label = @Translation("Autocomplete (Tags style)"),
  *   description = @Translation("An autocomplete text field."),
  *   field_types = {
@@ -39,7 +38,7 @@ class AutocompleteTagsWidget extends AutocompleteWidgetBase {
   public function elementValidate($element, &$form_state, $form) {
     $value = array();
     // If a value was entered into the autocomplete.
-    $handler = entity_reference_get_selection_handler($this->fieldDefinition);
+    $handler = \Drupal::service('plugin.manager.entity_reference.selection')->getSelectionHandler($this->fieldDefinition);
     $bundles = entity_get_bundles($this->getFieldSetting('target_type'));
     $auto_create = $this->getSelectionHandlerSetting('auto_create');
 

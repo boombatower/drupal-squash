@@ -22,7 +22,7 @@ class EntityReferenceSelectionSortTest extends WebTestBase {
     );
   }
 
-  public static $modules = array('node', 'entity_reference');
+  public static $modules = array('node', 'entity_reference', 'entity_test');
 
   function setUp() {
     parent::setUp();
@@ -37,7 +37,8 @@ class EntityReferenceSelectionSortTest extends WebTestBase {
   public function testSort() {
     // Add text field to entity, to sort by.
     entity_create('field_entity', array(
-      'field_name' => 'field_text',
+      'name' => 'field_text',
+      'entity_type' => 'node',
       'type' => 'text',
       'entity_types' => array('node'),
     ))->save();
@@ -54,19 +55,19 @@ class EntityReferenceSelectionSortTest extends WebTestBase {
 
     // Create a field and instance.
     $field = entity_create('field_entity', array(
+      'name' => 'test_field',
+      'entity_type' => 'entity_test',
       'translatable' => FALSE,
-      'entity_types' => array(),
       'settings' => array(
         'target_type' => 'node',
       ),
-      'field_name' => 'test_field',
       'type' => 'entity_reference',
       'cardinality' => 1,
     ));
     $field->save();
     $instance = entity_create('field_instance', array(
       'field_name' => 'test_field',
-      'entity_type' => 'test_entity',
+      'entity_type' => 'entity_test',
       'bundle' => 'test_bundle',
       'settings' => array(
         'handler' => 'default',
@@ -121,14 +122,14 @@ class EntityReferenceSelectionSortTest extends WebTestBase {
     $normal_user = $this->drupalCreateUser(array('access content'));
     $GLOBALS['user'] = $normal_user;
 
-    $handler = entity_reference_get_selection_handler($instance);
+    $handler = $this->container->get('plugin.manager.entity_reference.selection')->getSelectionHandler($instance);
 
     // Not only assert the result, but make sure the keys are sorted as
     // expected.
-    $result = $handler->getReferencableEntities();
+    $result = $handler->getReferenceableEntities();
     $expected_result = array(
-      $nodes['published2']->nid => $node_labels['published2'],
-      $nodes['published1']->nid => $node_labels['published1'],
+      $nodes['published2']->id() => $node_labels['published2'],
+      $nodes['published1']->id() => $node_labels['published1'],
     );
     $this->assertIdentical($result['article'], $expected_result, 'Query sorted by field returned expected values.');
 
@@ -137,11 +138,11 @@ class EntityReferenceSelectionSortTest extends WebTestBase {
       'field' => 'nid',
       'direction' => 'ASC',
     );
-    $handler = entity_reference_get_selection_handler($instance);
-    $result = $handler->getReferencableEntities();
+    $handler = $this->container->get('plugin.manager.entity_reference.selection')->getSelectionHandler($instance);
+    $result = $handler->getReferenceableEntities();
     $expected_result = array(
-      $nodes['published1']->nid => $node_labels['published1'],
-      $nodes['published2']->nid => $node_labels['published2'],
+      $nodes['published1']->id() => $node_labels['published1'],
+      $nodes['published2']->id() => $node_labels['published2'],
     );
     $this->assertIdentical($result['article'], $expected_result, 'Query sorted by property returned expected values.');
   }

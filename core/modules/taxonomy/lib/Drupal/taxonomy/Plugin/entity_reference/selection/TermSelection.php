@@ -7,17 +7,17 @@
 
 namespace Drupal\taxonomy\Plugin\entity_reference\selection;
 
-use Drupal\Component\Annotation\Plugin;
 use Drupal\Core\Annotation\Translation;
 use Drupal\Core\Database\Query\SelectInterface;
+use Drupal\Core\Entity\Field\FieldDefinitionInterface;
+use Drupal\entity_reference\Annotation\EntityReferenceSelection;
 use Drupal\entity_reference\Plugin\entity_reference\selection\SelectionBase;
 
 /**
  * Provides specific access control for the taxonomy_term entity type.
  *
- * @Plugin(
+ * @EntityReferenceSelection(
  *   id = "taxonomy_term_default",
- *   module = "taxonomy",
  *   label = @Translation("Taxonomy Term selection"),
  *   entity_types = {"taxonomy_term"},
  *   group = "default",
@@ -27,35 +27,35 @@ use Drupal\entity_reference\Plugin\entity_reference\selection\SelectionBase;
 class TermSelection extends SelectionBase {
 
   /**
-   * Overrides SelectionBase::entityQueryAlter().
+   * {@inheritdoc}
    */
   public function entityQueryAlter(SelectInterface $query) {
     // @todo: How to set access, as vocabulary is now config?
   }
 
   /**
-   * Overrides SelectionBase::settingsForm().
+   * {@inheritdoc}
    */
-  public static function settingsForm(&$field, &$instance) {
-    $form = parent::settingsForm($field, $instance);
+  public static function settingsForm(FieldDefinitionInterface $field_definition) {
+    $form = parent::settingsForm($field_definition);
+    $selection_handler_settings = $field_definition->getFieldSetting('handler_settings');
 
     // @todo: Currently allow auto-create only on taxonomy terms.
     $form['auto_create'] = array(
       '#type' => 'checkbox',
       '#title' => t("Create referenced entities if they don't already exist"),
-      '#default_value' => $instance['settings']['handler_settings']['auto_create'],
+      '#default_value' => isset($selection_handler_settings['auto_create']) ? $selection_handler_settings['auto_create'] : FALSE,
     );
     return $form;
 
   }
 
-
   /**
-   * Overrides SelectionBase::getReferencableEntities().
+   * {@inheritdoc}
    */
-  public function getReferencableEntities($match = NULL, $match_operator = 'CONTAINS', $limit = 0) {
+  public function getReferenceableEntities($match = NULL, $match_operator = 'CONTAINS', $limit = 0) {
     if ($match || $limit) {
-      return parent::getReferencableEntities($match , $match_operator, $limit);
+      return parent::getReferenceableEntities($match , $match_operator, $limit);
     }
 
     $options = array();

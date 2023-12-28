@@ -9,14 +9,14 @@ namespace Drupal\system\Controller;
 
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\Response;
-use Drupal\Core\Controller\ControllerInterface;
+use Drupal\Core\DependencyInjection\ContainerInjectionInterface;
 use Drupal\Core\Database\Connection;
 use Drupal\system\SystemManager;
 
 /**
  * Returns responses for System Info routes.
  */
-class SystemInfoController implements ControllerInterface {
+class SystemInfoController implements ContainerInjectionInterface {
 
   /**
    * System Manager Service.
@@ -53,7 +53,7 @@ class SystemInfoController implements ControllerInterface {
   public function status() {
     $requirements = $this->systemManager->listRequirements();
     $this->systemManager->fixAnonymousUid();
-    return theme('status_report', array('requirements' => $requirements));
+    return array('#theme' => 'status_report', '#requirements' => $requirements);
   }
 
   /**

@@ -7,6 +7,8 @@
 
 namespace Drupal\system\Tests\Upgrade;
 
+use Drupal\Core\Session\UserSession;
+
 /**
  * Performs major version release upgrade tests on a bare database.
  *
@@ -45,20 +47,17 @@ class BareMinimalUpgradePathTest extends UpgradePathTestBase {
 
     // Verify that we are still logged in.
     $this->finishUpgradeSession();
-    $this->drupalLogin((object) array(
+    $user = new UserSession(array(
       'uid' => 1,
       'name' => 'admin',
       'pass_raw' => 'drupal',
     ));
+    $this->drupalLogin($user);
 
     // The previous login should've triggered a password rehash, so login one
     // more time to make sure the new hash is readable.
     $this->drupalLogout();
-    $this->drupalLogin((object) array(
-      'uid' => 1,
-      'name' => 'admin',
-      'pass_raw' => 'drupal',
-    ));
+    $this->drupalLogin($user);
 
     // Test that the site name is correctly displayed.
     $this->assertText('drupal', 'The site name is correctly displayed.');
@@ -85,10 +84,10 @@ class BareMinimalUpgradePathTest extends UpgradePathTestBase {
     $this->assertEqual(array_diff_key($required, $enabled), array());
 
     // Verify that image.module was correctly installed.
-    $this->assertEqual('thumbnail', config('image.style.thumbnail')->get('name'));
+    $this->assertEqual('thumbnail', \Drupal::config('image.style.thumbnail')->get('name'));
 
     // Make sure that the default mail configuration has been converted.
-    $this->assertEqual(array('default' => 'Drupal\Core\Mail\PhpMail'), config('system.mail')->get('interface'), 'Default mail configuration set.');
+    $this->assertEqual(array('default' => 'Drupal\Core\Mail\PhpMail'), \Drupal::config('system.mail')->get('interface'), 'Default mail configuration set.');
   }
 
   /**

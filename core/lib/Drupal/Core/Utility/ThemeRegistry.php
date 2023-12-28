@@ -46,12 +46,13 @@ class ThemeRegistry extends CacheArray {
    *   Whether all modules have already been loaded.
    */
   function __construct($cid, $bin, $tags, $modules_loaded = FALSE) {
+
     $this->cid = $cid;
     $this->bin = $bin;
     $this->tags = $tags;
-    $this->persistable = $modules_loaded && $_SERVER['REQUEST_METHOD'] == 'GET';
+    $request = \Drupal::request();
+    $this->persistable = $modules_loaded && $request->isMethod('GET');
 
-    $data = array();
     if ($this->persistable && $cached = cache($this->bin)->get($this->cid)) {
       $data = $cached->data;
     }

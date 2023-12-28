@@ -11,6 +11,7 @@ use Drupal\Core\Annotation\Action;
 use Drupal\Core\Annotation\Translation;
 use Drupal\Core\Action\ConfigurableActionBase;
 use Drupal\Core\Entity\EntityManager;
+use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Utility\Token;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
@@ -23,7 +24,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  *   type = "system"
  * )
  */
-class EmailAction extends ConfigurableActionBase {
+class EmailAction extends ConfigurableActionBase implements ContainerFactoryPluginInterface {
 
   /**
    * The token service.
@@ -66,7 +67,7 @@ class EmailAction extends ConfigurableActionBase {
   public static function create(ContainerInterface $container, array $configuration, $plugin_id, array $plugin_definition) {
     return new static($configuration, $plugin_id, $plugin_definition,
       $container->get('token'),
-      $container->get('plugin.manager.entity')
+      $container->get('entity.manager')
     );
   }
 
@@ -86,10 +87,10 @@ class EmailAction extends ConfigurableActionBase {
     $recipient_accounts = $this->storageController->loadByProperties(array('mail' => $recipient));
     $recipient_account = reset($recipient_accounts);
     if ($recipient_account) {
-      $langcode = user_preferred_langcode($recipient_account);
+      $langcode = $recipient_account->getPreferredLangcode();
     }
     else {
-      $langcode = language_default()->langcode;
+      $langcode = language_default()->id;
     }
     $params = array('context' => $this->configuration);
 
@@ -115,7 +116,7 @@ class EmailAction extends ConfigurableActionBase {
   /**
    * {@inheritdoc}
    */
-  public function form(array $form, array &$form_state) {
+  public function buildConfigurationForm(array $form, array &$form_state) {
     $form['recipient'] = array(
       '#type' => 'textfield',
       '#title' => t('Recipient'),
@@ -144,7 +145,7 @@ class EmailAction extends ConfigurableActionBase {
   /**
    * {@inheritdoc}
    */
-  public function validate(array &$form, array &$form_state) {
+  public function validateConfigurationForm(array &$form, array &$form_state) {
     if (!valid_email_address($form_state['values']['recipient']) && strpos($form_state['values']['recipient'], ':mail') === FALSE) {
       // We want the literal %author placeholder to be emphasized in the error message.
       form_set_error('recipient', t('Enter a valid email address or use a token e-mail address such as %author.', array('%author' => '[node:author:mail]')));
@@ -154,7 +155,7 @@ class EmailAction extends ConfigurableActionBase {
   /**
    * {@inheritdoc}
    */
-  public function submit(array &$form, array &$form_state) {
+  public function submitConfigurationForm(array &$form, array &$form_state) {
     $this->configuration['recipient'] = $form_state['values']['recipient'];
     $this->configuration['subject'] = $form_state['values']['subject'];
     $this->configuration['message'] = $form_state['values']['message'];

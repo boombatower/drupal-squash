@@ -30,6 +30,13 @@ class CKEditorTest extends DrupalUnitTestBase {
    */
   protected $ckeditor;
 
+  /**
+   * The Editor Plugin Manager.
+   *
+   * @var \Drupal\editor\Plugin\EditorManager;
+   */
+  protected $manager;
+
   public static function getInfo() {
     return array(
       'name' => 'CKEditor text editor plugin',
@@ -67,8 +74,7 @@ class CKEditorTest extends DrupalUnitTestBase {
     $editor->save();
 
     // Create "CKEditor" text editor plugin instance.
-    $manager = $this->container->get('plugin.manager.editor');
-    $this->ckeditor = $manager->createInstance('ckeditor');
+    $this->ckeditor = $this->container->get('plugin.manager.editor')->createInstance('ckeditor');
   }
 
   /**
@@ -79,13 +85,20 @@ class CKEditorTest extends DrupalUnitTestBase {
 
     // Default toolbar.
     $expected_config = $this->getDefaultInternalConfig() + array(
+      'drupalImage_dialogTitleAdd' => 'Insert Image',
+      'drupalImage_dialogTitleEdit' => 'Edit Image',
+      'drupalLink_dialogTitleAdd' => 'Add Link',
+      'drupalLink_dialogTitleEdit' => 'Edit Link',
       'allowedContent' => $this->getDefaultAllowedContentConfig(),
       'toolbar' => $this->getDefaultToolbarConfig(),
       'contentsCss' => $this->getDefaultContentsCssConfig(),
-      'extraPlugins' => '',
+      'extraPlugins' => 'drupalimage,drupallink',
       'language' => 'en',
       'stylesSet' => FALSE,
-      'drupalExternalPlugins' => array(),
+      'drupalExternalPlugins' => array(
+        'drupalimage' => file_create_url('core/modules/ckeditor/js/plugins/drupalimage/plugin.js'),
+        'drupallink' => file_create_url('core/modules/ckeditor/js/plugins/drupallink/plugin.js'),
+      ),
     );
     ksort($expected_config);
     $this->assertIdentical($expected_config, $this->ckeditor->getJSSettings($editor), 'Generated JS settings are correct for default configuration.');
@@ -93,20 +106,20 @@ class CKEditorTest extends DrupalUnitTestBase {
     // Customize the configuration: add button, have two contextually enabled
     // buttons, and configure a CKEditor plugin setting.
     $this->enableModules(array('ckeditor_test'));
-    drupal_container()->get('plugin.manager.ckeditor.plugin')->clearCachedDefinitions();
+    $this->container->get('plugin.manager.editor')->clearCachedDefinitions();
+    $this->ckeditor = $this->container->get('plugin.manager.editor')->createInstance('ckeditor');
+    $this->container->get('plugin.manager.ckeditor.plugin')->clearCachedDefinitions();
     $editor->settings['toolbar']['buttons'][0][] = 'Strike';
     $editor->settings['toolbar']['buttons'][1][] = 'Format';
-    $editor->settings['plugins']['internal']['link_shortcut'] = 'CTRL+K';
     $editor->save();
     $expected_config['toolbar'][count($expected_config['toolbar'])-2]['items'][] = 'Strike';
     $expected_config['toolbar'][]['items'][] = 'Format';
     $expected_config['toolbar'][] = '/';
     $expected_config['format_tags'] = 'p;h4;h5;h6';
-    $expected_config['extraPlugins'] = 'llama_contextual,llama_contextual_and_button';
+    $expected_config['extraPlugins'] .= ',llama_contextual,llama_contextual_and_button';
     $expected_config['drupalExternalPlugins']['llama_contextual'] = file_create_url('core/modules/ckeditor/tests/modules/js/llama_contextual.js');
     $expected_config['drupalExternalPlugins']['llama_contextual_and_button'] = file_create_url('core/modules/ckeditor/tests/modules/js/llama_contextual_and_button.js');
     $expected_config['contentsCss'][] = file_create_url('core/modules/ckeditor/tests/modules/ckeditor_test.css');
-    $expected_config['keystrokes'] = array(array(1114187, 'link'), array(1114188, NULL));
     ksort($expected_config);
     $this->assertIdentical($expected_config, $this->ckeditor->getJSSettings($editor), 'Generated JS settings are correct for customized configuration.');
 
@@ -202,7 +215,7 @@ class CKEditorTest extends DrupalUnitTestBase {
 
     // Enable the editor_test module, customize further.
     $this->enableModules(array('ckeditor_test'));
-    drupal_container()->get('plugin.manager.ckeditor.plugin')->clearCachedDefinitions();
+    $this->container->get('plugin.manager.ckeditor.plugin')->clearCachedDefinitions();
     $editor->settings['toolbar']['buttons'][0][] = 'Llama';
     $editor->save();
     $expected[count($expected)-2]['items'][] = 'Llama';
@@ -232,8 +245,7 @@ class CKEditorTest extends DrupalUnitTestBase {
    */
   function testInternalGetConfig() {
     $editor = entity_load('editor', 'filtered_html');
-    $manager = drupal_container()->get('plugin.manager.ckeditor.plugin');
-    $internal_plugin = $manager->createInstance('internal');
+    $internal_plugin = $this->container->get('plugin.manager.ckeditor.plugin')->createInstance('internal');
 
     // Default toolbar.
     $expected = $this->getDefaultInternalConfig();
@@ -251,8 +263,7 @@ class CKEditorTest extends DrupalUnitTestBase {
    */
   function testStylesComboGetConfig() {
     $editor = entity_load('editor', 'filtered_html');
-    $manager = drupal_container()->get('plugin.manager.ckeditor.plugin');
-    $stylescombo_plugin = $manager->createInstance('stylescombo');
+    $stylescombo_plugin = $this->container->get('plugin.manager.ckeditor.plugin')->createInstance('stylescombo');
 
     // Styles dropdown/button enabled: new setting should be present.
     $editor->settings['toolbar']['buttons'][0][] = 'Styles';
@@ -298,13 +309,33 @@ class CKEditorTest extends DrupalUnitTestBase {
     $this->assertIdentical($expected, $stylescombo_plugin->getConfig($editor), '"StylesCombo" plugin configuration built correctly for customized toolbar.');
   }
 
+  /**
+   * Tests language list availability in CKEditor.
+   */
+  function testLanguages() {
+    // Get CKEditor supported language codes and spot-check.
+    $this->enableModules(array('language'));
+    config_install_default_config('module', 'language');
+    $langcodes = $this->ckeditor->getLangcodes();
+
+    // Language codes transformed with browser mappings.
+    $this->assertTrue($langcodes['pt-pt'] == 'pt', '"pt" properly resolved');
+    $this->assertTrue($langcodes['zh-hans'] == 'zh-cn', '"zh-hans" properly resolved');
+
+    // Language code both in Drupal and CKEditor.
+    $this->assertTrue($langcodes['gl'] == 'gl', '"gl" properly resolved');
+
+    // Language codes only in CKEditor.
+    $this->assertTrue($langcodes['en-au'] == 'en-au', '"en-au" properly resolved');
+    $this->assertTrue($langcodes['sr-latn'] == 'sr-latn', '"sr-latn" properly resolved');
+  }
+
   protected function getDefaultInternalConfig() {
     return array(
       'customConfig' => '',
       'pasteFromWordPromptCleanup' => TRUE,
-      'removeDialogTabs' => 'image:Link;image:advanced;link:advanced',
       'resize_dir' => 'vertical',
-      'keystrokes' =>  array(array(0x110000 + 75, 'link'), array(0x110000 + 76, NULL)),
+      'justifyClasses' => array('align-left', 'align-center', 'align-right', 'align-justify'),
     );
   }
 
@@ -323,9 +354,9 @@ class CKEditorTest extends DrupalUnitTestBase {
   protected function getDefaultToolbarConfig() {
     return array(
       0 => array('items' => array('Bold', 'Italic')),
-      1 => array('items' => array('Link', 'Unlink')),
+      1 => array('items' => array('DrupalLink', 'DrupalUnlink')),
       2 => array('items' => array('BulletedList', 'NumberedList')),
-      3 => array('items' => array('Blockquote', 'Image')),
+      3 => array('items' => array('Blockquote', 'DrupalImage')),
       4 => array('items' => array('Source')),
       5 => '/'
     );
@@ -334,6 +365,7 @@ class CKEditorTest extends DrupalUnitTestBase {
   protected function getDefaultContentsCssConfig() {
     return array(
       file_create_url('core/modules/ckeditor/css/ckeditor-iframe.css'),
+      file_create_url('core/modules/system/css/system.module.css'),
     );
   }
 

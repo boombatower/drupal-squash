@@ -8,6 +8,7 @@
 namespace Drupal\Core\Language;
 
 use Symfony\Component\HttpFoundation\Request;
+use Drupal\Core\KeyValueStore\KeyValueStoreInterface;
 
 /**
  * Class responsible for initializing each language type.
@@ -20,6 +21,13 @@ class LanguageManager {
    * @var \Symfony\Component\HttpFoundation\Request
    */
   protected $request;
+
+  /**
+   * The Key/Value Store to use for state.
+   *
+   * @var \Drupal\Core\KeyValueStore\KeyValueStoreInterface
+   */
+  protected $state = NULL;
 
   /**
    * An array of language objects keyed by language type.
@@ -44,6 +52,16 @@ class LanguageManager {
    * @var bool
    */
   protected $initializing = FALSE;
+
+  /**
+   * Constructs an LanguageManager object.
+   *
+   * @param \Drupal\Core\KeyValueStore\KeyValueStoreInterface $state
+   *   The state keyvalue store.
+   */
+  public function __construct(KeyValueStoreInterface $state = NULL) {
+    $this->state = $state;
+  }
 
   /**
    * Initializes each language type to a language object.
@@ -136,7 +154,11 @@ class LanguageManager {
    *   TRUE if more than one language is enabled, FALSE otherwise.
    */
   public function isMultilingual() {
-    return variable_get('language_count', 1) > 1;
+    if (!isset($this->state)) {
+      // No state service in install time.
+      return FALSE;
+    }
+    return ($this->state->get('language_count') ?: 1) > 1;
   }
 
   /**
@@ -146,24 +168,25 @@ class LanguageManager {
    *   An array of all language types.
    */
   protected function getLanguageTypes() {
-    return array_keys(variable_get('language_types', language_types_get_default()));
+    return language_types_get_all();
   }
 
   /**
    * Returns a language object representing the site's default language.
    *
-   * @return Drupal\Core\Language\Language
+   * @return \Drupal\Core\Language\Language
    *   A language object.
    */
   protected function getLanguageDefault() {
     $default_info = variable_get('language_default', array(
-      'langcode' => 'en',
+      'id' => 'en',
       'name' => 'English',
       'direction' => 0,
       'weight' => 0,
       'locked' => 0,
     ));
-    return new Language($default_info + array('default' => TRUE));
+    $default_info['default'] = TRUE;
+    return new Language($default_info);
   }
 
   /**
@@ -215,6 +238,8 @@ class LanguageManager {
       'fil' => array('Filipino', 'Filipino'),
       'fo' => array('Faeroese', 'Føroyskt'),
       'fr' => array('French', 'Français'),
+      'fy' => array('Frisian, Western', 'Frysk'),
+      'ga' => array('Irish', 'Gaeilge'),
       'gd' => array('Scots Gaelic', 'Gàidhlig'),
       'gl' => array('Galician', 'Galego'),
       'gsw-berne' => array('Swiss German', 'Schwyzerdütsch'),
@@ -224,6 +249,7 @@ class LanguageManager {
       'hr' => array('Croatian', 'Hrvatski'),
       'ht' => array('Haitian Creole', 'Kreyòl ayisyen'),
       'hu' => array('Hungarian', 'Magyar'),
+      'hy' => array('Armenian', 'Հայերեն'),
       'id' => array('Indonesian', 'Bahasa Indonesia'),
       'is' => array('Icelandic', 'Íslenska'),
       'it' => array('Italian', 'Italiano'),
@@ -231,6 +257,7 @@ class LanguageManager {
       'jv' => array('Javanese', 'Basa Java'),
       'ka' => array('Georgian', 'ქართული ენა'),
       'kk' => array('Kazakh', 'Қазақ'),
+      'km' => array('Khmer', 'ភាសាខ្មែរ'),
       'kn' => array('Kannada', 'ಕನ್ನಡ'),
       'ko' => array('Korean', '한국어'),
       'ku' => array('Kurdish', 'Kurdî'),
@@ -243,6 +270,7 @@ class LanguageManager {
       'ml' => array('Malayalam', 'മലയാളം'),
       'mn' => array('Mongolian', 'монгол'),
       'mr' => array('Marathi', 'मराठी'),
+      'ms' => array('Bahasa Malaysia', 'بهاس ملايو'),
       'my' => array('Burmese', 'ဗမာစကား'),
       'ne' => array('Nepali', 'नेपाली'),
       'nl' => array('Dutch', 'Nederlands'),
@@ -263,6 +291,7 @@ class LanguageManager {
       'sq' => array('Albanian', 'Shqip'),
       'sr' => array('Serbian', 'Српски'),
       'sv' => array('Swedish', 'Svenska'),
+      'sw' => array('Swahili', 'Kiswahili'),
       'ta' => array('Tamil', 'தமிழ்'),
       'ta-lk' => array('Tamil, Sri Lanka', 'தமிழ், இலங்கை'),
       'te' => array('Telugu', 'తెలుగు'),

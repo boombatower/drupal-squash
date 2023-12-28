@@ -38,10 +38,10 @@ class SearchCommentTest extends SearchTestBase {
 
     // Create and log in an administrative user having access to the Full HTML
     // text format.
-    $full_html_format = filter_format_load('full_html');
+    $full_html_format = entity_load('filter_format', 'full_html');
     $permissions = array(
       'administer filters',
-      filter_permission_name($full_html_format),
+      $full_html_format->getPermissionName(),
       'administer permissions',
       'create page content',
       'skip comment approval',
@@ -63,7 +63,7 @@ class SearchCommentTest extends SearchTestBase {
     $edit = array(
       'filters[filter_html_escape][status]' => TRUE,
     );
-    $this->drupalPost('admin/config/content/formats/' . $basic_html_format_id, $edit, t('Save configuration'));
+    $this->drupalPost('admin/config/content/formats/manage/' . $basic_html_format_id, $edit, t('Save configuration'));
     // Allow anonymous users to search content.
     $edit = array(
       DRUPAL_ANONYMOUS_RID . '[search content]' => 1,
@@ -80,7 +80,7 @@ class SearchCommentTest extends SearchTestBase {
     $edit_comment['comment_body[' . Language::LANGCODE_NOT_SPECIFIED . '][0][value]'] = '<h1>' . $comment_body . '</h1>';
     $full_html_format_id = 'full_html';
     $edit_comment['comment_body[' . Language::LANGCODE_NOT_SPECIFIED . '][0][format]'] = $full_html_format_id;
-    $this->drupalPost('comment/reply/' . $node->nid, $edit_comment, t('Save'));
+    $this->drupalPost('comment/reply/' . $node->id(), $edit_comment, t('Save'));
 
     // Invoke search index update.
     $this->drupalLogout();
@@ -91,7 +91,7 @@ class SearchCommentTest extends SearchTestBase {
       'search_block_form' => "'" . $edit_comment['subject'] . "'",
     );
     $this->drupalPost('', $edit, t('Search'));
-    $node2 = node_load($node->nid, TRUE);
+    $node2 = node_load($node->id(), TRUE);
     $this->assertText($node2->label(), 'Node found in search results.');
     $this->assertText($edit_comment['subject'], 'Comment subject found in search results.');
 
@@ -127,7 +127,8 @@ class SearchCommentTest extends SearchTestBase {
   function testSearchResultsCommentAccess() {
     $comment_body = 'Test comment body';
     $this->comment_subject = 'Test comment subject';
-    $this->admin_role = $this->admin_user->roles[0];
+    $roles = $this->admin_user->getRoles();
+    $this->admin_role = $roles[0];
 
     // Create a node.
     variable_set('comment_preview_article', DRUPAL_OPTIONAL);
@@ -137,7 +138,7 @@ class SearchCommentTest extends SearchTestBase {
     $edit_comment = array();
     $edit_comment['subject'] = $this->comment_subject;
     $edit_comment['comment_body[' . Language::LANGCODE_NOT_SPECIFIED . '][0][value]'] = '<h1>' . $comment_body . '</h1>';
-    $this->drupalPost('comment/reply/' . $this->node->nid, $edit_comment, t('Save'));
+    $this->drupalPost('comment/reply/' . $this->node->id(), $edit_comment, t('Save'));
 
     $this->drupalLogout();
     $this->setRolePermissions(DRUPAL_ANONYMOUS_RID);
@@ -193,7 +194,7 @@ class SearchCommentTest extends SearchTestBase {
    */
   function assertCommentAccess($assume_access, $message) {
     // Invoke search index update.
-    search_touch_node($this->node->nid);
+    search_touch_node($this->node->id());
     $this->cronRun();
 
     // Search for the comment subject.
@@ -230,7 +231,7 @@ class SearchCommentTest extends SearchTestBase {
     $node = $this->drupalCreateNode($settings);
     // Verify that if you view the node on its own page, 'add new comment'
     // is there.
-    $this->drupalGet('node/' . $node->nid);
+    $this->drupalGet('node/' . $node->id());
     $this->assertText(t('Add new comment'), 'Add new comment appears on node page');
 
     // Run cron to index this page.

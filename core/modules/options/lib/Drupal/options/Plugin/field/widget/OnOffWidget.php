@@ -7,15 +7,15 @@
 
 namespace Drupal\options\Plugin\field\widget;
 
-use Drupal\Component\Annotation\Plugin;
+use Drupal\field\Annotation\FieldWidget;
 use Drupal\Core\Annotation\Translation;
+use Drupal\Core\Entity\Field\FieldInterface;
 
 /**
  * Plugin implementation of the 'options_onoff' widget.
  *
- * @Plugin(
+ * @FieldWidget(
  *   id = "options_onoff",
- *   module = "options",
  *   label = @Translation("Single on/off checkbox"),
  *   field_types = {
  *     "list_boolean"
@@ -44,10 +44,22 @@ class OnOffWidget extends OptionsWidgetBase {
   /**
    * {@inheritdoc}
    */
-  public function formElement(array $items, $delta, array $element, $langcode, array &$form, array &$form_state) {
+  public function settingsSummary() {
+    $summary = array();
+
+    $display_label = $this->getSetting('display_label');
+    $summary[] = t('Use field label: @display_label', array('@display_label' => ($display_label ? t('Yes') : 'No')));
+
+    return $summary;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function formElement(FieldInterface $items, $delta, array $element, $langcode, array &$form, array &$form_state) {
     $element = parent::formElement($items, $delta, $element, $langcode, $form, $form_state);
 
-    $options = $this->getOptions();
+    $options = $this->getOptions($items[$delta]);
     $selected = $this->getSelectedOptions($items);
 
     $element += array(

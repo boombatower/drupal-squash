@@ -8,7 +8,7 @@
 namespace Drupal\node\Plugin\views\wizard;
 
 use Drupal\views\Plugin\views\wizard\WizardPluginBase;
-use Drupal\Component\Annotation\Plugin;
+use Drupal\views\Annotation\ViewsWizard;
 use Drupal\Core\Annotation\Translation;
 
 /**
@@ -18,14 +18,13 @@ use Drupal\Core\Annotation\Translation;
 /**
  * Tests creating node views with the wizard.
  *
- * @Plugin(
+ * @ViewsWizard(
  *   id = "node",
  *   module = "node",
  *   base_table = "node",
  *   title = @Translation("Content")
  * )
  */
-
 class Node extends WizardPluginBase {
 
   /**
@@ -55,7 +54,8 @@ class Node extends WizardPluginBase {
     'status' => array(
       'value' => TRUE,
       'table' => 'node_field_data',
-      'field' => 'status'
+      'field' => 'status',
+      'provider' => 'node'
     )
   );
 
@@ -148,6 +148,7 @@ class Node extends WizardPluginBase {
     $display_options['fields']['title']['id'] = 'title';
     $display_options['fields']['title']['table'] = 'node_field_data';
     $display_options['fields']['title']['field'] = 'title';
+    $display_options['fields']['title']['provider'] = 'node';
     $display_options['fields']['title']['label'] = '';
     $display_options['fields']['title']['alter']['alter_text'] = 0;
     $display_options['fields']['title']['alter']['make_link'] = 0;
@@ -304,9 +305,14 @@ class Node extends WizardPluginBase {
       $form['displays']['show']['tagged_with'] = array(
         '#type' => 'textfield',
         '#title' => t('tagged with'),
-        '#autocomplete_path' => 'taxonomy/autocomplete/' . $tag_field_name,
+        '#autocomplete_route_name' => 'taxonomy_autocomplete',
+        '#autocomplete_route_parameters' => array(
+          'entity_type' => $this->entity_type,
+          'field_name' => $tag_field_name,
+        ),
         '#size' => 30,
         '#maxlength' => 1024,
+        '#entity_type' => $this->entity_type,
         '#field_name' => $tag_field_name,
         '#element_validate' => array('views_ui_taxonomy_autocomplete_validate'),
       );

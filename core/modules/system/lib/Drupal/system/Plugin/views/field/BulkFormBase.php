@@ -10,6 +10,7 @@ namespace Drupal\system\Plugin\views\field;
 use Drupal\Core\Entity\EntityManager;
 use Drupal\views\Plugin\views\field\FieldPluginBase;
 use Drupal\views\Plugin\views\style\Table;
+use Drupal\views\ResultRow;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
@@ -39,20 +40,20 @@ abstract class BulkFormBase extends FieldPluginBase {
   public function __construct(array $configuration, $plugin_id, array $plugin_definition, EntityManager $manager) {
     parent::__construct($configuration, $plugin_id, $plugin_definition);
 
-    $this->actions = $manager->getStorageController('action')->load();
+    $this->actions = $manager->getStorageController('action')->loadMultiple();
   }
 
   /**
    * {@inheritdoc}
    */
   public static function create(ContainerInterface $container, array $configuration, $plugin_id, array $plugin_definition) {
-    return new static($configuration, $plugin_id, $plugin_definition, $container->get('plugin.manager.entity'));
+    return new static($configuration, $plugin_id, $plugin_definition, $container->get('entity.manager'));
   }
 
   /**
-   * Overrides \Drupal\views\Plugin\views\Plugin\field\FieldPluginBase::render().
+   * {@inheritdoc}
    */
-  public function render($values) {
+  public function render(ResultRow $values) {
     return '<!--form-item-' . $this->options['id'] . '--' . $this->view->row_index . '-->';
   }
 

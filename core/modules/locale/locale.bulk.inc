@@ -115,7 +115,7 @@ function locale_translate_import_form_submit($form, &$form_state) {
     $language = language_load($form_state['values']['langcode']);
     if (empty($language)) {
       $language = new Language(array(
-        'langcode' => $form_state['values']['langcode']
+        'id' => $form_state['values']['langcode']
       ));
       $language = language_save($language);
       drupal_set_message(t('The language %language has been created.', array('%language' => t($language->name))));
@@ -171,7 +171,7 @@ function locale_translate_export_form($form, &$form_state) {
       '#type' => 'select',
       '#title' => t('Language'),
       '#options' => $language_options,
-      '#default_value' => $language_default->langcode,
+      '#default_value' => $language_default->id,
       '#empty_option' => t('Source text only, no translations'),
       '#empty_value' => Language::LANGCODE_SYSTEM,
     );
@@ -228,11 +228,11 @@ function locale_translate_export_form_submit($form, &$form_state) {
   $reader = new PoDatabaseReader();
   $languageName = '';
   if ($language != NULL) {
-    $reader->setLangcode($language->langcode);
+    $reader->setLangcode($language->id);
     $reader->setOptions($content_options);
     $languages = language_list();
-    $languageName = isset($languages[$language->langcode]) ? $languages[$language->langcode]->name : '';
-    $filename = $language->langcode .'.po';
+    $languageName = isset($languages[$language->id]) ? $languages[$language->id]->name : '';
+    $filename = $language->id .'.po';
   }
   else {
     // Template required.
@@ -243,7 +243,7 @@ function locale_translate_export_form_submit($form, &$form_state) {
   if (!empty($item)) {
     $uri = tempnam('temporary://', 'po_');
     $header = $reader->getHeader();
-    $header->setProjectName(config('system.site')->get('name'));
+    $header->setProjectName(Drupal::config('system.site')->get('name'));
     $header->setLanguageName($languageName);
 
     $writer = new PoStreamWriter;
@@ -348,7 +348,7 @@ function locale_translate_get_interface_translation_files($projects = array(), $
   // containing a project name and language code: {project}.{langcode}.po or
   // {project}-{version}.{langcode}.po.
   // Only files of known projects and languages will be returned.
-  $directory = config('locale.settings')->get('translation.path');
+  $directory = Drupal::config('locale.settings')->get('translation.path');
   $result = file_scan_directory($directory, '![a-z_]+(\-[0-9a-z\.\-\+]+|)\.[^\./]+\.po$!', array('recurse' => FALSE));
 
   foreach ($result as $file) {
@@ -793,8 +793,22 @@ function locale_config_batch_update_components(array $options, $langcodes = arra
  */
 function locale_config_batch_build(array $names, array $langcodes, $options = array()) {
   $options += array('finish_feedback' => TRUE);
+  $i = 0;
+  $batch_names = array();
   foreach ($names as $name) {
-    $operations[] = array('locale_config_batch_refresh_name', array($name, $langcodes));
+    $batch_names[] = $name;
+    $i++;
+    // During installation the caching of configuration objects is disabled
+    // so it is very expensive to initialize the Drupal::config() object on each request.
+    // We batch a small number of configuration object upgrades together to
+    // improve the overall performance of the process.
+    if ($i % 20 == 0) {
+      $operations[] = array('locale_config_batch_refresh_name', array($batch_names, $langcodes));
+      $batch_names = array();
+    }
+  }
+  if (!empty($batch_names)) {
+    $operations[] = array('locale_config_batch_refresh_name', array($batch_names, $langcodes));
   }
   $batch = array(
     'operations'    => $operations,
@@ -821,12 +835,14 @@ function locale_config_batch_build(array $names, array $langcodes, $options = ar
  *
  * @see locale_config_batch_build()
  */
-function locale_config_batch_refresh_name($name, array $langcodes, array &$context) {
+function locale_config_batch_refresh_name(array $names, array $langcodes, array &$context) {
   if (!isset($context['result']['stats']['config'])) {
     $context['result']['stats']['config'] = 0;
   }
-  $context['result']['stats']['config'] += locale_config_update_multiple(array($name), $langcodes);
-  $context['result']['names'][] = $name;
+  $context['result']['stats']['config'] += locale_config_update_multiple($names, $langcodes);
+  foreach ($names as $name) {
+    $context['result']['names'][] = $name;
+  }
   $context['result']['langcodes'] = $langcodes;
   $context['finished'] = 1;
 }

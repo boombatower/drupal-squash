@@ -46,13 +46,13 @@ class CommentLinksTest extends CommentTestBase {
   function testCommentLinks() {
     // Bartik theme alters comment links, so use a different theme.
     theme_enable(array('stark'));
-    config('system.theme')
+    \Drupal::config('system.theme')
       ->set('default', 'stark')
       ->save();
 
     // Remove additional user permissions from $this->web_user added by setUp(),
     // since this test is limited to anonymous and authenticated roles only.
-    $roles = $this->web_user->roles;
+    $roles = $this->web_user->getRoles();
     entity_delete_multiple('user_role', array(reset($roles)));
 
     // Matrix of possible environmental conditions and configuration settings.
@@ -142,8 +142,8 @@ class CommentLinksTest extends CommentTestBase {
         // $this->postComment() relies on actual user permissions.
         $comment = entity_create('comment', array(
           'cid' => NULL,
-          'nid' => $this->node->nid,
-          'node_type' => $this->node->type,
+          'nid' => $this->node->id(),
+          'node_type' => $this->node->getType(),
           'pid' => 0,
           'uid' => 0,
           'status' => COMMENT_PUBLISHED,
@@ -157,7 +157,7 @@ class CommentLinksTest extends CommentTestBase {
 
         // comment_num_new() relies on history_read(), so ensure that no one has
         // seen the node of this comment.
-        db_delete('history')->condition('nid', $this->node->nid)->execute();
+        db_delete('history')->condition('nid', $this->node->id())->execute();
       }
       else {
         $cids = db_query("SELECT cid FROM {comment}")->fetchCol();
@@ -167,15 +167,15 @@ class CommentLinksTest extends CommentTestBase {
     }
 
     // Change comment settings.
-    variable_set('comment_form_location_' . $this->node->type, $info['form']);
-    variable_set('comment_anonymous_' . $this->node->type, $info['contact']);
-    if ($this->node->comment != $info['comments']) {
+    variable_set('comment_form_location_' . $this->node->getType(), $info['form']);
+    variable_set('comment_anonymous_' . $this->node->getType(), $info['contact']);
+    if ($this->node->comment->value != $info['comments']) {
       $this->node->comment = $info['comments'];
       $this->node->save();
     }
 
     // Change user settings.
-    config('user.settings')->set('register', $info['user_register'])->save();
+    \Drupal::config('user.settings')->set('register', $info['user_register'])->save();
 
     // Change user permissions.
     $rid = ($this->loggedInUser ? DRUPAL_AUTHENTICATED_RID : DRUPAL_ANONYMOUS_RID);
@@ -223,7 +223,7 @@ class CommentLinksTest extends CommentTestBase {
   function assertCommentLinks(array $info) {
     $info = $this->setEnvironment($info);
 
-    $nid = $this->node->nid;
+    $nid = $this->node->id();
 
     foreach (array('node', "node/$nid") as $path) {
       $this->drupalGet($path);

@@ -16,14 +16,14 @@ use Symfony\Component\Routing\Exception\RouteNotFoundException;
 use Symfony\Cmf\Component\Routing\ProviderBasedGenerator;
 
 use Drupal\Component\Utility\Settings;
-use Drupal\Component\Utility\UrlValidator;
+use Drupal\Component\Utility\Url;
 use Drupal\Core\Config\ConfigFactory;
 use Drupal\Core\PathProcessor\OutboundPathProcessorInterface;
 
 /**
- * A Generator creates URL strings based on a specified route.
+ * Defines an interface which generates a link with route names and parameters.
  */
-class UrlGenerator extends ProviderBasedGenerator implements PathBasedGeneratorInterface {
+class UrlGenerator extends ProviderBasedGenerator implements UrlGeneratorInterface {
 
   /**
    * A request object.
@@ -83,11 +83,11 @@ class UrlGenerator extends ProviderBasedGenerator implements PathBasedGeneratorI
     $this->pathProcessor = $path_processor;
     $this->mixedModeSessions = $settings->get('mixed_mode_sessions', FALSE);
     $allowed_protocols = $config->get('system.filter')->get('protocols') ?: array('http', 'https');
-    UrlValidator::setAllowedProtocols($allowed_protocols);
+    Url::setAllowedProtocols($allowed_protocols);
   }
 
   /**
-   * Implements \Drupal\Core\Routing\PathBasedGeneratorInterface::setRequest().
+   * {@inheritdoc}
    */
   public function setRequest(Request $request) {
     $this->request = $request;
@@ -105,17 +105,31 @@ class UrlGenerator extends ProviderBasedGenerator implements PathBasedGeneratorI
   }
 
   /**
-   * Implements Symfony\Component\Routing\Generator\UrlGeneratorInterface::generate().
+   * {@inheritdoc}
    */
-  public function generate($name, $parameters = array(), $absolute = FALSE) {
+  public function getPathFromRoute($name, $parameters = array()) {
+    $route = $this->getRoute($name);
+    $path = $this->getInternalPathFromRoute($route, $parameters);
+    // Router-based paths may have a querystring on them but Drupal paths may
+    // not have one, so remove any ? and anything after it. For generate() this
+    // is handled in processPath().
+    $path = preg_replace('/\?.*/', '', $path);
+    return trim($path, '/');
+  }
 
-    if ($name instanceof SymfonyRoute) {
-      $route = $name;
-    }
-    elseif (null === $route = $this->provider->getRouteByName($name, $parameters)) {
-      throw new RouteNotFoundException(sprintf('Route "%s" does not exist.', $name));
-    }
-
+  /**
+   * Gets the path of a route.
+   *
+   * @param \Symfony\Component\Routing\Route $route
+   *  The route object.
+   * @param array $parameters
+   *  An array of parameters as passed to
+   *  \Symfony\Component\Routing\Generator\UrlGeneratorInterface::generate().
+   *
+   * @return string
+   *  The url path corresponding to the route, without the base path.
+   */
+  protected function getInternalPathFromRoute(SymfonyRoute $route, $parameters = array()) {
     // The Route has a cache of its own and is not recompiled as long as it does
     // not get modified.
     $compiledRoute = $route->compile();
@@ -125,10 +139,9 @@ class UrlGenerator extends ProviderBasedGenerator implements PathBasedGeneratorI
     // We need to bypass the doGenerate() method's handling of absolute URLs as
     // we handle that ourselves after processing the path.
     if (isset($route_requirements['_scheme'])) {
-      $scheme_req = $route_requirements['_scheme'];
       unset($route_requirements['_scheme']);
     }
-    $path = $this->doGenerate($compiledRoute->getVariables(), $route->getDefaults(), $route_requirements, $compiledRoute->getTokens(), $parameters, $name, FALSE, $hostTokens);
+    $path = $this->doGenerate($compiledRoute->getVariables(), $route->getDefaults(), $route_requirements, $compiledRoute->getTokens(), $parameters, $route->getPath(), FALSE, $hostTokens);
 
     // The URL returned from doGenerate() will include the base path if there is
     // one (i.e., if running in a subdirectory) so we need to strip that off
@@ -137,15 +150,49 @@ class UrlGenerator extends ProviderBasedGenerator implements PathBasedGeneratorI
     if (!empty($base_url) && strpos($path, $base_url) === 0) {
       $path = substr($path, strlen($base_url));
     }
+    return $path;
+  }
 
-    $path = $this->processPath($path);
+  /**
+   * {@inheritdoc}
+   */
+  public function generate($name, $parameters = array(), $absolute = FALSE) {
+    $options['absolute'] = $absolute;
+    return $this->generateFromRoute($name, $parameters, $options);
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function generateFromRoute($name, $parameters = array(), $options = array()) {
+    $absolute = !empty($options['absolute']);
+    $route = $this->getRoute($name);
+    // Symfony adds any parameters that are not path slugs as query strings.
+    if (isset($options['query']) && is_array($options['query'])) {
+      $parameters = (array) $parameters + $options['query'];
+    }
+    $path = $this->getInternalPathFromRoute($route, $parameters);
+    $path = $this->processPath($path, $options);
+    $fragment = '';
+    if (isset($options['fragment'])) {
+      if (($fragment = trim($options['fragment'])) != '') {
+        $fragment = '#' . $fragment;
+      }
+    }
+    $base_url = $this->context->getBaseUrl();
     if (!$absolute || !$host = $this->context->getHost()) {
-      return $base_url . $path;
+      return $base_url . $path . $fragment;
     }
 
     // Prepare an absolute URL by getting the correct scheme, host and port from
     // the request context.
-    $scheme = $this->context->getScheme();
+    if (isset($options['https']) && $this->mixedModeSessions) {
+      $scheme = $options['https'] ? 'https' : 'http';
+    }
+    else {
+      $scheme = $this->context->getScheme();
+    }
+    $scheme_req = $route->getRequirement('_scheme');
     if (isset($scheme_req) && ($req = strtolower($scheme_req)) && $scheme !== $req) {
       $scheme = $req;
     }
@@ -155,68 +202,11 @@ class UrlGenerator extends ProviderBasedGenerator implements PathBasedGeneratorI
     } elseif ('https' === $scheme && 443 != $this->context->getHttpsPort()) {
       $port = ':' . $this->context->getHttpsPort();
     }
-    return $scheme . '://' . $host . $port . $base_url . $path;
+    return $scheme . '://' . $host . $port . $base_url . $path . $fragment;
   }
 
   /**
-   * Implements \Drupal\Core\Routing\PathBasedGeneratorInterface::generateFromPath().
-   *
-   * @param $path
-   *   (optional) The internal path or external URL being linked to, such as
-   *   "node/34" or "http://example.com/foo". The default value is equivalent to
-   *   passing in '<front>'. A few notes:
-   *   - If you provide a full URL, it will be considered an external URL.
-   *   - If you provide only the path (e.g. "node/34"), it will be
-   *     considered an internal link. In this case, it should be a system URL,
-   *     and it will be replaced with the alias, if one exists. Additional query
-   *     arguments for internal paths must be supplied in $options['query'], not
-   *     included in $path.
-   *   - If you provide an internal path and $options['alias'] is set to TRUE, the
-   *     path is assumed already to be the correct path alias, and the alias is
-   *     not looked up.
-   *   - The special string '<front>' generates a link to the site's base URL.
-   *   - If your external URL contains a query (e.g. http://example.com/foo?a=b),
-   *     then you can either URL encode the query keys and values yourself and
-   *     include them in $path, or use $options['query'] to let this method
-   *     URL encode them.
-   *
-   * @param $options
-   *   (optional) An associative array of additional options, with the following
-   *   elements:
-   *   - 'query': An array of query key/value-pairs (without any URL-encoding) to
-   *     append to the URL.
-   *   - 'fragment': A fragment identifier (named anchor) to append to the URL.
-   *     Do not include the leading '#' character.
-   *   - 'absolute': Defaults to FALSE. Whether to force the output to be an
-   *     absolute link (beginning with http:). Useful for links that will be
-   *     displayed outside the site, such as in an RSS feed.
-   *   - 'alias': Defaults to FALSE. Whether the given path is a URL alias
-   *     already.
-   *   - 'external': Whether the given path is an external URL.
-   *   - 'language': An optional language object. If the path being linked to is
-   *     internal to the site, $options['language'] is used to look up the alias
-   *     for the URL. If $options['language'] is omitted, the language will be
-   *     obtained from language(Language::TYPE_URL).
-   *   - 'https': Whether this URL should point to a secure location. If not
-   *     defined, the current scheme is used, so the user stays on HTTP or HTTPS
-   *     respectively. TRUE enforces HTTPS and FALSE enforces HTTP, but HTTPS can
-   *     only be enforced when the variable 'https' is set to TRUE.
-   *   - 'base_url': Only used internally, to modify the base URL when a language
-   *     dependent URL requires so.
-   *   - 'prefix': Only used internally, to modify the path when a language
-   *     dependent URL requires so.
-   *   - 'script': Added to the URL between the base path and the path prefix.
-   *     Defaults to empty string when clean URLs are in effect, and to
-   *     'index.php/' when they are not.
-   *   - 'entity_type': The entity type of the object that called url(). Only
-   *     set if url() is invoked by Drupal\Core\Entity\Entity::uri().
-   *   - 'entity': The entity object (such as a node) for which the URL is being
-   *     generated. Only set if url() is invoked by Drupal\Core\Entity\Entity::uri().
-   *
-   * @return
-   *   A string containing a URL to the given path.
-   *
-   * @throws \Drupal\Core\Routing\GeneratorNotInitializedException.
+   * {@inheritdoc}
    */
   public function generateFromPath($path = NULL, $options = array()) {
 
@@ -239,7 +229,7 @@ class UrlGenerator extends ProviderBasedGenerator implements PathBasedGeneratorI
       // that would require another function call, and performance inside url() is
       // critical.
       $colonpos = strpos($path, ':');
-      $options['external'] = ($colonpos !== FALSE && !preg_match('![/?#]!', substr($path, 0, $colonpos)) && UrlValidator::stripDangerousProtocols($path) == $path);
+      $options['external'] = ($colonpos !== FALSE && !preg_match('![/?#]!', substr($path, 0, $colonpos)) && Url::stripDangerousProtocols($path) == $path);
     }
 
     if (isset($options['fragment']) && $options['fragment'] !== '') {
@@ -257,7 +247,7 @@ class UrlGenerator extends ProviderBasedGenerator implements PathBasedGeneratorI
       }
       // Append the query.
       if ($options['query']) {
-        $path .= (strpos($path, '?') !== FALSE ? '&' : '?') . $this->httpBuildQuery($options['query']);
+        $path .= (strpos($path, '?') !== FALSE ? '&' : '?') . Url::buildQuery($options['query']);
       }
       if (isset($options['https']) && $this->mixedModeSessions) {
         if ($options['https'] === TRUE) {
@@ -300,70 +290,29 @@ class UrlGenerator extends ProviderBasedGenerator implements PathBasedGeneratorI
     $prefix = empty($path) ? rtrim($options['prefix'], '/') : $options['prefix'];
 
     $path = str_replace('%2F', '/', rawurlencode($prefix . $path));
-    $query = $options['query'] ? ('?' . $this->httpBuildQuery($options['query'])) : '';
+    $query = $options['query'] ? ('?' . Url::buildQuery($options['query'])) : '';
     return $base . $options['script'] . $path . $query . $options['fragment'];
   }
 
   /**
-   * Implements \Drupal\Core\Routing\PathBasedGeneratorInterface::setBaseUrl().
+   * {@inheritdoc}
    */
   public function setBaseUrl($url) {
     $this->baseUrl = $url;
   }
 
   /**
-   * Implements \Drupal\Core\Routing\PathBasedGeneratorInterface::setBasePath().
+   * {@inheritdoc}
    */
   public function setBasePath($path) {
     $this->basePath = $path;
   }
 
   /**
-   * Implements \Drupal\Core\Routing\PathBasedGeneratorInterface::setScriptPath().
+   * {@inheritdoc}
    */
   public function setScriptPath($path) {
     $this->scriptPath = $path;
-  }
-
-  /**
-   * Parses an array into a valid, rawurlencoded query string.
-   *
-   * This differs from http_build_query() as we need to rawurlencode() (instead of
-   * urlencode()) all query parameters.
-   *
-   * @param $query
-   *   The query parameter array to be processed, e.g. $_GET.
-   * @param $parent
-   *   Internal use only. Used to build the $query array key for nested items.
-   *
-   * @return
-   *   A rawurlencoded string which can be used as or appended to the URL query
-   *   string.
-   *
-   * @see drupal_get_query_parameters()
-   * @ingroup php_wrappers
-   */
-  public function httpBuildQuery(array $query, $parent = '') {
-    $params = array();
-
-    foreach ($query as $key => $value) {
-      $key = ($parent ? $parent . '[' . rawurlencode($key) . ']' : rawurlencode($key));
-
-      // Recurse into children.
-      if (is_array($value)) {
-        $params[] = $this->httpBuildQuery($value, $key);
-      }
-      // If a query parameter value is NULL, only append its key.
-      elseif (!isset($value)) {
-        $params[] = $key;
-      }
-      else {
-        // For better readability of paths in query strings, we decode slashes.
-        $params[] = $key . '=' . str_replace('%2F', '/', rawurlencode($value));
-      }
-    }
-
-    return implode('&', $params);
   }
 
   /**
@@ -395,6 +344,30 @@ class UrlGenerator extends ProviderBasedGenerator implements PathBasedGeneratorI
    */
   protected function initialized() {
     return isset($this->basePath) && isset($this->baseUrl) && isset($this->scriptPath);
+  }
+
+  /**
+   * Find the route using the provided route name.
+   *
+   * @param string $name
+   *   The route name to fetch
+   *
+   * @return \Symfony\Component\Routing\Route
+   *   The found route.
+   *
+   * @throws \Symfony\Component\Routing\Exception\RouteNotFoundException
+   *   Thrown if there is no route with that name in this repository.
+   *
+   * @see \Drupal\Core\Routing\RouteProviderInterface
+   */
+  protected function getRoute($name) {
+    if ($name instanceof SymfonyRoute) {
+      $route = $name;
+    }
+    elseif (NULL === $route = $this->provider->getRouteByName($name)) {
+      throw new RouteNotFoundException(sprintf('Route "%s" does not exist.', $name));
+    }
+    return $route;
   }
 
 }

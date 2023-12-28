@@ -54,8 +54,11 @@ function theme_ckeditor_settings_toolbar($variables) {
 
   $build_button_item = function($button, $rtl) {
     // Value of the button item.
-    if (isset($button['image_alternative'])) {
+    if (isset($button['image_alternative'. $rtl])) {
       $value = $button['image_alternative' . $rtl];
+    }
+    elseif (isset($button['image_alternative'])) {
+      $value = $button['image_alternative'];
     }
     elseif (isset($button['image'])) {
       $image = array(
@@ -63,7 +66,7 @@ function theme_ckeditor_settings_toolbar($variables) {
         '#uri' => $button['image' . $rtl],
         '#title' => $button['label'],
       );
-      $value = drupal_render($image);
+      $value = '<a href="#" class="cke_button" role="button" title="' . $button['label'] . '" aria-label="' . $button['label'] . '"><span class="cke_button_icon">' . drupal_render($image) . '</span></a>';
     }
     else {
       $value = '?';

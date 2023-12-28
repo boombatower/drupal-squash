@@ -25,15 +25,18 @@ class ConfigEntityListController extends EntityListController {
   }
 
   /**
-   * Overrides \Drupal\Core\Entity\EntityListController::getOperations();
+   * {@inheritdoc}
    */
   public function getOperations(EntityInterface $entity) {
     $operations = parent::getOperations($entity);
     $uri = $entity->uri();
 
-    // For configuration entities edit path is the MENU_DEFAULT_LOCAL_TASK and
-    // therefore should be accessed by the short route.
-    $operations['edit']['href'] = $uri['path'];
+    // Ensure the edit operation exists since it is access controlled.
+    if (isset($operations['edit'])) {
+      // For configuration entities edit path is the MENU_DEFAULT_LOCAL_TASK and
+      // therefore should be accessed by the short route.
+      $operations['edit']['href'] = $uri['path'];
+    }
 
     if (isset($this->entityInfo['entity_keys']['status'])) {
       if (!$entity->status()) {
@@ -49,7 +52,7 @@ class ConfigEntityListController extends EntityListController {
           'title' => t('Disable'),
           'href' => $uri['path'] . '/disable',
           'options' => $uri['options'],
-          'weight' => 20,
+          'weight' => 40,
         );
       }
     }

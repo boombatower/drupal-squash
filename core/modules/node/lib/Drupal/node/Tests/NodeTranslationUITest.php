@@ -8,12 +8,12 @@
 namespace Drupal\node\Tests;
 
 use Drupal\Core\Entity\EntityInterface;
-use Drupal\translation_entity\Tests\EntityTranslationUITest;
+use Drupal\content_translation\Tests\ContentTranslationUITest;
 
 /**
  * Tests the Node Translation UI.
  */
-class NodeTranslationUITest extends EntityTranslationUITest {
+class NodeTranslationUITest extends ContentTranslationUITest {
 
   /**
    * The title of the test node.
@@ -25,7 +25,7 @@ class NodeTranslationUITest extends EntityTranslationUITest {
    *
    * @var array
    */
-  public static $modules = array('language', 'translation_entity', 'node', 'datetime', 'field_ui');
+  public static $modules = array('language', 'content_translation', 'node', 'datetime', 'field_ui');
 
   public static function getInfo() {
     return array(
@@ -43,7 +43,7 @@ class NodeTranslationUITest extends EntityTranslationUITest {
   }
 
   /**
-   * Overrides \Drupal\translation_entity\Tests\EntityTranslationUITest::setupBundle().
+   * Overrides \Drupal\content_translation\Tests\ContentTranslationUITest::setupBundle().
    */
   protected function setupBundle() {
     parent::setupBundle();
@@ -51,14 +51,14 @@ class NodeTranslationUITest extends EntityTranslationUITest {
   }
 
   /**
-   * Overrides \Drupal\translation_entity\Tests\EntityTranslationUITest::getTranslatorPermission().
+   * Overrides \Drupal\content_translation\Tests\ContentTranslationUITest::getTranslatorPermission().
    */
   protected function getTranslatorPermissions() {
     return array_merge(parent::getTranslatorPermissions(), array('administer nodes', "edit any $this->bundle content"));
   }
 
   /**
-   * Overrides \Drupal\translation_entity\Tests\EntityTranslationUITest::getNewEntityValues().
+   * Overrides \Drupal\content_translation\Tests\ContentTranslationUITest::getNewEntityValues().
    */
   protected function getNewEntityValues($langcode) {
     // Node title is not translatable yet, hence we use a fixed value.
@@ -66,17 +66,17 @@ class NodeTranslationUITest extends EntityTranslationUITest {
   }
 
   /**
-   * Overrides \Drupal\translation_entity\Tests\EntityTranslationUITest::getFormSubmitAction().
+   * Overrides \Drupal\content_translation\Tests\ContentTranslationUITest::getFormSubmitAction().
    */
   protected function getFormSubmitAction(EntityInterface $entity) {
-    if ($entity->status) {
+    if ($entity->isPublished()) {
       return t('Save and unpublish');
     }
     return t('Save and keep unpublished');
   }
 
   /**
-   * Overrides \Drupal\translation_entity\Tests\EntityTranslationUITest::assertPublishedStatus().
+   * Overrides \Drupal\content_translation\Tests\ContentTranslationUITest::assertPublishedStatus().
    */
   protected function assertPublishedStatus() {
     $entity = entity_load($this->entityType, $this->entityId, TRUE);
@@ -108,7 +108,7 @@ class NodeTranslationUITest extends EntityTranslationUITest {
   }
 
   /**
-   * Overrides \Drupal\translation_entity\Tests\EntityTranslationUITest::assertAuthoringInfo().
+   * Overrides \Drupal\content_translation\Tests\ContentTranslationUITest::assertAuthoringInfo().
    */
   protected function assertAuthoringInfo() {
     $entity = entity_load($this->entityType, $this->entityId, TRUE);
@@ -120,11 +120,11 @@ class NodeTranslationUITest extends EntityTranslationUITest {
     foreach ($this->langcodes as $index => $langcode) {
       $user = $this->drupalCreateUser();
       $values[$langcode] = array(
-        'uid' => $user->uid,
+        'uid' => $user->id(),
         'created' => REQUEST_TIME - mt_rand(0, 1000),
       );
       $edit = array(
-        'name' => $user->name,
+        'name' => $user->getUsername(),
         'date[date]' => format_date($values[$langcode]['created'], 'custom', 'Y-m-d'),
         'date[time]' => format_date($values[$langcode]['created'], 'custom', 'H:i:s'),
       );
@@ -151,8 +151,8 @@ class NodeTranslationUITest extends EntityTranslationUITest {
     // Verify translation links.
     $this->drupalGet('admin/content');
     $this->assertResponse(200);
-    $this->assertLinkByHref('node/' . $article->nid . '/translations');
-    $this->assertNoLinkByHref('node/' . $page->nid . '/translations');
+    $this->assertLinkByHref('node/' . $article->id() . '/translations');
+    $this->assertNoLinkByHref('node/' . $page->id() . '/translations');
   }
 
   /**
@@ -165,14 +165,14 @@ class NodeTranslationUITest extends EntityTranslationUITest {
     $article = $this->drupalCreateNode(array('type' => 'article', 'langcode' => 'en'));
 
     // Visit translation page.
-    $this->drupalGet('node/' . $article->nid . '/translations');
+    $this->drupalGet('node/' . $article->id() . '/translations');
     $this->assertRaw('Not translated');
 
     // Delete the only translatable field.
-    field_info_field('field_test_et_ui_test')->delete();
+    field_info_field($this->entityType, 'field_test_et_ui_test')->delete();
 
     // Visit translation page.
-    $this->drupalGet('node/' . $article->nid . '/translations');
+    $this->drupalGet('node/' . $article->id() . '/translations');
     $this->assertRaw('No translatable fields');
   }
 
@@ -189,8 +189,8 @@ class NodeTranslationUITest extends EntityTranslationUITest {
     $disabledNode = $this->drupalCreateNode(array('type' => $disabledBundle));
 
     // Make sure that only a single row was inserted into the
-    // {translation_entity} table.
-    $rows = db_query('SELECT * FROM {translation_entity}')->fetchAll();
+    // {content_translation} table.
+    $rows = db_query('SELECT * FROM {content_translation}')->fetchAll();
     $this->assertEqual(1, count($rows));
     $this->assertEqual($enabledNode->id(), reset($rows)->entity_id);
   }

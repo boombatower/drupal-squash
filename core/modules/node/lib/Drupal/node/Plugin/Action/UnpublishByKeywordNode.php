@@ -29,7 +29,7 @@ class UnpublishByKeywordNode extends ConfigurableActionBase {
     foreach ($this->configuration['keywords'] as $keyword) {
       $elements = node_view(clone $node);
       if (strpos(drupal_render($elements), $keyword) !== FALSE || strpos($node->label(), $keyword) !== FALSE) {
-        $node->status = NODE_NOT_PUBLISHED;
+        $node->setPublished(FALSE);
         $node->save();
         break;
       }
@@ -48,7 +48,7 @@ class UnpublishByKeywordNode extends ConfigurableActionBase {
   /**
    * {@inheritdoc}
    */
-  public function form(array $form, array &$form_state) {
+  public function buildConfigurationForm(array $form, array &$form_state) {
     $form['keywords'] = array(
       '#title' => t('Keywords'),
       '#type' => 'textarea',
@@ -61,7 +61,7 @@ class UnpublishByKeywordNode extends ConfigurableActionBase {
   /**
    * {@inheritdoc}
    */
-  public function submit(array &$form, array &$form_state) {
+  public function submitConfigurationForm(array &$form, array &$form_state) {
     $this->configuration['keywords'] = drupal_explode_tags($form_state['values']['keywords']);
   }
 

@@ -34,7 +34,7 @@ class UserSignatureTest extends WebTestBase {
     parent::setUp();
 
     // Enable user signatures.
-    config('user.settings')->set('signatures', 1)->save();
+    \Drupal::config('user.settings')->set('signatures', 1)->save();
 
     // Create Basic page node type.
     $this->drupalCreateContentType(array('type' => 'page', 'name' => 'Basic page'));
@@ -62,7 +62,7 @@ class UserSignatureTest extends WebTestBase {
     ));
     $this->full_html_format->save();
 
-    user_role_grant_permissions(DRUPAL_AUTHENTICATED_RID, array(filter_permission_name($this->filtered_html_format)));
+    user_role_grant_permissions(DRUPAL_AUTHENTICATED_RID, array($this->filtered_html_format->getPermissionName()));
     $this->checkPermissions(array(), TRUE);
 
     // Create regular and administrative users.
@@ -70,7 +70,7 @@ class UserSignatureTest extends WebTestBase {
 
     $admin_permissions = array('administer comments');
     foreach (filter_formats() as $format) {
-      if ($permission = filter_permission_name($format)) {
+      if ($permission = $format->getPermissionName()) {
         $admin_permissions[] = $permission;
       }
     }
@@ -95,7 +95,7 @@ class UserSignatureTest extends WebTestBase {
     $edit = array(
       'signature[value]' => $signature_text,
     );
-    $this->drupalPost('user/' . $this->web_user->uid . '/edit', $edit, t('Save'));
+    $this->drupalPost('user/' . $this->web_user->id() . '/edit', $edit, t('Save'));
 
     // Verify that values were stored.
     $this->assertFieldByName('signature[value]', $edit['signature[value]'], 'Submitted signature text found.');
@@ -105,7 +105,7 @@ class UserSignatureTest extends WebTestBase {
     $edit = array();
     $edit['subject'] = $this->randomName(8);
     $edit['comment_body[' . $langcode . '][0][value]'] = $this->randomName(16);
-    $this->drupalPost('comment/reply/' . $node->nid, $edit, t('Preview'));
+    $this->drupalPost('comment/reply/' . $node->id(), $edit, t('Preview'));
     $this->drupalPost(NULL, array(), t('Save'));
 
     // Get the comment ID. (This technique is the same one used in the Comment
@@ -120,7 +120,7 @@ class UserSignatureTest extends WebTestBase {
     $this->drupalPost('comment/' . $comment_id . '/edit', $edit, t('Save'));
 
     // Assert that the signature did not make it through unfiltered.
-    $this->drupalGet('node/' . $node->nid);
+    $this->drupalGet('node/' . $node->id());
     $this->assertNoRaw($signature_text, 'Unfiltered signature text not found.');
     $this->assertRaw(check_markup($signature_text, $this->filtered_html_format->format), 'Filtered signature text found.');
   }

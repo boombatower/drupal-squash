@@ -7,13 +7,13 @@
 
 namespace Drupal\views\Plugin\views\row;
 
-use Drupal\Component\Annotation\Plugin;
+use Drupal\views\Annotation\ViewsRow;
 use Drupal\Core\Annotation\Translation;
 
 /**
  * Renders an RSS item based on fields.
  *
- * @Plugin(
+ * @ViewsRow(
  *   id = "rss_fields",
  *   title = @Translation("Fields"),
  *   help = @Translation("Display fields as RSS items."),
@@ -126,7 +126,7 @@ class RssFields extends RowPluginBase {
     return $errors;
   }
 
-  function render($row) {
+  public function render($row) {
     static $row_index;
     if (!isset($row_index)) {
       $row_index = 0;

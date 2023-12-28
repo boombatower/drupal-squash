@@ -107,8 +107,8 @@ class EntityFilteringThemeTest extends WebTestBase {
 
     // Create a test comment on the test node.
     $this->comment = entity_create('comment', array(
-      'nid' => $this->node->nid,
-      'node_type' => $this->node->type,
+      'nid' => $this->node->id(),
+      'node_type' => $this->node->getType(),
       'status' => COMMENT_PUBLISHED,
       'subject' => $this->xss_label,
       'comment_body' => array($this->randomName()),
@@ -124,13 +124,13 @@ class EntityFilteringThemeTest extends WebTestBase {
     $paths = array(
       'user',
       'node',
-      'node/' . $this->node->nid,
+      'node/' . $this->node->id(),
       'taxonomy/term/' . $this->term->id(),
     );
 
     // Check each path in all available themes.
     foreach ($this->themes as $theme) {
-      config('system.theme')
+      \Drupal::config('system.theme')
         ->set('default', $theme)
         ->save();
       foreach ($paths as $path) {
