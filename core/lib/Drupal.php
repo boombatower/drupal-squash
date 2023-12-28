@@ -82,7 +82,7 @@ class Drupal {
   /**
    * The current system version.
    */
-  const VERSION = '8.8.0-rc1';
+  const VERSION = '8.8.0';
 
   /**
    * Core API compatibility.
@@ -251,6 +251,13 @@ class Drupal {
   /**
    * Gets the current active user.
    *
+   * This method will return the \Drupal\Core\Session\AccountProxy object of the
+   * current user. You can use the \Drupal\user\Entity\User::load() method to
+   * load the full user entity object. For example:
+   * @code
+   *   $user = \Drupal\user\Entity\User::load(\Drupal::currentUser()->id());
+   * @endcode
+   *
    * @return \Drupal\Core\Session\AccountProxyInterface
    */
   public static function currentUser() {
@@ -366,12 +373,14 @@ class Drupal {
    *
    * This is the main entry point to the configuration API. Calling
    * @code \Drupal::config('book.admin') @endcode will return a configuration
-   * object in which the book module can store its administrative settings.
+   * object the Book module can use to read its administrative settings.
    *
    * @param string $name
-   *   The name of the configuration object to retrieve. The name corresponds to
-   *   a configuration file. For @code \Drupal::config('book.admin') @endcode, the config
-   *   object returned will contain the contents of book.admin configuration file.
+   *   The name of the configuration object to retrieve, which typically
+   *   corresponds to a configuration file. For
+   *   @code \Drupal::config('book.admin') @endcode, the configuration
+   *   object returned will contain the content of the book.admin
+   *   configuration file.
    *
    * @return \Drupal\Core\Config\ImmutableConfig
    *   An immutable configuration object.
