@@ -21,7 +21,6 @@ use Drupal\Component\Plugin\ConfigurablePluginInterface;
  * @EntityType(
  *   id = "action",
  *   label = @Translation("Action"),
- *   module = "system",
  *   controllers = {
  *     "storage" = "Drupal\Core\Config\Entity\ConfigStorageController",
  *   },
@@ -106,7 +105,7 @@ class Action extends ConfigEntityBase implements ActionConfigEntityInterface {
    */
   public function setPlugin($plugin_id) {
     $this->plugin = $plugin_id;
-    $this->pluginBag->addInstanceID($plugin_id);
+    $this->pluginBag->addInstanceId($plugin_id);
   }
 
   /**

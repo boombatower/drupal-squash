@@ -19,7 +19,6 @@ use Drupal\taxonomy\VocabularyInterface;
  * @EntityType(
  *   id = "taxonomy_vocabulary",
  *   label = @Translation("Taxonomy vocabulary"),
- *   module = "taxonomy",
  *   controllers = {
  *     "storage" = "Drupal\taxonomy\VocabularyStorageController",
  *     "list" = "Drupal\taxonomy\VocabularyListController",
@@ -39,7 +38,7 @@ use Drupal\taxonomy\VocabularyInterface;
  *     "uuid" = "uuid"
  *   },
  *   links = {
- *     "edit-form" = "admin/structure/taxonomy/manage/{taxonomy_vocabulary}"
+ *     "edit-form" = "taxonomy.overview_terms"
  *   }
  * )
  */

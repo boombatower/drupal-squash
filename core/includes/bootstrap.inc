@@ -1374,6 +1374,9 @@ function format_string($string, array $args = array()) {
  * @see \Drupal\Component\Utility\String::checkPlain()
  * @see drupal_validate_utf8()
  * @ingroup sanitization
+ *
+ * @deprecated as of Drupal 8.0. Use
+ *   Drupal\Component\Utility\String::checkPlain() directly instead.
  */
 function check_plain($text) {
   return String::checkPlain($text);
@@ -1976,7 +1979,7 @@ function _drupal_bootstrap_configuration() {
   // Redirect the user to the installation script if Drupal has not been
   // installed yet (i.e., if no $databases array has been defined in the
   // settings.php file) and we are not already installing.
-  if (empty($GLOBALS['databases']) && !drupal_installation_attempted()) {
+  if (empty($GLOBALS['databases']) && !drupal_installation_attempted() && !drupal_is_cli()) {
     include_once __DIR__ . '/install.inc';
     install_goto('core/install.php');
   }

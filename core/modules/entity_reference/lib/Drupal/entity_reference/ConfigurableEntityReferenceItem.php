@@ -8,8 +8,8 @@
 namespace Drupal\entity_reference;
 
 use Drupal\field\FieldInterface;
-use Drupal\field\Plugin\Type\FieldType\ConfigEntityReferenceItemBase;
-use Drupal\field\Plugin\Type\FieldType\ConfigFieldItemInterface;
+use Drupal\Core\Field\ConfigEntityReferenceItemBase;
+use Drupal\Core\Field\ConfigFieldItemInterface;
 
 /**
  * Alternative plugin implementation of the 'entity_reference' field type.
@@ -171,7 +171,7 @@ class ConfigurableEntityReferenceItem extends ConfigEntityReferenceItemBase impl
    * @param array $form_state
    *   The form state of the (entire) configuration form.
    */
-  public static function instanceSettingsFormValidate($form, &$form_state) {
+  public static function instanceSettingsFormValidate(array $form, array &$form_state) {
     if (isset($form_state['values']['instance'])) {
       unset($form_state['values']['instance']['settings']['handler_submit']);
       $form_state['instance']->settings = $form_state['values']['instance']['settings'];

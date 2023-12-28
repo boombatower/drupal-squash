@@ -21,6 +21,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  * @Block(
  *  id = "custom_block",
  *  admin_label = @Translation("Custom block"),
+ *  category = @Translation("Custom"),
  *  derivative = "Drupal\custom_block\Plugin\Derivative\CustomBlock"
  * )
  */
@@ -113,6 +114,7 @@ class CustomBlockBlock extends BlockBase implements ContainerFactoryPluginInterf
   public function blockSubmit($form, &$form_state) {
     // Invalidate the block cache to update custom block-based derivatives.
     if ($this->moduleHandler->moduleExists('block')) {
+      $this->configuration['view_mode'] = $form_state['values']['custom_block']['view_mode'];
       $this->blockManager->clearCachedDefinitions();
     }
   }

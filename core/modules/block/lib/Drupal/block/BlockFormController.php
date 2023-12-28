@@ -10,7 +10,7 @@ namespace Drupal\block;
 use Drupal\Core\Cache\Cache;
 use Drupal\Core\Config\ConfigFactory;
 use Drupal\Core\Entity\EntityFormController;
-use Drupal\Core\Entity\EntityManager;
+use Drupal\Core\Entity\EntityManagerInterface;
 use Drupal\Core\Entity\Query\QueryFactory;
 use Drupal\Core\Language\Language;
 use Drupal\Core\Language\LanguageManager;
@@ -59,7 +59,7 @@ class BlockFormController extends EntityFormController {
   /**
    * Constructs a BlockFormController object.
    *
-   * @param \Drupal\Core\Entity\EntityManager $entity_manager
+   * @param \Drupal\Core\Entity\EntityManagerInterface $entity_manager
    *   The entity manager.
    * @param \Drupal\Core\Entity\Query\QueryFactory $entity_query_factory
    *   The entity query factory.
@@ -68,7 +68,7 @@ class BlockFormController extends EntityFormController {
    * @param \Drupal\Core\Config\ConfigFactory $config_factory
    *   The config factory.
    */
-  public function __construct(EntityManager $entity_manager, QueryFactory $entity_query_factory, LanguageManager $language_manager, ConfigFactory $config_factory) {
+  public function __construct(EntityManagerInterface $entity_manager, QueryFactory $entity_query_factory, LanguageManager $language_manager, ConfigFactory $config_factory) {
     $this->storageController = $entity_manager->getStorageController('block');
     $this->entityQueryFactory = $entity_query_factory;
     $this->languageManager = $language_manager;
@@ -259,10 +259,13 @@ class BlockFormController extends EntityFormController {
       '#title' => $this->t('Region'),
       '#description' => $this->t('Select the region where this block should be displayed.'),
       '#default_value' => $entity->get('region'),
-      '#empty_value' => BLOCK_REGION_NONE,
+      '#empty_value' => BlockInterface::BLOCK_REGION_NONE,
       '#options' => system_region_list($theme, REGIONS_VISIBLE),
       '#prefix' => '<div id="edit-block-region-wrapper">',
       '#suffix' => '</div>',
+    );
+    $form['#attached']['css'] = array(
+      drupal_get_path('module', 'block') . '/css/block.admin.css',
     );
     return $form;
   }
@@ -323,9 +326,15 @@ class BlockFormController extends EntityFormController {
     // Invalidate the content cache and redirect to the block listing,
     // because we need to remove cached block contents for each cache backend.
     Cache::invalidateTags(array('content' => TRUE));
-    $form_state['redirect'] = array('admin/structure/block/list/' . $form_state['values']['theme'], array(
-      'query' => array('block-placement' => drupal_html_class($this->entity->id())),
-    ));
+    $form_state['redirect_route'] = array(
+      'route_name' => 'block.admin_display_theme',
+      'route_parameters' => array(
+        'theme' => $form_state['values']['theme'],
+      ),
+      'options' => array(
+        'query' => array('block-placement' => drupal_html_class($this->entity->id()))
+      ),
+    );
   }
 
   /**
@@ -333,7 +342,12 @@ class BlockFormController extends EntityFormController {
    */
   public function delete(array $form, array &$form_state) {
     parent::delete($form, $form_state);
-    $form_state['redirect'] = 'admin/structure/block/manage/' . $this->entity->id() . '/delete';
+    $form_state['redirect_route'] = array(
+      'route_name' => 'block.admin_block_delete',
+      'route_parameters' => array(
+        'block' => $this->entity->id(),
+      ),
+    );
   }
 
   /**

@@ -232,10 +232,6 @@ class MenuRouterTest extends WebTestBase {
     $this->assertEqual($link['depth'], $depth, format_string('%path depth @link_depth is equal to @depth.', array('%path' => $link['router_path'], '@link_depth' => $link['depth'], '@depth' => $depth)));
     $this->assertEqual($link['plid'], $plid, format_string('%path plid @link_plid is equal to @plid.', array('%path' => $link['router_path'], '@link_plid' => $link['plid'], '@plid' => $plid)));
 
-    $link = $links['menu-test/hidden/menu/add'];
-    $this->assertEqual($link['depth'], $depth, format_string('%path depth @link_depth is equal to @depth.', array('%path' => $link['router_path'], '@link_depth' => $link['depth'], '@depth' => $depth)));
-    $this->assertEqual($link['plid'], $plid, format_string('%path plid @link_plid is equal to @plid.', array('%path' => $link['router_path'], '@link_plid' => $link['plid'], '@plid' => $plid)));
-
     $link = $links['menu-test/hidden/menu/settings'];
     $this->assertEqual($link['depth'], $depth, format_string('%path depth @link_depth is equal to @depth.', array('%path' => $link['router_path'], '@link_depth' => $link['depth'], '@depth' => $depth)));
     $this->assertEqual($link['plid'], $plid, format_string('%path plid @link_plid is equal to @plid.', array('%path' => $link['router_path'], '@link_plid' => $link['plid'], '@plid' => $plid)));
@@ -249,10 +245,6 @@ class MenuRouterTest extends WebTestBase {
     $plid = $parent['mlid'];
 
     $link = $links['menu-test/hidden/menu/manage/%/list'];
-    $this->assertEqual($link['depth'], $depth, format_string('%path depth @link_depth is equal to @depth.', array('%path' => $link['router_path'], '@link_depth' => $link['depth'], '@depth' => $depth)));
-    $this->assertEqual($link['plid'], $plid, format_string('%path plid @link_plid is equal to @plid.', array('%path' => $link['router_path'], '@link_plid' => $link['plid'], '@plid' => $plid)));
-
-    $link = $links['menu-test/hidden/menu/manage/%/add'];
     $this->assertEqual($link['depth'], $depth, format_string('%path depth @link_depth is equal to @depth.', array('%path' => $link['router_path'], '@link_depth' => $link['depth'], '@depth' => $depth)));
     $this->assertEqual($link['plid'], $plid, format_string('%path plid @link_plid is equal to @plid.', array('%path' => $link['router_path'], '@link_plid' => $link['plid'], '@plid' => $plid)));
 
@@ -284,10 +276,6 @@ class MenuRouterTest extends WebTestBase {
     $this->assertEqual($link['depth'], $depth, format_string('%path depth @link_depth is equal to @depth.', array('%path' => $link['router_path'], '@link_depth' => $link['depth'], '@depth' => $depth)));
     $this->assertEqual($link['plid'], $plid, format_string('%path plid @link_plid is equal to @plid.', array('%path' => $link['router_path'], '@link_plid' => $link['plid'], '@plid' => $plid)));
 
-    $link = $links['menu-test/hidden/block/add'];
-    $this->assertEqual($link['depth'], $depth, format_string('%path depth @link_depth is equal to @depth.', array('%path' => $link['router_path'], '@link_depth' => $link['depth'], '@depth' => $depth)));
-    $this->assertEqual($link['plid'], $plid, format_string('%path plid @link_plid is equal to @plid.', array('%path' => $link['router_path'], '@link_plid' => $link['plid'], '@plid' => $plid)));
-
     $link = $links['menu-test/hidden/block/manage/%/%'];
     $this->assertEqual($link['depth'], $depth, format_string('%path depth @link_depth is equal to @depth.', array('%path' => $link['router_path'], '@link_depth' => $link['depth'], '@depth' => $depth)));
     $this->assertEqual($link['plid'], $plid, format_string('%path plid @link_plid is equal to @plid.', array('%path' => $link['router_path'], '@link_plid' => $link['plid'], '@plid' => $plid)));
@@ -295,10 +283,6 @@ class MenuRouterTest extends WebTestBase {
     $parent = $links['menu-test/hidden/block/manage/%/%'];
     $depth = $parent['depth'] + 1;
     $plid = $parent['mlid'];
-
-    $link = $links['menu-test/hidden/block/manage/%/%/configure'];
-    $this->assertEqual($link['depth'], $depth, format_string('%path depth @link_depth is equal to @depth.', array('%path' => $link['router_path'], '@link_depth' => $link['depth'], '@depth' => $depth)));
-    $this->assertEqual($link['plid'], $plid, format_string('%path plid @link_plid is equal to @plid.', array('%path' => $link['router_path'], '@link_plid' => $link['plid'], '@plid' => $plid)));
 
     $link = $links['menu-test/hidden/block/manage/%/%/delete'];
     $this->assertEqual($link['depth'], $depth, format_string('%path depth @link_depth is equal to @depth.', array('%path' => $link['router_path'], '@link_depth' => $link['depth'], '@depth' => $depth)));

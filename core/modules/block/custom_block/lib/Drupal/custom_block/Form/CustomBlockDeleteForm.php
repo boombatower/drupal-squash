@@ -46,7 +46,6 @@ class CustomBlockDeleteForm extends ContentEntityConfirmFormBase {
     $instances = $this->entity->getInstances();
 
     $form['message'] = array(
-      '#type' => 'markup',
       '#markup' => format_plural(count($instances), 'This will also remove 1 placed block instance.', 'This will also remove @count placed block instances.'),
       '#access' => !empty($instances),
     );
@@ -61,7 +60,7 @@ class CustomBlockDeleteForm extends ContentEntityConfirmFormBase {
     $this->entity->delete();
     drupal_set_message($this->t('Custom block %label has been deleted.', array('%label' => $this->entity->label())));
     watchdog('custom_block', 'Custom block %label has been deleted.', array('%label' => $this->entity->label()), WATCHDOG_NOTICE);
-    $form_state['redirect'] = 'admin/structure/block/custom-blocks';
+    $form_state['redirect_route']['route_name'] = 'custom_block.list';
   }
 
 }

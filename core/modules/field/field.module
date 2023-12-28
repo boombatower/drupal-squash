@@ -76,11 +76,6 @@ require_once __DIR__ . '/field.deprecated.inc';
  */
 
 /**
- * Value for field API indicating a field accepts an unlimited number of values.
- */
-const FIELD_CARDINALITY_UNLIMITED = -1;
-
-/**
  * Implements hook_help().
  */
 function field_help($path, $arg) {
@@ -99,7 +94,7 @@ function field_help($path, $arg) {
       $items = array();
       $info = system_get_info('module');
       $field_widgets = \Drupal::service('plugin.manager.field.widget')->getDefinitions();
-      $field_types = \Drupal::service('plugin.manager.entity.field.field_type')->getConfigurableDefinitions();
+      $field_types = \Drupal::service('plugin.manager.field.field_type')->getConfigurableDefinitions();
       foreach (array_merge($field_types, $field_widgets) as $plugin) {
         $providers[] = $plugin['provider'];
       }
@@ -341,7 +336,7 @@ function field_sync_field_status() {
   // modules.
   $changed = array();
   $modules = $module_handler->getModuleList();
-  $field_types = \Drupal::service('plugin.manager.entity.field.field_type')->getDefinitions();
+  $field_types = \Drupal::service('plugin.manager.field.field_type')->getDefinitions();
   // Set fields with missing field type modules to inactive.
   foreach ($fields as $uuid => &$field) {
     // Associate field types.
@@ -529,7 +524,7 @@ function field_view_field(EntityInterface $entity, $field_name, $display_options
     // hook_field_attach_display_alter() needs to receive the 'prepared'
     // $display_options, so we cannot let preparation happen internally.
     $field = field_info_field($entity_type, $field_name);
-    $formatter_manager = drupal_container()->get('plugin.manager.field.formatter');
+    $formatter_manager = Drupal::service('plugin.manager.field.formatter');
     $display_options = $formatter_manager->prepareConfiguration($field->getFieldType(), $display_options);
     $formatter = $formatter_manager->getInstance(array(
       'field_definition' => $instance,
@@ -635,7 +630,7 @@ function template_preprocess_field(&$variables, $hook) {
   // label, it needs to supply a preprocess function that sets it to the
   // sanitized element title or whatever else is wanted in its place.
   $variables['label_hidden'] = ($element['#label_display'] == 'hidden');
-  $variables['label'] = $variables['label_hidden'] ? NULL : check_plain($element['#title']);
+  $variables['label'] = check_plain($element['#title']);
 
   // We want other preprocess functions and the theme implementation to have
   // fast access to the field item render arrays. The item render array keys

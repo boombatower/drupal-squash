@@ -18,11 +18,10 @@ use Drupal\user\UserInterface;
  * @EntityType(
  *   id = "user",
  *   label = @Translation("User"),
- *   module = "user",
  *   controllers = {
  *     "storage" = "Drupal\user\UserStorageController",
  *     "access" = "Drupal\user\UserAccessController",
- *     "render" = "Drupal\Core\Entity\EntityRenderController",
+ *     "view_builder" = "Drupal\Core\Entity\EntityViewBuilder",
  *     "form" = {
  *       "default" = "Drupal\user\ProfileFormController",
  *       "cancel" = "Drupal\user\Form\UserCancelForm",
@@ -42,8 +41,8 @@ use Drupal\user\UserInterface;
  *     "uuid" = "uuid"
  *   },
  *   links = {
- *     "canonical" = "/user/{user}",
- *     "edit-form" = "/user/{user}/edit"
+ *     "canonical" = "user.view",
+ *     "edit-form" = "user.edit"
  *   }
  * )
  */

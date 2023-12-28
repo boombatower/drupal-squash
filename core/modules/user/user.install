@@ -6,6 +6,7 @@
  */
 
 use Drupal\Core\Language\Language;
+use Drupal\field\Field;
 
 /**
  * Implements hook_schema().
@@ -253,85 +254,6 @@ function user_install() {
       'status' => 1,
     ))
     ->execute();
-}
-
-/**
- * Creates a user picture image field for the User entity.
- *
- * This is only used in core's standard.install, but is kept as a separate
- * helper function so that other install profiles can reuse it.
- */
-function user_install_picture_field() {
-  $field = array(
-    'name' => 'user_picture',
-    'entity_type' => 'user',
-    'module' => 'image',
-    'type' => 'image',
-    'cardinality' => 1,
-    'locked' => FALSE,
-    'indexes' => array('target_id' => array('target_id')),
-    'settings' => array(
-      'uri_scheme' => 'public',
-      'default_image' => FALSE,
-    ),
-  );
-  entity_create('field_entity', $field)->save();
-
-  $instance = array(
-    'field_name' => 'user_picture',
-    'entity_type' => 'user',
-    'label' => 'Picture',
-    'bundle' => 'user',
-    'description' => t('Your virtual face or picture.'),
-    'required' => FALSE,
-    'settings' => array(
-      'file_extensions' => 'png gif jpg jpeg',
-      'file_directory' => 'pictures',
-      'max_filesize' => '30 KB',
-      'alt_field' => 0,
-      'title_field' => 0,
-      'max_resolution' => '85x85',
-      'min_resolution' => '',
-      'default_image' => 0,
-    ),
-  );
-  entity_create('field_instance', $instance)->save();
-
-  // Assign form display settings for the 'default' view mode.
-  entity_get_form_display('user', 'user', 'default')
-    ->setComponent('user_picture', array(
-      'type' => 'image_image',
-      'settings' => array(
-        'progress_indicator' => 'throbber',
-        'preview_image_style' => 'thumbnail',
-      ),
-      'weight' => -1,
-    ))
-    ->save();
-
-  // Assign display settings for the 'default' and 'compact' view modes.
-  entity_get_display('user', 'user', 'default')
-    ->setComponent('user_picture', array(
-      'label' => 'hidden',
-      'type' => 'image',
-      'settings' => array(
-        'image_style' => 'thumbnail',
-        'image_link' => 'content',
-      ),
-    ))
-    ->save();
-  entity_get_display('user', 'user', 'compact')
-    ->setComponent('user_picture', array(
-      'label' => 'hidden',
-      'type' => 'image',
-      'settings' => array(
-        'image_style' => 'thumbnail',
-        'image_link' => 'content',
-      ),
-    ))
-    // Additionally, hide 'summary' pseudo-field from compact view mode..
-    ->removeComponent('member_for')
-    ->save();
 }
 
 /**
@@ -611,9 +533,9 @@ function user_update_8011() {
   if (!\Drupal::moduleHandler()->moduleExists('image')) {
     $old_schema = \Drupal::moduleHandler()->install(array('image'));
     if ($old_schema['image'] == SCHEMA_UNINSTALLED) {
-      // Install image.module with schema version 8002 as a previous version
+      // Install image.module with schema version 8003 as a previous version
       // would have to create tables that would be removed again.
-      update_set_schema('image', 8002);
+      update_set_schema('image', 8003);
       // Inlined version of image_install(), make sure that the styles
       // directory exists.
       $directory = update_variable_get('file_default_scheme', 'public') . '://styles';
@@ -720,7 +642,7 @@ function user_update_8011() {
       'title_field' => 0,
       'max_resolution' => update_variable_get('user_picture_dimensions', '85x85'),
       'min_resolution' => '',
-      'default_image' => !empty($default_image_fid) ? array($default_image_fid) : array(),
+      'default_image' => !empty($default_image_fid) ? $default_image_fid : 0,
     ),
   );
   _update_8003_field_create_instance($field, $instance);

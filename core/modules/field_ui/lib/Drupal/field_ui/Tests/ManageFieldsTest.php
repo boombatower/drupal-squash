@@ -7,6 +7,7 @@
 
 namespace Drupal\field_ui\Tests;
 
+use Drupal\Core\Field\FieldDefinitionInterface;
 use Drupal\Core\Language\Language;
 use Drupal\Component\Utility\String;
 
@@ -201,12 +202,12 @@ class ManageFieldsTest extends FieldUiTestBase {
 
     // Set to unlimited.
     $edit = array(
-      'field[cardinality]' => FIELD_CARDINALITY_UNLIMITED,
+      'field[cardinality]' => FieldDefinitionInterface::CARDINALITY_UNLIMITED,
     );
     $this->drupalPostForm($field_edit_path, $edit, t('Save field settings'));
     $this->assertText('Updated field Body field settings.');
     $this->drupalGet($field_edit_path);
-    $this->assertFieldByXPath("//select[@name='field[cardinality]']", FIELD_CARDINALITY_UNLIMITED);
+    $this->assertFieldByXPath("//select[@name='field[cardinality]']", FieldDefinitionInterface::CARDINALITY_UNLIMITED);
     $this->assertFieldByXPath("//input[@name='field[cardinality_number]']", 1);
   }
 
@@ -457,7 +458,7 @@ class ManageFieldsTest extends FieldUiTestBase {
     $this->assertFalse($this->xpath('//select[@id="edit-add-existing-field-field-name"]//option[@value=:field_name]', array(':field_name' => $field_name)), "The 're-use existing field' select respects field types 'no_ui' property.");
 
     // Check that non-configurable fields are not available.
-    $field_types = \Drupal::service('plugin.manager.entity.field.field_type')->getDefinitions();
+    $field_types = \Drupal::service('plugin.manager.field.field_type')->getDefinitions();
     foreach ($field_types as $field_type => $definition) {
       if ($definition['configurable'] && empty($definition['no_ui'])) {
         $this->assertTrue($this->xpath('//select[@id="edit-fields-add-new-field-type"]//option[@value=:field_type]', array(':field_type' => $field_type)), String::format('Configurable field type @field_type is available.', array('@field_type' => $field_type)));

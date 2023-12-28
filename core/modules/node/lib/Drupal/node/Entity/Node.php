@@ -20,10 +20,9 @@ use Drupal\node\NodeInterface;
  *   id = "node",
  *   label = @Translation("Content"),
  *   bundle_label = @Translation("Content type"),
- *   module = "node",
  *   controllers = {
  *     "storage" = "Drupal\node\NodeStorageController",
- *     "render" = "Drupal\node\NodeRenderController",
+ *     "view_builder" = "Drupal\node\NodeViewBuilder",
  *     "access" = "Drupal\node\NodeAccessController",
  *     "form" = {
  *       "default" = "Drupal\node\NodeFormController",
@@ -53,9 +52,9 @@ use Drupal\node\NodeInterface;
  *   route_base_path = "admin/structure/types/manage/{bundle}",
  *   permission_granularity = "bundle",
  *   links = {
- *     "canonical" = "/node/{node}",
- *     "edit-form" = "/node/{node}/edit",
- *     "version-history" = "/node/{node}/revisions"
+ *     "canonical" = "node.view",
+ *     "edit-form" = "node.page_edit",
+ *     "version-history" = "node.revision_overview"
  *   }
  * )
  */

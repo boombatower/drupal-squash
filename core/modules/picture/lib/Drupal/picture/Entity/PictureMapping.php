@@ -18,7 +18,6 @@ use Drupal\picture\PictureMappingInterface;
  * @EntityType(
  *   id = "picture_mapping",
  *   label = @Translation("Picture mapping"),
- *   module = "picture",
  *   controllers = {
  *     "storage" = "Drupal\Core\Config\Entity\ConfigStorageController",
  *     "list" = "Drupal\picture\PictureMappingListController",
@@ -38,7 +37,7 @@ use Drupal\picture\PictureMappingInterface;
  *     "uuid" = "uuid"
  *   },
  *   links = {
- *     "edit-form" = "admin/config/media/picturemapping/{picture_mapping}"
+ *     "edit-form" = "picture.mapping_page_edit"
  *   }
  * )
  */

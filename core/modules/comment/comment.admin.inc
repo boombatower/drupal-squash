@@ -121,10 +121,6 @@ function comment_admin_overview($form, &$form_state, $arg) {
     $entity_uri = $entity->uri();
     // Remove the first node title from the node_titles array and attach to
     // the comment.
-    $username = array(
-      '#theme' => 'username',
-      '#account' => comment_prepare_author($comment),
-    );
     $body = '';
     if (!empty($comment->comment_body->value)) {
       $body = $comment->comment_body->value;
@@ -139,7 +135,12 @@ function comment_admin_overview($form, &$form_state, $arg) {
           '#options' => array('attributes' => array('title' => truncate_utf8($body, 128)), 'fragment' => 'comment-' . $comment->id()),
         ),
       ),
-      'author' => drupal_render($username),
+      'author' => array(
+        'data' => array(
+          '#theme' => 'username',
+          '#account' => comment_prepare_author($comment),
+        ),
+      ),
       'posted_in' => array(
         'data' => array(
           '#type' => 'link',
@@ -154,13 +155,15 @@ function comment_admin_overview($form, &$form_state, $arg) {
     $links = array();
     $links['edit'] = array(
       'title' => t('edit'),
-      'href' => 'comment/' . $comment->id() . '/edit',
+      'route_name' => 'comment.edit_page',
+      'route_parameters' => array('comment' => $comment->id()),
       'query' => $destination,
     );
     if (module_invoke('content_translation', 'translate_access', $comment)) {
       $links['translate'] = array(
         'title' => t('translate'),
-        'href' => 'comment/' . $comment->id() . '/translations',
+        'route_name' => 'content_translation.translation_overview_comment',
+        'route_parameters' => array('comment' => $comment->id()),
         'query' => $destination,
       );
     }
@@ -224,6 +227,6 @@ function comment_admin_overview_submit($form, &$form_state) {
     }
   }
   drupal_set_message(t('The update has been performed.'));
-  $form_state['redirect'] = 'admin/content/comment';
+  $form_state['redirect_route']['route_name'] = 'comment.admin';
   cache_invalidate_tags(array('content' => TRUE));
 }

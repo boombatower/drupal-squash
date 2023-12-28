@@ -63,12 +63,6 @@ function contact_menu() {
     'description' => 'Create a system contact form and set up categories for the form to use.',
     'route_name' => 'contact.category_list',
   );
-  $items['admin/structure/contact/add'] = array(
-    'title' => 'Add category',
-    'route_name' => 'contact.category_add',
-    'type' => MENU_LOCAL_ACTION,
-    'weight' => 1,
-  );
   $items['admin/structure/contact/manage/%contact_category'] = array(
     'title' => 'Edit contact category',
     'route_name' => 'contact.category_edit',
@@ -109,7 +103,7 @@ function contact_menu() {
  * @see contact_menu()
  */
 function _contact_personal_tab_access(UserInterface $account) {
-  return \Drupal::service('access_manager')->checkNamedRoute('contact.personal_page', array('user' => $account->id()));
+  return \Drupal::service('access_manager')->checkNamedRoute('contact.personal_page', array('user' => $account->id()), \Drupal::currentUser());
 }
 
 /**

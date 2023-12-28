@@ -10,8 +10,8 @@ namespace Drupal\system;
 use Drupal\Core\Breadcrumb\BreadcrumbBuilderBase;
 use Drupal\Core\Config\ConfigFactory;
 use Drupal\Core\Controller\TitleResolverInterface;
-use Drupal\Core\Entity\EntityManager;
 use Drupal\Core\Access\AccessManager;
+use Drupal\Core\Entity\EntityManagerInterface;
 use Drupal\Core\PathProcessor\InboundPathProcessorInterface;
 use Drupal\Component\Utility\Unicode;
 use Symfony\Component\HttpFoundation\Request;
@@ -74,13 +74,12 @@ class PathBasedBreadcrumbBuilder extends BreadcrumbBuilderBase {
    */
   protected $titleResolver;
 
-
   /**
    * Constructs the PathBasedBreadcrumbBuilder.
    *
    * @param \Symfony\Component\HttpFoundation\Request $request
    *   The current Request object.
-   * @param \Drupal\Core\Entity\EntityManager $entity_manager
+   * @param \Drupal\Core\Entity\EntityManagerInterface $entity_manager
    *   The entity manager service.
    * @param \Drupal\Core\Access\AccessManager $access_manager
    *   The menu link access service.
@@ -93,7 +92,7 @@ class PathBasedBreadcrumbBuilder extends BreadcrumbBuilderBase {
    * @param \Drupal\Core\Controller\TitleResolverInterface $title_resolver
    *   The title resolver service.
    */
-  public function __construct(Request $request, EntityManager $entity_manager, AccessManager $access_manager, RequestMatcherInterface $router, InboundPathProcessorInterface $path_processor, ConfigFactory $config_factory, TitleResolverInterface $title_resolver) {
+  public function __construct(Request $request, EntityManagerInterface $entity_manager, AccessManager $access_manager, RequestMatcherInterface $router, InboundPathProcessorInterface $path_processor, ConfigFactory $config_factory, TitleResolverInterface $title_resolver) {
     $this->request = $request;
     $this->accessManager = $access_manager;
     $this->menuStorage = $entity_manager->getStorageController('menu');
@@ -131,7 +130,7 @@ class PathBasedBreadcrumbBuilder extends BreadcrumbBuilderBase {
           // Note that the parameters don't really matter here since we're
           // passing in the request which already has the upcast attributes.
           $parameters = array();
-          $access = $this->accessManager->checkNamedRoute($route_name, $parameters, $route_request);
+          $access = $this->accessManager->checkNamedRoute($route_name, $parameters, \Drupal::currentUser(), $route_request);
           if ($access) {
             $title = $this->titleResolver->getTitle($route_request, $route_request->attributes->get(RouteObjectInterface::ROUTE_OBJECT));
           }

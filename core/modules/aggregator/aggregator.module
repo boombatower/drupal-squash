@@ -97,21 +97,6 @@ function aggregator_menu() {
     'route_name' => 'aggregator.admin_overview',
     'weight' => 10,
   );
-  $items['admin/config/services/aggregator/add/feed'] = array(
-    'title' => 'Add feed',
-    'route_name' => 'aggregator.feed_add',
-    'type' => MENU_LOCAL_ACTION,
-  );
-  $items['admin/config/services/aggregator/add/category'] = array(
-    'title' => 'Add category',
-    'type' => MENU_LOCAL_ACTION,
-    'route_name' => 'aggregator.category_add',
-  );
-  $items['admin/config/services/aggregator/add/opml'] = array(
-    'title' => 'Import OPML',
-    'type' => MENU_LOCAL_ACTION,
-    'route_name' => 'aggregator.opml_add',
-  );
   $items['admin/config/services/aggregator/remove/%aggregator_feed'] = array(
     'title' => 'Remove items',
     'route_name' => 'aggregator.feed_items_delete',
@@ -119,17 +104,6 @@ function aggregator_menu() {
   $items['admin/config/services/aggregator/update/%aggregator_feed'] = array(
     'title' => 'Update items',
     'route_name' => 'aggregator.feed_refresh',
-  );
-  $items['admin/config/services/aggregator/list'] = array(
-    'title' => 'List',
-    'type' => MENU_DEFAULT_LOCAL_TASK,
-  );
-  $items['admin/config/services/aggregator/settings'] = array(
-    'title' => 'Settings',
-    'description' => 'Configure the behavior of the feed aggregator, including when to discard feed items and how to present feed items and categories.',
-    'route_name' => 'aggregator.admin_settings',
-    'type' => MENU_LOCAL_TASK,
-    'weight' => 100,
   );
   $items['aggregator'] = array(
     'title' => 'Feed aggregator',
@@ -149,40 +123,10 @@ function aggregator_menu() {
     'title arguments' => array(2),
     'route_name' => 'aggregator.category_view',
   );
-  $items['aggregator/categories/%aggregator_category/view'] = array(
-    'title' => 'View',
-    'type' => MENU_DEFAULT_LOCAL_TASK,
-  );
-  $items['aggregator/categories/%aggregator_category/categorize'] = array(
-    'title' => 'Categorize',
-    'type' => MENU_LOCAL_TASK,
-    'route_name' => 'aggregator.categorize_category_form',
-  );
-  $items['aggregator/categories/%aggregator_category/configure'] = array(
-    'title' => 'Configure',
-    'type' => MENU_LOCAL_TASK,
-    'weight' => 10,
-    'route_name' => 'aggregator.category_edit',
-  );
   $items['aggregator/sources/%aggregator_feed'] = array(
     'title callback' => 'entity_page_label',
     'title arguments' => array(2),
     'route_name' => 'aggregator.feed_view',
-  );
-  $items['aggregator/sources/%aggregator_feed/view'] = array(
-    'title' => 'View',
-    'type' => MENU_DEFAULT_LOCAL_TASK,
-  );
-  $items['aggregator/sources/%aggregator_feed/categorize'] = array(
-    'title' => 'Categorize',
-    'route_name' => 'aggregator.categorize_feed_form',
-    'type' => MENU_LOCAL_TASK,
-  );
-  $items['aggregator/sources/%aggregator_feed/configure'] = array(
-    'title' => 'Configure',
-    'route_name' => 'aggregator.feed_configure',
-    'type' => MENU_LOCAL_TASK,
-    'weight' => 10,
   );
   $items['admin/config/services/aggregator/edit/feed/%aggregator_feed'] = array(
     'title' => 'Edit feed',

@@ -8,6 +8,7 @@
 namespace Drupal\user;
 
 use Drupal\Core\Entity\ContentEntityFormController;
+use Drupal\Core\Entity\EntityManagerInterface;
 use Drupal\Core\Language\Language;
 use Drupal\Core\Language\LanguageManager;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -27,10 +28,13 @@ abstract class AccountFormController extends ContentEntityFormController {
   /**
    * Constructs a new EntityFormController object.
    *
+   * @param \Drupal\Core\Entity\EntityManagerInterface $entity_manager
+   *   The entity manager.
    * @param \Drupal\Core\Language\LanguageManager $language_manager
    *   The language manager.
    */
-  public function __construct(LanguageManager $language_manager) {
+  public function __construct(EntityManagerInterface $entity_manager, LanguageManager $language_manager) {
+    parent::__construct($entity_manager);
     $this->languageManager = $language_manager;
   }
 
@@ -39,6 +43,7 @@ abstract class AccountFormController extends ContentEntityFormController {
    */
   public static function create(ContainerInterface $container) {
     return new static(
+      $container->get('entity.manager'),
       $container->get('language_manager')
     );
   }
@@ -48,7 +53,7 @@ abstract class AccountFormController extends ContentEntityFormController {
    */
   public function form(array $form, array &$form_state) {
     $account = $this->entity;
-    global $user;
+    $user = $this->currentUser();
     $config = \Drupal::config('user.settings');
 
     $language_interface = language(Language::TYPE_INTERFACE);

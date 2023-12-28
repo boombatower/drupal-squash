@@ -213,7 +213,9 @@ function system_theme_default() {
       // implementations, and doing the variable_set() before the theme_enable()
       // could result in a race condition where the theme is default but not
       // enabled.
+      \Drupal::service('router.builder')->rebuild();
       menu_router_rebuild();
+      \Drupal::cache('cache')->deleteTags(array('local_task' => 1));
 
       // The status message depends on whether an admin theme is currently in use:
       // a value of 0 means the admin theme is set to be the default theme.
@@ -465,9 +467,21 @@ function theme_system_admin_index($variables) {
 /**
  * Returns HTML for the status report.
  *
+ * This theme function is dependent on install.inc being loaded, because
+ * that's where the constants are defined.
+ *
  * @param $variables
  *   An associative array containing:
- *   - requirements: An array of requirements.
+ *   - requirements: An array of requirements/status items. Each requirement
+ *     is an associative array containing the following elements:
+ *     - title: The name of the requirement.
+ *     - value: (optional) The current value (version, time, level, etc).
+ *     - description: (optional) The description of the requirement.
+ *     - severity: (optional) The requirement's result/severity level, one of:
+ *       - REQUIREMENT_INFO: Status information.
+ *       - REQUIREMENT_OK: The requirement is satisfied.
+ *       - REQUIREMENT_WARNING: The requirement failed with a warning.
+ *       - REQUIREMENT_ERROR: The requirement failed with an error.
  *
  * @ingroup themeable
  */
@@ -509,6 +523,13 @@ function theme_status_report($variables) {
     else {
       $severity = $severities[REQUIREMENT_INFO];
     }
+    // hook_requirements does not require value to be set. Set to null if not:
+    if (isset($requirement['value'])) {
+      $value = $requirement['value'];
+    }
+    else {
+      $value = NULL;
+    }
 
     $severity['icon'] = '<div title="' . $severity['title'] . '"><span class="visually-hidden">' . $severity['title'] . '</span></div>';
 
@@ -516,7 +537,7 @@ function theme_status_report($variables) {
     $output .= '<tr class="' . $severity['class'] . '">';
     $output .= '<td class="status-icon">' . $severity['icon'] . '</td>';
     $output .= '<td class="status-title">' . $requirement['title'] . '</td>';
-    $output .= '<td class="status-value">' . $requirement['value'];
+    $output .= '<td class="status-value">' . $value;
     if (!empty($requirement['description'])) {
       $output .= '<div class="description">' . $requirement['description'] . '</div>';
     }
@@ -757,141 +778,4 @@ function theme_system_themes_page($variables) {
   $output .= '</div>';
 
   return $output;
-}
-
-/**
- * Form constructor for the date localization configuration form.
- *
- * @param $langcode
- *   The code for the current language.
- *
- * @see locale_menu()
- * @see system_date_format_localize_form_submit()
- * @ingroup forms
- *
- * @deprecated Use \Drupal\system\Form\SystemForm::localizeDateFormat()
- */
-function system_date_format_localize_form($form, &$form_state, $langcode) {
-  // Display the current language name.
-  $form['language'] = array(
-    '#type' => 'item',
-    '#title' => t('Language'),
-    '#markup' => language_load($langcode)->name,
-    '#weight' => -10,
-  );
-  $form['langcode'] = array(
-    '#type' => 'value',
-    '#value' => $langcode,
-  );
-
-  // Get list of available formats.
-  $date_service = \Drupal::service('date');
-  $formats = \Drupal::entityManager()
-    ->getStorageController('date_format')
-    ->loadMultiple();
-  $choices = array();
-  foreach ($formats as $date_format_id => $format_info) {
-    // Ignore values that are localized.
-    if (!$format_info->hasLocales()) {
-      $choices[$date_format_id] = $date_service->format(REQUEST_TIME, $date_format_id);
-    }
-  }
-
-  // Get configured formats for each language.
-  $config_prefix = 'locale.config.' . $langcode . '.system.date_format.';
-  foreach (config_get_storage_names_with_prefix($config_prefix) as $config_id) {
-    $date_format_id = substr($config_id, strlen($config_prefix));
-    $choices[$date_format_id] = $date_service->format(REQUEST_TIME, $date_format_id);
-  }
-
-  // Display a form field for each format type.
-  foreach ($formats as $date_format_id => $format_info) {
-    // Show date format select list.
-    $form['date_formats']['date_format_' . $date_format_id] = array(
-      '#type' => 'select',
-      '#title' => check_plain($format_info->label()),
-      '#attributes' => array('class' => array('date-format')),
-      '#default_value' => isset($choices[$date_format_id]) ? $date_format_id : 'custom',
-      '#options' => $choices,
-    );
-  }
-
-  $form['actions'] = array('#type' => 'actions');
-  $form['actions']['submit'] = array(
-    '#type' => 'submit',
-    '#value' => t('Save configuration'),
-  );
-
-  return $form;
-}
-
-/**
- * Form submission handler for system_date_format_localize_form().
- */
-function system_date_format_localize_form_submit($form, &$form_state) {
-  $langcode = $form_state['values']['langcode'];
-
-  $formats = entity_load_multiple('date_format');
-  foreach ($formats as $date_format_id => $format_info) {
-    if (isset($form_state['values']['date_format_' . $date_format_id])) {
-      $format = $form_state['values']['date_format_' . $date_format_id];
-      system_date_format_localize_form_save($langcode, $date_format_id, $formats[$format]);
-    }
-  }
-  drupal_set_message(t('Configuration saved.'));
-  $form_state['redirect'] = 'admin/config/regional/date-time/locale';
-}
-
-/**
- * Returns HTML for a locale date format form.
- *
- * @param $variables
- *   An associative array containing:
- *   - form: A render element representing the form.
- *
- * @ingroup themeable
- */
-function theme_system_date_format_localize_form($variables) {
-  $form = $variables['form'];
-  $header = array(
-    'machine_name' => t('Machine Name'),
-    'pattern' => t('Format'),
-  );
-
-  foreach (element_children($form['date_formats']) as $key) {
-    $row = array();
-    $row[] = $form['date_formats'][$key]['#title'];
-    unset($form['date_formats'][$key]['#title']);
-    $row[] = array('data' => drupal_render($form['date_formats'][$key]));
-    $rows[] = $row;
-  }
-
-  $table = array(
-    '#theme' => 'table',
-    '#header' => $header,
-    '#rows' => $rows,
-  );
-  $output = drupal_render($form['language']);
-  $output .= drupal_render($table);
-  $output .= drupal_render_children($form);
-
-  return $output;
-}
-
-/**
- * Save locale specific date formats to the database.
- *
- * @param string $langcode
- *   Language code, can be 2 characters, e.g. 'en' or 5 characters, e.g.
- *   'en-CA'.
- * @param string $date_format_id
- *   Date format id, e.g. 'short', 'medium'.
- * @param \Drupal\system\DateFormatInterface $format
- *   The date format entity.
- */
-function system_date_format_localize_form_save($langcode, $date_format_id, DateFormatInterface $format) {
-  $format->addLocale($langcode)->save();
-  \Drupal::config('locale.config.' . $langcode . '.system.date_format.' . $date_format_id)
-    ->set('pattern', $format->get('pattern'))
-    ->save();
 }

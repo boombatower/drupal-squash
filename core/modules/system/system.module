@@ -189,9 +189,6 @@ function system_theme() {
     'system_compact_link' => array(
       'variables' => array(),
     ),
-    'system_date_format_localize_form' => array(
-      'render element' => 'form',
-    ),
   ));
 }
 
@@ -222,7 +219,7 @@ function system_permission() {
     ),
     'view the administration theme' => array(
       'title' => t('View the administration theme'),
-      'description' => \Drupal::config('system.theme')->get('admin') ?: t('This is only used when the site is configured to use a separate administration theme on the <a href="@appearance-url">Appearance</a> page.', array('@appearance-url' => url('admin/appearance'))),
+      'description' => t('This is only used when the site is configured to use a separate administration theme on the <a href="@appearance-url">Appearance</a> page.', array('@appearance-url' => url('admin/appearance'))),
     ),
     'access site reports' => array(
       'title' => t('View site reports'),
@@ -261,6 +258,7 @@ function system_element_info() {
     '#theme_wrappers' => array('form'),
   );
   $types['page'] = array(
+    '#post_render' => array('drupal_post_render_cache_tags_page_set'),
     '#show_messages' => TRUE,
     '#theme' => 'page',
     '#theme_wrappers' => array('html'),
@@ -601,6 +599,13 @@ function system_element_info() {
     '#theme' => 'table',
   );
 
+  // Other elements.
+  $types['render_cache_placeholder'] = array(
+    '#callback' => '',
+    '#context' => array(),
+    '#pre_render' => array('drupal_pre_render_render_cache_placeholder'),
+  );
+
   return $types;
 }
 
@@ -620,17 +625,6 @@ function system_menu() {
     'weight' => 9,
     'menu_name' => 'admin',
   );
-  $items['admin/tasks'] = array(
-    'title' => 'Tasks',
-    'type' => MENU_DEFAULT_LOCAL_TASK,
-    'weight' => -20,
-  );
-  $items['admin/index'] = array(
-    'title' => 'Index',
-    'route_name' => 'system.admin_index',
-    'type' => MENU_LOCAL_TASK,
-    'weight' => -18,
-  );
 
   // Menu items that are basically just menu blocks.
   $items['admin/structure'] = array(
@@ -648,34 +642,6 @@ function system_menu() {
     'position' => 'left',
     'weight' => -6,
   );
-  $items['admin/appearance/list'] = array(
-    'title' => 'List',
-    'description' => 'Select and configure your theme',
-    'type' => MENU_DEFAULT_LOCAL_TASK,
-    'file' => 'system.admin.inc',
-  );
-  $items['admin/appearance/settings'] = array(
-    'title' => 'Settings',
-    'description' => 'Configure default and theme specific settings.',
-    'route_name' => 'system.theme_settings',
-    'type' => MENU_LOCAL_TASK,
-    'weight' => 100,
-  );
-  // Theme configuration local tasks.
-  $items['admin/appearance/settings/global'] = array(
-    'title' => 'Global settings',
-    'type' => MENU_DEFAULT_LOCAL_TASK,
-  );
-
-  foreach (list_themes(TRUE) as $theme) {
-    if (!empty($theme->status)) {
-      $items['admin/appearance/settings/' . $theme->name] = array(
-        'title' => $theme->info['name'],
-        'route_name' => 'system.theme_settings_' . $theme->name,
-        'type' => MENU_LOCAL_TASK,
-      );
-    }
-  }
 
   // Modules.
   $items['admin/modules'] = array(
@@ -683,26 +649,6 @@ function system_menu() {
     'description' => 'Add and enable modules to extend site functionality.',
     'route_name' => 'system.modules_list',
     'weight' => -2,
-  );
-  $items['admin/modules/list'] = array(
-    'title' => 'List',
-    'type' => MENU_DEFAULT_LOCAL_TASK,
-  );
-  $items['admin/modules/list/confirm'] = array(
-    'title' => 'List',
-    'route_name' => 'system.modules_list_confirm',
-    'type' => MENU_VISIBLE_IN_BREADCRUMB,
-  );
-  $items['admin/modules/uninstall'] = array(
-    'title' => 'Uninstall',
-    'route_name' => 'system.modules_uninstall',
-    'type' => MENU_LOCAL_TASK,
-    'weight' => 20,
-  );
-  $items['admin/modules/uninstall/confirm'] = array(
-    'title' => 'Uninstall',
-    'route_name' => 'system.modules_uninstall_confirm',
-    'type' => MENU_VISIBLE_IN_BREADCRUMB,
   );
 
   // Configuration.
@@ -794,22 +740,10 @@ function system_menu() {
     'route_name' => 'system.date_format_list',
     'weight' => -9,
   );
-  $items['admin/config/regional/date-time/formats/add'] = array(
-    'title' => 'Add format',
-    'description' => 'Allow users to add additional date formats.',
-    'type' => MENU_LOCAL_ACTION,
-    'route_name' => 'system.date_format_add',
-    'weight' => -10,
-  );
   $items['admin/config/regional/date-time/formats/manage/%'] = array(
     'title' => 'Edit date format',
     'description' => 'Allow users to edit a configured date format.',
     'route_name' => 'system.date_format_edit',
-  );
-  $items['admin/config/regional/date-time/formats/manage/%/edit'] = array(
-    'title' => 'Edit',
-    'type' => MENU_DEFAULT_LOCAL_TASK,
-    'weight' => -10,
   );
 
   // Search settings.
@@ -884,27 +818,6 @@ function system_menu() {
     'theme callback' => '_system_batch_theme',
     'type' => MENU_CALLBACK,
   );
-
-  // Localize date formats.
-  if (\Drupal::moduleHandler()->moduleExists('language')) {
-    $items['admin/config/regional/date-time/locale'] = array(
-      'title' => 'Localize',
-      'description' => 'Configure date formats for each locale',
-      'type' => MENU_LOCAL_TASK,
-      'weight' => -8,
-      'route_name' => 'system.date_format_language_overview',
-    );
-    $items['admin/config/regional/date-time/locale/%/edit'] = array(
-      'title' => 'Localize date formats',
-      'route_name' => 'system.localize_date_format',
-      'description' => 'Configure date formats for each locale',
-    );
-    $items['admin/config/regional/date-time/locale/%/reset'] = array(
-      'title' => 'Reset date formats',
-      'description' => 'Reset localized date formats to global defaults',
-      'route_name' => 'system.date_format_localize_reset',
-    );
-  }
 
   return $items;
 }
@@ -2467,7 +2380,7 @@ function _system_rebuild_module_data() {
     $modules[$key]->filename = $module->uri;
 
     // Look for the info file.
-    $module->info = drupal_parse_info_file(dirname($module->uri) . '/' . $module->name . '.info.yml');
+    $module->info = \Drupal::service('info_parser')->parse(dirname($module->uri) . '/' . $module->name . '.info.yml');
 
     // Skip modules/profiles that don't provide info or have the wrong type.
     if (empty($module->info) || !isset($module->info['type']) || !in_array($module->info['type'], array('module', 'profile'))) {
@@ -2591,7 +2504,7 @@ function _system_rebuild_theme_data() {
   // Read info files for each theme
   foreach ($themes as $key => $theme) {
     $themes[$key]->filename = $theme->uri;
-    $themes[$key]->info = drupal_parse_info_file($theme->uri) + $defaults;
+    $themes[$key]->info = \Drupal::service('info_parser')->parse($theme->uri) + $defaults;
 
     // Skip this extension if its type is not theme.
     if (!isset($themes[$key]->info['type']) || $themes[$key]->info['type'] != 'theme') {

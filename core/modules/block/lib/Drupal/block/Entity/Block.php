@@ -20,11 +20,10 @@ use Drupal\Core\Entity\EntityStorageControllerInterface;
  * @EntityType(
  *   id = "block",
  *   label = @Translation("Block"),
- *   module = "block",
  *   controllers = {
  *     "storage" = "Drupal\Core\Config\Entity\ConfigStorageController",
  *     "access" = "Drupal\block\BlockAccessController",
- *     "render" = "Drupal\block\BlockRenderController",
+ *     "view_builder" = "Drupal\block\BlockViewBuilder",
  *     "list" = "Drupal\block\BlockListController",
  *     "form" = {
  *       "default" = "Drupal\block\BlockFormController",
@@ -39,7 +38,7 @@ use Drupal\Core\Entity\EntityStorageControllerInterface;
  *     "uuid" = "uuid"
  *   },
  *   links = {
- *     "edit-form" = "admin/structure/block/manage/{block}"
+ *     "edit-form" = "block.admin_edit"
  *   }
  * )
  */
@@ -71,7 +70,7 @@ class Block extends ConfigEntityBase implements BlockInterface {
    *
    * @var string
    */
-  protected $region = BLOCK_REGION_NONE;
+  protected $region = self::BLOCK_REGION_NONE;
 
   /**
    * The block weight.
@@ -163,7 +162,7 @@ class Block extends ConfigEntityBase implements BlockInterface {
       return $status;
     }
     // Sort by weight, unless disabled.
-    if ($a->get('region') != BLOCK_REGION_NONE) {
+    if ($a->get('region') != static::BLOCK_REGION_NONE) {
       $weight = $a->get('weight') - $b->get('weight');
       if ($weight) {
         return $weight;

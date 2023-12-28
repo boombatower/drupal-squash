@@ -20,7 +20,6 @@ use Drupal\language\LanguageInterface;
  * @EntityType(
  *   id = "language_entity",
  *   label = @Translation("Language"),
- *   module = "language",
  *   controllers = {
  *     "storage" = "Drupal\Core\Config\Entity\ConfigStorageController",
  *     "list" = "Drupal\language\LanguageListController",
@@ -40,7 +39,7 @@ use Drupal\language\LanguageInterface;
  *     "uuid" = "uuid"
  *   },
  *   links = {
- *     "edit-form" = "admin/config/regional/language/edit/{language_entity}"
+ *     "edit-form" = "language.edit"
  *   }
  * )
  */

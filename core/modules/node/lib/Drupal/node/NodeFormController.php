@@ -11,6 +11,7 @@ use Drupal\Component\Utility\NestedArray;
 use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\Core\Entity\ContentEntityFormController;
 use Drupal\Core\Language\Language;
+use Drupal\Component\Utility\String;
 
 /**
  * Form controller for the node edit forms.
@@ -66,7 +67,7 @@ class NodeFormController extends ContentEntityFormController {
     $node = $this->entity;
 
     if ($this->operation == 'edit') {
-      drupal_set_title(t('<em>Edit @type</em> @title', array('@type' => node_get_type_label($node), '@title' => $node->label())), PASS_THROUGH);
+      $form['#title'] = $this->t('<em>Edit @type</em> @title', array('@type' => node_get_type_label($node), '@title' => $node->label()));
     }
 
     $user_config = \Drupal::config('user.settings');
@@ -74,6 +75,7 @@ class NodeFormController extends ContentEntityFormController {
     if (isset($form_state['node_preview'])) {
       $form['#prefix'] = $form_state['node_preview'];
       $node->in_preview = TRUE;
+      $form['#title'] = $this->t('Preview');
     }
     else {
       unset($node->in_preview);
@@ -480,7 +482,17 @@ class NodeFormController extends ContentEntityFormController {
     if ($node->id()) {
       $form_state['values']['nid'] = $node->id();
       $form_state['nid'] = $node->id();
-      $form_state['redirect'] = node_access('view', $node) ? 'node/' . $node->id() : '<front>';
+      if ($node->access('view')) {
+        $form_state['redirect_route'] = array(
+          'route_name' => 'node.view',
+          'route_parameters' => array(
+            'node' => $node->id(),
+          ),
+        );
+      }
+      else {
+        $form_state['redirect_route']['route_name'] = '<front>';
+      }
     }
     else {
       // In the unlikely case something went wrong on save, the node will be
@@ -503,8 +515,15 @@ class NodeFormController extends ContentEntityFormController {
       $destination = drupal_get_destination();
       $query->remove('destination');
     }
-    $node = $this->entity;
-    $form_state['redirect'] = array('node/' . $node->id() . '/delete', array('query' => $destination));
+    $form_state['redirect_route'] = array(
+      'route_name' => 'node.delete_confirm',
+      'route_parameters' => array(
+        'node' => $this->entity->id(),
+      ),
+      'options' => array(
+        'query' => $destination,
+      ),
+    );
   }
 
 }

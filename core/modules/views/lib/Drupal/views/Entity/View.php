@@ -20,7 +20,6 @@ use Drupal\views\ViewExecutable;
  * @EntityType(
  *   id = "view",
  *   label = @Translation("View"),
- *   module = "views",
  *   controllers = {
  *     "storage" = "Drupal\views\ViewStorageController",
  *     "access" = "Drupal\views\ViewAccessController"
@@ -32,9 +31,6 @@ use Drupal\views\ViewExecutable;
  *     "label" = "label",
  *     "uuid" = "uuid",
  *     "status" = "status"
- *   },
- *   links = {
- *     "edit-form" = "admin/structure/views/view/{view}"
  *   }
  * )
  */

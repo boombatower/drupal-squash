@@ -130,18 +130,12 @@ system.date_format.*:
     locked:
       type: boolean
       label: 'Locked'
-    locales:
-      type: sequence
-      label: 'Languages'
-      sequence:
-        - type: string
-          label: 'Language'
     pattern:
       type: mapping
       label: 'Format string'
       mapping:
         php:
-          type: string
+          type: date_format
           label: 'PHP date format'
         intl:
           type: string

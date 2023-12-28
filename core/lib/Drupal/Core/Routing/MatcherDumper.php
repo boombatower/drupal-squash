@@ -7,7 +7,6 @@
 
 namespace Drupal\Core\Routing;
 
-use Symfony\Component\Routing\Matcher\Dumper\MatcherDumperInterface;
 use Symfony\Component\Routing\RouteCollection;
 
 use Drupal\Core\Database\Connection;
@@ -16,11 +15,6 @@ use Drupal\Core\Database\Connection;
  * Dumps Route information to a database table.
  */
 class MatcherDumper implements MatcherDumperInterface {
-
-  /**
-   * The maximum number of path elements for a route pattern;
-   */
-  const MAX_PARTS = 9;
 
   /**
    * The database connection to which to dump route information.
@@ -59,10 +53,7 @@ class MatcherDumper implements MatcherDumperInterface {
   }
 
   /**
-   * Adds additional routes to be dumped.
-   *
-   * @param Symfony\Component\Routing\RouteCollection $routes
-   *   A collection of routes to add to this dumper.
+   * {@inheritdoc}
    */
   public function addRoutes(RouteCollection $routes) {
     if (empty($this->routes)) {
