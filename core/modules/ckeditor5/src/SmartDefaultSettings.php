@@ -122,7 +122,7 @@ final class SmartDefaultSettings {
       // Overwrite the Editor config entity object's $filterFormat property, to
       // prevent calls to Editor::hasAssociatedFilterFormat() and
       // Editor::getFilterFormat() from loading the FilterFormat from storage.
-      // @todo Remove in https://www.drupal.org/project/ckeditor5/issues/3231347.
+      // @todo Remove in https://www.drupal.org/project/drupal/issues/3231347.
       $reflector = new \ReflectionObject($text_editor);
       $property = $reflector->getProperty('filterFormat');
       $property->setAccessible(TRUE);
@@ -280,6 +280,7 @@ final class SmartDefaultSettings {
       }
 
       $help_enabled = $this->moduleHandler->moduleExists('help');
+      $can_access_dblog = ($this->currentUser->hasPermission('access site reports') && $this->moduleHandler->moduleExists('dblog'));
 
       if (!empty($plugins_enabled) || !$source_editing_additions->allowsNothing()) {
         $beginning = $help_enabled ?
@@ -304,7 +305,6 @@ final class SmartDefaultSettings {
             $this->t("Added these tags/attributes to the Source Editing Plugin's Manually editable HTML tags setting: @tag_list", ['@tag_list' => $source_editing_additions->toFilterHtmlAllowedTagsString()]);
         }
 
-        $can_access_dblog = ($this->currentUser->hasPermission('access site reports') && $this->moduleHandler->moduleExists('dblog'));
         $end = $can_access_dblog ?
           $this->t('Additional details are available <a target="_blank" href=":dblog_url">in your logs</a>.',
             [

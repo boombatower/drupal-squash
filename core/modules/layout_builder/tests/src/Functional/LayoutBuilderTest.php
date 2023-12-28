@@ -351,6 +351,7 @@ class LayoutBuilderTest extends BrowserTestBase {
     $assert_session->pageTextContains('Extra, Extra read all about it.');
     $assert_session->pageTextNotContains('Placeholder for the "Extra label" field');
     $assert_session->linkNotExists('Layout');
+    $assert_session->pageTextContains(sprintf('Yes, I can access the %s', Node::load(1)->label()));
 
     // Enable overrides.
     $this->drupalGet("{$field_ui_prefix}/display/default");
@@ -377,6 +378,7 @@ class LayoutBuilderTest extends BrowserTestBase {
     $assert_session->pageTextNotContains('Powered by Drupal');
     $assert_session->pageTextNotContains('Extra, Extra read all about it.');
     $assert_session->pageTextNotContains('Placeholder for the "Extra label" field');
+    $assert_session->pageTextContains(sprintf('Yes, I can access the entity %s in two column', Node::load(1)->label()));
 
     // Assert that overrides cannot be turned off while overrides exist.
     $this->drupalGet("$field_ui_prefix/display/default");
@@ -401,6 +403,7 @@ class LayoutBuilderTest extends BrowserTestBase {
     $assert_session->pageTextContains('Powered by Drupal');
     $assert_session->pageTextContains('Extra, Extra read all about it.');
     $assert_session->pageTextNotContains('Placeholder for the "Extra label" field');
+    $assert_session->pageTextContains(sprintf('Yes, I can access the %s', Node::load(2)->label()));
 
     // The overridden node does not pick up the changes to defaults.
     $this->drupalGet('node/1');
@@ -431,6 +434,8 @@ class LayoutBuilderTest extends BrowserTestBase {
     $assert_session->pageTextContains('The first node body');
     $assert_session->pageTextContains('Powered by Drupal');
     $assert_session->pageTextContains('Extra, Extra read all about it.');
+    $assert_session->pageTextNotContains(sprintf('Yes, I can access the entity %s in two column', Node::load(1)->label()));
+    $assert_session->pageTextContains(sprintf('Yes, I can access the %s', Node::load(1)->label()));
 
     // Assert that overrides can be turned off now that all overrides are gone.
     $this->drupalGet("{$field_ui_prefix}/display/default");
@@ -719,13 +724,45 @@ class LayoutBuilderTest extends BrowserTestBase {
     $page->pressButton('Add block');
 
     $assert_session->elementExists('css', '.go-birds-preview');
+    $assert_session->pageTextContains('The block template is being previewed.');
     $assert_session->pageTextContains('This block is being rendered in preview mode.');
 
     $page->pressButton('Save layout');
     $this->drupalGet('node/1');
 
     $assert_session->elementNotExists('css', '.go-birds-preview');
+    $assert_session->pageTextNotContains('The block template is being previewed.');
     $assert_session->pageTextContains('This block is being rendered normally.');
+  }
+
+  /**
+   * Tests preview-aware templates.
+   */
+  public function testPreviewAwareTemplates() {
+    $assert_session = $this->assertSession();
+    $page = $this->getSession()->getPage();
+
+    $this->drupalLogin($this->drupalCreateUser([
+      'configure any layout',
+      'administer node display',
+    ]));
+
+    $this->drupalGet('admin/structure/types/manage/bundle_with_section_field/display/default');
+    $this->submitForm(['layout[enabled]' => TRUE], 'Save');
+    $page->clickLink('Manage layout');
+    $page->clickLink('Add section');
+    $page->clickLink('1 column layout');
+    $page->pressButton('Add section');
+    $page->clickLink('Add block');
+    $page->clickLink('Preview-aware block');
+    $page->pressButton('Add block');
+
+    $assert_session->pageTextContains('This is a preview, indeed');
+
+    $page->pressButton('Save layout');
+    $this->drupalGet('node/1');
+
+    $assert_session->pageTextNotContains('This is a preview, indeed');
   }
 
   /**
@@ -1130,6 +1167,14 @@ class LayoutBuilderTest extends BrowserTestBase {
     $assert_session->pageTextContains('Layout Builder Storage: node.bundle_with_section_field.default');
     $assert_session->pageTextContains('Layout Builder Section: layout_onecol');
     $assert_session->pageTextContains('Layout Builder Component: system_powered_by_block');
+
+    $this->drupalGet("$field_ui_prefix/display/default");
+    $page->clickLink('Manage layout');
+    $page->clickLink('Add section');
+    $page->clickLink('One column');
+    $assert_session->pageTextContains('Layout Builder Storage: node.bundle_with_section_field.default');
+    $assert_session->pageTextContains('Layout Builder Section: layout_onecol');
+    $assert_session->pageTextContains('Layout Builder Layout: layout_onecol');
   }
 
   /**

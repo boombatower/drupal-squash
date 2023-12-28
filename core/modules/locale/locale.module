@@ -117,14 +117,16 @@ const LOCALE_TRANSLATION_STATUS_TTL = 600;
 const LOCALE_TRANSLATION_OVERWRITE_ALL = 'all';
 
 /**
- * UI option for override of existing translations. Only override non-customized
- * translations.
+ * UI option for override of existing translations.
+ *
+ * Only override non-customized translations.
  */
 const LOCALE_TRANSLATION_OVERWRITE_NON_CUSTOMIZED = 'non_customized';
 
 /**
- * UI option for override of existing translations. Don't override existing
- * translations.
+ * UI option for override of existing translations.
+ *
+ * Don't override existing translations.
  */
 const LOCALE_TRANSLATION_OVERWRITE_NONE = 'none';
 
@@ -902,7 +904,7 @@ function locale_translation_get_status($projects = NULL, $langcodes = NULL) {
 function locale_translation_status_save($project, $langcode, $type, $data) {
   // Load the translation status or build it if not already available.
   \Drupal::moduleHandler()->loadInclude('locale', 'inc', 'locale.translation');
-  $status = locale_translation_get_status();
+  $status = locale_translation_get_status([$project]);
   if (empty($status)) {
     $projects = locale_translation_get_projects([$project]);
     if (isset($projects[$project])) {
