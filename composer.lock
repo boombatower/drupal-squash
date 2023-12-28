@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "a0aee7917924874fecf8fc9af3c86275",
+    "content-hash": "9161a37538aad8987aab3995c16a79b4",
     "packages": [
         {
             "name": "asm89/stack-cors",
@@ -671,11 +671,11 @@
         },
         {
             "name": "drupal/core",
-            "version": "8.9.10",
+            "version": "8.9.11",
             "dist": {
                 "type": "path",
                 "url": "core",
-                "reference": "92e350403e9d31b0189f5834fdb410e8b6e7ecf1"
+                "reference": "b8032243fdd141c94315906fc8e9c34222d94e93"
             },
             "require": {
                 "asm89/stack-cors": "^1.1",
@@ -702,7 +702,7 @@
                 "laminas/laminas-feed": "^2.12",
                 "masterminds/html5": "^2.1",
                 "pear/archive_tar": "^1.4.11",
-                "php": ">=7.0.8",
+                "php": "^7.0.8",
                 "psr/log": "^1.0",
                 "stack/builder": "^1.0",
                 "symfony-cmf/routing": "^1.4",
@@ -905,7 +905,7 @@
         },
         {
             "name": "drupal/core-project-message",
-            "version": "8.9.10",
+            "version": "8.9.11",
             "dist": {
                 "type": "path",
                 "url": "composer/Plugin/ProjectMessage",
@@ -938,7 +938,7 @@
         },
         {
             "name": "drupal/core-vendor-hardening",
-            "version": "8.9.10",
+            "version": "8.9.11",
             "dist": {
                 "type": "path",
                 "url": "composer/Plugin/VendorHardening",
@@ -7066,5 +7066,5 @@
     "prefer-lowest": false,
     "platform": [],
     "platform-dev": [],
-    "plugin-api-version": "1.1.0"
+    "plugin-api-version": "2.0.0"
 }
