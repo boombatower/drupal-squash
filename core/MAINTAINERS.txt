@@ -105,7 +105,7 @@ Bootstrap
 
 Breakpoint
 - Peter Droogmans 'attiks' https://www.drupal.org/u/attiks
-- Marc Drummond 'mdrummond' https://www.drupal.org/u/mdrummond
+- Heather Brooke Drummond 'RainbowArray' https://www.drupal.org/u/rainbowarray
 
 Cache
 - Nathaniel Catchpole 'catch' https://www.drupal.org/u/catch
@@ -114,6 +114,11 @@ CKEditor
 - Henrik Danielsson 'TwoD' https://www.drupal.org/u/TwoD
 - Wim Leers 'Wim Leers' https://www.drupal.org/u/wim-leers
 - Marek 'mlewand' Lewandowski https://www.drupal.org/u/mlewand
+
+CKEditor 5
+- Lauri Eskola 'lauriii' https://www.drupal.org/u/lauriii
+- Wim Leers 'Wim Leers' https://www.drupal.org/u/wim-leers
+- Ben Mullins 'bnjmnm' https://www.drupal.org/u/bnjmnm
 
 Claro
 - Cristina Chumillas 'ckrina' https://www.drupal.org/u/ckrina
@@ -364,7 +369,7 @@ REST
 
 Responsive Image
 - Peter Droogmans 'attiks' https://www.drupal.org/u/attiks
-- Marc Drummond 'mdrummond' https://www.drupal.org/u/mdrummond
+- Heather Brooke Drummond 'RainbowArray' https://www.drupal.org/u/rainbowarray
 - Jelle Sebreghts 'Jelle_S' https://www.drupal.org/u/jelle_s
 
 Routing

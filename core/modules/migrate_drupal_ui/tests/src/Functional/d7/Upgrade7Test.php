@@ -73,7 +73,7 @@ class Upgrade7Test extends MigrateUpgradeExecuteTestBase {
    */
   protected function getEntityCounts() {
     return [
-      'block' => 25,
+      'block' => 27,
       'block_content' => 1,
       'block_content_type' => 1,
       'comment' => 4,
@@ -107,7 +107,7 @@ class Upgrade7Test extends MigrateUpgradeExecuteTestBase {
       'user_role' => 4,
       'menu_link_content' => 12,
       'view' => 14,
-      'date_format' => 11,
+      'date_format' => 12,
       'entity_form_display' => 24,
       'entity_form_mode' => 1,
       'entity_view_display' => 34,
@@ -140,8 +140,6 @@ class Upgrade7Test extends MigrateUpgradeExecuteTestBase {
       'Block',
       'Book',
       'Chaos tools',
-      // @todo Remove Color in https://www.drupal.org/project/drupal/issues/3270899
-      'Color',
       'Comment',
       'Contact',
       'Content translation',
@@ -206,6 +204,8 @@ class Upgrade7Test extends MigrateUpgradeExecuteTestBase {
   protected function getMissingPaths() {
     return [
       'Aggregator',
+      // @todo Remove Color in https://www.drupal.org/project/drupal/issues/3270899
+      'Color',
       // @todo Remove RDF in https://www.drupal.org/node/3267515
       'RDF',
       'References',

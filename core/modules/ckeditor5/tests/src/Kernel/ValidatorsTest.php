@@ -13,6 +13,8 @@ use Drupal\KernelTests\KernelTestBase;
 use Drupal\Tests\SchemaCheckTestTrait;
 use Symfony\Component\Yaml\Yaml;
 
+// cspell:ignore onhover
+
 /**
  * @covers \Drupal\ckeditor5\Plugin\Validation\Constraint\ToolbarItemConstraintValidator
  * @covers \Drupal\ckeditor5\Plugin\Validation\Constraint\ToolbarItemDependencyConstraintValidator
@@ -128,7 +130,12 @@ class ValidatorsTest extends KernelTestBase {
             'foobar',
           ],
         ],
-        'plugins' => [],
+        'plugins' => [
+          'ckeditor5_list' => [
+            'reversed' => FALSE,
+            'startIndex' => FALSE,
+          ],
+        ],
       ],
       'violations' => [
         'settings.toolbar.items.5' => 'The provided toolbar item <em class="placeholder">foobar</em> is not valid.',
@@ -329,6 +336,7 @@ class ValidatorsTest extends KernelTestBase {
    * @covers \Drupal\ckeditor5\Plugin\Validation\Constraint\ToolbarItemConstraintValidator
    * @covers \Drupal\ckeditor5\Plugin\Validation\Constraint\ToolbarItemDependencyConstraintValidator
    * @covers \Drupal\ckeditor5\Plugin\Validation\Constraint\EnabledConfigurablePluginsConstraintValidator
+   * @covers \Drupal\ckeditor5\Plugin\Validation\Constraint\SourceEditingPreventSelfXssConstraintValidator
    * @dataProvider providerPair
    *
    * @param array $ckeditor5_settings
@@ -454,33 +462,6 @@ class ValidatorsTest extends KernelTestBase {
       ],
       'violations' => [],
     ];
-    $data['INVALID: forbidden tags'] = [
-      'settings' => [
-        'toolbar' => [
-          'items' => [],
-        ],
-        'plugins' => [],
-      ],
-      'image_upload' => [
-        'status' => FALSE,
-      ],
-      'filters' => [
-        'filter_test_restrict_tags_and_attributes' => [
-          'id' => 'filter_test_restrict_tags_and_attributes',
-          'provider' => 'filter_test',
-          'status' => TRUE,
-          'weight' => 0,
-          'settings' => [
-            'restrictions' => [
-              'forbidden_tags' => ['p' => FALSE],
-            ],
-          ],
-        ],
-      ],
-      'violations' => [
-        '' => 'CKEditor 5 needs at least the &lt;p&gt; and &lt;br&gt; tags to be allowed to be able to function. They are forbidden by the "<em class="placeholder">Tag and attribute restricting filter</em>" (<em class="placeholder">filter_test_restrict_tags_and_attributes</em>) filter.',
-      ],
-    ];
     $restricted_html_format_filters = Yaml::parseFile(__DIR__ . '/../../../../../profiles/standard/config/install/filter.format.restricted_html.yml')['filters'];
     $data['INVALID: the default restricted_html text format'] = [
       'settings' => [
@@ -593,7 +574,7 @@ class ValidatorsTest extends KernelTestBase {
       'violations' => [
         'filters.filter_html' => sprintf(
           'The current CKEditor 5 build requires the following elements and attributes: <br><code>%s</code><br>The following elements are not supported: <br><code>%s</code>',
-          Html::escape('<br> <p>'),
+          Html::escape('<br> <p> <* dir="ltr rtl" lang>'),
           Html::escape('<a href hreflang> <em> <strong> <cite> <blockquote cite> <code> <ul type> <ol start type="1 A I"> <li> <dl> <dt> <dd> <h2 id="jump-*"> <h3 id> <h4 id> <h5 id> <h6 id>'),
         ),
       ],
@@ -849,6 +830,79 @@ class ValidatorsTest extends KernelTestBase {
           ],
         ],
       ],
+      'violations' => [],
+    ];
+    $self_xss_source_editing = [
+      // Dangerous attribute with all values allowed.
+      '<p onhover>',
+      '<img on*>',
+      '<blockquote style>',
+
+      // No danger.
+      '<marquee>',
+
+      // Dangerous attribute with some values allowed.
+      '<a onclick="javascript:*">',
+      '<code style="foo: bar;">',
+
+      // Also works on wildcard tags.
+      '<$text-container style>',
+    ];
+    $data['INVALID: SourceEditing plugin configuration: self-XSS detected when using filter_html'] = [
+      'settings' => [
+        'toolbar' => [
+          'items' => [
+            'sourceEditing',
+          ],
+        ],
+        'plugins' => [
+          'ckeditor5_sourceEditing' => [
+            'allowed_tags' => $self_xss_source_editing,
+          ],
+        ],
+      ],
+      'image_upload' => [
+        'status' => FALSE,
+      ],
+      'filters' => [
+        'filter_html' => [
+          'id' => 'filter_html',
+          'provider' => 'filter',
+          'status' => TRUE,
+          'weight' => 0,
+          'settings' => [
+            'allowed_html' => '<p onhover style> <br> <img on*> <blockquote style> <marquee> <a onclick="javascript:*"> <code style="foo: bar;">',
+            'filter_html_help' => TRUE,
+            'filter_html_nofollow' => TRUE,
+          ],
+        ],
+      ],
+      'violations' => [
+        'settings.plugins.ckeditor5_sourceEditing.allowed_tags.0' => 'The following tag in the Source Editing "Manually editable HTML tags" field is a security risk: <em class="placeholder">&lt;p onhover&gt;</em>.',
+        'settings.plugins.ckeditor5_sourceEditing.allowed_tags.1' => 'The following tag in the Source Editing "Manually editable HTML tags" field is a security risk: <em class="placeholder">&lt;img on*&gt;</em>.',
+        'settings.plugins.ckeditor5_sourceEditing.allowed_tags.2' => 'The following tag in the Source Editing "Manually editable HTML tags" field is a security risk: <em class="placeholder">&lt;blockquote style&gt;</em>.',
+        'settings.plugins.ckeditor5_sourceEditing.allowed_tags.4' => 'The following tag in the Source Editing "Manually editable HTML tags" field is a security risk: <em class="placeholder">&lt;a onclick=&quot;javascript:*&quot;&gt;</em>.',
+        'settings.plugins.ckeditor5_sourceEditing.allowed_tags.5' => 'The following tag in the Source Editing "Manually editable HTML tags" field is a security risk: <em class="placeholder">&lt;code style=&quot;foo: bar;&quot;&gt;</em>.',
+        'settings.plugins.ckeditor5_sourceEditing.allowed_tags.6' => 'The following tag in the Source Editing "Manually editable HTML tags" field is a security risk: <em class="placeholder">&lt;$text-container style&gt;</em>.',
+      ],
+    ];
+    $data['VALID: SourceEditing plugin configuration: self-XSS not detected when not using filter_html'] = [
+      'settings' => [
+        'toolbar' => [
+          'items' => [
+            'sourceEditing',
+          ],
+        ],
+        'plugins' => [
+          'ckeditor5_sourceEditing' => [
+            'allowed_tags' => $self_xss_source_editing,
+          ],
+        ],
+      ],
+      'image_upload' => [
+        'status' => FALSE,
+      ],
+      'filters' => [],
       'violations' => [],
     ];
 

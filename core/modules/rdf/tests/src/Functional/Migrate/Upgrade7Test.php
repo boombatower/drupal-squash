@@ -50,14 +50,14 @@ class Upgrade7Test extends MigrateUpgradeTestBase {
     return [
       'action' => 21,
       'base_field_override' => 2,
-      'block' => 30,
+      'block' => 31,
       'block_content' => 0,
       'block_content_type' => 1,
       'comment' => 0,
       'comment_type' => 5,
       'contact_form' => 2,
       'contact_message' => 0,
-      'date_format' => 11,
+      'date_format' => 12,
       'editor' => 2,
       'entity_form_display' => 11,
       'entity_form_mode' => 1,
@@ -100,7 +100,6 @@ class Upgrade7Test extends MigrateUpgradeTestBase {
     return [
       'Block',
       'Blog',
-      'Color',
       'Comment',
       'Contextual links',
       'Dashboard',
@@ -135,6 +134,7 @@ class Upgrade7Test extends MigrateUpgradeTestBase {
    */
   protected function getMissingPaths() {
     return [
+      'Color',
       'Forum',
     ];
   }

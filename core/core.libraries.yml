@@ -7,10 +7,10 @@ internal.backbone:
   #  - https://www.drupal.org/project/drupal/issues/3204011
   #  - https://www.drupal.org/project/drupal/issues/3204015
   remote: https://github.com/jashkenas/backbone
-  version: "1.4.0"
+  version: "1.4.1"
   license:
     name: MIT
-    url: https://raw.githubusercontent.com/jashkenas/backbone/1.4.0/LICENSE
+    url: https://raw.githubusercontent.com/jashkenas/backbone/1.4.1/LICENSE
     gpl-compatible: true
   js:
     assets/vendor/backbone/backbone-min.js: { weight: -19, minified: true }
@@ -162,9 +162,10 @@ ckeditor5.link:
 
 ckeditor5.list:
   remote: https://github.com/ckeditor/ckeditor5
-  version: "34.0.0"
+  version: "34.0.1"
   license:
     name: GNU-GPL-2.0-or-later
+    # @todo A 34.0.1 link does not exist; https://www.drupal.org/project/drupal/issues/3277438 will make this in sync again.
     url: https://github.com/ckeditor/ckeditor5/blob/v34.0.0/LICENSE.md
     gpl-compatible: true
   js:
@@ -484,15 +485,6 @@ drupal.customevent:
   version: VERSION
   js:
     misc/polyfills/customevent.js: { weight: -20 }
-
-drupal.date:
-  version: VERSION
-  js:
-    misc/date.js: {}
-  dependencies:
-    - core/drupal
-    - core/modernizr
-    - core/once
 
 drupal.debounce:
   version: VERSION
@@ -1035,10 +1027,10 @@ picturefill:
     assets/vendor/picturefill/picturefill.min.js: { weight: -10, minified: true }
 
 popperjs:
-  version: "2.11.2"
+  version: "2.11.5"
   license:
     name: MIT
-    url: https://raw.githubusercontent.com/popperjs/popper-core/v2.11.2/LICENSE.md
+    url: https://raw.githubusercontent.com/popperjs/popper-core/v2.11.5/LICENSE.md
     gpl-compatible: true
   js:
     assets/vendor/popperjs/popper.min.js: { minified: true }
@@ -1086,10 +1078,10 @@ internal.underscore:
   #  - https://www.drupal.org/project/drupal/issues/3204011
   #  - https://www.drupal.org/project/drupal/issues/3204015
   remote: https://github.com/jashkenas/underscore
-  version: "1.13.2"
+  version: "1.13.3"
   license:
     name: MIT
-    url: https://raw.githubusercontent.com/jashkenas/underscore/1.13.2/LICENSE
+    url: https://raw.githubusercontent.com/jashkenas/underscore/1.13.3/LICENSE
     gpl-compatible: true
   js:
     assets/vendor/underscore/underscore-min.js: { weight: -20, minified: true }
