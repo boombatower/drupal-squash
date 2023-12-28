@@ -152,6 +152,23 @@ abstract class ContentEntityStorageBase extends EntityStorageBase implements Con
   /**
    * Checks whether any entity revision is translated.
    *
+   * @param \Drupal\Core\Entity\EntityInterface|\Drupal\Core\Entity\TranslatableInterface $entity
+   *   The entity object to be checked.
+   *
+   * @return bool
+   *   TRUE if the entity has at least one translation in any revision, FALSE
+   *   otherwise.
+   *
+   * @see \Drupal\Core\TypedData\TranslatableInterface::getTranslationLanguages()
+   * @see \Drupal\Core\Entity\ContentEntityStorageBase::isAnyStoredRevisionTranslated()
+   */
+  protected function isAnyRevisionTranslated(TranslatableInterface $entity) {
+    return $entity->getTranslationLanguages(FALSE) || $this->isAnyStoredRevisionTranslated($entity);
+  }
+
+  /**
+   * Checks whether any stored entity revision is translated.
+   *
    * A revisionable entity can have translations in a pending revision, hence
    * the default revision may appear as not translated. This determines whether
    * the entity has any translation in the storage and thus should be considered
@@ -165,8 +182,9 @@ abstract class ContentEntityStorageBase extends EntityStorageBase implements Con
    *   otherwise.
    *
    * @see \Drupal\Core\TypedData\TranslatableInterface::getTranslationLanguages()
+   * @see \Drupal\Core\Entity\ContentEntityStorageBase::isAnyRevisionTranslated()
    */
-  protected function isAnyRevisionTranslated(TranslatableInterface $entity) {
+  protected function isAnyStoredRevisionTranslated(TranslatableInterface $entity) {
     /** @var \Drupal\Core\Entity\ContentEntityInterface $entity */
     if ($entity->isNew()) {
       return FALSE;
@@ -227,13 +245,13 @@ abstract class ContentEntityStorageBase extends EntityStorageBase implements Con
       $active_langcode = $entity->language()->getId();
       $skipped_field_names = array_flip($this->getRevisionTranslationMergeSkippedFieldNames());
 
-      // Default to preserving the untranslatable field values in the default
-      // revision, otherwise we may expose data that was not meant to be
-      // accessible.
+      // By default we copy untranslatable field values from the default
+      // revision, unless they are configured to affect only the default
+      // translation. This way we can ensure we always have only one affected
+      // translation in pending revisions. This constraint is enforced by
+      // EntityUntranslatableFieldsConstraintValidator.
       if (!isset($keep_untranslatable_fields)) {
-        // @todo Implement a more complete default logic in
-        //    https://www.drupal.org/project/drupal/issues/2878556.
-        $keep_untranslatable_fields = FALSE;
+        $keep_untranslatable_fields = $entity->isDefaultTranslation() && $entity->isDefaultTranslationAffectedOnly();
       }
 
       /** @var \Drupal\Core\Entity\ContentEntityInterface $default_revision */
@@ -262,6 +280,13 @@ abstract class ContentEntityStorageBase extends EntityStorageBase implements Con
         // No need to copy untranslatable field values more than once.
         $keep_untranslatable_fields = TRUE;
       }
+
+      // The "original" property is used in various places to detect changes in
+      // field values with respect to the stored ones. If the property is not
+      // defined, the stored version is loaded explicitly. Since the merged
+      // revision generated here is not stored anywhere, we need to populate the
+      // "original" property manually, so that changes can be properly detected.
+      $new_revision->original = clone $new_revision;
     }
 
     // Eventually mark the new revision as such.
@@ -506,6 +531,15 @@ abstract class ContentEntityStorageBase extends EntityStorageBase implements Con
     }
 
     $this->populateAffectedRevisionTranslations($entity);
+
+    // Populate the "revision_default" flag. We skip this when we are resaving
+    // the revision because this is only allowed for default revisions, and
+    // these cannot be made non-default.
+    if ($this->entityType->isRevisionable() && $entity->isNewRevision()) {
+      $revision_default_key = $this->entityType->getRevisionMetadataKey('revision_default');
+      $entity->set($revision_default_key, $entity->isDefaultRevision());
+    }
+
     $this->doSaveFieldItems($entity);
 
     return $return;

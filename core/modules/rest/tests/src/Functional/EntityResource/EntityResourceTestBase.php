@@ -21,7 +21,6 @@ use Drupal\rest\ResourceResponseInterface;
 use Drupal\Tests\rest\Functional\ResourceTestBase;
 use GuzzleHttp\RequestOptions;
 use Psr\Http\Message\ResponseInterface;
-use Symfony\Component\Routing\Exception\RouteNotFoundException;
 
 /**
  * Even though there is the generic EntityResource, it's necessary for every
@@ -282,6 +281,23 @@ abstract class EntityResourceTestBase extends ResourceTestBase {
    * @return array
    */
   protected function getNormalizedPatchEntity() {
+    return $this->getNormalizedPostEntity();
+  }
+
+  /**
+   * Gets the second normalized POST entity.
+   *
+   * Entity types can have non-sequential IDs, and in that case the second
+   * entity created for POST testing needs to be able to specify a different ID.
+   *
+   * @see ::testPost
+   * @see ::getNormalizedPostEntity
+   *
+   * @return array
+   *   An array structure as returned by ::getNormalizedPostEntity().
+   */
+  protected function getSecondNormalizedPostEntity() {
+    // Return the values of the "parent" method by default.
     return $this->getNormalizedPostEntity();
   }
 
@@ -703,18 +719,6 @@ abstract class EntityResourceTestBase extends ResourceTestBase {
     $path = str_replace('987654321', '{' . static::$entityTypeId . '}', $url->setAbsolute()->setOptions(['base_url' => '', 'query' => []])->toString());
     $message = 'The "' . static::$entityTypeId . '" parameter was not converted for the path "' . $path . '" (route name: "rest.entity.' . static::$entityTypeId . '.GET")';
     $this->assertResourceErrorResponse(404, $message, $response);
-
-    // BC: Format-specific GET routes are deprecated. They are available on both
-    // new and old sites, but trigger deprecation notices.
-    $bc_route = Url::fromRoute('rest.entity.' . static::$entityTypeId . '.GET.' . static::$format, $url->getRouteParameters(), $url->getOptions());
-    $bc_route->setUrlGenerator($this->container->get('url_generator'));
-    $this->assertSame($url->toString(TRUE)->getGeneratedUrl(), $bc_route->toString(TRUE)->getGeneratedUrl());
-    // Verify no format-specific GET BC routes are created for other formats.
-    $other_format = static::$format === 'json' ? 'xml' : 'json';
-    $bc_route_other_format = Url::fromRoute('rest.entity.' . static::$entityTypeId . '.GET.' . $other_format, $url->getRouteParameters(), $url->getOptions());
-    $bc_route_other_format->setUrlGenerator($this->container->get('url_generator'));
-    $this->setExpectedException(RouteNotFoundException::class);
-    $bc_route_other_format->toString(TRUE);
   }
 
   /**
@@ -778,7 +782,7 @@ abstract class EntityResourceTestBase extends ResourceTestBase {
     // Try with all of the following request bodies.
     $unparseable_request_body = '!{>}<';
     $parseable_valid_request_body   = $this->serializer->encode($this->getNormalizedPostEntity(), static::$format);
-    $parseable_valid_request_body_2 = $this->serializer->encode($this->getNormalizedPostEntity(), static::$format);
+    $parseable_valid_request_body_2 = $this->serializer->encode($this->getSecondNormalizedPostEntity(), static::$format);
     $parseable_invalid_request_body = $this->serializer->encode($this->makeNormalizationInvalid($this->getNormalizedPostEntity(), 'label'), static::$format);
     $parseable_invalid_request_body_2 = $this->serializer->encode($this->getNormalizedPostEntity() + ['uuid' => [$this->randomMachineName(129)]], static::$format);
     $parseable_invalid_request_body_3 = $this->serializer->encode($this->getNormalizedPostEntity() + ['field_rest_test' => [['value' => $this->randomString()]]], static::$format);
@@ -1397,9 +1401,7 @@ abstract class EntityResourceTestBase extends ResourceTestBase {
           // PathItem::generateSampleValue() doesn't set a PID, which causes
           // PathItem::postSave() to fail. Keep the PID (and other properties),
           // just modify the alias.
-          $value = $field->getValue();
-          $value['alias'] = str_replace(' ', '-', strtolower((new Random())->sentences(3)));
-          $field->setValue($value);
+          $field->alias = str_replace(' ', '-', strtolower((new Random())->sentences(3)));
           break;
         default:
           $original_field = clone $field;

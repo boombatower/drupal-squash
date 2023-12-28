@@ -155,6 +155,13 @@ class EntityType extends PluginDefinition implements EntityTypeInterface {
   protected $data_table = NULL;
 
   /**
+   * Indicates whether the entity data is internal.
+   *
+   * @var bool
+   */
+  protected $internal = FALSE;
+
+  /**
    * Indicates whether entities of this type have multilingual support.
    *
    * @var bool
@@ -311,10 +318,15 @@ class EntityType extends PluginDefinition implements EntityTypeInterface {
       $this->checkStorageClass($this->handlers['storage']);
     }
 
-    // Automatically add the EntityChanged constraint if the entity type tracks
-    // the changed time.
+    // Automatically add the "EntityChanged" constraint if the entity type
+    // tracks the changed time.
     if ($this->entityClassImplements(EntityChangedInterface::class)) {
       $this->addConstraint('EntityChanged');
+    }
+    // Automatically add the "EntityUntranslatableFields" constraint if we have
+    // an entity type supporting translatable fields and pending revisions.
+    if ($this->entityClassImplements(ContentEntityInterface::class)) {
+      $this->addConstraint('EntityUntranslatableFields');
     }
 
     // Ensure a default list cache tag is set.
@@ -347,6 +359,13 @@ class EntityType extends PluginDefinition implements EntityTypeInterface {
       $this->additional[$property] = $value;
     }
     return $this;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function isInternal() {
+    return $this->internal;
   }
 
   /**

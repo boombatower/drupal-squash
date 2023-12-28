@@ -46499,6 +46499,14 @@ $connection->insert('upload')
   'list' => '0',
   'weight' => '1',
 ))
+->values(array(
+  'fid' => '3',
+  'nid' => '12',
+  'vid' => '15',
+  'description' => 'file 12-15-3',
+  'list' => '0',
+  'weight' => '0',
+))
 ->execute();
 
 $connection->schema()->createTable('url_alias', array(
@@ -46582,6 +46590,12 @@ $connection->insert('url_alias')
   'src' => 'node/13',
   'dst' => 'the-zulu-people',
   'language' => 'en',
+))
+->values(array(
+  'pid' => '8',
+  'src' => 'admin',
+  'dst' => 'source-noslash',
+  'language' => '',
 ))
 ->execute();
 
