@@ -649,11 +649,11 @@
         },
         {
             "name": "drupal/core",
-            "version": "8.8.11",
+            "version": "8.8.12",
             "dist": {
                 "type": "path",
                 "url": "core",
-                "reference": "67994f5a1eb5a32289d12dd53de872db02998046"
+                "reference": "6d6617c79b60da9fc641d55c651732fc5cc98cf5"
             },
             "require": {
                 "asm89/stack-cors": "^1.1",
@@ -677,7 +677,7 @@
                 "ext-xml": "*",
                 "guzzlehttp/guzzle": "^6.3",
                 "masterminds/html5": "^2.1",
-                "pear/archive_tar": "^1.4.9",
+                "pear/archive_tar": "^1.4.11",
                 "php": ">=7.0.8",
                 "stack/builder": "^1.0",
                 "symfony-cmf/routing": "^1.4",
@@ -882,7 +882,7 @@
         },
         {
             "name": "drupal/core-project-message",
-            "version": "8.8.11",
+            "version": "8.8.12",
             "dist": {
                 "type": "path",
                 "url": "composer/Plugin/ProjectMessage",
@@ -915,7 +915,7 @@
         },
         {
             "name": "drupal/core-vendor-hardening",
-            "version": "8.8.11",
+            "version": "8.8.12",
             "dist": {
                 "type": "path",
                 "url": "composer/Plugin/VendorHardening",
@@ -1365,16 +1365,16 @@
         },
         {
             "name": "pear/archive_tar",
-            "version": "1.4.9",
+            "version": "1.4.11",
             "source": {
                 "type": "git",
                 "url": "https://github.com/pear/Archive_Tar.git",
-                "reference": "c5b00053770e1d72128252c62c2c1a12c26639f0"
+                "reference": "17d355cb7d3c4ff08e5729f29cd7660145208d9d"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/pear/Archive_Tar/zipball/c5b00053770e1d72128252c62c2c1a12c26639f0",
-                "reference": "c5b00053770e1d72128252c62c2c1a12c26639f0",
+                "url": "https://api.github.com/repos/pear/Archive_Tar/zipball/17d355cb7d3c4ff08e5729f29cd7660145208d9d",
+                "reference": "17d355cb7d3c4ff08e5729f29cd7660145208d9d",
                 "shasum": ""
             },
             "require": {
@@ -1427,7 +1427,7 @@
                 "archive",
                 "tar"
             ],
-            "time": "2019-12-04T10:17:28+00:00"
+            "time": "2020-11-19T22:10:24+00:00"
         },
         {
             "name": "pear/console_getopt",
@@ -5066,6 +5066,7 @@
             "keywords": [
                 "tokenizer"
             ],
+            "abandoned": true,
             "time": "2017-11-27T05:48:46+00:00"
         },
         {
