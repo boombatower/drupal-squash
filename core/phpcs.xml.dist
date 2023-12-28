@@ -63,6 +63,15 @@
     <exclude name="Drupal.Commenting.FunctionComment.ParamMissingDefinition"/>
     <exclude name="Drupal.Commenting.FunctionComment.TypeHintMissing"/>
   </rule>
+  <rule ref="../vendor/drupal/coder/coder_sniffer/Drupal/Sniffs/Commenting/InlineCommentSniff.php">
+    <!-- Sniff for: NoSpaceBefore -->
+    <exclude name="Drupal.Commenting.InlineComment.DocBlock"/>
+    <exclude name="Drupal.Commenting.InlineComment.InvalidEndChar"/>
+    <exclude name="Drupal.Commenting.InlineComment.NotCapital"/>
+    <exclude name="Drupal.Commenting.InlineComment.SpacingAfter"/>
+    <exclude name="Drupal.Commenting.InlineComment.SpacingBefore"/>
+    <exclude name="Drupal.Commenting.InlineComment.WrongStyle"/>
+  </rule>
   <rule ref="../vendor/drupal/coder/coder_sniffer/Drupal/Sniffs/ControlStructures/ElseIfSniff.php"/>
   <rule ref="../vendor/drupal/coder/coder_sniffer/Drupal/Sniffs/ControlStructures/ControlSignatureSniff.php"/>
   <rule ref="../vendor/drupal/coder/coder_sniffer/Drupal/Sniffs/Files/EndFileNewlineSniff.php"/>
@@ -104,6 +113,7 @@
   <rule ref="../vendor/drupal/coder/coder_sniffer/Drupal/Sniffs/WhiteSpace/NamespaceSniff.php"/>
   <rule ref="../vendor/drupal/coder/coder_sniffer/Drupal/Sniffs/WhiteSpace/ObjectOperatorIndentSniff.php"/>
   <rule ref="../vendor/drupal/coder/coder_sniffer/Drupal/Sniffs/WhiteSpace/ObjectOperatorSpacingSniff.php"/>
+  <rule ref="../vendor/drupal/coder/coder_sniffer/Drupal/Sniffs/WhiteSpace/OpenBracketSpacingSniff.php"/>
   <rule ref="../vendor/drupal/coder/coder_sniffer/Drupal/Sniffs/WhiteSpace/OpenTagNewlineSniff.php"/>
   <rule ref="../vendor/drupal/coder/coder_sniffer/Drupal/Sniffs/WhiteSpace/OperatorSpacingSniff.php"/>
   <rule ref="../vendor/drupal/coder/coder_sniffer/Drupal/Sniffs/WhiteSpace/ScopeIndentSniff.php"/>
@@ -142,6 +152,7 @@
   <rule ref="PEAR.Files.IncludingFile.UseRequire">
     <severity>0</severity>
   </rule>
+  <rule ref="PEAR.Functions.ValidDefaultValue"/>
 
   <!-- PSR-2 sniffs -->
   <rule ref="PSR2.Classes.PropertyDeclaration">
@@ -149,6 +160,7 @@
   </rule>
 
   <!-- Squiz sniffs -->
+  <rule ref="Squiz.Arrays.ArrayBracketSpacing"/>
   <rule ref="Squiz.Arrays.ArrayDeclaration">
     <exclude name="Squiz.Arrays.ArrayDeclaration.NoKeySpecified"/>
     <exclude name="Squiz.Arrays.ArrayDeclaration.KeySpecified"/>

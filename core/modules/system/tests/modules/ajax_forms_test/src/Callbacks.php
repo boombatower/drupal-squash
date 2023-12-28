@@ -23,6 +23,28 @@ class Callbacks {
   }
 
   /**
+   * Ajax callback triggered by date.
+   */
+  public function dateCallback($form, FormStateInterface $form_state) {
+    $response = new AjaxResponse();
+    $response->addCommand(new HtmlCommand('#ajax_date_value', $form_state->getValue('date')));
+    $response->addCommand(new DataCommand('#ajax_date_value', 'form_state_value_date', $form_state->getValue('date')));
+    return $response;
+  }
+
+  /**
+   * Ajax callback triggered by datetime.
+   */
+  public function datetimeCallback($form, FormStateInterface $form_state) {
+    $datetime = $form_state->getValue('datetime')['date'] . ' ' . $form_state->getValue('datetime')['time'];
+
+    $response = new AjaxResponse();
+    $response->addCommand(new HtmlCommand('#ajax_datetime_value', $datetime));
+    $response->addCommand(new DataCommand('#ajax_datetime_value', 'form_state_value_datetime', $datetime));
+    return $response;
+  }
+
+  /**
    * Ajax callback triggered by checkbox.
    */
   public function checkboxCallback($form, FormStateInterface $form_state) {
