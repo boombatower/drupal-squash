@@ -25,6 +25,11 @@ class UrlTest extends BrowserTestBase {
   public static $modules = ['common_test', 'url_alter_test'];
 
   /**
+   * {@inheritdoc}
+   */
+  protected $defaultTheme = 'stark';
+
+  /**
    * Confirms that invalid URLs are filtered in link generating functions.
    */
   public function testLinkXSS() {
@@ -207,7 +212,7 @@ class UrlTest extends BrowserTestBase {
    *   TRUE if the class is found, FALSE otherwise.
    */
   private function hasAttribute($attribute, $link, $class) {
-    return preg_match('|' . $attribute . '="([^\"\s]+\s+)*' . $class . '|', $link);
+    return (bool) preg_match('|' . $attribute . '="([^\"\s]+\s+)*' . $class . '|', $link);
   }
 
   /**

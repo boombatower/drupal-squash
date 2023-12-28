@@ -12,6 +12,11 @@ use Drupal\Core\Cache\Cache;
 
 class ClearTest extends CacheTestBase {
 
+  /**
+   * {@inheritdoc}
+   */
+  protected $defaultTheme = 'stark';
+
   protected function setUp() {
     $this->defaultBin = 'render';
     $this->defaultValue = $this->randomMachineName(10);
@@ -25,7 +30,7 @@ class ClearTest extends CacheTestBase {
   public function testFlushAllCaches() {
     // Create cache entries for each flushed cache bin.
     $bins = Cache::getBins();
-    $this->assertTrue($bins, 'Cache::getBins() returned bins to flush.');
+    $this->assertNotEmpty($bins, 'Cache::getBins() returned bins to flush.');
     foreach ($bins as $bin => $cache_backend) {
       $cid = 'test_cid_clear' . $bin;
       $cache_backend->set($cid, $this->defaultValue);

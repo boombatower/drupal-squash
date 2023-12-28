@@ -30,6 +30,11 @@ class ContactLinkTest extends ViewTestBase {
   public static $modules = ['contact_test_views'];
 
   /**
+   * {@inheritdoc}
+   */
+  protected $defaultTheme = 'classy';
+
+  /**
    * Views used by this test.
    *
    * @var array
@@ -101,7 +106,7 @@ class ContactLinkTest extends ViewTestBase {
       $account = $accounts[$name];
 
       $result = $this->xpath('//div[contains(@class, "views-field-contact")]//a[contains(@href, :url)]', [':url' => $account->toUrl('contact-form')->toString()]);
-      $this->assertTrue(count($result));
+      $this->assertGreaterThan(0, count($result));
     }
   }
 

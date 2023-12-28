@@ -24,6 +24,11 @@ class BlockContentTypeTest extends BlockContentTestBase {
   public static $modules = ['field_ui'];
 
   /**
+   * {@inheritdoc}
+   */
+  protected $defaultTheme = 'classy';
+
+  /**
    * Permissions to grant admin user.
    *
    * @var array
@@ -66,7 +71,7 @@ class BlockContentTypeTest extends BlockContentTestBase {
     ];
     $this->drupalPostForm(NULL, $edit, t('Save'));
     $block_type = BlockContentType::load('foo');
-    $this->assertTrue($block_type, 'The new block type has been created.');
+    $this->assertInstanceOf(BlockContentType::class, $block_type, 'The new block type has been created.');
 
     $field_definitions = \Drupal::service('entity_field.manager')->getFieldDefinitions('block_content', 'foo');
     $this->assertTrue(isset($field_definitions['body']), 'Body field created when using the UI to create block content types.');
@@ -85,7 +90,7 @@ class BlockContentTypeTest extends BlockContentTestBase {
     $this->assertFalse(isset($field_definitions['body']), "Body field for 'other' block type not created when using the testing API to create block content types.");
 
     $block_type = BlockContentType::load('other');
-    $this->assertTrue($block_type, 'The new block type has been created.');
+    $this->assertInstanceOf(BlockContentType::class, $block_type, 'The new block type has been created.');
 
     $this->drupalGet('block/add/' . $block_type->id());
     $this->assertResponse(200);

@@ -33,6 +33,11 @@ class EntityUpdateAddRevisionTranslationAffectedTest extends UpdatePathTestBase 
   /**
    * {@inheritdoc}
    */
+  protected $defaultTheme = 'stark';
+
+  /**
+   * {@inheritdoc}
+   */
   protected function setUp() {
     parent::setUp();
 
@@ -79,7 +84,7 @@ class EntityUpdateAddRevisionTranslationAffectedTest extends UpdatePathTestBase 
     // Check that the correct initial value was set when the field was
     // installed.
     $entity = \Drupal::entityTypeManager()->getStorage('entity_test_update')->load(1);
-    $this->assertTrue($entity->revision_translation_affected->value);
+    $this->assertNotEmpty($entity->revision_translation_affected->value);
   }
 
   /**

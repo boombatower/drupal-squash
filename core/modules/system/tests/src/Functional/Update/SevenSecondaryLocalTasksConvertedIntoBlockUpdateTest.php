@@ -17,6 +17,11 @@ class SevenSecondaryLocalTasksConvertedIntoBlockUpdateTest extends UpdatePathTes
   /**
    * {@inheritdoc}
    */
+  protected $defaultTheme = 'stark';
+
+  /**
+   * {@inheritdoc}
+   */
   public function setDatabaseDumpFiles() {
     $this->databaseDumpFiles = [
       __DIR__ . '/../../../../../system/tests/fixtures/update/drupal-8.bare.standard.php.gz',
@@ -54,7 +59,7 @@ class SevenSecondaryLocalTasksConvertedIntoBlockUpdateTest extends UpdatePathTes
     // Local actions are visible on the content listing page.
     $this->drupalGet('admin/structure/block');
     $action_link = $this->cssSelect('#secondary-tabs-title');
-    $this->assertTrue($action_link);
+    $this->assertNotEmpty($action_link);
   }
 
 }

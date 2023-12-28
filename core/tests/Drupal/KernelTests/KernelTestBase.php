@@ -164,12 +164,17 @@ abstract class KernelTestBase extends TestCase implements ServiceProviderInterfa
    * it extends, and so on up the class hierarchy. It is not necessary to
    * include modules in your list that a parent class has already declared.
    *
+   * The Path Alias module is always installed because the functionality has
+   * moved from core to a required module in Drupal 8.8.0. If a kernel test
+   * requires path alias functionality it is recommended to add the module to
+   * the test's own $modules property for Drupal 9 compatibility.
+   *
    * @see \Drupal\Tests\KernelTestBase::enableModules()
    * @see \Drupal\Tests\KernelTestBase::bootKernel()
    *
    * @var array
    */
-  protected static $modules = [];
+  protected static $modules = ['path_alias'];
 
   /**
    * The virtual filesystem root directory.
@@ -538,12 +543,12 @@ abstract class KernelTestBase extends TestCase implements ServiceProviderInterfa
         ->addTag('event_subscriber');
     }
 
-    if ($container->hasDefinition('path_processor_alias')) {
+    if ($container->hasDefinition('path_alias.path_processor')) {
       // The alias-based processor requires the path_alias entity schema to be
       // installed, so we prevent it from being registered to the path processor
       // manager. We do this by removing the tags that the compiler pass looks
       // for. This means that the URL generator can safely be used within tests.
-      $container->getDefinition('path_processor_alias')
+      $container->getDefinition('path_alias.path_processor')
         ->clearTag('path_processor_inbound')
         ->clearTag('path_processor_outbound');
     }

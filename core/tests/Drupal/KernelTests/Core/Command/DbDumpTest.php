@@ -8,6 +8,7 @@ use Drupal\Core\Config\DatabaseStorage;
 use Drupal\Core\Database\Database;
 use Drupal\Core\DependencyInjection\ContainerBuilder;
 use Drupal\KernelTests\KernelTestBase;
+use Drupal\Tests\Traits\Core\PathAliasTestTrait;
 use Drupal\user\Entity\User;
 use Symfony\Component\Console\Tester\CommandTester;
 use Symfony\Component\DependencyInjection\Reference;
@@ -19,10 +20,12 @@ use Symfony\Component\DependencyInjection\Reference;
  */
 class DbDumpTest extends KernelTestBase {
 
+  use PathAliasTestTrait;
+
   /**
    * {@inheritdoc}
    */
-  public static $modules = ['system', 'config', 'dblog', 'menu_link_content', 'link', 'block_content', 'file', 'user'];
+  public static $modules = ['system', 'config', 'dblog', 'menu_link_content', 'link', 'block_content', 'file', 'path_alias', 'user'];
 
   /**
    * Test data to write into config.
@@ -109,7 +112,7 @@ class DbDumpTest extends KernelTestBase {
     $account->save();
 
     // Create a path alias.
-    $this->container->get('path.alias_storage')->save('/user/' . $account->id(), '/user/example');
+    $this->createPathAlias('/user/' . $account->id(), '/user/example');
 
     // Create a cache table (this will create 'cache_discovery').
     \Drupal::cache('discovery')->set('test', $this->data);
@@ -160,21 +163,21 @@ class DbDumpTest extends KernelTestBase {
 
     // Tables that are schema-only should not have data exported.
     $pattern = preg_quote("\$connection->insert('sessions')");
-    $this->assertFalse(preg_match('/' . $pattern . '/', $command_tester->getDisplay()), 'Tables defined as schema-only do not have data exported to the script.');
+    $this->assertNotRegExp('/' . $pattern . '/', $command_tester->getDisplay(), 'Tables defined as schema-only do not have data exported to the script.');
 
     // Table data is exported.
     $pattern = preg_quote("\$connection->insert('config')");
-    $this->assertTrue(preg_match('/' . $pattern . '/', $command_tester->getDisplay()), 'Table data is properly exported to the script.');
+    $this->assertRegExp('/' . $pattern . '/', $command_tester->getDisplay(), 'Table data is properly exported to the script.');
 
     // The test data are in the dump (serialized).
     $pattern = preg_quote(serialize($this->data));
-    $this->assertTrue(preg_match('/' . $pattern . '/', $command_tester->getDisplay()), 'Generated data is found in the exported script.');
+    $this->assertRegExp('/' . $pattern . '/', $command_tester->getDisplay(), 'Generated data is found in the exported script.');
 
     // Check that the user account name and email address was properly escaped.
     $pattern = preg_quote('"q\'uote\$dollar@example.com"');
-    $this->assertTrue(preg_match('/' . $pattern . '/', $command_tester->getDisplay()), 'The user account email address was properly escaped in the exported script.');
+    $this->assertRegExp('/' . $pattern . '/', $command_tester->getDisplay(), 'The user account email address was properly escaped in the exported script.');
     $pattern = preg_quote('\'$dollar\'');
-    $this->assertTrue(preg_match('/' . $pattern . '/', $command_tester->getDisplay()), 'The user account name was properly escaped in the exported script.');
+    $this->assertRegExp('/' . $pattern . '/', $command_tester->getDisplay(), 'The user account name was properly escaped in the exported script.');
   }
 
   /**

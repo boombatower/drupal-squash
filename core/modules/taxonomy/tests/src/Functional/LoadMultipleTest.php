@@ -12,6 +12,11 @@ use Drupal\taxonomy\Entity\Term;
  */
 class LoadMultipleTest extends TaxonomyTestBase {
 
+  /**
+   * {@inheritdoc}
+   */
+  protected $defaultTheme = 'stark';
+
   protected function setUp() {
     parent::setUp();
     $this->drupalLogin($this->drupalCreateUser(['administer taxonomy']));
@@ -46,7 +51,7 @@ class LoadMultipleTest extends TaxonomyTestBase {
     $deleted = array_shift($terms2);
     $deleted->delete();
     $deleted_term = Term::load($deleted->id());
-    $this->assertFalse($deleted_term);
+    $this->assertNull($deleted_term);
 
     // Load terms from the vocabulary by vid.
     $terms3 = $term_storage->loadByProperties(['vid' => $vocabulary->id()]);

@@ -20,6 +20,11 @@ class BlockContentSaveTest extends BlockContentTestBase {
   public static $modules = ['block_content_test'];
 
   /**
+   * {@inheritdoc}
+   */
+  protected $defaultTheme = 'classy';
+
+  /**
    * Sets the test up.
    */
   protected function setUp() {
@@ -51,7 +56,7 @@ class BlockContentSaveTest extends BlockContentTestBase {
 
     // Test the import saved.
     $block_by_id = BlockContent::load($test_id);
-    $this->assertTrue($block_by_id, 'Custom block load by block ID.');
+    $this->assertNotEmpty($block_by_id, 'Custom block load by block ID.');
     $this->assertIdentical($block_by_id->body->value, $block_array['body']['value']);
   }
 

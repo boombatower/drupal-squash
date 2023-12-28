@@ -24,6 +24,11 @@ class FrontPageTest extends ViewTestBase {
   /**
    * {@inheritdoc}
    */
+  protected $defaultTheme = 'classy';
+
+  /**
+   * {@inheritdoc}
+   */
   protected $dumpHeaders = TRUE;
 
   /**
@@ -166,7 +171,7 @@ class FrontPageTest extends ViewTestBase {
     $found_nids = array_filter($view->result, function ($row) use ($not_expected_nids) {
       return in_array($row->nid, $not_expected_nids);
     });
-    $this->assertFalse($found_nids, $message);
+    $this->assertEmpty($found_nids, $message);
   }
 
   /**

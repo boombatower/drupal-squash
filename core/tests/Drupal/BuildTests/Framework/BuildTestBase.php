@@ -382,9 +382,11 @@ abstract class BuildTestBase extends TestCase {
       $this->stopServer();
     }
     // If there's not a server at this point, make one.
-    $this->serverProcess = $this->instantiateServer($this->getPortNumber(), $working_dir);
-    if ($this->serverProcess) {
-      $this->serverDocroot = $working_dir;
+    if (!$this->serverProcess || $this->serverProcess->isTerminated()) {
+      $this->serverProcess = $this->instantiateServer($this->getPortNumber(), $working_dir);
+      if ($this->serverProcess) {
+        $this->serverDocroot = $working_dir;
+      }
     }
   }
 
@@ -392,6 +394,10 @@ abstract class BuildTestBase extends TestCase {
    * Do the work of making a server process.
    *
    * Test authors should call visit() or assertVisit() instead.
+   *
+   * When initializing the server, if '.ht.router.php' exists in the root, it is
+   * leveraged. If testing with a version of Drupal before 8.5.x., this file
+   * does not exist.
    *
    * @param int $port
    *   The port number for the server.
@@ -415,6 +421,9 @@ abstract class BuildTestBase extends TestCase {
       '-t',
       $working_path,
     ];
+    if (file_exists($working_path . DIRECTORY_SEPARATOR . '.ht.router.php')) {
+      $server[] = $working_path . DIRECTORY_SEPARATOR . '.ht.router.php';
+    }
     $ps = new Process($server, $working_path);
     $ps->setIdleTimeout(30)
       ->setTimeout(30)
@@ -540,13 +549,12 @@ abstract class BuildTestBase extends TestCase {
     if ($iterator === NULL) {
       $finder = new Finder();
       $finder->files()
+        ->ignoreUnreadableDirs()
         ->in($this->getDrupalRoot())
-        ->exclude([
-          'sites/default/files',
-          'sites/simpletest',
-          'vendor',
-        ])
-        ->notPath('/sites\/default\/settings\..*php/')
+        ->notPath('#^sites/default/files#')
+        ->notPath('#^sites/simpletest#')
+        ->notPath('#^vendor#')
+        ->notPath('#^sites/default/settings\..*php#')
         ->ignoreDotFiles(FALSE)
         ->ignoreVCS(FALSE);
       $iterator = $finder->getIterator();

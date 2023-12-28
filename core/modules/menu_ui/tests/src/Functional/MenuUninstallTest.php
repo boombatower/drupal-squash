@@ -20,6 +20,11 @@ class MenuUninstallTest extends BrowserTestBase {
   public static $modules = ['menu_ui'];
 
   /**
+   * {@inheritdoc}
+   */
+  protected $defaultTheme = 'stark';
+
+  /**
    * Tests Menu uninstall.
    */
   public function testMenuUninstall() {
@@ -27,7 +32,7 @@ class MenuUninstallTest extends BrowserTestBase {
 
     \Drupal::entityTypeManager()->getStorage('menu')->resetCache(['admin']);
 
-    $this->assertTrue(Menu::load('admin'), 'The \'admin\' menu still exists after uninstalling Menu UI module.');
+    $this->assertNotEmpty(Menu::load('admin'), 'The \'admin\' menu still exists after uninstalling Menu UI module.');
   }
 
 }

@@ -23,6 +23,11 @@ class BlockContentListTest extends BlockContentTestBase {
   public static $modules = ['block', 'block_content', 'config_translation'];
 
   /**
+   * {@inheritdoc}
+   */
+  protected $defaultTheme = 'classy';
+
+  /**
    * Tests the custom block listing page.
    */
   public function testListing() {
@@ -34,7 +39,7 @@ class BlockContentListTest extends BlockContentTestBase {
 
     // Test for the table.
     $element = $this->xpath('//div[@class="layout-content"]//table');
-    $this->assertTrue($element, 'Configuration entity list table found.');
+    $this->assertNotEmpty($element, 'Configuration entity list table found.');
 
     // Test the table header.
     $elements = $this->xpath('//div[@class="layout-content"]//table/thead/tr/th');

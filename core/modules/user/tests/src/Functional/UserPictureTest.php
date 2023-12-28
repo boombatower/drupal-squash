@@ -31,6 +31,11 @@ class UserPictureTest extends BrowserTestBase {
   protected $profile = 'standard';
 
   /**
+   * {@inheritdoc}
+   */
+  protected $defaultTheme = 'classy';
+
+  /**
    * A regular user.
    *
    * @var \Drupal\user\UserInterface
@@ -86,7 +91,7 @@ class UserPictureTest extends BrowserTestBase {
     \Drupal::service('cron')->run();
 
     // Verify that the image has been deleted.
-    $this->assertFalse(File::load($file->id()), 'File was removed from the database.');
+    $this->assertNull(File::load($file->id()), 'File was removed from the database.');
     // Clear out PHP's file stat cache so we see the current value.
     clearstatcache(TRUE, $file->getFileUri());
     $this->assertFalse(is_file($file->getFileUri()), 'File was removed from the file system.');

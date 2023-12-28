@@ -24,6 +24,11 @@ class BlockContentCreationTest extends BlockContentTestBase {
   public static $modules = ['block_content_test', 'dblog', 'field_ui'];
 
   /**
+   * {@inheritdoc}
+   */
+  protected $defaultTheme = 'classy';
+
+  /**
    * Permissions to grant admin user.
    *
    * @var array
@@ -67,7 +72,7 @@ class BlockContentCreationTest extends BlockContentTestBase {
       ->getStorage('block_content')
       ->loadByProperties(['info' => $edit['info[0][value]']]);
     $block = reset($blocks);
-    $this->assertTrue($block, 'Custom Block found in database.');
+    $this->assertNotEmpty($block, 'Custom Block found in database.');
 
     // Check that attempting to create another block with the same value for
     // 'info' returns an error.
@@ -149,7 +154,7 @@ class BlockContentCreationTest extends BlockContentTestBase {
       ->getStorage('block_content')
       ->loadByProperties(['info' => $edit['info[0][value]']]);
     $block = reset($blocks);
-    $this->assertTrue($block, 'Custom Block found in database.');
+    $this->assertNotEmpty($block, 'Custom Block found in database.');
 
     // Check that attempting to create another block with the same value for
     // 'info' returns an error.
@@ -186,7 +191,7 @@ class BlockContentCreationTest extends BlockContentTestBase {
       ->getStorage('block_content')
       ->loadByProperties(['info' => $edit['info[0][value]']]);
     $block = reset($blocks);
-    $this->assertTrue($block, 'Default Custom Block found in database.');
+    $this->assertNotEmpty($block, 'Default Custom Block found in database.');
   }
 
   /**

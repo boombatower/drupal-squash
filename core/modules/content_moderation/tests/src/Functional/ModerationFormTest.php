@@ -27,6 +27,11 @@ class ModerationFormTest extends ModerationStateTestBase {
   /**
    * {@inheritdoc}
    */
+  protected $defaultTheme = 'stark';
+
+  /**
+   * {@inheritdoc}
+   */
   protected function setUp() {
     parent::setUp();
     $this->drupalLogin($this->adminUser);
@@ -296,10 +301,10 @@ class ModerationFormTest extends ModerationStateTestBase {
       'body[0][value]' => 'First version of the content.',
       'moderation_state[0][state]' => 'draft',
     ], t('Save'));
-    $this->assertTrue($this->xpath('//ul[@class="entity-moderation-form"]'));
+    $this->assertNotEmpty($this->xpath('//ul[@class="entity-moderation-form"]'));
 
     $node = $this->drupalGetNodeByTitle('Some moderated content');
-    $this->assertTrue($node->language(), 'en');
+    $this->assertNotEmpty($node->language(), 'en');
     $edit_path = sprintf('node/%d/edit', $node->id());
     $translate_path = sprintf('node/%d/translations/add/en/fr', $node->id());
     $latest_version_path = sprintf('node/%d/latest', $node->id());
@@ -307,7 +312,7 @@ class ModerationFormTest extends ModerationStateTestBase {
 
     $this->drupalGet($latest_version_path);
     $this->assertSession()->statusCodeEquals('403');
-    $this->assertFalse($this->xpath('//ul[@class="entity-moderation-form"]'));
+    $this->assertEmpty($this->xpath('//ul[@class="entity-moderation-form"]'));
 
     // Add french translation (revision 2).
     $this->drupalGet($translate_path);
@@ -321,7 +326,7 @@ class ModerationFormTest extends ModerationStateTestBase {
 
     $this->drupalGet($latest_version_path, ['language' => $french]);
     $this->assertSession()->statusCodeEquals('403');
-    $this->assertFalse($this->xpath('//ul[@class="entity-moderation-form"]'));
+    $this->assertEmpty($this->xpath('//ul[@class="entity-moderation-form"]'));
 
     // Add french pending revision (revision 3).
     $this->drupalGet($edit_path, ['language' => $french]);
@@ -344,14 +349,14 @@ class ModerationFormTest extends ModerationStateTestBase {
     ], t('Save (this translation)'));
 
     $this->drupalGet($latest_version_path, ['language' => $french]);
-    $this->assertTrue($this->xpath('//ul[@class="entity-moderation-form"]'));
+    $this->assertNotEmpty($this->xpath('//ul[@class="entity-moderation-form"]'));
 
     $this->drupalGet($edit_path);
     $this->clickLink('Delete');
     $this->assertSession()->buttonExists('Delete');
 
     $this->drupalGet($latest_version_path);
-    $this->assertFalse($this->xpath('//ul[@class="entity-moderation-form"]'));
+    $this->assertEmpty($this->xpath('//ul[@class="entity-moderation-form"]'));
 
     // Publish the french pending revision (revision 4).
     $this->drupalGet($edit_path, ['language' => $french]);
@@ -364,7 +369,7 @@ class ModerationFormTest extends ModerationStateTestBase {
     ], t('Save (this translation)'));
 
     $this->drupalGet($latest_version_path, ['language' => $french]);
-    $this->assertFalse($this->xpath('//ul[@class="entity-moderation-form"]'));
+    $this->assertEmpty($this->xpath('//ul[@class="entity-moderation-form"]'));
 
     // Publish the English pending revision (revision 5).
     $this->drupalGet($edit_path);
@@ -377,7 +382,7 @@ class ModerationFormTest extends ModerationStateTestBase {
     ], t('Save (this translation)'));
 
     $this->drupalGet($latest_version_path);
-    $this->assertFalse($this->xpath('//ul[@class="entity-moderation-form"]'));
+    $this->assertEmpty($this->xpath('//ul[@class="entity-moderation-form"]'));
 
     // Make sure we are allowed to create a pending French revision.
     $this->drupalGet($edit_path, ['language' => $french]);
@@ -396,9 +401,9 @@ class ModerationFormTest extends ModerationStateTestBase {
     ], t('Save (this translation)'));
 
     $this->drupalGet($latest_version_path);
-    $this->assertTrue($this->xpath('//ul[@class="entity-moderation-form"]'));
+    $this->assertNotEmpty($this->xpath('//ul[@class="entity-moderation-form"]'));
     $this->drupalGet($latest_version_path, ['language' => $french]);
-    $this->assertFalse($this->xpath('//ul[@class="entity-moderation-form"]'));
+    $this->assertEmpty($this->xpath('//ul[@class="entity-moderation-form"]'));
 
     // Publish the English pending revision (revision 7)
     $this->drupalGet($edit_path);
@@ -411,7 +416,7 @@ class ModerationFormTest extends ModerationStateTestBase {
     ], t('Save (this translation)'));
 
     $this->drupalGet($latest_version_path);
-    $this->assertFalse($this->xpath('//ul[@class="entity-moderation-form"]'));
+    $this->assertEmpty($this->xpath('//ul[@class="entity-moderation-form"]'));
 
     // Make sure we are allowed to create a pending French revision.
     $this->drupalGet($edit_path, ['language' => $french]);
@@ -432,7 +437,7 @@ class ModerationFormTest extends ModerationStateTestBase {
     ], t('Save'));
 
     $node = $this->drupalGetNodeByTitle('Third moderated content');
-    $this->assertTrue($node->language(), 'en');
+    $this->assertNotEmpty($node->language(), 'en');
     $edit_path = sprintf('node/%d/edit', $node->id());
     $translate_path = sprintf('node/%d/translations/add/en/fr', $node->id());
 

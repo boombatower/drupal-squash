@@ -22,6 +22,11 @@ class LocalTasksTest extends BrowserTestBase {
   public static $modules = ['block', 'menu_test', 'entity_test', 'node'];
 
   /**
+   * {@inheritdoc}
+   */
+  protected $defaultTheme = 'classy';
+
+  /**
    * The local tasks block under testing.
    *
    * @var \Drupal\block\Entity\Block
@@ -52,7 +57,7 @@ class LocalTasksTest extends BrowserTestBase {
     $elements = $this->xpath('//*[contains(@class, :class)]//a', [
       ':class' => $level == 0 ? 'tabs primary' : 'tabs secondary',
     ]);
-    $this->assertTrue(count($elements), 'Local tasks found.');
+    $this->assertGreaterThan(0, count($elements), 'Local tasks found.');
     foreach ($routes as $index => $route_info) {
       list($route_name, $route_parameters) = $route_info;
       $expected = Url::fromRoute($route_name, $route_parameters)->toString();
@@ -93,7 +98,7 @@ class LocalTasksTest extends BrowserTestBase {
     $elements = $this->xpath('//*[contains(@class, :class)]//a', [
       ':class' => $level == 0 ? 'tabs primary' : 'tabs secondary',
     ]);
-    $this->assertFalse(count($elements), 'Local tasks not found.');
+    $this->assertEmpty($elements, 'Local tasks not found.');
   }
 
   /**

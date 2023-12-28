@@ -60,6 +60,11 @@ class LanguageUILanguageNegotiationTest extends BrowserTestBase {
    */
   public static $modules = ['locale', 'language_test', 'block', 'user', 'content_translation'];
 
+  /**
+   * {@inheritdoc}
+   */
+  protected $defaultTheme = 'classy';
+
   protected function setUp() {
     parent::setUp();
 
@@ -562,7 +567,7 @@ class LanguageUILanguageNegotiationTest extends BrowserTestBase {
 
     // Check if the language switcher block has been created.
     $block = Block::load($block_id);
-    $this->assertTrue($block, 'Language switcher block was created.');
+    $this->assertNotEmpty($block, 'Language switcher block was created.');
 
     // Make sure language_content is not configurable.
     $edit = [
@@ -573,7 +578,7 @@ class LanguageUILanguageNegotiationTest extends BrowserTestBase {
 
     // Check if the language switcher block has been removed.
     $block = Block::load($block_id);
-    $this->assertFalse($block, 'Language switcher block was removed.');
+    $this->assertNull($block, 'Language switcher block was removed.');
   }
 
 }

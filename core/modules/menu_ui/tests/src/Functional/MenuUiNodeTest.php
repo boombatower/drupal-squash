@@ -28,6 +28,11 @@ class MenuUiNodeTest extends BrowserTestBase {
    */
   public static $modules = ['menu_ui', 'test_page_test', 'node', 'block', 'locale', 'language', 'content_translation'];
 
+  /**
+   * {@inheritdoc}
+   */
+  protected $defaultTheme = 'stark';
+
   protected function setUp() {
     parent::setUp();
 
@@ -217,7 +222,7 @@ class MenuUiNodeTest extends BrowserTestBase {
     // Assert that the link is still in the Administration menu after save.
     $this->drupalPostForm('node/' . $node->id() . '/edit', $edit, t('Save'));
     $link = MenuLinkContent::load($item->id());
-    $this->assertTrue($link, 'Link in not allowed menu still exists after saving node');
+    $this->assertInstanceOf(MenuLinkContent::class, $link, 'Link in not allowed menu still exists after saving node');
 
     // Move the menu link back to the Tools menu.
     $item->menu_name->value = 'tools';

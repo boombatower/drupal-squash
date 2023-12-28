@@ -30,7 +30,6 @@ class ViewStorageTest extends ViewsKernelTestBase {
     'tag',
     'base_table',
     'label',
-    'core',
     'display',
   ];
 
@@ -108,7 +107,7 @@ class ViewStorageTest extends ViewsKernelTestBase {
 
     // Make sure that loaded default views get a UUID.
     $view = Views::getView('test_view_storage');
-    $this->assertTrue($view->storage->uuid());
+    $this->assertNotEmpty($view->storage->uuid());
   }
 
   /**
@@ -334,7 +333,6 @@ class ViewStorageTest extends ViewsKernelTestBase {
       'tag',
       'base_table',
       'label',
-      'core',
     ];
 
     foreach ($config_properties as $property) {

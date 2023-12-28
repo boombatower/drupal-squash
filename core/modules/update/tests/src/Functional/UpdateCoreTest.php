@@ -23,6 +23,11 @@ class UpdateCoreTest extends UpdateTestBase {
    */
   public static $modules = ['update_test', 'update', 'language', 'block'];
 
+  /**
+   * {@inheritdoc}
+   */
+  protected $defaultTheme = 'stark';
+
   protected function setUp() {
     parent::setUp();
     $admin_user = $this->drupalCreateUser(['administer site configuration', 'administer modules', 'administer themes']);
@@ -383,6 +388,23 @@ class UpdateCoreTest extends UpdateTestBase {
     $this->cronRun();
     $this->drupalGet('admin/modules');
     $this->assertNoText(t('No update information available.'));
+  }
+
+  /**
+   * Checks that clearing the disk cache works.
+   */
+  public function testClearDiskCache() {
+    $directories = [
+      _update_manager_cache_directory(FALSE),
+      _update_manager_extract_directory(FALSE),
+    ];
+    // Check that update directories does not exists.
+    foreach ($directories as $directory) {
+      $this->assertDirectoryNotExists($directory);
+    }
+
+    // Method must not fail if update directories do not exists.
+    update_clear_update_disk_cache();
   }
 
   /**

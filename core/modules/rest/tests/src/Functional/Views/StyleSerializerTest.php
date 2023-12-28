@@ -39,6 +39,11 @@ class StyleSerializerTest extends ViewTestBase {
   public static $modules = ['views_ui', 'entity_test', 'hal', 'rest_test_views', 'node', 'text', 'field', 'language', 'basic_auth'];
 
   /**
+   * {@inheritdoc}
+   */
+  protected $defaultTheme = 'stark';
+
+  /**
    * Views used by this test.
    *
    * @var array
@@ -322,14 +327,14 @@ class StyleSerializerTest extends ViewTestBase {
     $this->assertHeader('content-type', 'application/json');
     $this->assertCacheContexts($cache_contexts);
     $this->assertCacheTags($cache_tags);
-    $this->assertTrue($render_cache->get($original));
+    $this->assertNotEmpty($render_cache->get($original));
 
     $result_xml = $this->drupalGet('test/serialize/entity', ['query' => ['_format' => 'xml']]);
     $this->addRequestWithFormat('xml');
     $this->assertHeader('content-type', 'text/xml; charset=UTF-8');
     $this->assertCacheContexts($cache_contexts);
     $this->assertCacheTags($cache_tags);
-    $this->assertTrue($render_cache->get($original));
+    $this->assertNotEmpty($render_cache->get($original));
 
     // Ensure that the XML output is different from the JSON one.
     $this->assertNotEqual($result1, $result_xml);
@@ -341,7 +346,7 @@ class StyleSerializerTest extends ViewTestBase {
     $this->assertEqual($result2, $result1);
     $this->assertCacheContexts($cache_contexts);
     $this->assertCacheTags($cache_tags);
-    $this->assertTrue($render_cache->get($original));
+    $this->assertNotEmpty($render_cache->get($original));
 
     // Create a new entity and ensure that the cache tags are taken over.
     EntityTest::create(['name' => 'test_11', 'user_id' => $this->adminUser->id()])->save();
@@ -357,7 +362,7 @@ class StyleSerializerTest extends ViewTestBase {
 
     $this->assertCacheContexts($cache_contexts);
     $this->assertCacheTags($cache_tags);
-    $this->assertTrue($render_cache->get($original));
+    $this->assertNotEmpty($render_cache->get($original));
   }
 
   /**

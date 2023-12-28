@@ -18,6 +18,7 @@ use Drupal\Core\State\State;
 use Drupal\KernelTests\KernelTestBase;
 use Drupal\language\Entity\ConfigurableLanguage;
 use Drupal\Tests\Core\Routing\RoutingFixtures;
+use Drupal\Tests\Traits\Core\PathAliasTestTrait;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\Routing\Exception\ResourceNotFoundException;
@@ -32,10 +33,12 @@ use Symfony\Component\Routing\RouteCollection;
  */
 class RouteProviderTest extends KernelTestBase {
 
+  use PathAliasTestTrait;
+
   /**
    * Modules to enable.
    */
-  public static $modules = ['url_alter_test', 'system', 'language'];
+  public static $modules = ['url_alter_test', 'system', 'language', 'path_alias'];
 
   /**
    * A collection of shared fixture data for tests.
@@ -97,8 +100,8 @@ class RouteProviderTest extends KernelTestBase {
     parent::register($container);
 
     // Read the incoming path alias for these tests.
-    if ($container->hasDefinition('path_processor_alias')) {
-      $definition = $container->getDefinition('path_processor_alias');
+    if ($container->hasDefinition('path_alias.path_processor')) {
+      $definition = $container->getDefinition('path_alias.path_processor');
       $definition->addTag('path_processor_inbound');
     }
   }
@@ -520,10 +523,10 @@ class RouteProviderTest extends KernelTestBase {
     $request = Request::create($path, 'GET');
 
     $routes = $provider->getRoutesByPattern($path);
-    $this->assertFalse(count($routes), 'No path found with this pattern.');
+    $this->assertEmpty($routes, 'No path found with this pattern.');
 
     $collection = $provider->getRouteCollectionForRequest($request);
-    $this->assertTrue(count($collection) == 0, 'Empty route collection found with this pattern.');
+    $this->assertEmpty($collection, 'Empty route collection found with this pattern.');
   }
 
   /**
@@ -572,9 +575,7 @@ class RouteProviderTest extends KernelTestBase {
     $this->assertEqual(2, count($cache->data['routes']));
 
     // A path with a path alias.
-    /** @var \Drupal\Core\Path\AliasStorageInterface $path_storage */
-    $path_storage = \Drupal::service('path.alias_storage');
-    $path_storage->save('/path/add/one', '/path/add-one');
+    $this->createPathAlias('/path/add/one', '/path/add-one');
     /** @var \Drupal\Core\Path\AliasManagerInterface $alias_manager */
     $alias_manager = \Drupal::service('path.alias_manager');
     $alias_manager->cacheClear();

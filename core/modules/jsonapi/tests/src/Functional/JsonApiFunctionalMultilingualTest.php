@@ -31,6 +31,11 @@ class JsonApiFunctionalMultilingualTest extends JsonApiFunctionalTestBase {
   /**
    * {@inheritdoc}
    */
+  protected $defaultTheme = 'stark';
+
+  /**
+   * {@inheritdoc}
+   */
   protected function setUp() {
     parent::setUp();
     $language = ConfigurableLanguage::createFromLangcode('ca');
@@ -314,7 +319,7 @@ class JsonApiFunctionalMultilingualTest extends JsonApiFunctionalTestBase {
 
     $response = $this->request('DELETE', Url::fromUri('base:/jsonapi/node/article/' . $this->nodes[0]->uuid()), []);
     $this->assertSame(204, $response->getStatusCode());
-    $this->assertFalse(Node::load($this->nodes[0]->id()));
+    $this->assertNull(Node::load($this->nodes[0]->id()));
   }
 
 }

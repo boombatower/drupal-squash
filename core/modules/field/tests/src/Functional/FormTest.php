@@ -28,6 +28,11 @@ class FormTest extends FieldTestBase {
   public static $modules = ['node', 'field_test', 'options', 'entity_test', 'locale'];
 
   /**
+   * {@inheritdoc}
+   */
+  protected $defaultTheme = 'stark';
+
+  /**
    * An array of values defining a field single.
    *
    * @var array
@@ -712,6 +717,10 @@ class FormTest extends FieldTestBase {
         'type' => $widget,
       ])
       ->save();
+
+    // We need to rebuild hook information after setting the component through
+    // the API.
+    $this->rebuildAll();
 
     $this->drupalGet('entity_test/add');
     $this->assertUniqueText("From $hook(): prefix on $field_name parent element.");

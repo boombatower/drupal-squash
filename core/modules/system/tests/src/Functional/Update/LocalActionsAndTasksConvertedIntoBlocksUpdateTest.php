@@ -18,6 +18,11 @@ class LocalActionsAndTasksConvertedIntoBlocksUpdateTest extends UpdatePathTestBa
   /**
    * {@inheritdoc}
    */
+  protected $defaultTheme = 'stark';
+
+  /**
+   * {@inheritdoc}
+   */
   public function setDatabaseDumpFiles() {
     $this->databaseDumpFiles = [
       __DIR__ . '/../../../../../system/tests/fixtures/update/drupal-8.bare.standard.php.gz',
@@ -75,7 +80,7 @@ class LocalActionsAndTasksConvertedIntoBlocksUpdateTest extends UpdatePathTestBa
     // Local actions are visible on the content listing page.
     $this->drupalGet('admin/content');
     $action_link = $this->cssSelect('.action-links');
-    $this->assertTrue($action_link);
+    $this->assertNotEmpty($action_link);
 
     $this->drupalGet('admin/structure/block/list/seven');
 

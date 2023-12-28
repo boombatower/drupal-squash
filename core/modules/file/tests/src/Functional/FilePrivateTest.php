@@ -22,6 +22,11 @@ class FilePrivateTest extends FileFieldTestBase {
    */
   public static $modules = ['node_access_test', 'field_test'];
 
+  /**
+   * {@inheritdoc}
+   */
+  protected $defaultTheme = 'stark';
+
   protected function setUp() {
     parent::setUp();
     node_access_test_add_field(NodeType::load('article'));
@@ -145,7 +150,7 @@ class FilePrivateTest extends FileFieldTestBase {
     $file = end($files);
     $this->assertTrue($file->isTemporary(), 'File is temporary.');
     $usage = $this->container->get('file.usage')->listUsage($file);
-    $this->assertFalse($usage, 'No file usage found.');
+    $this->assertEmpty($usage, 'No file usage found.');
     $file_url = file_create_url($file->getFileUri());
     $this->drupalGet($file_url);
     $this->assertResponse(200, 'Confirmed that the anonymous uploader has access to the temporary file.');
@@ -173,7 +178,7 @@ class FilePrivateTest extends FileFieldTestBase {
     $file = File::load($file_id);
     $this->assertTrue($file->isTemporary(), 'File is temporary.');
     $usage = $this->container->get('file.usage')->listUsage($file);
-    $this->assertFalse($usage, 'No file usage found.');
+    $this->assertEmpty($usage, 'No file usage found.');
     $file_url = file_create_url($file->getFileUri());
     $this->drupalGet($file_url);
     $this->assertResponse(200, 'Confirmed that the anonymous uploader has access to the file whose references were removed.');
@@ -194,7 +199,7 @@ class FilePrivateTest extends FileFieldTestBase {
     $file = File::load($new_node->{$field_name}->target_id);
     $this->assertTrue($file->isPermanent(), 'File is permanent.');
     $usage = $this->container->get('file.usage')->listUsage($file);
-    $this->assertTrue($usage, 'File usage found.');
+    $this->assertCount(1, $usage, 'File usage found.');
     $file_url = file_create_url($file->getFileUri());
     $this->drupalGet($file_url);
     $this->assertResponse(200, 'Confirmed that the anonymous uploader has access to the permanent file that is referenced by a published node.');
@@ -219,7 +224,7 @@ class FilePrivateTest extends FileFieldTestBase {
     $file = File::load($new_node->{$field_name}->target_id);
     $this->assertTrue($file->isPermanent(), 'File is permanent.');
     $usage = $this->container->get('file.usage')->listUsage($file);
-    $this->assertTrue($usage, 'File usage found.');
+    $this->assertCount(1, $usage, 'File usage found.');
     $file_url = file_create_url($file->getFileUri());
     $this->drupalGet($file_url);
     $this->assertResponse(403, 'Confirmed that the anonymous uploader cannot access the permanent file when it is referenced by an unpublished node.');

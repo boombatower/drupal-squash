@@ -16,6 +16,7 @@ use Drupal\Tests\contextual\FunctionalJavascript\ContextualLinkClickTrait;
 class LayoutBuilderTest extends WebDriverTestBase {
 
   use ContextualLinkClickTrait;
+  use LayoutBuilderSortTrait;
 
   /**
    * {@inheritdoc}
@@ -27,6 +28,11 @@ class LayoutBuilderTest extends WebDriverTestBase {
     'layout_test',
     'node',
   ];
+
+  /**
+   * {@inheritdoc}
+   */
+  protected $defaultTheme = 'classy';
 
   /**
    * The node to customize with Layout Builder.
@@ -162,12 +168,13 @@ class LayoutBuilderTest extends WebDriverTestBase {
     $assert_session->elementTextNotContains('css', '.layout__region--second', 'Powered by Drupal');
 
     // Drag the block to a region in different section.
-    $page->find('css', '.layout__region--content .block-system-powered-by-block')->dragTo($page->find('css', '.layout__region--second'));
+    $this->sortableTo('.block-system-powered-by-block', '.layout__region--content', '.layout__region--second');
     $assert_session->assertWaitOnAjaxRequest();
 
     // Ensure the drag succeeded.
     $assert_session->elementExists('css', '.layout__region--second .block-system-powered-by-block');
     $assert_session->elementTextContains('css', '.layout__region--second', 'Powered by Drupal');
+
     $this->assertPageNotReloaded();
 
     // Ensure the dragged block is still in the correct position after reload.
