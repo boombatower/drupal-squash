@@ -617,7 +617,7 @@ function file_unmanaged_copy($source, $destination = NULL, $replace = FILE_EXIST
     // If the copy failed and realpaths exist, retry the operation using them
     // instead.
     if ($real_source === FALSE || $real_destination === FALSE || !@copy($real_source, $real_destination)) {
-      $logger->error('file', 'The specified file %file could not be copied to %destination.', array('%file' => $source, '%destination' => $destination));
+      $logger->error('The specified file %file could not be copied to %destination.', array('%file' => $source, '%destination' => $destination));
       return FALSE;
     }
   }
@@ -1151,32 +1151,6 @@ function file_upload_max_size() {
 }
 
 /**
- * Determines an Internet Media Type or MIME type from a filename.
- *
- * @param $uri
- *   A string containing the URI, path, or filename.
- * @param $mapping
- *   An optional map of extensions to their mimetypes, in the form:
- *    - 'mimetypes': a list of mimetypes, keyed by an identifier,
- *    - 'extensions': the mapping itself, an associative array in which the key
- *      is the extension (lowercase) and the value is the mimetype identifier.
- *
- * @return
- *   The internet media type registered for the extension or
- *   application/octet-stream for unknown extensions.
- *
- * @deprecated in Drupal 8.x-dev, will be removed before Drupal 8.0. Calls are
- *   passed on to a new file.mime_type.guesser service, and the $mapping
- *   parameter is ignored. Use
- *   \Drupal::service('file.mime_type.guesser')->guess($uri).
- *
- * @see \Drupal\Core\File\MimeType\ExtensionMimeTypeGuesser::guess()
- */
-function file_get_mimetype($uri, $mapping = NULL) {
-  return \Drupal::service('file.mime_type.guesser')->guess($uri);
-}
-
-/**
  * Sets the permissions on a file or directory.
  *
  * This function will use the file_chmod_directory and
@@ -1520,9 +1494,10 @@ function drupal_tempnam($directory, $prefix) {
  *   A string containing the path to the temporary directory.
  */
 function file_directory_temp() {
-  $config = \Drupal::config('system.file');
-  $temporary_directory = $config->get('path.temporary');
+  $temporary_directory = \Drupal::config('system.file')->get('path.temporary');
   if (empty($temporary_directory)) {
+    // Needs set up.
+    $config = \Drupal::configFactory()->getEditable('system.file');
     $temporary_directory = file_directory_os_temp();
 
     if (empty($temporary_directory)) {

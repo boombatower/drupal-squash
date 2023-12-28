@@ -7,10 +7,12 @@
 
 namespace Drupal\system\Form;
 
+use Drupal\Core\Extension\ThemeHandlerInterface;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Render\Element;
 use Drupal\Core\StreamWrapper\PublicStream;
 use Symfony\Component\DependencyInjection\ContainerInterface;
+use Symfony\Component\HttpFoundation\File\MimeType\MimeTypeGuesserInterface;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Drupal\Core\Cache\Cache;
 use Drupal\Core\Config\ConfigFactoryInterface;
@@ -30,17 +32,44 @@ class ThemeSettingsForm extends ConfigFormBase {
   protected $moduleHandler;
 
   /**
+   * The theme handler.
+   *
+   * @var \Drupal\Core\Extension\ThemeHandlerInterface
+   */
+  protected $themeHandler;
+
+  /**
+   * An array of configuration names that should be editable.
+   *
+   * @var array
+   */
+  protected $editableConfig = [];
+
+  /**
+   * The mime type guesser.
+   *
+   * @var \Symfony\Component\HttpFoundation\File\MimeType\MimeTypeGuesserInterface
+   */
+  protected $mimeTypeGuesser;
+
+  /**
    * Constructs a ThemeSettingsForm object.
    *
    * @param \Drupal\Core\Config\ConfigFactoryInterface $config_factory
    *   The factory for configuration objects.
    * @param \Drupal\Core\Extension\ModuleHandlerInterface
    *   The module handler instance to use.
+   * @param \Drupal\Core\Extension\ThemeHandlerInterface $theme_handler
+   * The theme handler.
+   * @param \Symfony\Component\HttpFoundation\File\MimeType\MimeTypeGuesserInterface $mime_type_guesser
+   *   The mime type guesser.
    */
-  public function __construct(ConfigFactoryInterface $config_factory, ModuleHandlerInterface $module_handler) {
+  public function __construct(ConfigFactoryInterface $config_factory, ModuleHandlerInterface $module_handler, ThemeHandlerInterface $theme_handler, MimeTypeGuesserInterface $mime_type_guesser) {
     parent::__construct($config_factory);
 
     $this->moduleHandler = $module_handler;
+    $this->themeHandler = $theme_handler;
+    $this->mimeTypeGuesser = $mime_type_guesser;
   }
 
   /**
@@ -49,7 +78,9 @@ class ThemeSettingsForm extends ConfigFormBase {
   public static function create(ContainerInterface $container) {
     return new static(
       $container->get('config.factory'),
-      $container->get('module_handler')
+      $container->get('module_handler'),
+      $container->get('theme_handler'),
+      $container->get('file.mime_type.guesser')
     );
   }
 
@@ -62,6 +93,13 @@ class ThemeSettingsForm extends ConfigFormBase {
 
   /**
    * {@inheritdoc}
+   */
+  protected function getEditableConfigNames() {
+    return $this->editableConfig;
+  }
+
+  /**
+   * {@inheritdoc}
    *
    * @param string $theme
    *   The theme name.
@@ -69,7 +107,7 @@ class ThemeSettingsForm extends ConfigFormBase {
   public function buildForm(array $form, FormStateInterface $form_state, $theme = '') {
     $form = parent::buildForm($form, $form_state);
 
-    $themes = list_themes();
+    $themes = $this->themeHandler->listInfo();
 
     // Deny access if the theme is not installed or not found.
     if (!empty($theme) && (empty($themes[$theme]) || !$themes[$theme]->status)) {
@@ -80,13 +118,17 @@ class ThemeSettingsForm extends ConfigFormBase {
     if ($theme) {
       $var = 'theme_' . $theme . '_settings';
       $config_key = $theme . '.settings';
-      $themes = list_themes();
+      $themes = $this->themeHandler->listInfo();
       $features = $themes[$theme]->info['features'];
     }
     else {
       $var = 'theme_settings';
       $config_key = 'system.theme.global';
     }
+    // @todo this is pretty meaningless since we're using theme_get_settings
+    //   which means overrides can bleed into active config here. Will be fixed
+    //   by https://www.drupal.org/node/2402467.
+    $this->editableConfig = [$config_key];
 
     $form['var'] = array(
       '#type' => 'hidden',
@@ -224,7 +266,7 @@ class ThemeSettingsForm extends ConfigFormBase {
 
     // Inject human-friendly values and form element descriptions for logo and
     // favicon.
-    foreach (array('logo' => 'logo.png', 'favicon' => 'favicon.ico') as $type => $default) {
+    foreach (array('logo' => 'logo.svg', 'favicon' => 'favicon.ico') as $type => $default) {
       if (isset($form[$type]['settings'][$type . '_path'])) {
         $element = &$form[$type]['settings'][$type . '_path'];
 
@@ -377,7 +419,9 @@ class ThemeSettingsForm extends ConfigFormBase {
   public function submitForm(array &$form, FormStateInterface $form_state) {
     parent::submitForm($form, $form_state);
 
-    $config = $this->config($form_state->getValue('config_key'));
+    $config_key = $form_state->getValue('config_key');
+    $this->editableConfig = [$config_key];
+    $config = $this->config($config_key);
 
     // Exclude unnecessary elements before saving.
     $form_state->cleanValues();
@@ -414,20 +458,11 @@ class ThemeSettingsForm extends ConfigFormBase {
       }
 
       if (empty($values['default_favicon']) && !empty($values['favicon_path'])) {
-        $values['favicon_mimetype'] = file_get_mimetype($values['favicon_path']);
+        $values['favicon_mimetype'] = $this->mimeTypeGuesser->guess($values['favicon_path']);
       }
     }
 
     theme_settings_convert_to_config($values, $config)->save();
-
-    // Invalidate either the theme-specific cache tag or the global theme
-    // settings cache tag, depending on whose settings were actually changed.
-    if (isset($values['theme'])) {
-      Cache::invalidateTags(array('theme:' . $values['theme']));
-    }
-    else {
-      Cache::invalidateTags(array('theme_global_settings'));
-    }
   }
 
   /**
