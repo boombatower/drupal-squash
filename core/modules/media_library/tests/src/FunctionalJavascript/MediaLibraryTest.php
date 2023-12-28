@@ -185,6 +185,29 @@ class MediaLibraryTest extends WebDriverTestBase {
     $this->drupalGet('media-library', $url_options);
     $assert_session->elementExists('css', '.view-media-library');
     $assert_session->fieldExists('Add files');
+
+    // Assert the media library can not be accessed if the required state
+    // parameters are changed without changing the hash.
+    $this->drupalGet('media-library', [
+      'query' => array_merge($url_options['query'], ['media_library_opener_id' => 'fail']),
+    ]);
+    $assert_session->responseContains('Access denied');
+    $this->drupalGet('media-library', [
+      'query' => array_merge($url_options['query'], ['media_library_allowed_types' => ['type_one', 'type_two']]),
+    ]);
+    $assert_session->responseContains('Access denied');
+    $this->drupalGet('media-library', [
+      'query' => array_merge($url_options['query'], ['media_library_selected_type' => 'type_one']),
+    ]);
+    $assert_session->responseContains('Access denied');
+    $this->drupalGet('media-library', [
+      'query' => array_merge($url_options['query'], ['media_library_remaining' => 3]),
+    ]);
+    $assert_session->responseContains('Access denied');
+    $this->drupalGet('media-library', [
+      'query' => array_merge($url_options['query'], ['hash' => 'fail']),
+    ]);
+    $assert_session->responseContains('Access denied');
   }
 
   /**
@@ -769,7 +792,7 @@ class MediaLibraryTest extends WebDriverTestBase {
     $assert_session->pageTextContains('Add or select media');
     $page->clickLink('Type Three');
     $assert_session->assertWaitOnAjaxRequest();
-    $png_uri_2 = $file_system->copy($png_image->uri);
+    $png_uri_2 = $file_system->copy($png_image->uri, 'public://');
     $page->attachFileToField('Add files', $this->container->get('file_system')->realpath($png_uri_2));
     $assert_session->assertWaitOnAjaxRequest();
     $page->fillField('Alternative text', $this->randomString());
@@ -793,7 +816,7 @@ class MediaLibraryTest extends WebDriverTestBase {
     $checkbox->click();
     $assert_session->pageTextContains('1 item selected');
     $assert_session->hiddenFieldValueEquals('current_selection', $selected_item_id);
-    $png_uri_3 = $file_system->copy($png_image->uri);
+    $png_uri_3 = $file_system->copy($png_image->uri, 'public://');
     $page->attachFileToField('Add files', $this->container->get('file_system')->realpath($png_uri_3));
     $assert_session->assertWaitOnAjaxRequest();
     $assert_session->checkboxChecked("Select $existing_media_name");
@@ -843,18 +866,18 @@ class MediaLibraryTest extends WebDriverTestBase {
 
     // Assert media type four should only allow jpg files by trying a png file
     // first.
-    $png_uri_4 = $file_system->copy($png_image->uri);
+    $png_uri_4 = $file_system->copy($png_image->uri, 'public://');
     $page->attachFileToField('Add file', $file_system->realpath($png_uri_4));
     $assert_session->assertWaitOnAjaxRequest();
     $assert_session->pageTextContains('Only files with the following extensions are allowed');
     // Assert that jpg files are accepted by type four.
-    $jpg_uri_2 = $file_system->copy($jpg_image->uri);
+    $jpg_uri_2 = $file_system->copy($jpg_image->uri, 'public://');
     $page->attachFileToField('Add file', $file_system->realpath($jpg_uri_2));
     $assert_session->assertWaitOnAjaxRequest();
     $page->fillField('Alternative text', $this->randomString());
     // The type_four media type has another optional image field.
     $assert_session->pageTextContains('Extra Image');
-    $jpg_uri_3 = $file_system->copy($jpg_image->uri);
+    $jpg_uri_3 = $file_system->copy($jpg_image->uri, 'public://');
     $page->attachFileToField('Extra Image', $this->container->get('file_system')->realpath($jpg_uri_3));
     $assert_session->assertWaitOnAjaxRequest();
     // Ensure that the extra image was uploaded to the correct directory.
@@ -885,7 +908,7 @@ class MediaLibraryTest extends WebDriverTestBase {
     $checkbox->click();
     $assert_session->hiddenFieldValueEquals('current_selection', $selected_item_id);
     $this->assertTrue($assert_session->fieldExists('Add files')->hasAttribute('multiple'));
-    $png_uri_5 = $file_system->copy($png_image->uri);
+    $png_uri_5 = $file_system->copy($png_image->uri, 'public://');
     $page->attachFileToField('Add files', $this->container->get('file_system')->realpath($png_uri_5));
     $assert_session->assertWaitOnAjaxRequest();
     // Assert the pre-selected items are shown.
@@ -951,7 +974,7 @@ class MediaLibraryTest extends WebDriverTestBase {
     $filenames = [];
     $remote_paths = [];
     foreach (range(1, 3) as $i) {
-      $path = $file_system->copy($png_image->uri);
+      $path = $file_system->copy($png_image->uri, 'public://');
       $filenames[] = $file_system->basename($path);
       $remote_paths[] = $driver->uploadFileAndGetRemoteFilePath($file_system->realpath($path));
     }

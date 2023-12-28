@@ -93,4 +93,124 @@
       }).attr('tabindex', -1);
     }
   };
+
+  $(window).on('dialog:aftercreate', function (event, dialog, $element) {
+    if (Drupal.offCanvas.isOffCanvas($element)) {
+      $('.is-layout-builder-highlighted').removeClass('is-layout-builder-highlighted');
+
+      var id = $element.find('[data-layout-builder-target-highlight-id]').attr('data-layout-builder-target-highlight-id');
+      if (id) {
+        $('[data-layout-builder-highlight-id="' + id + '"]').addClass('is-layout-builder-highlighted');
+      }
+
+      $('#layout-builder').removeClass('layout-builder--move-blocks-active');
+
+      var layoutBuilderWrapperValue = $element.find('[data-add-layout-builder-wrapper]').attr('data-add-layout-builder-wrapper');
+      if (layoutBuilderWrapperValue) {
+        $('#layout-builder').addClass(layoutBuilderWrapperValue);
+      }
+    }
+  });
+
+  if (document.querySelector('[data-off-canvas-main-canvas]')) {
+    var mainCanvas = document.querySelector('[data-off-canvas-main-canvas]');
+
+    mainCanvas.addEventListener('transitionend', function () {
+      var $target = $('.is-layout-builder-highlighted');
+
+      if ($target.length > 0) {
+        var targetTop = $target.offset().top;
+        var targetBottom = targetTop + $target.outerHeight();
+        var viewportTop = $(window).scrollTop();
+        var viewportBottom = viewportTop + $(window).height();
+
+        if (targetBottom < viewportTop || targetTop > viewportBottom) {
+          var viewportMiddle = (viewportBottom + viewportTop) / 2;
+          var scrollAmount = targetTop - viewportMiddle;
+
+          if ('scrollBehavior' in document.documentElement.style) {
+            window.scrollBy({
+              top: scrollAmount,
+              left: 0,
+              behavior: 'smooth'
+            });
+          } else {
+            window.scrollBy(0, scrollAmount);
+          }
+        }
+      }
+    });
+  }
+
+  $(window).on('dialog:afterclose', function (event, dialog, $element) {
+    if (Drupal.offCanvas.isOffCanvas($element)) {
+      $('.is-layout-builder-highlighted').removeClass('is-layout-builder-highlighted');
+
+      $('#layout-builder').removeClass('layout-builder--move-blocks-active');
+    }
+  });
+
+  behaviors.layoutBuilderToggleContentPreview = {
+    attach: function attach(context) {
+      var $layoutBuilder = $('#layout-builder');
+
+      var $layoutBuilderContentPreview = $('#layout-builder-content-preview');
+
+      var contentPreviewId = $layoutBuilderContentPreview.data('content-preview-id');
+
+      var isContentPreview = JSON.parse(localStorage.getItem(contentPreviewId)) !== false;
+
+      var disableContentPreview = function disableContentPreview() {
+        $layoutBuilder.addClass('layout-builder--content-preview-disabled');
+
+        $('[data-layout-content-preview-placeholder-label]', context).each(function (i, element) {
+          var $element = $(element);
+
+          $element.children(':not([data-contextual-id])').hide(0);
+
+          var contentPreviewPlaceholderText = $element.attr('data-layout-content-preview-placeholder-label');
+
+          var contentPreviewPlaceholderLabel = Drupal.theme('layoutBuilderPrependContentPreviewPlaceholderLabel', contentPreviewPlaceholderText);
+          $element.prepend(contentPreviewPlaceholderLabel);
+        });
+      };
+
+      var enableContentPreview = function enableContentPreview() {
+        $layoutBuilder.removeClass('layout-builder--content-preview-disabled');
+
+        $('.js-layout-builder-content-preview-placeholder-label').remove();
+
+        $('[data-layout-content-preview-placeholder-label]').each(function (i, element) {
+          $(element).children().show();
+        });
+      };
+
+      $('#layout-builder-content-preview', context).on('change', function (event) {
+        var isChecked = $(event.currentTarget).is(':checked');
+
+        localStorage.setItem(contentPreviewId, JSON.stringify(isChecked));
+
+        if (isChecked) {
+          enableContentPreview();
+          announce(Drupal.t('Block previews are visible. Block labels are hidden.'));
+        } else {
+          disableContentPreview();
+          announce(Drupal.t('Block previews are hidden. Block labels are visible.'));
+        }
+      });
+
+      if (!isContentPreview) {
+        $layoutBuilderContentPreview.attr('checked', false);
+        disableContentPreview();
+      }
+    }
+  };
+
+  Drupal.theme.layoutBuilderPrependContentPreviewPlaceholderLabel = function (contentPreviewPlaceholderText) {
+    var contentPreviewPlaceholderLabel = document.createElement('div');
+    contentPreviewPlaceholderLabel.className = 'layout-builder-block__content-preview-placeholder-label js-layout-builder-content-preview-placeholder-label';
+    contentPreviewPlaceholderLabel.innerHTML = contentPreviewPlaceholderText;
+
+    return '<div class="layout-builder-block__content-preview-placeholder-label js-layout-builder-content-preview-placeholder-label">' + contentPreviewPlaceholderText + '</div>';
+  };
 })(jQuery, Drupal);
