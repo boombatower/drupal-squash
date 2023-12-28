@@ -116,7 +116,7 @@ const assetsFolder = `${coreFolder}/assets/vendor`;
     },
     {
       pack: 'jquery-form',
-      library: 'jquery.form',
+      library: 'internal.jquery.form',
       files: [
         { from: 'dist/jquery.form.min.js', to: 'jquery.form.min.js' },
         { from: 'dist/jquery.form.min.js.map', to: 'jquery.form.min.js.map' },
@@ -215,11 +215,9 @@ const assetsFolder = `${coreFolder}/assets/vendor`;
         'ui/keycode.js',
         'ui/labels.js',
         'ui/plugin.js',
-        'ui/position.js',
         'ui/safe-active-element.js',
         'ui/safe-blur.js',
         'ui/scroll-parent.js',
-        'ui/tabbable.js',
         'ui/unique-id.js',
         'ui/version.js',
         'ui/widget.js',

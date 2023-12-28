@@ -660,20 +660,6 @@ abstract class KernelTestBase extends TestCase implements ServiceProviderInterfa
     $this->vfsRoot = NULL;
     $this->configImporter = NULL;
 
-    // Free up memory: Custom test class properties.
-    // Note: Private properties cannot be cleaned up.
-    $rc = new \ReflectionClass(__CLASS__);
-    $blacklist = [];
-    foreach ($rc->getProperties() as $property) {
-      $blacklist[$property->name] = $property->getDeclaringClass()->name;
-    }
-    $rc = new \ReflectionClass($this);
-    foreach ($rc->getProperties(\ReflectionProperty::IS_PUBLIC | \ReflectionProperty::IS_PROTECTED) as $property) {
-      if (!$property->isStatic() && !isset($blacklist[$property->name])) {
-        $this->{$property->name} = NULL;
-      }
-    }
-
     // Clean FileCache cache.
     FileCache::reset();
 
@@ -747,13 +733,6 @@ abstract class KernelTestBase extends TestCase implements ServiceProviderInterfa
     $schema = $this->container->get('database')->schema();
     $tables = (array) $tables;
     foreach ($tables as $table) {
-      // The tables key_value and key_value_expire are lazy loaded and therefore
-      // no longer have to be created with the installSchema() method.
-      // @see https://www.drupal.org/node/3143286
-      if ($module === 'system' && in_array($table, ['key_value', 'key_value_expire'])) {
-        @trigger_error('Installing the tables key_value and key_value_expire with the method KernelTestBase::installSchema() is deprecated in drupal:9.1.0 and is removed from drupal:10.0.0. The tables are now lazy loaded and therefore will be installed automatically when used. See https://www.drupal.org/node/3143286', E_USER_DEPRECATED);
-        continue;
-      }
       if (empty($specification[$table])) {
         throw new \LogicException("$module module does not define a schema for table '$table'.");
       }

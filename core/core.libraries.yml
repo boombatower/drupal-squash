@@ -29,10 +29,10 @@ ckeditor:
 
 ckeditor5:
   remote: https://github.com/ckeditor/ckeditor5
-  version: "34.0.0"
+  version: "34.1.0"
   license:
     name: GNU-GPL-2.0-or-later
-    url: https://github.com/ckeditor/ckeditor5/blob/v34.0.0/LICENSE.md
+    url: https://github.com/ckeditor/ckeditor5/blob/v34.1.0/LICENSE.md
     gpl-compatible: true
   js:
     # This file is not aggregated to force the creation of a new aggregate file
@@ -46,10 +46,10 @@ ckeditor5:
 
 ckeditor5.editorClassic:
   remote: https://github.com/ckeditor/ckeditor5
-  version: "34.0.0"
+  version: "34.1.0"
   license:
     name: GNU-GPL-2.0-or-later
-    url: https://github.com/ckeditor/ckeditor5/blob/v34.0.0/LICENSE.md
+    url: https://github.com/ckeditor/ckeditor5/blob/v34.1.0/LICENSE.md
     gpl-compatible: true
   js:
     assets/vendor/ckeditor5/editor-classic/editor-classic.js: { minified: true }
@@ -58,10 +58,10 @@ ckeditor5.editorClassic:
 
 ckeditor5.editorDecoupled:
   remote: https://github.com/ckeditor/ckeditor5
-  version: "34.0.0"
+  version: "34.1.0"
   license:
     name: GNU-GPL-2.0-or-later
-    url: https://github.com/ckeditor/ckeditor5/blob/v34.0.0/LICENSE.md
+    url: https://github.com/ckeditor/ckeditor5/blob/v34.1.0/LICENSE.md
     gpl-compatible: true
   js:
     assets/vendor/ckeditor5/editor-decoupled/editor-decoupled.js: { minified: true }
@@ -71,10 +71,10 @@ ckeditor5.editorDecoupled:
 
 ckeditor5.internal:
   remote: https://github.com/ckeditor/ckeditor5
-  version: "34.0.0"
+  version: "34.1.0"
   license:
     name: GNU-GPL-2.0-or-later
-    url: https://github.com/ckeditor/ckeditor5/blob/v34.0.0/LICENSE.md
+    url: https://github.com/ckeditor/ckeditor5/blob/v34.1.0/LICENSE.md
     gpl-compatible: true
   js:
     assets/vendor/ckeditor5/essentials/essentials.js: { minified: true }
@@ -84,10 +84,10 @@ ckeditor5.internal:
 
 ckeditor5.heading:
   remote: https://github.com/ckeditor/ckeditor5
-  version: "34.0.0"
+  version: "34.1.0"
   license:
     name: GNU-GPL-2.0-or-later
-    url: https://github.com/ckeditor/ckeditor5/blob/v34.0.0/LICENSE.md
+    url: https://github.com/ckeditor/ckeditor5/blob/v34.1.0/LICENSE.md
     gpl-compatible: true
   js:
     assets/vendor/ckeditor5/heading/heading.js: { minified: true }
@@ -97,10 +97,10 @@ ckeditor5.heading:
 
 ckeditor5.basic:
   remote: https://github.com/ckeditor/ckeditor5
-  version: "34.0.0"
+  version: "34.1.0"
   license:
     name: GNU-GPL-2.0-or-later
-    url: https://github.com/ckeditor/ckeditor5/blob/v34.0.0/LICENSE.md
+    url: https://github.com/ckeditor/ckeditor5/blob/v34.1.0/LICENSE.md
     gpl-compatible: true
   js:
     assets/vendor/ckeditor5/basic-styles/basic-styles.js: { minified: true }
@@ -110,10 +110,10 @@ ckeditor5.basic:
 
 ckeditor5.specialCharacters:
   remote: https://github.com/ckeditor/ckeditor5
-  version: "34.0.0"
+  version: "34.1.0"
   license:
     name: GNU-GPL-2.0-or-later
-    url: https://github.com/ckeditor/ckeditor5/blob/v34.0.0/LICENSE.md
+    url: https://github.com/ckeditor/ckeditor5/blob/v34.1.0/LICENSE.md
     gpl-compatible: true
   js:
     assets/vendor/ckeditor5/special-characters/special-characters.js: { minified: true }
@@ -123,10 +123,10 @@ ckeditor5.specialCharacters:
 
 ckeditor5.blockquote:
   remote: https://github.com/ckeditor/ckeditor5
-  version: "34.0.0"
+  version: "34.1.0"
   license:
     name: GNU-GPL-2.0-or-later
-    url: https://github.com/ckeditor/ckeditor5/blob/v34.0.0/LICENSE.md
+    url: https://github.com/ckeditor/ckeditor5/blob/v34.1.0/LICENSE.md
     gpl-compatible: true
   js:
     assets/vendor/ckeditor5/block-quote/block-quote.js: { minified: true }
@@ -136,10 +136,10 @@ ckeditor5.blockquote:
 
 ckeditor5.image:
   remote: https://github.com/ckeditor/ckeditor5
-  version: "34.0.0"
+  version: "34.1.0"
   license:
     name: GNU-GPL-2.0-or-later
-    url: https://github.com/ckeditor/ckeditor5/blob/v34.0.0/LICENSE.md
+    url: https://github.com/ckeditor/ckeditor5/blob/v34.1.0/LICENSE.md
     gpl-compatible: true
   js:
     assets/vendor/ckeditor5/image/image.js: { minified: true }
@@ -149,10 +149,10 @@ ckeditor5.image:
 
 ckeditor5.link:
   remote: https://github.com/ckeditor/ckeditor5
-  version: "34.0.0"
+  version: "34.1.0"
   license:
     name: GNU-GPL-2.0-or-later
-    url: https://github.com/ckeditor/ckeditor5/blob/v34.0.0/LICENSE.md
+    url: https://github.com/ckeditor/ckeditor5/blob/v34.1.0/LICENSE.md
     gpl-compatible: true
   js:
     assets/vendor/ckeditor5/link/link.js: { minified: true }
@@ -162,11 +162,10 @@ ckeditor5.link:
 
 ckeditor5.list:
   remote: https://github.com/ckeditor/ckeditor5
-  version: "34.0.1"
+  version: "34.1.0"
   license:
     name: GNU-GPL-2.0-or-later
-    # @todo A 34.0.1 link does not exist; https://www.drupal.org/project/drupal/issues/3277438 will make this in sync again.
-    url: https://github.com/ckeditor/ckeditor5/blob/v34.0.0/LICENSE.md
+    url: https://github.com/ckeditor/ckeditor5/blob/v34.1.0/LICENSE.md
     gpl-compatible: true
   js:
     assets/vendor/ckeditor5/list/list.js: { minified: true }
@@ -176,10 +175,10 @@ ckeditor5.list:
 
 ckeditor5.horizontalLine:
   remote: https://github.com/ckeditor/ckeditor5
-  version: "34.0.0"
+  version: "34.1.0"
   license:
     name: GNU-GPL-2.0-or-later
-    url: https://github.com/ckeditor/ckeditor5/blob/v34.0.0/LICENSE.md
+    url: https://github.com/ckeditor/ckeditor5/blob/v34.1.0/LICENSE.md
     gpl-compatible: true
   js:
     assets/vendor/ckeditor5/horizontal-line/horizontal-line.js: { minified: true }
@@ -189,10 +188,10 @@ ckeditor5.horizontalLine:
 
 ckeditor5.htmlSupport:
   remote: https://github.com/ckeditor/ckeditor5
-  version: "34.0.0"
+  version: "34.1.0"
   license:
     name: GNU-GPL-2.0-or-later
-    url: https://github.com/ckeditor/ckeditor5/blob/v34.0.0/LICENSE.md
+    url: https://github.com/ckeditor/ckeditor5/blob/v34.1.0/LICENSE.md
     gpl-compatible: true
   js:
     assets/vendor/ckeditor5/html-support/html-support.js: { minified: true }
@@ -202,10 +201,10 @@ ckeditor5.htmlSupport:
 
 ckeditor5.alignment:
   remote: https://github.com/ckeditor/ckeditor5
-  version: "34.0.0"
+  version: "34.1.0"
   license:
     name: GNU-GPL-2.0-or-later
-    url: https://github.com/ckeditor/ckeditor5/blob/v34.0.0/LICENSE.md
+    url: https://github.com/ckeditor/ckeditor5/blob/v34.1.0/LICENSE.md
     gpl-compatible: true
   js:
     assets/vendor/ckeditor5/alignment/alignment.js: { minified: true }
@@ -215,10 +214,10 @@ ckeditor5.alignment:
 
 ckeditor5.removeFormat:
   remote: https://github.com/ckeditor/ckeditor5
-  version: "34.0.0"
+  version: "34.1.0"
   license:
     name: GNU-GPL-2.0-or-later
-    url: https://github.com/ckeditor/ckeditor5/blob/v34.0.0/LICENSE.md
+    url: https://github.com/ckeditor/ckeditor5/blob/v34.1.0/LICENSE.md
     gpl-compatible: true
   js:
     assets/vendor/ckeditor5/remove-format/remove-format.js: { minified: true }
@@ -228,10 +227,10 @@ ckeditor5.removeFormat:
 
 ckeditor5.pasteFromOffice:
   remote: https://github.com/ckeditor/ckeditor5
-  version: "34.0.0"
+  version: "34.1.0"
   license:
     name: GNU-GPL-2.0-or-later
-    url: https://github.com/ckeditor/ckeditor5/blob/v34.0.0/LICENSE.md
+    url: https://github.com/ckeditor/ckeditor5/blob/v34.1.0/LICENSE.md
     gpl-compatible: true
   js:
     assets/vendor/ckeditor5/paste-from-office/paste-from-office.js: { minified: true }
@@ -240,10 +239,10 @@ ckeditor5.pasteFromOffice:
 
 ckeditor5.indent:
   remote: https://github.com/ckeditor/ckeditor5
-  version: "34.0.0"
+  version: "34.1.0"
   license:
     name: GNU-GPL-2.0-or-later
-    url: https://github.com/ckeditor/ckeditor5/blob/v34.0.0/LICENSE.md
+    url: https://github.com/ckeditor/ckeditor5/blob/v34.1.0/LICENSE.md
     gpl-compatible: true
   js:
     assets/vendor/ckeditor5/indent/indent.js: { minified: true }
@@ -253,10 +252,10 @@ ckeditor5.indent:
 
 ckeditor5.sourceEditing:
   remote: https://github.com/ckeditor/ckeditor5
-  version: "34.0.0"
+  version: "34.1.0"
   license:
     name: GNU-GPL-2.0-or-later
-    url: https://github.com/ckeditor/ckeditor5/blob/v34.0.0/LICENSE.md
+    url: https://github.com/ckeditor/ckeditor5/blob/v34.1.0/LICENSE.md
     gpl-compatible: true
   js:
     assets/vendor/ckeditor5/source-editing/source-editing.js: { minified: true }
@@ -266,10 +265,10 @@ ckeditor5.sourceEditing:
 
 ckeditor5.table:
   remote: https://github.com/ckeditor/ckeditor5
-  version: "34.0.0"
+  version: "34.1.0"
   license:
     name: GNU-GPL-2.0-or-later
-    url: https://github.com/ckeditor/ckeditor5/blob/v34.0.0/LICENSE.md
+    url: https://github.com/ckeditor/ckeditor5/blob/v34.1.0/LICENSE.md
     gpl-compatible: true
   js:
     assets/vendor/ckeditor5/table/table.js: { minified: true }
@@ -279,10 +278,10 @@ ckeditor5.table:
 
 ckeditor5.language:
   remote: https://github.com/ckeditor/ckeditor5
-  version: "34.0.0"
+  version: "34.1.0"
   license:
     name: GNU-GPL-2.0-or-later
-    url: https://github.com/ckeditor/ckeditor5/blob/v34.0.0/LICENSE.md
+    url: https://github.com/ckeditor/ckeditor5/blob/v34.1.0/LICENSE.md
     gpl-compatible: true
   js:
     assets/vendor/ckeditor5/language/language.js: { minified: true }
@@ -292,10 +291,10 @@ ckeditor5.language:
 
 ckeditor5.codeBlock:
   remote: https://github.com/ckeditor/ckeditor5
-  version: "34.0.0"
+  version: "34.1.0"
   license:
     name: GNU-GPL-2.0-or-later
-    url: https://github.com/ckeditor/ckeditor5/blob/v34.0.0/LICENSE.md
+    url: https://github.com/ckeditor/ckeditor5/blob/v34.1.0/LICENSE.md
     gpl-compatible: true
   js:
     assets/vendor/ckeditor5/code-block/code-block.js: { minified: true }
@@ -682,6 +681,7 @@ drupal.tabledrag:
     - core/drupal
     - core/drupalSettings
     - core/once
+    - core/drupal.touchevents-test
 
 drupal.tableheader:
   version: VERSION
@@ -722,6 +722,14 @@ drupal.timezone:
     - core/jquery
     - core/once
     - core/drupal
+
+drupal.touchevents-test:
+  header: true
+  version: VERSION
+  js:
+    # Set weight to -21 so it loads alongside Modernizr, the library previously
+    # responsible for this detection.
+    misc/touchevents-test.js: { weight: -21 }
 
 drupal.vertical-tabs:
   version: VERSION
@@ -773,7 +781,8 @@ jquery.farbtastic:
   dependencies:
     - core/jquery
 
-jquery.form:
+internal.jquery.form:
+  # Internal library. Do not depend on it outside core nor add new core usage.
   remote: https://github.com/jquery-form/form
   version: "4.3.0"
   license:
@@ -787,155 +796,13 @@ jquery.form:
 
 shepherd:
   remote: https://github.com/shipshapecode/shepherd
-  version: "9.0.0"
+  version: "9.1.0"
   license:
     name: MIT
-    url: https://raw.githubusercontent.com/shipshapecode/shepherd/v9.0.0/LICENSE
+    url: https://raw.githubusercontent.com/shipshapecode/shepherd/v9.1.0/LICENSE
     gpl-compatible: true
   js:
     assets/vendor/shepherd/shepherd.min.js: { minified: true }
-
-jquery.ui:
-  version: &jquery_ui_version "1.13.1"
-  license: &jquery_ui_license
-    name: Public Domain
-    url: https://raw.githubusercontent.com/jquery/jquery-ui/1.13.1/LICENSE.txt
-    gpl-compatible: true
-  js:
-    assets/vendor/jquery.ui/ui/labels-min.js: { weight: -11.7, minified: true }
-    assets/vendor/jquery.ui/ui/data-min.js: { weight: -11.8, minified: true }
-    assets/vendor/jquery.ui/ui/disable-selection-min.js: { weight: -11.8, minified: true }
-    assets/vendor/jquery.ui/ui/focusable-min.js: { weight: -11.8, minified: true }
-    assets/vendor/jquery.ui/ui/form-min.js: { weight: -11.8, minified: true }
-    assets/vendor/jquery.ui/ui/ie-min.js: { weight: -11.8, minified: true }
-    assets/vendor/jquery.ui/ui/jquery-patch-min.js: { weight: -11.8, minified: true }
-    assets/vendor/jquery.ui/ui/keycode-min.js: { weight: -11.8, minified: true }
-    assets/vendor/jquery.ui/ui/plugin-min.js: { weight: -11.8, minified: true }
-    assets/vendor/jquery.ui/ui/safe-active-element-min.js: { weight: -11.8, minified: true }
-    assets/vendor/jquery.ui/ui/safe-blur-min.js: { weight: -11.8, minified: true }
-    assets/vendor/jquery.ui/ui/scroll-parent-min.js: { weight: -11.8, minified: true }
-    assets/vendor/jquery.ui/ui/unique-id-min.js: { weight: -11.8, minified: true }
-    assets/vendor/jquery.ui/ui/version-min.js: { weight: -11.9, minified: true }
-  css:
-    component:
-      assets/vendor/jquery.ui/themes/base/core.css: { weight: -11.8 }
-    theme:
-      assets/vendor/jquery.ui/themes/base/theme.css: { weight: -11.8 }
-  dependencies:
-    - core/jquery
-    - core/tabbable.jquery.shim
-  deprecated: &jquery_ui_unused_deprecated The "%library_id%" asset library is deprecated in drupal:9.2.0 and is removed from drupal:10.0.0. See https://www.drupal.org/node/3067969
-
-jquery.ui.autocomplete:
-  version: *jquery_ui_version
-  license: *jquery_ui_license
-  js:
-    assets/vendor/jquery.ui/ui/widgets/autocomplete-min.js: { weight: -11.7, minified: true }
-  css:
-    component:
-      assets/vendor/jquery.ui/themes/base/autocomplete.css: { weight: -11.7 }
-  dependencies:
-    - core/jquery.ui
-    - core/jquery.ui.widget
-    - core/jquery.ui.position
-    - core/jquery.ui.menu
-  deprecated: *jquery_ui_unused_deprecated
-
-jquery.ui.button:
-  version: *jquery_ui_version
-  license: *jquery_ui_license
-  js:
-    assets/vendor/jquery.ui/ui/widgets/button-min.js: { weight: -11.5, minified: true }
-    assets/vendor/jquery.ui/ui/widgets/checkboxradio-min.js: { weight: -11.6, minified: true }
-    assets/vendor/jquery.ui/ui/widgets/controlgroup-min.js: { weight: -11.7, minified: true }
-  css:
-    component:
-      assets/vendor/jquery.ui/themes/base/button.css: { weight: -11.5 }
-      assets/vendor/jquery.ui/themes/base/checkboxradio.css: { weight: -11.6 }
-      assets/vendor/jquery.ui/themes/base/controlgroup.css: { weight: -11.7 }
-  dependencies:
-    - core/jquery.ui
-    - core/jquery.ui.widget
-  deprecated: *jquery_ui_unused_deprecated
-
-jquery.ui.dialog:
-  version: *jquery_ui_version
-  license: *jquery_ui_license
-  js:
-    # All weights are based on on the requirements defined within each file.
-    assets/vendor/jquery.ui/ui/widgets/dialog-min.js: { weight: -11.4, minified: true }
-    assets/vendor/jquery.ui/ui/widgets/button-min.js: { weight: -11.5, minified: true }
-    assets/vendor/jquery.ui/ui/widgets/checkboxradio-min.js: { weight: -11.6, minified: true }
-    assets/vendor/jquery.ui/ui/widgets/draggable-min.js: { weight: -11.6, minified: true }
-    assets/vendor/jquery.ui/ui/widgets/resizable-min.js: { weight: -11.6, minified: true }
-    assets/vendor/jquery.ui/ui/widgets/controlgroup-min.js: { weight: -11.7, minified: true }
-    assets/vendor/jquery.ui/ui/form-reset-mixin-min.js: { weight: -11.7, minified: true }
-    assets/vendor/jquery.ui/ui/labels-min.js: { weight: -11.7, minified: true }
-    assets/vendor/jquery.ui/ui/widgets/mouse-min.js: { weight: -11.7, minified: true }
-    assets/vendor/jquery.ui/ui/data-min.js: { weight: -11.8, minified: true }
-    assets/vendor/jquery.ui/ui/disable-selection-min.js: { weight: -11.8, minified: true }
-    assets/vendor/jquery.ui/ui/focusable-min.js: { weight: -11.8, minified: true }
-    assets/vendor/jquery.ui/ui/form-min.js: { weight: -11.8, minified: true }
-    assets/vendor/jquery.ui/ui/ie-min.js: { weight: -11.8, minified: true }
-    assets/vendor/jquery.ui/ui/jquery-patch-min.js: { weight: -11.8, minified: true }
-    assets/vendor/jquery.ui/ui/keycode-min.js: { weight: -11.8, minified: true }
-    assets/vendor/jquery.ui/ui/plugin-min.js: { weight: -11.8, minified: true }
-    assets/vendor/jquery.ui/ui/safe-active-element-min.js: { weight: -11.8, minified: true }
-    assets/vendor/jquery.ui/ui/safe-blur-min.js: { weight: -11.8, minified: true }
-    assets/vendor/jquery.ui/ui/scroll-parent-min.js: { weight: -11.8, minified: true }
-    assets/vendor/jquery.ui/ui/unique-id-min.js: { weight: -11.8, minified: true }
-    assets/vendor/jquery.ui/ui/widget-min.js: { weight: -11.8, minified: true }
-    assets/vendor/jquery.ui/ui/version-min.js: { weight: -11.9, minified: true }
-  css:
-    component:
-      assets/vendor/jquery.ui/themes/base/dialog.css: { weight: -11.4 }
-      assets/vendor/jquery.ui/themes/base/button.css: { weight: -11.5 }
-      assets/vendor/jquery.ui/themes/base/checkboxradio.css: { weight: -11.6 }
-      assets/vendor/jquery.ui/themes/base/resizable.css: { weight: -11.6 }
-      assets/vendor/jquery.ui/themes/base/controlgroup.css: { weight: -11.7 }
-      assets/vendor/jquery.ui/themes/base/core.css: { weight: -11.8 }
-    theme:
-      assets/vendor/jquery.ui/themes/base/theme.css: { weight: -11.8 }
-  dependencies:
-    - core/jquery
-    - core/tabbable.jquery.shim
-    - core/drupal.jquery.position
-  deprecated: *jquery_ui_unused_deprecated
-
-jquery.ui.draggable:
-  version: *jquery_ui_version
-  license: *jquery_ui_license
-  js:
-    assets/vendor/jquery.ui/ui/widgets/draggable-min.js: { minified: true }
-  dependencies:
-    - core/jquery.ui
-    - core/jquery.ui.mouse
-    - core/jquery.ui.widget
-  deprecated: *jquery_ui_unused_deprecated
-
-jquery.ui.menu:
-  version: *jquery_ui_version
-  license: *jquery_ui_license
-  js:
-    assets/vendor/jquery.ui/ui/widgets/menu-min.js: { weight: -11.7, minified: true }
-  css:
-    component:
-      assets/vendor/jquery.ui/themes/base/menu.css: { weight: -11.7 }
-  dependencies:
-    - core/jquery.ui
-    - core/jquery.ui.position
-    - core/jquery.ui.widget
-  deprecated: *jquery_ui_unused_deprecated
-
-jquery.ui.mouse:
-  version: *jquery_ui_version
-  license: *jquery_ui_license
-  js:
-    assets/vendor/jquery.ui/ui/widgets/mouse-min.js: { weight: -11.7, minified: true }
-    assets/vendor/jquery.ui/ui/ie-min.js: { weight: -11.8, minified: true }
-  dependencies:
-    - core/jquery.ui.widget
-  deprecated: *jquery_ui_unused_deprecated
 
 drupal.jquery.position:
   # For most positioning needs, the core/popperjs library should be used. This
@@ -949,36 +816,6 @@ drupal.jquery.position:
   dependencies:
     - core/jquery
 
-jquery.ui.position:
-  version: *jquery_ui_version
-  license: *jquery_ui_license
-  dependencies:
-    - core/drupal.jquery.position
-  deprecated: *jquery_ui_unused_deprecated
-
-jquery.ui.resizable:
-  version: *jquery_ui_version
-  license: *jquery_ui_license
-  js:
-    assets/vendor/jquery.ui/ui/widgets/resizable-min.js: { weight: -11.6, minified: true }
-  css:
-    component:
-      assets/vendor/jquery.ui/themes/base/resizable.css: { weight: -11.6 }
-  dependencies:
-    - core/jquery.ui
-    - core/jquery.ui.widget
-    - core/jquery.ui.mouse
-  deprecated: *jquery_ui_unused_deprecated
-
-jquery.ui.widget:
-  version: *jquery_ui_version
-  license: *jquery_ui_license
-  js:
-    assets/vendor/jquery.ui/ui/widget-min.js: { weight: -11.8, minified: true }
-  dependencies:
-    - core/jquery.ui
-  deprecated: *jquery_ui_unused_deprecated
-
 modernizr:
   # Block the page from being loaded until Modernizr is initialized.
   header: true
@@ -990,7 +827,6 @@ modernizr:
   version: "3.11.7"
   js:
     assets/vendor/modernizr/modernizr.min.js: { preprocess: 0, weight: -21, minified: true }
-    misc/modernizr-additional-tests.js: { preprocess: 0, weight: -20 }
 
 normalize:
   remote: https://github.com/necolas/normalize.css
@@ -1041,20 +877,20 @@ popperjs:
 
 sortable:
   remote: https://github.com/SortableJS/Sortable
-  version: "1.14.0"
+  version: "1.15.0"
   license:
     name: MIT
-    url: https://raw.githubusercontent.com/SortableJS/Sortable/1.14.0/LICENSE
+    url: https://raw.githubusercontent.com/SortableJS/Sortable/1.15.0/LICENSE
     gpl-compatible: true
   js:
     assets/vendor/sortable/Sortable.min.js: { minified: true }
 
 tabbable:
   remote: https://github.com/focus-trap/tabbable
-  version: "5.2.1"
+  version: "5.3.2"
   license:
     name: MIT
-    url: https://raw.githubusercontent.com/focus-trap/tabbable/v5.2.1/LICENSE
+    url: https://raw.githubusercontent.com/focus-trap/tabbable/v5.3.2/LICENSE
     gpl-compatible: true
   js:
     assets/vendor/tabbable/index.umd.min.js: { weight: -1, minified: true }
@@ -1116,6 +952,7 @@ drupal.dialog.off_canvas:
     - core/drupal.announce
     - core/drupal.dialog
     - core/drupal.dialog.ajax
+    - core/drupal.touchevents-test
 
 js-cookie:
   remote: https://github.com/js-cookie/js-cookie
