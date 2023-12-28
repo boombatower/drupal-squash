@@ -8,10 +8,8 @@
     "max-len": "off",
     "default-case": "off",
     "prefer-destructuring": "off",
-    "operator-linebreak": "off",
     "react/no-this-in-sfc": "off",
     "react/destructuring-assignment": "off",
-    "implicit-arrow-linebreak": "off",
     "import/named": "off"
   }
 }
