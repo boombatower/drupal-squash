@@ -17,9 +17,6 @@ drupal.ckeditor5.internal:
 drupal.ckeditor5:
   js:
     js/ckeditor5.js: {}
-  css:
-    theme:
-      css/quickedit.css: { }
   dependencies:
     - core/jquery
     - core/once
@@ -39,12 +36,6 @@ drupal.ckeditor5:
 drupal.ckeditor5.stylesheets:
   version: VERSION
   css: []
-
-drupal.ckeditor5.quickedit-temporary-work-around:
-  deprecated: "Temporary work-around until https://www.drupal.org/project/drupal/issues/3196689 lands."
-  css:
-    theme:
-      css/quickedit-override.css: {}
 
 drupal.ckeditor5.codeBlock:
   dependencies:

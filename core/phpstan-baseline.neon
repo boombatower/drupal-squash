@@ -681,11 +681,6 @@ parameters:
 			path: modules/block/tests/modules/block_test/src/Plugin/Block/TestAccessBlock.php
 
 		-
-			message: "#^Method Drupal\\\\Tests\\\\block\\\\Functional\\\\Rest\\\\BlockResourceTestBase\\:\\:getNormalizedPostEntity\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/block/tests/src/Functional/Rest/BlockResourceTestBase.php
-
-		-
 			message: "#^Method Drupal\\\\block_content\\\\BlockContentForm\\:\\:save\\(\\) should return int but return statement is missing\\.$#"
 			count: 1
 			path: modules/block_content/src/BlockContentForm.php
@@ -706,11 +701,6 @@ parameters:
 			path: modules/block_content/tests/src/Functional/BlockContentSaveTest.php
 
 		-
-			message: "#^Method Drupal\\\\Tests\\\\block_content\\\\Functional\\\\Rest\\\\BlockContentTypeResourceTestBase\\:\\:getNormalizedPostEntity\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/block_content/tests/src/Functional/Rest/BlockContentTypeResourceTestBase.php
-
-		-
 			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:10\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
 			count: 2
 			path: modules/block_content/tests/src/Kernel/Migrate/d6/MigrateBlockContentTest.php
@@ -719,16 +709,6 @@ parameters:
 			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:10\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
 			count: 3
 			path: modules/block_content/tests/src/Kernel/Migrate/d6/MigrateCustomBlockContentTranslationTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\block_content\\\\Kernel\\\\Views\\\\RevisionRelationshipsTest\\:\\:assertIdenticalResultsetHelper\\(\\) should return bool but return statement is missing\\.$#"
-			count: 1
-			path: modules/block_content/tests/src/Kernel/Views/RevisionRelationshipsTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\block_content\\\\Kernel\\\\Views\\\\RevisionUserTest\\:\\:assertIdenticalResultsetHelper\\(\\) should return bool but return statement is missing\\.$#"
-			count: 1
-			path: modules/block_content/tests/src/Kernel/Views/RevisionUserTest.php
 
 		-
 			message: "#^Method Drupal\\\\book\\\\BookOutline\\:\\:nextLink\\(\\) should return array but return statement is missing\\.$#"
@@ -746,16 +726,6 @@ parameters:
 			path: modules/book/src/Form/BookOutlineForm.php
 
 		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\book\\\\Functional\\\\BookBreadcrumbTest\\:\\:\\$adminUser\\.$#"
-			count: 1
-			path: modules/book/tests/src/Functional/BookBreadcrumbTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\ckeditor\\\\Functional\\\\CKEditorToolbarButtonTest\\:\\:\\$admin_user\\.$#"
-			count: 2
-			path: modules/ckeditor/tests/src/Functional/CKEditorToolbarButtonTest.php
-
-		-
 			message: "#^Function _add_ajax_listeners_to_plugin_inputs not found\\.$#"
 			count: 2
 			path: modules/ckeditor5/ckeditor5.module
@@ -771,44 +741,9 @@ parameters:
 			path: modules/ckeditor5/ckeditor5.module
 
 		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\ckeditor5\\\\Functional\\\\AddedStylesheetsTest\\:\\:\\$adminUser\\.$#"
-			count: 1
-			path: modules/ckeditor5/tests/src/Functional/AddedStylesheetsTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\ckeditor5\\\\Functional\\\\AddedStylesheetsTest\\:\\:\\$editor\\.$#"
-			count: 1
-			path: modules/ckeditor5/tests/src/Functional/AddedStylesheetsTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\ckeditor5\\\\Functional\\\\CKEditor5QuickEditLibraryTest\\:\\:\\$adminUser\\.$#"
-			count: 1
-			path: modules/ckeditor5/tests/src/Functional/CKEditor5QuickEditLibraryTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\ckeditor5\\\\Functional\\\\MediaEntityMetadataApiTest\\:\\:\\$adminUser\\.$#"
-			count: 1
-			path: modules/ckeditor5/tests/src/Functional/MediaEntityMetadataApiTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\ckeditor5\\\\FunctionalJavascript\\\\CKEditor5FragmentLinkTest\\:\\:\\$account\\.$#"
-			count: 1
-			path: modules/ckeditor5/tests/src/FunctionalJavascript/CKEditor5FragmentLinkTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\ckeditor5\\\\FunctionalJavascript\\\\CKEditor5ToolbarTest\\:\\:\\$user\\.$#"
-			count: 1
-			path: modules/ckeditor5/tests/src/FunctionalJavascript/CKEditor5ToolbarTest.php
-
-		-
 			message: "#^Function color_palette_color_value\\(\\) should return string but return statement is missing\\.$#"
 			count: 1
 			path: modules/color/color.module
-
-		-
-			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:10\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
-			count: 1
-			path: modules/comment/comment.module
 
 		-
 			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:10\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
@@ -891,29 +826,9 @@ parameters:
 			path: modules/comment/tests/src/Functional/CommentBlockTest.php
 
 		-
-			message: "#^Method Drupal\\\\Tests\\\\comment\\\\Functional\\\\CommentNonNodeTest\\:\\:postComment\\(\\) should return Drupal\\\\comment\\\\CommentInterface but return statement is missing\\.$#"
-			count: 1
-			path: modules/comment/tests/src/Functional/CommentNonNodeTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\comment\\\\Functional\\\\CommentTranslationUITest\\:\\:\\$nodeBundle\\.$#"
-			count: 3
-			path: modules/comment/tests/src/Functional/CommentTranslationUITest.php
-
-		-
 			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:10\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
 			count: 1
 			path: modules/comment/tests/src/Functional/CommentTranslationUITest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\comment\\\\Functional\\\\Rest\\\\CommentResourceTestBase\\:\\:getExpectedUnauthorizedAccessMessage\\(\\) should return string but return statement is missing\\.$#"
-			count: 1
-			path: modules/comment/tests/src/Functional/Rest/CommentResourceTestBase.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\comment\\\\Functional\\\\Rest\\\\CommentTypeResourceTestBase\\:\\:getNormalizedPostEntity\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/comment/tests/src/Functional/Rest/CommentTypeResourceTestBase.php
 
 		-
 			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:10\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
@@ -921,34 +836,9 @@ parameters:
 			path: modules/comment/tests/src/Functional/Views/DefaultViewRecentCommentsTest.php
 
 		-
-			message: "#^Method Drupal\\\\Tests\\\\comment\\\\Kernel\\\\Views\\\\CommentFieldNameTest\\:\\:assertIdenticalResultsetHelper\\(\\) should return bool but return statement is missing\\.$#"
-			count: 1
-			path: modules/comment/tests/src/Kernel/Views/CommentFieldNameTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\comment\\\\Kernel\\\\Views\\\\FilterAndArgumentUserUidTest\\:\\:assertIdenticalResultsetHelper\\(\\) should return bool but return statement is missing\\.$#"
-			count: 1
-			path: modules/comment/tests/src/Kernel/Views/FilterAndArgumentUserUidTest.php
-
-		-
-			message: "#^Access to constant DEFAULT_COLLECTION on an unknown class Drupal\\\\config_override_test\\\\StorageInterface\\.$#"
-			count: 1
-			path: modules/config/tests/config_override_test/src/ConfigOverrider.php
-
-		-
 			message: "#^Method Drupal\\\\config_test\\\\ConfigTestForm\\:\\:save\\(\\) should return int but return statement is missing\\.$#"
 			count: 1
 			path: modules/config/tests/config_test/src/ConfigTestForm.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\config_test\\\\Functional\\\\Rest\\\\ConfigTestResourceTestBase\\:\\:getNormalizedPostEntity\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/config/tests/config_test/tests/src/Functional/Rest/ConfigTestResourceTestBase.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\config\\\\Functional\\\\TransformedConfigExportImportUITest\\:\\:\\$webUser\\.$#"
-			count: 1
-			path: modules/config/tests/src/Functional/TransformedConfigExportImportUITest.php
 
 		-
 			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:10\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
@@ -976,11 +866,6 @@ parameters:
 			path: modules/contact/src/MessageForm.php
 
 		-
-			message: "#^Method Drupal\\\\Tests\\\\contact\\\\Functional\\\\Rest\\\\ContactFormResourceTestBase\\:\\:getNormalizedPostEntity\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/contact/tests/src/Functional/Rest/ContactFormResourceTestBase.php
-
-		-
 			message: "#^Method Drupal\\\\content_moderation\\\\ModerationInformation\\:\\:getAffectedRevisionTranslation\\(\\) should return Drupal\\\\Core\\\\Entity\\\\ContentEntityInterface but return statement is missing\\.$#"
 			count: 1
 			path: modules/content_moderation/src/ModerationInformation.php
@@ -989,16 +874,6 @@ parameters:
 			message: "#^Method Drupal\\\\content_moderation\\\\ModerationInformation\\:\\:getDefaultRevisionId\\(\\) should return int but return statement is missing\\.$#"
 			count: 1
 			path: modules/content_moderation/src/ModerationInformation.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\content_moderation\\\\Kernel\\\\ContentModerationStateTest\\:\\:\\$entityDefinitionUpdateManager\\.$#"
-			count: 10
-			path: modules/content_moderation/tests/src/Kernel/ContentModerationStateTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\content_moderation\\\\Kernel\\\\ContentModerationStateTest\\:\\:\\$state\\.$#"
-			count: 21
-			path: modules/content_moderation/tests/src/Kernel/ContentModerationStateTest.php
 
 		-
 			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:10\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
@@ -1026,44 +901,14 @@ parameters:
 			path: modules/datetime/src/Plugin/Field/FieldType/DateTimeItem.php
 
 		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\datetime\\\\Functional\\\\DateTestBase\\:\\:\\$defaultSettings\\.$#"
-			count: 1
-			path: modules/datetime/tests/src/Functional/DateTestBase.php
-
-		-
 			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:10\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
 			count: 4
 			path: modules/datetime/tests/src/Functional/DateTimeFieldTest.php
 
 		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\datetime\\\\Kernel\\\\Views\\\\ArgumentDateTimeTest\\:\\:\\$map\\.$#"
-			count: 16
-			path: modules/datetime/tests/src/Kernel/Views/ArgumentDateTimeTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\datetime\\\\Kernel\\\\Views\\\\DateTimeHandlerTestBase\\:\\:\\$map\\.$#"
-			count: 1
-			path: modules/datetime/tests/src/Kernel/Views/DateTimeHandlerTestBase.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\datetime\\\\Kernel\\\\Views\\\\FilterDateTest\\:\\:\\$map\\.$#"
-			count: 7
-			path: modules/datetime/tests/src/Kernel/Views/FilterDateTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\datetime\\\\Kernel\\\\Views\\\\FilterDateTimeTest\\:\\:\\$map\\.$#"
-			count: 7
-			path: modules/datetime/tests/src/Kernel/Views/FilterDateTimeTest.php
-
-		-
 			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:10\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
 			count: 1
 			path: modules/datetime/tests/src/Kernel/Views/FilterDateTimeTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\datetime\\\\Kernel\\\\Views\\\\SortDateTimeTest\\:\\:\\$map\\.$#"
-			count: 4
-			path: modules/datetime/tests/src/Kernel/Views/SortDateTimeTest.php
 
 		-
 			message: "#^Method Drupal\\\\datetime_range\\\\Plugin\\\\Field\\\\FieldType\\\\DateRangeFieldItemList\\:\\:defaultValuesForm\\(\\) should return array but return statement is missing\\.$#"
@@ -1076,11 +921,6 @@ parameters:
 			path: modules/datetime_range/src/Plugin/Field/FieldType/DateRangeItem.php
 
 		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\datetime_range\\\\Kernel\\\\Views\\\\FilterDateTest\\:\\:\\$map\\.$#"
-			count: 2
-			path: modules/datetime_range/tests/src/Kernel/Views/FilterDateTest.php
-
-		-
 			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:10\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
 			count: 3
 			path: modules/dblog/tests/src/Functional/DbLogTest.php
@@ -1089,11 +929,6 @@ parameters:
 			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:10\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
 			count: 1
 			path: modules/dblog/tests/src/Kernel/DbLogTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\editor\\\\Functional\\\\Rest\\\\EditorResourceTestBase\\:\\:getNormalizedPostEntity\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/editor/tests/src/Functional/Rest/EditorResourceTestBase.php
 
 		-
 			message: "#^Access to an undefined property Drupal\\\\field\\\\Entity\\\\FieldConfig\\:\\:\\$original\\.$#"
@@ -1106,84 +941,14 @@ parameters:
 			path: modules/field/src/Entity/FieldStorageConfig.php
 
 		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\field\\\\Functional\\\\NestedFormTest\\:\\:\\$field\\.$#"
-			count: 2
-			path: modules/field/tests/src/Functional/NestedFormTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\field\\\\Functional\\\\NestedFormTest\\:\\:\\$fieldStorageSingle\\.$#"
-			count: 2
-			path: modules/field/tests/src/Functional/NestedFormTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\field\\\\Functional\\\\NestedFormTest\\:\\:\\$fieldStorageUnlimited\\.$#"
-			count: 2
-			path: modules/field/tests/src/Functional/NestedFormTest.php
-
-		-
 			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:10\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
 			count: 2
 			path: modules/field/tests/src/Functional/NestedFormTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\field\\\\Functional\\\\Rest\\\\FieldConfigResourceTestBase\\:\\:getNormalizedPostEntity\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/field/tests/src/Functional/Rest/FieldConfigResourceTestBase.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\field\\\\Functional\\\\Rest\\\\FieldStorageConfigResourceTestBase\\:\\:getNormalizedPostEntity\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/field/tests/src/Functional/Rest/FieldStorageConfigResourceTestBase.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\field\\\\Kernel\\\\Entity\\\\Update\\\\SqlContentEntityStorageSchemaColumnTest\\:\\:\\$entityDefinitionUpdateManager\\.$#"
-			count: 10
-			path: modules/field/tests/src/Kernel/Entity/Update/SqlContentEntityStorageSchemaColumnTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\field\\\\Kernel\\\\Entity\\\\Update\\\\SqlContentEntityStorageSchemaColumnTest\\:\\:\\$state\\.$#"
-			count: 21
-			path: modules/field/tests/src/Kernel/Entity/Update/SqlContentEntityStorageSchemaColumnTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\field\\\\Kernel\\\\FieldKernelTestBase\\:\\:\\$entityId\\.$#"
-			count: 1
-			path: modules/field/tests/src/Kernel/FieldKernelTestBase.php
 
 		-
 			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:10\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
 			count: 1
 			path: modules/field/tests/src/Kernel/Timestamp/TimestampFormatterTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\field\\\\Unit\\\\Plugin\\\\migrate\\\\process\\\\ProcessFieldTest\\:\\:\\$fieldManager\\.$#"
-			count: 3
-			path: modules/field/tests/src/Unit/Plugin/migrate/process/ProcessFieldTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\field\\\\Unit\\\\Plugin\\\\migrate\\\\process\\\\ProcessFieldTest\\:\\:\\$fieldPlugin\\.$#"
-			count: 2
-			path: modules/field/tests/src/Unit/Plugin/migrate/process/ProcessFieldTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\field\\\\Unit\\\\Plugin\\\\migrate\\\\process\\\\ProcessFieldTest\\:\\:\\$migrateExecutable\\.$#"
-			count: 2
-			path: modules/field/tests/src/Unit/Plugin/migrate/process/ProcessFieldTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\field\\\\Unit\\\\Plugin\\\\migrate\\\\process\\\\ProcessFieldTest\\:\\:\\$migration\\.$#"
-			count: 2
-			path: modules/field/tests/src/Unit/Plugin/migrate/process/ProcessFieldTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\field\\\\Unit\\\\Plugin\\\\migrate\\\\process\\\\ProcessFieldTest\\:\\:\\$plugin\\.$#"
-			count: 2
-			path: modules/field/tests/src/Unit/Plugin/migrate/process/ProcessFieldTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\field\\\\Unit\\\\Plugin\\\\migrate\\\\process\\\\ProcessFieldTest\\:\\:\\$row\\.$#"
-			count: 3
-			path: modules/field/tests/src/Unit/Plugin/migrate/process/ProcessFieldTest.php
 
 		-
 			message: "#^Method Drupal\\\\field_ui\\\\FieldUI\\:\\:getOverviewRouteInfo\\(\\) should return Drupal\\\\Core\\\\Url but return statement is missing\\.$#"
@@ -1209,21 +974,6 @@ parameters:
 			message: "#^Access to an undefined property Drupal\\\\field_ui\\\\Plugin\\\\Derivative\\\\FieldUiLocalAction\\:\\:\\$routeProvider\\.$#"
 			count: 1
 			path: modules/field_ui/src/Plugin/Derivative/FieldUiLocalAction.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\field_ui\\\\Functional\\\\ManageDisplayTest\\:\\:\\$type\\.$#"
-			count: 11
-			path: modules/field_ui/tests/src/Functional/ManageDisplayTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\field_ui\\\\Functional\\\\ManageDisplayTest\\:\\:\\$vocabulary\\.$#"
-			count: 3
-			path: modules/field_ui/tests/src/Functional/ManageDisplayTest.php
-
-		-
-			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:10\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
-			count: 1
-			path: modules/file/file.module
 
 		-
 			message: "#^Method Drupal\\\\file\\\\Plugin\\\\Field\\\\FieldType\\\\FileFieldItemList\\:\\:defaultValuesForm\\(\\) should return array but return statement is missing\\.$#"
@@ -1261,11 +1011,6 @@ parameters:
 			path: modules/file/tests/src/Functional/FileUploadJsonBasicAuthTest.php
 
 		-
-			message: "#^Access to an undefined static property static\\(Drupal\\\\Tests\\\\file\\\\Functional\\\\FileUploadJsonCookieTest\\)\\:\\:\\$entityTypeId\\.$#"
-			count: 1
-			path: modules/file/tests/src/Functional/FileUploadJsonCookieTest.php
-
-		-
 			message: "#^Call to an undefined method Drupal\\\\Tests\\\\file\\\\Functional\\\\FileUploadJsonCookieTest\\:\\:getExpectedUnauthorizedEntityAccessCacheability\\(\\)\\.$#"
 			count: 1
 			path: modules/file/tests/src/Functional/FileUploadJsonCookieTest.php
@@ -1281,11 +1026,6 @@ parameters:
 			path: modules/file/tests/src/Kernel/UsageTest.php
 
 		-
-			message: "#^Method Drupal\\\\Tests\\\\file\\\\Kernel\\\\Views\\\\RelationshipUserFileDataTest\\:\\:assertIdenticalResultsetHelper\\(\\) should return bool but return statement is missing\\.$#"
-			count: 1
-			path: modules/file/tests/src/Kernel/Views/RelationshipUserFileDataTest.php
-
-		-
 			message: "#^\\#lazy_builder value 'string' at key '0' is invalid\\.$#"
 			count: 1
 			path: modules/filter/src/FilterProcessResult.php
@@ -1296,16 +1036,6 @@ parameters:
 			path: modules/filter/src/Plugin/migrate/process/d6/FilterFormatPermission.php
 
 		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\filter\\\\Functional\\\\FilterHtmlImageSecureTest\\:\\:\\$node\\.$#"
-			count: 2
-			path: modules/filter/tests/src/Functional/FilterHtmlImageSecureTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\filter\\\\Functional\\\\Rest\\\\FilterFormatResourceTestBase\\:\\:getNormalizedPostEntity\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/filter/tests/src/Functional/Rest/FilterFormatResourceTestBase.php
-
-		-
 			message: "#^Method Drupal\\\\forum\\\\ForumManager\\:\\:getTopicOrder\\(\\) should return array but return statement is missing\\.$#"
 			count: 1
 			path: modules/forum/src/ForumManager.php
@@ -1314,11 +1044,6 @@ parameters:
 			message: "#^Access to an undefined property Drupal\\\\help_topics\\\\Plugin\\\\HelpSection\\\\HelpTopicSection\\:\\:\\$translationManager\\.$#"
 			count: 3
 			path: modules/help_topics/src/Plugin/HelpSection/HelpTopicSection.php
-
-		-
-			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:10\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
-			count: 3
-			path: modules/history/history.module
 
 		-
 			message: "#^Method Drupal\\\\history\\\\Plugin\\\\views\\\\field\\\\HistoryUserTimestamp\\:\\:render\\(\\) should return Drupal\\\\Component\\\\Render\\\\MarkupInterface\\|string but return statement is missing\\.$#"
@@ -1336,11 +1061,6 @@ parameters:
 			path: modules/history/tests/src/Kernel/Views/HistoryTimestampTest.php
 
 		-
-			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:10\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
-			count: 1
-			path: modules/image/image.admin.inc
-
-		-
 			message: "#^Method Drupal\\\\image\\\\Form\\\\ImageStyleEditForm\\:\\:save\\(\\) should return int but return statement is missing\\.$#"
 			count: 1
 			path: modules/image/src/Form/ImageStyleEditForm.php
@@ -1349,16 +1069,6 @@ parameters:
 			message: "#^Method Drupal\\\\image\\\\Form\\\\ImageStyleFormBase\\:\\:save\\(\\) should return int but return statement is missing\\.$#"
 			count: 1
 			path: modules/image/src/Form/ImageStyleFormBase.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\image\\\\Functional\\\\Rest\\\\ImageStyleResourceTestBase\\:\\:getNormalizedPostEntity\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/image/tests/src/Functional/Rest/ImageStyleResourceTestBase.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\image\\\\Unit\\\\ImageStyleTest\\:\\:\\$provider\\.$#"
-			count: 1
-			path: modules/image/tests/src/Unit/ImageStyleTest.php
 
 		-
 			message: "#^Method Drupal\\\\jsonapi\\\\JsonApiResource\\\\ResourceIdentifier\\:\\:getDataReferencePropertyName\\(\\) should return string but return statement is missing\\.$#"
@@ -1371,269 +1081,9 @@ parameters:
 			path: modules/jsonapi/src/Revisions/VersionNegotiator.php
 
 		-
-			message: "#^Method Drupal\\\\Tests\\\\jsonapi\\\\Functional\\\\ActionTest\\:\\:getPostDocument\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/jsonapi/tests/src/Functional/ActionTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\jsonapi\\\\Functional\\\\BaseFieldOverrideTest\\:\\:getPostDocument\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/jsonapi/tests/src/Functional/BaseFieldOverrideTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\jsonapi\\\\Functional\\\\BlockContentTypeTest\\:\\:getPostDocument\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/jsonapi/tests/src/Functional/BlockContentTypeTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\jsonapi\\\\Functional\\\\BlockTest\\:\\:getPostDocument\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/jsonapi/tests/src/Functional/BlockTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\jsonapi\\\\Functional\\\\CommentTypeTest\\:\\:getPostDocument\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/jsonapi/tests/src/Functional/CommentTypeTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\jsonapi\\\\Functional\\\\ConfigTestTest\\:\\:getPostDocument\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/jsonapi/tests/src/Functional/ConfigTestTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\jsonapi\\\\Functional\\\\ConfigurableLanguageTest\\:\\:getPostDocument\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/jsonapi/tests/src/Functional/ConfigurableLanguageTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\jsonapi\\\\Functional\\\\ContactFormTest\\:\\:getPostDocument\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/jsonapi/tests/src/Functional/ContactFormTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\jsonapi\\\\Functional\\\\ContentLanguageSettingsTest\\:\\:getPostDocument\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/jsonapi/tests/src/Functional/ContentLanguageSettingsTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\jsonapi\\\\Functional\\\\DateFormatTest\\:\\:getPostDocument\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/jsonapi/tests/src/Functional/DateFormatTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\jsonapi\\\\Functional\\\\EditorTest\\:\\:getPostDocument\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/jsonapi/tests/src/Functional/EditorTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\jsonapi\\\\Functional\\\\EntityFormDisplayTest\\:\\:getPostDocument\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/jsonapi/tests/src/Functional/EntityFormDisplayTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\jsonapi\\\\Functional\\\\EntityFormModeTest\\:\\:getPostDocument\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/jsonapi/tests/src/Functional/EntityFormModeTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\jsonapi\\\\Functional\\\\EntityViewDisplayTest\\:\\:getPostDocument\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/jsonapi/tests/src/Functional/EntityViewDisplayTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\jsonapi\\\\Functional\\\\EntityViewModeTest\\:\\:getPostDocument\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/jsonapi/tests/src/Functional/EntityViewModeTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\jsonapi\\\\Functional\\\\FieldConfigTest\\:\\:getPostDocument\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/jsonapi/tests/src/Functional/FieldConfigTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\jsonapi\\\\Functional\\\\FieldStorageConfigTest\\:\\:getPostDocument\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/jsonapi/tests/src/Functional/FieldStorageConfigTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\jsonapi\\\\Functional\\\\FileUploadTest\\:\\:getExpectedUnauthorizedAccessCacheability\\(\\) should return Drupal\\\\Core\\\\Cache\\\\CacheableMetadata but return statement is missing\\.$#"
-			count: 1
-			path: modules/jsonapi/tests/src/Functional/FileUploadTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\jsonapi\\\\Functional\\\\FileUploadTest\\:\\:getExpectedUnauthorizedAccessMessage\\(\\) should return string but return statement is missing\\.$#"
-			count: 1
-			path: modules/jsonapi/tests/src/Functional/FileUploadTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\jsonapi\\\\Functional\\\\FilterFormatTest\\:\\:getPostDocument\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/jsonapi/tests/src/Functional/FilterFormatTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\jsonapi\\\\Functional\\\\ImageStyleTest\\:\\:getPostDocument\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/jsonapi/tests/src/Functional/ImageStyleTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\jsonapi\\\\Functional\\\\MediaTypeTest\\:\\:getPostDocument\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/jsonapi/tests/src/Functional/MediaTypeTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\jsonapi\\\\Functional\\\\MenuTest\\:\\:getPostDocument\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/jsonapi/tests/src/Functional/MenuTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\jsonapi\\\\Functional\\\\NodeTest\\:\\:getExpectedUnauthorizedAccessMessage\\(\\) should return string but return statement is missing\\.$#"
-			count: 1
-			path: modules/jsonapi/tests/src/Functional/NodeTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\jsonapi\\\\Functional\\\\NodeTypeTest\\:\\:getPostDocument\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/jsonapi/tests/src/Functional/NodeTypeTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\jsonapi\\\\Functional\\\\RdfMappingTest\\:\\:getPostDocument\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/jsonapi/tests/src/Functional/RdfMappingTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\jsonapi\\\\Functional\\\\ResponsiveImageStyleTest\\:\\:getPostDocument\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/jsonapi/tests/src/Functional/ResponsiveImageStyleTest.php
-
-		-
 			message: "#^Access to an undefined property Drupal\\\\Tests\\\\jsonapi\\\\Functional\\\\RestJsonApiUnsupported\\:\\:\\$httpClient\\.$#"
 			count: 1
 			path: modules/jsonapi/tests/src/Functional/RestJsonApiUnsupported.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\jsonapi\\\\Functional\\\\RestJsonApiUnsupported\\:\\:getExpectedUnauthorizedAccessCacheability\\(\\) should return Drupal\\\\Core\\\\Cache\\\\RefinableCacheableDependencyInterface but return statement is missing\\.$#"
-			count: 1
-			path: modules/jsonapi/tests/src/Functional/RestJsonApiUnsupported.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\jsonapi\\\\Functional\\\\RestJsonApiUnsupported\\:\\:getExpectedUnauthorizedAccessMessage\\(\\) should return string but return statement is missing\\.$#"
-			count: 1
-			path: modules/jsonapi/tests/src/Functional/RestJsonApiUnsupported.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\jsonapi\\\\Functional\\\\RestResourceConfigTest\\:\\:getPostDocument\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/jsonapi/tests/src/Functional/RestResourceConfigTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\jsonapi\\\\Functional\\\\RoleTest\\:\\:getPostDocument\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/jsonapi/tests/src/Functional/RoleTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\jsonapi\\\\Functional\\\\SearchPageTest\\:\\:getPostDocument\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/jsonapi/tests/src/Functional/SearchPageTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\jsonapi\\\\Functional\\\\ShortcutSetTest\\:\\:getPostDocument\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/jsonapi/tests/src/Functional/ShortcutSetTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\jsonapi\\\\Functional\\\\TourTest\\:\\:getPostDocument\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/jsonapi/tests/src/Functional/TourTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\jsonapi\\\\Functional\\\\ViewTest\\:\\:getPostDocument\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/jsonapi/tests/src/Functional/ViewTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\jsonapi\\\\Functional\\\\VocabularyTest\\:\\:getPostDocument\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/jsonapi/tests/src/Functional/VocabularyTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\jsonapi\\\\Functional\\\\WorkflowTest\\:\\:getPostDocument\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/jsonapi/tests/src/Functional/WorkflowTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\jsonapi\\\\Kernel\\\\Controller\\\\EntityResourceTest\\:\\:\\$node4\\.$#"
-			count: 1
-			path: modules/jsonapi/tests/src/Kernel/Controller/EntityResourceTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\jsonapi\\\\Kernel\\\\Normalizer\\\\JsonApiDocumentTopLevelNormalizerTest\\:\\:\\$nodeType\\.$#"
-			count: 2
-			path: modules/jsonapi/tests/src/Kernel/Normalizer/JsonApiDocumentTopLevelNormalizerTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\jsonapi\\\\Kernel\\\\Normalizer\\\\JsonApiDocumentTopLevelNormalizerTest\\:\\:\\$term1\\.$#"
-			count: 11
-			path: modules/jsonapi/tests/src/Kernel/Normalizer/JsonApiDocumentTopLevelNormalizerTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\jsonapi\\\\Kernel\\\\Normalizer\\\\JsonApiDocumentTopLevelNormalizerTest\\:\\:\\$term2\\.$#"
-			count: 4
-			path: modules/jsonapi/tests/src/Kernel/Normalizer/JsonApiDocumentTopLevelNormalizerTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\jsonapi\\\\Kernel\\\\Normalizer\\\\JsonApiDocumentTopLevelNormalizerTest\\:\\:\\$user2\\.$#"
-			count: 9
-			path: modules/jsonapi/tests/src/Kernel/Normalizer/JsonApiDocumentTopLevelNormalizerTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\jsonapi\\\\Kernel\\\\Normalizer\\\\JsonApiDocumentTopLevelNormalizerTest\\:\\:\\$vocabulary\\.$#"
-			count: 2
-			path: modules/jsonapi/tests/src/Kernel/Normalizer/JsonApiDocumentTopLevelNormalizerTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\jsonapi\\\\Kernel\\\\Normalizer\\\\RelationshipNormalizerTest\\:\\:\\$image1\\.$#"
-			count: 1
-			path: modules/jsonapi/tests/src/Kernel/Normalizer/RelationshipNormalizerTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\jsonapi\\\\Kernel\\\\Normalizer\\\\RelationshipNormalizerTest\\:\\:\\$image2\\.$#"
-			count: 1
-			path: modules/jsonapi/tests/src/Kernel/Normalizer/RelationshipNormalizerTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\jsonapi\\\\Kernel\\\\Normalizer\\\\RelationshipNormalizerTest\\:\\:\\$normalizer\\.$#"
-			count: 2
-			path: modules/jsonapi/tests/src/Kernel/Normalizer/RelationshipNormalizerTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\jsonapi\\\\Kernel\\\\Normalizer\\\\RelationshipNormalizerTest\\:\\:\\$referencer\\.$#"
-			count: 3
-			path: modules/jsonapi/tests/src/Kernel/Normalizer/RelationshipNormalizerTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\jsonapi\\\\Kernel\\\\Normalizer\\\\RelationshipNormalizerTest\\:\\:\\$referencingResourceType\\.$#"
-			count: 2
-			path: modules/jsonapi/tests/src/Kernel/Normalizer/RelationshipNormalizerTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\jsonapi\\\\Kernel\\\\Normalizer\\\\RelationshipNormalizerTest\\:\\:\\$user1\\.$#"
-			count: 1
-			path: modules/jsonapi/tests/src/Kernel/Normalizer/RelationshipNormalizerTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\jsonapi\\\\Kernel\\\\Normalizer\\\\RelationshipNormalizerTest\\:\\:\\$user2\\.$#"
-			count: 1
-			path: modules/jsonapi/tests/src/Kernel/Normalizer/RelationshipNormalizerTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\jsonapi\\\\Kernel\\\\Query\\\\FilterTest\\:\\:\\$fieldResolver\\.$#"
-			count: 8
-			path: modules/jsonapi/tests/src/Kernel/Query/FilterTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\jsonapi\\\\Kernel\\\\Serializer\\\\SerializerTest\\:\\:\\$user\\.$#"
-			count: 2
-			path: modules/jsonapi/tests/src/Kernel/Serializer/SerializerTest.php
 
 		-
 			message: "#^Method Drupal\\\\language\\\\Form\\\\LanguageAddForm\\:\\:save\\(\\) should return int but return statement is missing\\.$#"
@@ -1651,84 +1101,9 @@ parameters:
 			path: modules/language/src/LanguageNegotiationMethodManager.php
 
 		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\language\\\\Functional\\\\LanguageLocaleListTest\\:\\:\\$storage\\.$#"
-			count: 3
-			path: modules/language/tests/src/Functional/LanguageLocaleListTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\language\\\\Functional\\\\Rest\\\\ConfigurableLanguageResourceTestBase\\:\\:getNormalizedPostEntity\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/language/tests/src/Functional/Rest/ConfigurableLanguageResourceTestBase.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\language\\\\Functional\\\\Rest\\\\ContentLanguageSettingsResourceTestBase\\:\\:getNormalizedPostEntity\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/language/tests/src/Functional/Rest/ContentLanguageSettingsResourceTestBase.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\language\\\\Unit\\\\LanguageNegotiationUrlTest\\:\\:\\$languages\\.$#"
-			count: 3
-			path: modules/language/tests/src/Unit/LanguageNegotiationUrlTest.php
-
-		-
-			message: "#^Method Drupal\\\\layout_builder_test\\\\Plugin\\\\SectionStorage\\\\TestStateBasedSectionStorage\\:\\:access\\(\\) should return bool\\|Drupal\\\\Core\\\\Access\\\\AccessResultInterface but return statement is missing\\.$#"
-			count: 1
-			path: modules/layout_builder/tests/modules/layout_builder_test/src/Plugin/SectionStorage/TestStateBasedSectionStorage.php
-
-		-
-			message: "#^Method Drupal\\\\layout_builder_test\\\\Plugin\\\\SectionStorage\\\\TestStateBasedSectionStorage\\:\\:deriveContextsFromRoute\\(\\) should return array\\<Drupal\\\\Core\\\\Plugin\\\\Context\\\\ContextInterface\\> but return statement is missing\\.$#"
-			count: 1
-			path: modules/layout_builder/tests/modules/layout_builder_test/src/Plugin/SectionStorage/TestStateBasedSectionStorage.php
-
-		-
-			message: "#^Method Drupal\\\\layout_builder_test\\\\Plugin\\\\SectionStorage\\\\TestStateBasedSectionStorage\\:\\:getLayoutBuilderUrl\\(\\) should return Drupal\\\\Core\\\\Url but return statement is missing\\.$#"
-			count: 1
-			path: modules/layout_builder/tests/modules/layout_builder_test/src/Plugin/SectionStorage/TestStateBasedSectionStorage.php
-
-		-
-			message: "#^Method Drupal\\\\layout_builder_test\\\\Plugin\\\\SectionStorage\\\\TestStateBasedSectionStorage\\:\\:getRedirectUrl\\(\\) should return Drupal\\\\Core\\\\Url but return statement is missing\\.$#"
-			count: 1
-			path: modules/layout_builder/tests/modules/layout_builder_test/src/Plugin/SectionStorage/TestStateBasedSectionStorage.php
-
-		-
-			message: "#^Method Drupal\\\\layout_builder_test\\\\Plugin\\\\SectionStorage\\\\TestStateBasedSectionStorage\\:\\:getSectionList\\(\\) should return Drupal\\\\layout_builder\\\\SectionListInterface but return statement is missing\\.$#"
-			count: 1
-			path: modules/layout_builder/tests/modules/layout_builder_test/src/Plugin/SectionStorage/TestStateBasedSectionStorage.php
-
-		-
-			message: "#^Method Drupal\\\\layout_builder_test\\\\Plugin\\\\SectionStorage\\\\TestStateBasedSectionStorage\\:\\:getStorageId\\(\\) should return string but return statement is missing\\.$#"
-			count: 1
-			path: modules/layout_builder/tests/modules/layout_builder_test/src/Plugin/SectionStorage/TestStateBasedSectionStorage.php
-
-		-
-			message: "#^Method Drupal\\\\layout_builder_test\\\\Plugin\\\\SectionStorage\\\\TestStateBasedSectionStorage\\:\\:label\\(\\) should return string but return statement is missing\\.$#"
-			count: 1
-			path: modules/layout_builder/tests/modules/layout_builder_test/src/Plugin/SectionStorage/TestStateBasedSectionStorage.php
-
-		-
-			message: "#^Method Drupal\\\\layout_builder_test\\\\Plugin\\\\SectionStorage\\\\TestStateBasedSectionStorage\\:\\:save\\(\\) should return int but return statement is missing\\.$#"
-			count: 1
-			path: modules/layout_builder/tests/modules/layout_builder_test/src/Plugin/SectionStorage/TestStateBasedSectionStorage.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\layout_builder\\\\Functional\\\\Rest\\\\LayoutRestTestBase\\:\\:getExpectedUnauthorizedAccessCacheability\\(\\) should return Drupal\\\\Core\\\\Cache\\\\RefinableCacheableDependencyInterface but return statement is missing\\.$#"
-			count: 1
-			path: modules/layout_builder/tests/src/Functional/Rest/LayoutRestTestBase.php
-
-		-
 			message: "#^Call to an undefined method Drupal\\\\Tests\\\\layout_builder\\\\Unit\\\\DefaultsSectionStorageTest\\:\\:getThirdPartySetting\\(\\)\\.$#"
 			count: 1
 			path: modules/layout_builder/tests/src/Unit/DefaultsSectionStorageTest.php
-
-		-
-			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:10\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
-			count: 2
-			path: modules/locale/locale.batch.inc
-
-		-
-			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:10\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
-			count: 1
-			path: modules/locale/locale.bulk.inc
 
 		-
 			message: "#^Function locale_config_batch_update_components\\(\\) should return array but return statement is missing\\.$#"
@@ -1736,24 +1111,9 @@ parameters:
 			path: modules/locale/locale.bulk.inc
 
 		-
-			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:10\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
-			count: 1
-			path: modules/locale/locale.compare.inc
-
-		-
 			message: "#^Function locale_translation_check_projects\\(\\) should return array but return statement is missing\\.$#"
 			count: 1
 			path: modules/locale/locale.compare.inc
-
-		-
-			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:10\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
-			count: 3
-			path: modules/locale/locale.module
-
-		-
-			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:10\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
-			count: 2
-			path: modules/locale/locale.translation.inc
 
 		-
 			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:10\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
@@ -1796,11 +1156,6 @@ parameters:
 			path: modules/locale/src/StringDatabaseStorage.php
 
 		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\locale\\\\Functional\\\\LocaleConfigTranslationTest\\:\\:\\$storage\\.$#"
-			count: 9
-			path: modules/locale/tests/src/Functional/LocaleConfigTranslationTest.php
-
-		-
 			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:10\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
 			count: 5
 			path: modules/locale/tests/src/Functional/LocaleUpdateBase.php
@@ -1816,39 +1171,9 @@ parameters:
 			path: modules/locale/tests/src/Functional/LocaleUpdateInterfaceTest.php
 
 		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\locale\\\\Unit\\\\LocaleTranslationTest\\:\\:\\$cache\\.$#"
-			count: 2
-			path: modules/locale/tests/src/Unit/LocaleTranslationTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\locale\\\\Unit\\\\LocaleTranslationTest\\:\\:\\$lock\\.$#"
-			count: 2
-			path: modules/locale/tests/src/Unit/LocaleTranslationTest.php
-
-		-
 			message: "#^Method Drupal\\\\media\\\\MediaTypeForm\\:\\:save\\(\\) should return int but return statement is missing\\.$#"
 			count: 1
 			path: modules/media/src/MediaTypeForm.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\media\\\\Functional\\\\Rest\\\\MediaTypeResourceTestBase\\:\\:getNormalizedPostEntity\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/media/tests/src/Functional/Rest/MediaTypeResourceTestBase.php
-
-		-
-			message: "#^Access to an undefined property class@anonymous/core/modules/media/tests/src/Kernel/OEmbedResourceConstraintValidatorTest\\.php\\:105\\:\\:\\$entity\\.$#"
-			count: 2
-			path: modules/media/tests/src/Kernel/OEmbedResourceConstraintValidatorTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\media\\\\Kernel\\\\Views\\\\RevisionUserTest\\:\\:assertIdenticalResultsetHelper\\(\\) should return bool but return statement is missing\\.$#"
-			count: 1
-			path: modules/media/tests/src/Kernel/Views/RevisionUserTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\media_library\\\\Kernel\\\\MediaLibraryWidgetTest\\:\\:\\$baseField\\.$#"
-			count: 2
-			path: modules/media_library/tests/src/Kernel/MediaLibraryWidgetTest.php
 
 		-
 			message: "#^Method Drupal\\\\menu_link_content\\\\Form\\\\MenuLinkContentForm\\:\\:save\\(\\) should return int but return statement is missing\\.$#"
@@ -1906,49 +1231,9 @@ parameters:
 			path: modules/migrate/src/Plugin/migrate/process/Route.php
 
 		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\migrate\\\\Kernel\\\\MigrateTestBase\\:\\:\\$databaseDumpFiles\\.$#"
-			count: 1
-			path: modules/migrate/tests/src/Kernel/MigrateTestBase.php
-
-		-
 			message: "#^Call to an undefined static method static\\(Drupal\\\\Tests\\\\migrate\\\\Kernel\\\\MigrateTestBase\\)\\:\\:migrateDumpAlter\\(\\)\\.$#"
 			count: 1
 			path: modules/migrate/tests/src/Kernel/MigrateTestBase.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\migrate\\\\Kernel\\\\TestSqlBase\\:\\:fields\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/migrate/tests/src/Kernel/SqlBaseTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\migrate\\\\Kernel\\\\TestSqlBase\\:\\:getIds\\(\\) should return array\\<array\\> but return statement is missing\\.$#"
-			count: 1
-			path: modules/migrate/tests/src/Kernel/SqlBaseTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\migrate\\\\Unit\\\\TestSqlBase\\:\\:fields\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/migrate/tests/src/Unit/SqlBaseTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\migrate\\\\Unit\\\\TestSqlBase\\:\\:query\\(\\) should return Drupal\\\\Core\\\\Database\\\\Query\\\\SelectInterface but return statement is missing\\.$#"
-			count: 1
-			path: modules/migrate/tests/src/Unit/SqlBaseTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\migrate\\\\Unit\\\\TestMigrateExecutable\\:\\:setStringTranslation\\(\\) should return \\$this\\(Drupal\\\\Tests\\\\migrate\\\\Unit\\\\TestMigrateExecutable\\) but return statement is missing\\.$#"
-			count: 1
-			path: modules/migrate/tests/src/Unit/TestMigrateExecutable.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\migrate\\\\Unit\\\\destination\\\\TestPerComponentEntityDisplay\\:\\:\\$entity\\.$#"
-			count: 2
-			path: modules/migrate/tests/src/Unit/destination/PerComponentEntityDisplayTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\migrate\\\\Unit\\\\destination\\\\TestPerComponentEntityFormDisplay\\:\\:\\$entity\\.$#"
-			count: 2
-			path: modules/migrate/tests/src/Unit/destination/PerComponentEntityFormDisplayTest.php
 
 		-
 			message: """
@@ -1962,11 +1247,6 @@ parameters:
 			"""
 			count: 1
 			path: modules/migrate_drupal/tests/src/Unit/MigrationStateUnitTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\migrate_drupal\\\\Unit\\\\source\\\\TestDrupalSqlBase\\:\\:query\\(\\) should return Drupal\\\\Core\\\\Database\\\\Query\\\\SelectInterface but return statement is missing\\.$#"
-			count: 1
-			path: modules/migrate_drupal/tests/src/Unit/source/DrupalSqlBaseTest.php
 
 		-
 			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:10\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
@@ -2019,91 +1299,6 @@ parameters:
 			path: modules/migrate_drupal_ui/tests/src/Functional/MultilingualReviewPageTestBase.php
 
 		-
-			message: "#^Method Drupal\\\\Tests\\\\migrate_drupal_ui\\\\Functional\\\\d6\\\\IdConflictTest\\:\\:getAvailablePaths\\(\\) should return array\\<string\\> but return statement is missing\\.$#"
-			count: 1
-			path: modules/migrate_drupal_ui/tests/src/Functional/d6/IdConflictTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\migrate_drupal_ui\\\\Functional\\\\d6\\\\IdConflictTest\\:\\:getEntityCounts\\(\\) should return array\\<int\\> but return statement is missing\\.$#"
-			count: 1
-			path: modules/migrate_drupal_ui/tests/src/Functional/d6/IdConflictTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\migrate_drupal_ui\\\\Functional\\\\d6\\\\IdConflictTest\\:\\:getEntityCountsIncremental\\(\\) should return array\\<int\\> but return statement is missing\\.$#"
-			count: 1
-			path: modules/migrate_drupal_ui/tests/src/Functional/d6/IdConflictTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\migrate_drupal_ui\\\\Functional\\\\d6\\\\IdConflictTest\\:\\:getMissingPaths\\(\\) should return array\\<string\\> but return statement is missing\\.$#"
-			count: 1
-			path: modules/migrate_drupal_ui/tests/src/Functional/d6/IdConflictTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\migrate_drupal_ui\\\\Functional\\\\d6\\\\NodeClassicTest\\:\\:getAvailablePaths\\(\\) should return array\\<string\\> but return statement is missing\\.$#"
-			count: 1
-			path: modules/migrate_drupal_ui/tests/src/Functional/d6/NodeClassicTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\migrate_drupal_ui\\\\Functional\\\\d6\\\\NodeClassicTest\\:\\:getEntityCounts\\(\\) should return array\\<int\\> but return statement is missing\\.$#"
-			count: 1
-			path: modules/migrate_drupal_ui/tests/src/Functional/d6/NodeClassicTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\migrate_drupal_ui\\\\Functional\\\\d6\\\\NodeClassicTest\\:\\:getEntityCountsIncremental\\(\\) should return array\\<int\\> but return statement is missing\\.$#"
-			count: 1
-			path: modules/migrate_drupal_ui/tests/src/Functional/d6/NodeClassicTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\migrate_drupal_ui\\\\Functional\\\\d6\\\\NodeClassicTest\\:\\:getMissingPaths\\(\\) should return array\\<string\\> but return statement is missing\\.$#"
-			count: 1
-			path: modules/migrate_drupal_ui/tests/src/Functional/d6/NodeClassicTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\migrate_drupal_ui\\\\Functional\\\\d7\\\\FilePathTest\\:\\:getAvailablePaths\\(\\) should return array\\<string\\> but return statement is missing\\.$#"
-			count: 1
-			path: modules/migrate_drupal_ui/tests/src/Functional/d7/FilePathTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\migrate_drupal_ui\\\\Functional\\\\d7\\\\FilePathTest\\:\\:getEntityCounts\\(\\) should return array\\<int\\> but return statement is missing\\.$#"
-			count: 1
-			path: modules/migrate_drupal_ui/tests/src/Functional/d7/FilePathTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\migrate_drupal_ui\\\\Functional\\\\d7\\\\FilePathTest\\:\\:getEntityCountsIncremental\\(\\) should return array\\<int\\> but return statement is missing\\.$#"
-			count: 1
-			path: modules/migrate_drupal_ui/tests/src/Functional/d7/FilePathTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\migrate_drupal_ui\\\\Functional\\\\d7\\\\FilePathTest\\:\\:getMissingPaths\\(\\) should return array\\<string\\> but return statement is missing\\.$#"
-			count: 1
-			path: modules/migrate_drupal_ui/tests/src/Functional/d7/FilePathTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\migrate_drupal_ui\\\\Functional\\\\d7\\\\FilePathTest\\:\\:getSourceBasePath\\(\\) should return string but return statement is missing\\.$#"
-			count: 1
-			path: modules/migrate_drupal_ui/tests/src/Functional/d7/FilePathTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\migrate_drupal_ui\\\\Functional\\\\d7\\\\IdConflictTest\\:\\:getAvailablePaths\\(\\) should return array\\<string\\> but return statement is missing\\.$#"
-			count: 1
-			path: modules/migrate_drupal_ui/tests/src/Functional/d7/IdConflictTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\migrate_drupal_ui\\\\Functional\\\\d7\\\\IdConflictTest\\:\\:getEntityCounts\\(\\) should return array\\<int\\> but return statement is missing\\.$#"
-			count: 1
-			path: modules/migrate_drupal_ui/tests/src/Functional/d7/IdConflictTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\migrate_drupal_ui\\\\Functional\\\\d7\\\\IdConflictTest\\:\\:getEntityCountsIncremental\\(\\) should return array\\<int\\> but return statement is missing\\.$#"
-			count: 1
-			path: modules/migrate_drupal_ui/tests/src/Functional/d7/IdConflictTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\migrate_drupal_ui\\\\Functional\\\\d7\\\\IdConflictTest\\:\\:getMissingPaths\\(\\) should return array\\<string\\> but return statement is missing\\.$#"
-			count: 1
-			path: modules/migrate_drupal_ui/tests/src/Functional/d7/IdConflictTest.php
-
-		-
 			message: "#^Method Drupal\\\\node\\\\ConfigTranslation\\\\NodeTypeMapper\\:\\:setEntity\\(\\) should return bool but return statement is missing\\.$#"
 			count: 1
 			path: modules/node/src/ConfigTranslation/NodeTypeMapper.php
@@ -2139,29 +1334,9 @@ parameters:
 			path: modules/node/src/Plugin/views/row/Rss.php
 
 		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\node\\\\Functional\\\\NodeAccessGrantsCacheContextTest\\:\\:\\$noAccessUser2\\.$#"
-			count: 1
-			path: modules/node/tests/src/Functional/NodeAccessGrantsCacheContextTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\node\\\\Functional\\\\NodeAccessGrantsCacheContextTest\\:\\:\\$userMapping\\.$#"
-			count: 2
-			path: modules/node/tests/src/Functional/NodeAccessGrantsCacheContextTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\node\\\\Functional\\\\NodeAccessPagerTest\\:\\:\\$webUser\\.$#"
-			count: 3
-			path: modules/node/tests/src/Functional/NodeAccessPagerTest.php
-
-		-
 			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:10\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
 			count: 1
 			path: modules/node/tests/src/Functional/NodeAdminTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\node\\\\Functional\\\\NodeQueryAlterTest\\:\\:\\$noAccessUser2\\.$#"
-			count: 2
-			path: modules/node/tests/src/Functional/NodeQueryAlterTest.php
 
 		-
 			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:10\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
@@ -2189,21 +1364,6 @@ parameters:
 			path: modules/node/tests/src/Functional/NodeTranslationUITest.php
 
 		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\node\\\\Functional\\\\PagePreviewTest\\:\\:\\$term\\.$#"
-			count: 7
-			path: modules/node/tests/src/Functional/PagePreviewTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\node\\\\Functional\\\\PagePreviewTest\\:\\:\\$vocabulary\\.$#"
-			count: 1
-			path: modules/node/tests/src/Functional/PagePreviewTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\node\\\\Functional\\\\Rest\\\\NodeTypeResourceTestBase\\:\\:getNormalizedPostEntity\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/node/tests/src/Functional/Rest/NodeTypeResourceTestBase.php
-
-		-
 			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:10\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
 			count: 3
 			path: modules/node/tests/src/Functional/Views/FrontPageTest.php
@@ -2214,29 +1374,9 @@ parameters:
 			path: modules/node/tests/src/Functional/Views/NodeIntegrationTest.php
 
 		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\node\\\\Functional\\\\Views\\\\Wizard\\\\HiddenTaxonomyTermReferenceFieldWizardTest\\:\\:\\$fieldName\\.$#"
-			count: 1
-			path: modules/node/tests/src/Functional/Views/Wizard/HiddenTaxonomyTermReferenceFieldWizardTest.php
-
-		-
 			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:10\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
 			count: 5
 			path: modules/node/tests/src/Functional/Views/Wizard/NodeRevisionWizardTest.php
-
-		-
-			message: "#^Cannot unset offset 'configuration' on array\\{source_data\\: array\\{node\\: array\\{array\\{nid\\: 1, vid\\: 1, type\\: 'page', language\\: 'en', title\\: 'node title 1', uid\\: 1, status\\: 1, created\\: 1279051598, \\.\\.\\.\\}, array\\{nid\\: 2, vid\\: 2, type\\: 'page', language\\: 'en', title\\: 'node title 2', uid\\: 1, status\\: 1, created\\: 1279290908, \\.\\.\\.\\}, array\\{nid\\: 5, vid\\: 5, type\\: 'article', language\\: 'en', title\\: 'node title 5', uid\\: 1, status\\: 1, created\\: 1279290908, \\.\\.\\.\\}, array\\{nid\\: 6, vid\\: 6, type\\: 'article', language\\: 'en', title\\: 'node title 5', uid\\: 1, status\\: 1, created\\: 1279291908, \\.\\.\\.\\}, array\\{nid\\: 7, vid\\: 7, type\\: 'article', language\\: 'fr', title\\: 'fr \\- node title 5', uid\\: 1, status\\: 1, created\\: 1279292908, \\.\\.\\.\\}\\}, node_revision\\: array\\{array\\{nid\\: 1, vid\\: 1, uid\\: 2, title\\: 'node title 1', log\\: '', timestamp\\: 1279051598, status\\: 1, comment\\: 2, \\.\\.\\.\\}, array\\{nid\\: 2, vid\\: 2, uid\\: 2, title\\: 'node title 2', log\\: '', timestamp\\: 1279308993, status\\: 1, comment\\: 0, \\.\\.\\.\\}, array\\{nid\\: 5, vid\\: 5, uid\\: 2, title\\: 'node title 5', log\\: '', timestamp\\: 1279308993, status\\: 1, comment\\: 0, \\.\\.\\.\\}, array\\{nid\\: 6, vid\\: 6, uid\\: 1, title\\: 'node title 5', log\\: '', timestamp\\: 1279309993, status\\: 1, comment\\: 0, \\.\\.\\.\\}, array\\{nid\\: 7, vid\\: 7, uid\\: 1, title\\: 'fr \\- node title 5', log\\: '', timestamp\\: 1279310993, status\\: 1, comment\\: 0, \\.\\.\\.\\}\\}, field_config\\: array\\{array\\{id\\: '2', translatable\\: '0'\\}, array\\{id\\: '3', translatable\\: '1'\\}\\}, field_config_instance\\: array\\{array\\{id\\: '2', field_id\\: '2', field_name\\: 'body', entity_type\\: 'node', bundle\\: 'page', data\\: 'a\\:0\\:\\{\\}', deleted\\: '0'\\}, array\\{id\\: '3', field_id\\: '2', field_name\\: 'body', entity_type\\: 'node', bundle\\: 'article', data\\: 'a\\:0\\:\\{\\}', deleted\\: '0'\\}, array\\{id\\: '4', field_id\\: '3', field_name\\: 'title_field', entity_type\\: 'node', bundle\\: 'article', data\\: 'a\\:0\\:\\{\\}', deleted\\: '0'\\}\\}, field_revision_body\\: array\\{array\\{entity_type\\: 'node', bundle\\: 'page', deleted\\: '0', entity_id\\: '1', revision_id\\: '1', language\\: 'en', delta\\: '0', body_value\\: 'Foo', \\.\\.\\.\\}, array\\{entity_type\\: 'node', bundle\\: 'page', deleted\\: '0', entity_id\\: '2', revision_id\\: '2', language\\: 'en', delta\\: '0', body_value\\: 'body 2', \\.\\.\\.\\}, array\\{entity_type\\: 'node', bundle\\: 'page', deleted\\: '0', entity_id\\: '5', revision_id\\: '5', language\\: 'en', delta\\: '0', body_value\\: 'body 5', \\.\\.\\.\\}, array\\{entity_type\\: 'node', bundle\\: 'page', deleted\\: '0', entity_id\\: '6', revision_id\\: '6', language\\: 'en', delta\\: '0', body_value\\: 'body 6', \\.\\.\\.\\}, array\\{entity_type\\: 'node', bundle\\: 'page', deleted\\: '0', entity_id\\: '7', revision_id\\: '7', language\\: 'fr', delta\\: '0', body_value\\: 'fr \\- body 6', \\.\\.\\.\\}\\}, field_revision_title_field\\: array\\{array\\{entity_type\\: 'node', bundle\\: 'article', deleted\\: '0', entity_id\\: '5', revision_id\\: '5', language\\: 'en', delta\\: '0', title_field_value\\: 'node title 5 \\(title…', \\.\\.\\.\\}, array\\{entity_type\\: 'node', bundle\\: 'article', deleted\\: '0', entity_id\\: '6', revision_id\\: '6', language\\: 'en', delta\\: '0', title_field_value\\: 'node title 5 \\(title…', \\.\\.\\.\\}, array\\{entity_type\\: 'node', bundle\\: 'article', deleted\\: '0', entity_id\\: '7', revision_id\\: '7', language\\: 'en', delta\\: '0', title_field_value\\: 'node title 5 \\(title…', \\.\\.\\.\\}\\}, system\\: array\\{array\\{name\\: 'title', type\\: 'module', status\\: 1\\}\\}\\}, expected_data\\: array\\{array\\{nid\\: 1, vid\\: 1, type\\: 'page', language\\: 'en', title\\: 'node title 1', node_uid\\: 1, revision_uid\\: 2, status\\: 1, \\.\\.\\.\\}, array\\{nid\\: 2, vid\\: 2, type\\: 'page', language\\: 'en', title\\: 'node title 2', node_uid\\: 1, revision_uid\\: 2, status\\: 1, \\.\\.\\.\\}, array\\{nid\\: 5, vid\\: 5, type\\: 'article', language\\: 'en', title\\: 'node title 5 \\(title…', node_uid\\: 1, revision_uid\\: 2, status\\: 1, \\.\\.\\.\\}, array\\{nid\\: 6, vid\\: 6, type\\: 'article', language\\: 'en', title\\: 'node title 5 \\(title…', node_uid\\: 1, revision_uid\\: 1, status\\: 1, \\.\\.\\.\\}\\}\\}\\.$#"
-			count: 1
-			path: modules/node/tests/src/Kernel/Plugin/migrate/source/d7/NodeTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\node\\\\Kernel\\\\Views\\\\FilterUidRevisionTest\\:\\:assertIdenticalResultsetHelper\\(\\) should return bool but return statement is missing\\.$#"
-			count: 1
-			path: modules/node/tests/src/Kernel/Views/FilterUidRevisionTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\node\\\\Kernel\\\\Views\\\\RevisionUidTest\\:\\:assertIdenticalResultsetHelper\\(\\) should return bool but return statement is missing\\.$#"
-			count: 1
-			path: modules/node/tests/src/Kernel/Views/RevisionUidTest.php
 
 		-
 			message: "#^Method Drupal\\\\options\\\\Plugin\\\\Field\\\\FieldType\\\\ListFloatItem\\:\\:validateAllowedValue\\(\\) should return string but return statement is missing\\.$#"
@@ -2269,31 +1409,6 @@ parameters:
 			path: modules/options/src/Plugin/views/argument/StringListField.php
 
 		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\options\\\\Functional\\\\OptionsDynamicValuesTestBase\\:\\:\\$field\\.$#"
-			count: 1
-			path: modules/options/tests/src/Functional/OptionsDynamicValuesTestBase.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\options\\\\Functional\\\\OptionsDynamicValuesTestBase\\:\\:\\$test\\.$#"
-			count: 1
-			path: modules/options/tests/src/Functional/OptionsDynamicValuesTestBase.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\options\\\\Functional\\\\OptionsDynamicValuesValidationTest\\:\\:\\$test\\.$#"
-			count: 2
-			path: modules/options/tests/src/Functional/OptionsDynamicValuesValidationTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\options\\\\Functional\\\\OptionsSelectDynamicValuesTest\\:\\:\\$test\\.$#"
-			count: 2
-			path: modules/options/tests/src/Functional/OptionsSelectDynamicValuesTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\options\\\\Kernel\\\\Views\\\\ViewsDataTest\\:\\:\\$field\\.$#"
-			count: 1
-			path: modules/options/tests/src/Kernel/Views/ViewsDataTest.php
-
-		-
 			message: "#^Method Drupal\\\\path\\\\PathAliasForm\\:\\:save\\(\\) should return int but return statement is missing\\.$#"
 			count: 1
 			path: modules/path/src/PathAliasForm.php
@@ -2314,11 +1429,6 @@ parameters:
 			path: modules/pgsql/src/Driver/Database/pgsql/Upsert.php
 
 		-
-			message: "#^Method Drupal\\\\Tests\\\\rdf\\\\Functional\\\\Rest\\\\RdfMappingResourceTestBase\\:\\:getNormalizedPostEntity\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/rdf/tests/src/Functional/Rest/RdfMappingResourceTestBase.php
-
-		-
 			message: "#^Call to an undefined method Drupal\\\\Tests\\\\rdf\\\\Kernel\\\\Field\\\\FieldRdfaTestBase\\:\\:drupalGet\\(\\)\\.$#"
 			count: 2
 			path: modules/rdf/tests/src/Kernel/Field/FieldRdfaTestBase.php
@@ -2329,16 +1439,6 @@ parameters:
 			path: modules/responsive_image/src/ResponsiveImageStyleForm.php
 
 		-
-			message: "#^Method Drupal\\\\Tests\\\\responsive_image\\\\Functional\\\\Rest\\\\ResponsiveImageStyleResourceTestBase\\:\\:getNormalizedPostEntity\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/responsive_image/tests/src/Functional/Rest/ResponsiveImageStyleResourceTestBase.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\responsive_image\\\\FunctionalJavascript\\\\ResponsiveImageFieldUiTest\\:\\:\\$type\\.$#"
-			count: 2
-			path: modules/responsive_image/tests/src/FunctionalJavascript/ResponsiveImageFieldUiTest.php
-
-		-
 			message: "#^Method Drupal\\\\rest\\\\Plugin\\\\Deriver\\\\EntityDeriver\\:\\:getDerivativeDefinition\\(\\) should return array but return statement is missing\\.$#"
 			count: 1
 			path: modules/rest/src/Plugin/Deriver/EntityDeriver.php
@@ -2347,26 +1447,6 @@ parameters:
 			message: "#^Method Drupal\\\\rest\\\\Routing\\\\ResourceRoutes\\:\\:onDynamicRouteEvent\\(\\) should return array but return statement is missing\\.$#"
 			count: 1
 			path: modules/rest/src/Routing/ResourceRoutes.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\rest\\\\Functional\\\\FileUploadResourceTestBase\\:\\:getExpectedUnauthorizedAccessCacheability\\(\\) should return Drupal\\\\Core\\\\Cache\\\\RefinableCacheableDependencyInterface but return statement is missing\\.$#"
-			count: 1
-			path: modules/rest/tests/src/Functional/FileUploadResourceTestBase.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\rest\\\\Functional\\\\ResourceTestBase\\:\\:recursiveKSort\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/rest/tests/src/Functional/ResourceTestBase.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\rest\\\\Functional\\\\Rest\\\\RestResourceConfigResourceTestBase\\:\\:getNormalizedPostEntity\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/rest/tests/src/Functional/Rest/RestResourceConfigResourceTestBase.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\rest\\\\Unit\\\\CollectRoutesTest\\:\\:\\$view\\.$#"
-			count: 1
-			path: modules/rest/tests/src/Unit/CollectRoutesTest.php
 
 		-
 			message: "#^Method Drupal\\\\search\\\\Form\\\\SearchPageAddForm\\:\\:save\\(\\) should return int but return statement is missing\\.$#"
@@ -2414,11 +1494,6 @@ parameters:
 			path: modules/search/tests/modules/search_extra_type/src/Plugin/Search/SearchExtraTypeSearch.php
 
 		-
-			message: "#^Method Drupal\\\\Tests\\\\search\\\\Functional\\\\Rest\\\\SearchPageResourceTestBase\\:\\:getNormalizedPostEntity\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/search/tests/src/Functional/Rest/SearchPageResourceTestBase.php
-
-		-
 			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:10\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
 			count: 1
 			path: modules/search/tests/src/Functional/SearchMultilingualEntityTest.php
@@ -2454,21 +1529,6 @@ parameters:
 			path: modules/shortcut/src/ShortcutSetForm.php
 
 		-
-			message: "#^Method Drupal\\\\Tests\\\\shortcut\\\\Functional\\\\Rest\\\\ShortcutSetResourceTestBase\\:\\:getNormalizedPostEntity\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/shortcut/tests/src/Functional/Rest/ShortcutSetResourceTestBase.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\statistics\\\\Functional\\\\StatisticsLoggingTest\\:\\:\\$node\\.$#"
-			count: 6
-			path: modules/statistics/tests/src/Functional/StatisticsLoggingTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\statistics\\\\Functional\\\\Views\\\\IntegrationTest\\:\\:\\$deniedUser\\.$#"
-			count: 2
-			path: modules/statistics/tests/src/Functional/Views/IntegrationTest.php
-
-		-
 			message: "#^Method Drupal\\\\system\\\\Controller\\\\BatchController\\:\\:batchPage\\(\\) should return array\\|Symfony\\\\Component\\\\HttpFoundation\\\\Response but return statement is missing\\.$#"
 			count: 1
 			path: modules/system/src/Controller/BatchController.php
@@ -2499,16 +1559,6 @@ parameters:
 			path: modules/system/src/Form/ModulesListNonStableConfirmForm.php
 
 		-
-			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:10\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
-			count: 2
-			path: modules/system/system.install
-
-		-
-			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:10\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
-			count: 6
-			path: modules/system/system.tokens.inc
-
-		-
 			message: "#^Access to an undefined property Drupal\\\\accept_header_routing_test\\\\AcceptHeaderMiddleware\\:\\:\\$app\\.$#"
 			count: 2
 			path: modules/system/tests/modules/accept_header_routing_test/src/AcceptHeaderMiddleware.php
@@ -2537,21 +1587,6 @@ parameters:
 			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:10\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
 			count: 1
 			path: modules/system/tests/modules/entity_test/src/Plugin/Field/FieldType/ChangedTestItem.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\entity_test\\\\Functional\\\\Rest\\\\EntityTestBundleResourceTestBase\\:\\:getNormalizedPostEntity\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/system/tests/modules/entity_test/tests/src/Functional/Rest/EntityTestBundleResourceTestBase.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\entity_test\\\\Functional\\\\Rest\\\\EntityTestResourceTestBase\\:\\:\\$entityDefinitionUpdateManager\\.$#"
-			count: 10
-			path: modules/system/tests/modules/entity_test/tests/src/Functional/Rest/EntityTestResourceTestBase.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\entity_test\\\\Functional\\\\Rest\\\\EntityTestResourceTestBase\\:\\:\\$state\\.$#"
-			count: 21
-			path: modules/system/tests/modules/entity_test/tests/src/Functional/Rest/EntityTestResourceTestBase.php
 
 		-
 			message: "#^Access to an undefined property Drupal\\\\error_service_test\\\\Controller\\\\LonelyMonkeyController\\:\\:\\$class\\.$#"
@@ -2599,64 +1634,9 @@ parameters:
 			path: modules/system/tests/modules/service_provider_test/src/TestFileUsage.php
 
 		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\system\\\\Functional\\\\Entity\\\\EntityListBuilderTest\\:\\:\\$webUser\\.$#"
-			count: 1
-			path: modules/system/tests/src/Functional/Entity/EntityListBuilderTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\system\\\\Functional\\\\FileTransfer\\\\FileTransferTest\\:\\:\\$testConnection\\.$#"
-			count: 3
-			path: modules/system/tests/src/Functional/FileTransfer/FileTransferTest.php
-
-		-
 			message: "#^Instantiated class Drupal\\\\Tests\\\\system\\\\Functional\\\\FileTransfer\\\\Exception not found\\.$#"
 			count: 1
 			path: modules/system/tests/src/Functional/FileTransfer/FileTransferTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\system\\\\Functional\\\\Form\\\\StubForm\\:\\:getFormId\\(\\) should return string but return statement is missing\\.$#"
-			count: 1
-			path: modules/system/tests/src/Functional/Form/StubForm.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\system\\\\Functional\\\\Rest\\\\ActionResourceTestBase\\:\\:getNormalizedPostEntity\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/system/tests/src/Functional/Rest/ActionResourceTestBase.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\system\\\\Functional\\\\Rest\\\\MenuResourceTestBase\\:\\:getNormalizedPostEntity\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/system/tests/src/Functional/Rest/MenuResourceTestBase.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\system\\\\Functional\\\\System\\\\SiteMaintenanceTest\\:\\:\\$user\\.$#"
-			count: 6
-			path: modules/system/tests/src/Functional/System/SiteMaintenanceTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\system\\\\Functional\\\\System\\\\ThemeTest\\:\\:\\$node\\.$#"
-			count: 3
-			path: modules/system/tests/src/Functional/System/ThemeTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\system\\\\Functional\\\\Theme\\\\FastTest\\:\\:\\$account\\.$#"
-			count: 4
-			path: modules/system/tests/src/Functional/Theme/FastTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\system\\\\Functional\\\\Theme\\\\ToolbarClaroOverridesTest\\:\\:\\$themeManager\\.$#"
-			count: 1
-			path: modules/system/tests/src/Functional/Theme/ToolbarClaroOverridesTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\system\\\\Functional\\\\UpdateSystem\\\\UpdateRemovedPostUpdateTest\\:\\:\\$updateUrl\\.$#"
-			count: 4
-			path: modules/system/tests/src/Functional/UpdateSystem/UpdateRemovedPostUpdateTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\system\\\\Functional\\\\UpdateSystem\\\\UpdateRemovedPostUpdateTest\\:\\:\\$updateUser\\.$#"
-			count: 2
-			path: modules/system/tests/src/Functional/UpdateSystem/UpdateRemovedPostUpdateTest.php
 
 		-
 			message: "#^Call to an undefined method Drupal\\\\Tests\\\\system\\\\Kernel\\\\Common\\\\PageRenderTest\\:\\:error\\(\\)\\.$#"
@@ -2667,16 +1647,6 @@ parameters:
 			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:10\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
 			count: 1
 			path: modules/system/tests/src/Kernel/Token/TokenReplaceKernelTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\system\\\\Unit\\\\Breadcrumbs\\\\TestPathBasedBreadcrumbBuilder\\:\\:\\$linkGenerator\\.$#"
-			count: 1
-			path: modules/system/tests/src/Unit/Breadcrumbs/PathBasedBreadcrumbBuilderTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\system\\\\Unit\\\\Breadcrumbs\\\\TestPathBasedBreadcrumbBuilder\\:\\:setStringTranslation\\(\\) should return \\$this\\(Drupal\\\\Tests\\\\system\\\\Unit\\\\Breadcrumbs\\\\TestPathBasedBreadcrumbBuilder\\) but return statement is missing\\.$#"
-			count: 1
-			path: modules/system/tests/src/Unit/Breadcrumbs/PathBasedBreadcrumbBuilderTest.php
 
 		-
 			message: "#^Method Drupal\\\\taxonomy\\\\Plugin\\\\migrate\\\\source\\\\d7\\\\TermTranslation\\:\\:prepareRow\\(\\) should return bool but return statement is missing\\.$#"
@@ -2739,11 +1709,6 @@ parameters:
 			path: modules/taxonomy/src/VocabularyForm.php
 
 		-
-			message: "#^Method Drupal\\\\Tests\\\\taxonomy\\\\Functional\\\\Rest\\\\VocabularyResourceTestBase\\:\\:getNormalizedPostEntity\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/taxonomy/tests/src/Functional/Rest/VocabularyResourceTestBase.php
-
-		-
 			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:10\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
 			count: 1
 			path: modules/toolbar/src/Controller/ToolbarController.php
@@ -2754,16 +1719,6 @@ parameters:
 			path: modules/tour/src/TipPluginBase.php
 
 		-
-			message: "#^Method Drupal\\\\Tests\\\\tour\\\\Functional\\\\Rest\\\\TourResourceTestBase\\:\\:getNormalizedPostEntity\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/tour/tests/src/Functional/Rest/TourResourceTestBase.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\tracker\\\\Kernel\\\\Views\\\\TrackerUserUidTest\\:\\:assertIdenticalResultsetHelper\\(\\) should return bool but return statement is missing\\.$#"
-			count: 1
-			path: modules/tracker/tests/src/Kernel/Views/TrackerUserUidTest.php
-
-		-
 			message: "#^Access to an undefined property Drupal\\\\update\\\\UpdateProcessor\\:\\:\\$fetchTasks\\.$#"
 			count: 2
 			path: modules/update/src/UpdateProcessor.php
@@ -2772,16 +1727,6 @@ parameters:
 			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:10\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
 			count: 4
 			path: modules/update/src/UpdateProcessor.php
-
-		-
-			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:10\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
-			count: 1
-			path: modules/update/update.fetch.inc
-
-		-
-			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:10\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
-			count: 4
-			path: modules/update/update.module
 
 		-
 			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:10\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
@@ -2829,11 +1774,6 @@ parameters:
 			path: modules/user/src/RoleForm.php
 
 		-
-			message: "#^Method Drupal\\\\Tests\\\\user\\\\Functional\\\\Rest\\\\RoleResourceTestBase\\:\\:getNormalizedPostEntity\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/user/tests/src/Functional/Rest/RoleResourceTestBase.php
-
-		-
 			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:10\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
 			count: 2
 			path: modules/user/tests/src/Functional/UserCreateTest.php
@@ -2854,22 +1794,7 @@ parameters:
 			path: modules/user/tests/src/Functional/UserPictureTest.php
 
 		-
-			message: "#^Access to an undefined static property static\\(Drupal\\\\Tests\\\\user\\\\Functional\\\\UserRegistrationRestTest\\)\\:\\:\\$entityTypeId\\.$#"
-			count: 1
-			path: modules/user/tests/src/Functional/UserRegistrationRestTest.php
-
-		-
 			message: "#^Call to an undefined method Drupal\\\\Tests\\\\user\\\\Functional\\\\UserRegistrationRestTest\\:\\:getExpectedUnauthorizedEntityAccessCacheability\\(\\)\\.$#"
-			count: 1
-			path: modules/user/tests/src/Functional/UserRegistrationRestTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\user\\\\Functional\\\\UserRegistrationRestTest\\:\\:getExpectedUnauthorizedAccessCacheability\\(\\) should return Drupal\\\\Core\\\\Cache\\\\RefinableCacheableDependencyInterface but return statement is missing\\.$#"
-			count: 1
-			path: modules/user/tests/src/Functional/UserRegistrationRestTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\user\\\\Functional\\\\UserRegistrationRestTest\\:\\:getExpectedUnauthorizedAccessMessage\\(\\) should return string but return statement is missing\\.$#"
 			count: 1
 			path: modules/user/tests/src/Functional/UserRegistrationRestTest.php
 
@@ -2887,16 +1812,6 @@ parameters:
 			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:10\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
 			count: 1
 			path: modules/user/tests/src/FunctionalJavascript/UserPasswordResetTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\user\\\\Kernel\\\\Views\\\\RelationshipRepresentativeNodeTest\\:\\:assertIdenticalResultsetHelper\\(\\) should return bool but return statement is missing\\.$#"
-			count: 1
-			path: modules/user/tests/src/Kernel/Views/RelationshipRepresentativeNodeTest.php
-
-		-
-			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:10\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
-			count: 5
-			path: modules/user/user.module
 
 		-
 			message: "#^Method Drupal\\\\views\\\\Form\\\\ViewsFormMainForm\\:\\:getFormId\\(\\) should return string but return statement is missing\\.$#"
@@ -3309,36 +2224,6 @@ parameters:
 			path: modules/views/tests/src/Functional/GlossaryTest.php
 
 		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\views\\\\Functional\\\\Handler\\\\FilterDateTest\\:\\:\\$map\\.$#"
-			count: 7
-			path: modules/views/tests/src/Functional/Handler/FilterDateTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\views\\\\Functional\\\\Handler\\\\FilterDateTest\\:\\:\\$nodes\\.$#"
-			count: 16
-			path: modules/views/tests/src/Functional/Handler/FilterDateTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\views\\\\Functional\\\\Plugin\\\\DisplayTest\\:\\:\\$adminUser\\.$#"
-			count: 1
-			path: modules/views/tests/src/Functional/Plugin/DisplayTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\views\\\\Functional\\\\Plugin\\\\FilterTest\\:\\:\\$adminUser\\.$#"
-			count: 1
-			path: modules/views/tests/src/Functional/Plugin/FilterTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\views\\\\Functional\\\\Rest\\\\ViewResourceTestBase\\:\\:getNormalizedPostEntity\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/views/tests/src/Functional/Rest/ViewResourceTestBase.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\views\\\\Functional\\\\ViewTestBase\\:\\:assertIdenticalResultsetHelper\\(\\) should return bool but return statement is missing\\.$#"
-			count: 1
-			path: modules/views/tests/src/Functional/ViewTestBase.php
-
-		-
 			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:10\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
 			count: 6
 			path: modules/views/tests/src/Functional/Wizard/ItemsPerPageTest.php
@@ -3357,21 +2242,6 @@ parameters:
 			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:10\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
 			count: 2
 			path: modules/views/tests/src/FunctionalJavascript/ClickSortingAJAXTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\views\\\\Kernel\\\\Entity\\\\RowEntityRenderersTest\\:\\:\\$ids\\.$#"
-			count: 2
-			path: modules/views/tests/src/Kernel/Entity/RowEntityRenderersTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\views\\\\Kernel\\\\Entity\\\\RowEntityRenderersTest\\:\\:\\$values\\.$#"
-			count: 3
-			path: modules/views/tests/src/Kernel/Entity/RowEntityRenderersTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\views\\\\Kernel\\\\EventSubscriber\\\\ViewsEntitySchemaSubscriberIntegrationTest\\:\\:\\$database\\.$#"
-			count: 1
-			path: modules/views/tests/src/Kernel/EventSubscriber/ViewsEntitySchemaSubscriberIntegrationTest.php
 
 		-
 			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:10\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
@@ -3402,26 +2272,6 @@ parameters:
 			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:10\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
 			count: 2
 			path: modules/views/tests/src/Kernel/RenderCacheIntegrationTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\views\\\\Kernel\\\\ViewsKernelTestBase\\:\\:assertIdenticalResultsetHelper\\(\\) should return bool but return statement is missing\\.$#"
-			count: 1
-			path: modules/views/tests/src/Kernel/ViewsKernelTestBase.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\views\\\\Unit\\\\Plugin\\\\Derivative\\\\TestViewsLocalTask\\:\\:\\$result\\.$#"
-			count: 2
-			path: modules/views/tests/src/Unit/Plugin/Derivative/ViewsLocalTaskTest.php
-
-		-
-			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:10\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
-			count: 1
-			path: modules/views/views.theme.inc
-
-		-
-			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:10\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
-			count: 1
-			path: modules/views/views.views_execution.inc
 
 		-
 			message: "#^Method Drupal\\\\views_ui\\\\ViewEditForm\\:\\:save\\(\\) should return int but return statement is missing\\.$#"
@@ -3479,11 +2329,6 @@ parameters:
 			path: modules/workflows/src/Form/WorkflowTransitionEditForm.php
 
 		-
-			message: "#^Method Drupal\\\\Tests\\\\workflows\\\\Functional\\\\Rest\\\\WorkflowResourceTestBase\\:\\:getNormalizedPostEntity\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: modules/workflows/tests/src/Functional/Rest/WorkflowResourceTestBase.php
-
-		-
 			message: "#^Method Drupal\\\\workspaces\\\\EntityTypeInfo\\:\\:entityBaseFieldInfo\\(\\) should return array\\<Drupal\\\\Core\\\\Field\\\\FieldDefinitionInterface\\> but return statement is missing\\.$#"
 			count: 1
 			path: modules/workspaces/src/EntityTypeInfo.php
@@ -3504,59 +2349,9 @@ parameters:
 			path: modules/workspaces/src/WorkspacePublisher.php
 
 		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\workspaces\\\\Kernel\\\\EntityReferenceSupportedNewEntitiesConstraintValidatorTest\\:\\:\\$entityTypeManager\\.$#"
-			count: 2
-			path: modules/workspaces/tests/src/Kernel/EntityReferenceSupportedNewEntitiesConstraintValidatorTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\workspaces\\\\Kernel\\\\WorkspaceIntegrationTest\\:\\:assertIdenticalResultsetHelper\\(\\) should return bool but return statement is missing\\.$#"
-			count: 1
-			path: modules/workspaces/tests/src/Kernel/WorkspaceIntegrationTest.php
-
-		-
 			message: "#^Access to an undefined property Drupal\\\\demo_umami_content\\\\InstallHelper\\:\\:\\$module_path\\.$#"
 			count: 5
 			path: profiles/demo_umami/modules/demo_umami_content/src/InstallHelper.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\BuildTests\\\\Framework\\\\BuildTestBase\\:\\:\\$phpFinder\\.$#"
-			count: 1
-			path: tests/Drupal/BuildTests/Framework/BuildTestBase.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\FunctionalJavascriptTests\\\\Ajax\\\\FormValuesTest\\:\\:\\$assertAjaxHeader\\.$#"
-			count: 1
-			path: tests/Drupal/FunctionalJavascriptTests/Ajax/FormValuesTest.php
-
-		-
-			message: "#^Method Drupal\\\\FunctionalTests\\\\Rest\\\\BaseFieldOverrideResourceTestBase\\:\\:getNormalizedPostEntity\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: tests/Drupal/FunctionalTests/Rest/BaseFieldOverrideResourceTestBase.php
-
-		-
-			message: "#^Method Drupal\\\\FunctionalTests\\\\Rest\\\\DateFormatResourceTestBase\\:\\:getNormalizedPostEntity\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: tests/Drupal/FunctionalTests/Rest/DateFormatResourceTestBase.php
-
-		-
-			message: "#^Method Drupal\\\\FunctionalTests\\\\Rest\\\\EntityFormDisplayResourceTestBase\\:\\:getNormalizedPostEntity\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: tests/Drupal/FunctionalTests/Rest/EntityFormDisplayResourceTestBase.php
-
-		-
-			message: "#^Method Drupal\\\\FunctionalTests\\\\Rest\\\\EntityFormModeResourceTestBase\\:\\:getNormalizedPostEntity\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: tests/Drupal/FunctionalTests/Rest/EntityFormModeResourceTestBase.php
-
-		-
-			message: "#^Method Drupal\\\\FunctionalTests\\\\Rest\\\\EntityViewDisplayResourceTestBase\\:\\:getNormalizedPostEntity\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: tests/Drupal/FunctionalTests/Rest/EntityViewDisplayResourceTestBase.php
-
-		-
-			message: "#^Method Drupal\\\\FunctionalTests\\\\Rest\\\\EntityViewModeResourceTestBase\\:\\:getNormalizedPostEntity\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: tests/Drupal/FunctionalTests/Rest/EntityViewModeResourceTestBase.php
 
 		-
 			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:10\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
@@ -3567,16 +2362,6 @@ parameters:
 			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:10\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
 			count: 4
 			path: tests/Drupal/KernelTests/Core/Entity/ContentEntityChangedTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\KernelTests\\\\Core\\\\Entity\\\\ContentEntityNonRevisionableFieldTest\\:\\:\\$entityDefinitionUpdateManager\\.$#"
-			count: 10
-			path: tests/Drupal/KernelTests/Core/Entity/ContentEntityNonRevisionableFieldTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\KernelTests\\\\Core\\\\Entity\\\\DefaultTableMappingIntegrationTest\\:\\:\\$entityDefinitionUpdateManager\\.$#"
-			count: 10
-			path: tests/Drupal/KernelTests/Core/Entity/DefaultTableMappingIntegrationTest.php
 
 		-
 			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:10\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
@@ -3594,34 +2379,14 @@ parameters:
 			path: tests/Drupal/KernelTests/Core/Entity/EntityDisplayFormBaseTest.php
 
 		-
-			message: "#^Access to an undefined property Drupal\\\\KernelTests\\\\Core\\\\Entity\\\\EntitySchemaTest\\:\\:\\$entityDefinitionUpdateManager\\.$#"
-			count: 10
-			path: tests/Drupal/KernelTests/Core/Entity/EntitySchemaTest.php
-
-		-
 			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:10\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
 			count: 1
 			path: tests/Drupal/KernelTests/Core/Entity/EntityTypeConstraintsTest.php
 
 		-
-			message: "#^Access to an undefined property Drupal\\\\KernelTests\\\\Core\\\\Entity\\\\EntityValidationTest\\:\\:\\$cachedDiscoveries\\.$#"
-			count: 1
-			path: tests/Drupal/KernelTests/Core/Entity/EntityValidationTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\KernelTests\\\\Core\\\\Image\\\\ToolkitTest\\:\\:\\$imageEffectPluginManager\\.$#"
-			count: 1
-			path: tests/Drupal/KernelTests/Core/Image/ToolkitTest.php
-
-		-
 			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:10\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
 			count: 1
 			path: tests/Drupal/KernelTests/Core/KeyValueStore/GarbageCollectionTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\KernelTests\\\\Core\\\\Queue\\\\QueueSerializationTest\\:\\:\\$queue\\.$#"
-			count: 1
-			path: tests/Drupal/KernelTests/Core/Queue/QueueSerializationTest.php
 
 		-
 			message: "#^\\#pre_render callback 'element_info_test…' at key '1' is not trusted\\.$#"
@@ -3644,49 +2409,9 @@ parameters:
 			path: tests/Drupal/KernelTests/Core/Test/BrowserTestBaseTest.php
 
 		-
-			message: "#^Access to an undefined property Drupal\\\\Core\\\\File\\\\FileUrlGeneratorInterface\\:\\:\\$fileUrlGenerator\\.$#"
-			count: 2
-			path: tests/Drupal/KernelTests/Core/Theme/ImageTest.php
-
-		-
-			message: "#^Call to an undefined method Drupal\\\\Core\\\\File\\\\FileUrlGeneratorInterface\\:\\:assertRaw\\(\\)\\.$#"
-			count: 1
-			path: tests/Drupal/KernelTests/Core/Theme/ImageTest.php
-
-		-
 			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:10\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
 			count: 5
 			path: tests/Drupal/KernelTests/Core/TypedData/TypedDataTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\KernelTests\\\\KernelTestBase\\:\\:\\$streamWrappers\\.$#"
-			count: 1
-			path: tests/Drupal/KernelTests/KernelTestBase.php
-
-		-
-			message: "#^Method Drupal\\\\KernelTests\\\\KernelTestBase\\:\\:assertEscaped\\(\\) should return bool but return statement is missing\\.$#"
-			count: 1
-			path: tests/Drupal/KernelTests/KernelTestBase.php
-
-		-
-			message: "#^Method Drupal\\\\KernelTests\\\\KernelTestBase\\:\\:assertNoEscaped\\(\\) should return bool but return statement is missing\\.$#"
-			count: 1
-			path: tests/Drupal/KernelTests/KernelTestBase.php
-
-		-
-			message: "#^Method Drupal\\\\KernelTests\\\\KernelTestBase\\:\\:assertNoRaw\\(\\) should return bool but return statement is missing\\.$#"
-			count: 1
-			path: tests/Drupal/KernelTests/KernelTestBase.php
-
-		-
-			message: "#^Method Drupal\\\\KernelTests\\\\KernelTestBase\\:\\:assertRaw\\(\\) should return bool but return statement is missing\\.$#"
-			count: 1
-			path: tests/Drupal/KernelTests/KernelTestBase.php
-
-		-
-			message: "#^Method Drupal\\\\KernelTests\\\\KernelTestBase\\:\\:assertTextHelper\\(\\) should return bool but return statement is missing\\.$#"
-			count: 1
-			path: tests/Drupal/KernelTests/KernelTestBase.php
 
 		-
 			message: "#^Parameter \\$template of method Drupal\\\\KernelTests\\\\KernelTestBase\\:\\:prepareTemplate\\(\\) has invalid type Text_Template\\.$#"
@@ -3794,11 +2519,6 @@ parameters:
 			path: tests/Drupal/Tests/Composer/ComposerTest.php
 
 		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\Composer\\\\Plugin\\\\Scaffold\\\\Functional\\\\ScaffoldUpgradeTest\\:\\:\\$fixturesDir\\.$#"
-			count: 2
-			path: tests/Drupal/Tests/Composer/Plugin/Scaffold/Functional/ScaffoldUpgradeTest.php
-
-		-
 			message: "#^Class Drupal\\\\Driver\\\\Database\\\\corefake\\\\Install\\\\Tasks not found\\.$#"
 			count: 1
 			path: tests/Drupal/Tests/Core/Database/InstallerObjectTest.php
@@ -3814,69 +2534,14 @@ parameters:
 			path: tests/Drupal/Tests/Core/Entity/EntityFieldManagerTest.php
 
 		-
-			message: "#^Method Drupal\\\\Tests\\\\Core\\\\Entity\\\\BasicForm\\:\\:buildForm\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: tests/Drupal/Tests/Core/Entity/EntityResolverManagerTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\Core\\\\Entity\\\\BasicForm\\:\\:getFormId\\(\\) should return string but return statement is missing\\.$#"
-			count: 1
-			path: tests/Drupal/Tests/Core/Entity/EntityResolverManagerTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\Core\\\\Entity\\\\BasicFormNoContainerInjectionInterface\\:\\:buildForm\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: tests/Drupal/Tests/Core/Entity/EntityResolverManagerTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\Core\\\\Entity\\\\BasicFormNoContainerInjectionInterface\\:\\:getFormId\\(\\) should return string but return statement is missing\\.$#"
-			count: 1
-			path: tests/Drupal/Tests/Core/Entity/EntityResolverManagerTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\Core\\\\Entity\\\\BasicFormNoUpcasting\\:\\:buildForm\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: tests/Drupal/Tests/Core/Entity/EntityResolverManagerTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\Core\\\\Entity\\\\BasicFormNoUpcasting\\:\\:getFormId\\(\\) should return string but return statement is missing\\.$#"
-			count: 1
-			path: tests/Drupal/Tests/Core/Entity/EntityResolverManagerTest.php
-
-		-
 			message: "#^Call to an undefined method Drupal\\\\Tests\\\\Core\\\\Entity\\\\EntityTypeBundleInfoTest\\:\\:get\\(\\)\\.$#"
 			count: 1
 			path: tests/Drupal/Tests/Core/Entity/EntityTypeBundleInfoTest.php
 
 		-
-			message: "#^Method Drupal\\\\Tests\\\\Core\\\\Entity\\\\FieldDefinitionTest\\:\\:initializeFieldUsingFactory\\(\\) should return Drupal\\\\Core\\\\Field\\\\FieldDefinition but return statement is missing\\.$#"
-			count: 1
-			path: tests/Drupal/Tests/Core/Entity/FieldDefinitionTest.php
-
-		-
 			message: "#^Cannot unset offset 'data\\-drupal\\-link…' on array\\{data\\-drupal\\-link\\-system\\-path\\: '\\<front\\>'\\}\\.$#"
 			count: 2
 			path: tests/Drupal/Tests/Core/EventSubscriber/ActiveLinkResponseFilterTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\Core\\\\Form\\\\PrepareCallbackTestForm\\:\\:buildForm\\(\\) should return array but return statement is missing\\.$#"
-			count: 1
-			path: tests/Drupal/Tests/Core/Form/FormStateTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\Core\\\\Image\\\\ImageTest\\:\\:getTestImage\\(\\) should return Drupal\\\\Core\\\\Image\\\\Image but return statement is missing\\.$#"
-			count: 1
-			path: tests/Drupal/Tests/Core/Image/ImageTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\Core\\\\Image\\\\ImageTest\\:\\:getTestImageForOperation\\(\\) should return Drupal\\\\Core\\\\Image\\\\Image but return statement is missing\\.$#"
-			count: 1
-			path: tests/Drupal/Tests/Core/Image/ImageTest.php
-
-		-
-			message: "#^Array has 2 duplicate keys with value 'default' \\('default', 'default'\\)\\.$#"
-			count: 1
-			path: tests/Drupal/Tests/Core/Mail/MailManagerTest.php
 
 		-
 			message: "#^Call to method getDefinitions\\(\\) on an unknown class Drupal\\\\Core\\\\Plugin\\\\CategorizingPluginManagerTrait\\.$#"
@@ -3887,16 +2552,6 @@ parameters:
 			message: "#^Call to method getSortedDefinitions\\(\\) on an unknown class Drupal\\\\Core\\\\Plugin\\\\CategorizingPluginManagerTrait\\.$#"
 			count: 1
 			path: tests/Drupal/Tests/Core/Plugin/CategorizingPluginManagerTraitTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\Core\\\\Plugin\\\\LazyPluginCollectionTestBase\\:\\:returnPluginMap\\(\\) should return Drupal\\\\Component\\\\Plugin\\\\PluginInspectionInterface\\|PHPUnit\\\\Framework\\\\MockObject\\\\MockObject but return statement is missing\\.$#"
-			count: 1
-			path: tests/Drupal/Tests/Core/Plugin/LazyPluginCollectionTestBase.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\Core\\\\Render\\\\RendererBubblingTest\\:\\:\\$cacheContextsManager\\.$#"
-			count: 3
-			path: tests/Drupal/Tests/Core/Render/RendererBubblingTest.php
 
 		-
 			message: "#^\\#access_callback callback class '\\$this\\(Drupal\\\\Tests\\\\Core\\\\Render\\\\RendererCallbackTest\\)' at key '0' does not implement Drupal\\\\Core\\\\Security\\\\TrustedCallbackInterface\\.$#"
@@ -3919,11 +2574,6 @@ parameters:
 			path: tests/Drupal/Tests/Core/Render/RendererCallbackTest.php
 
 		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\Core\\\\Render\\\\RendererPlaceholdersTest\\:\\:\\$cacheContextsManager\\.$#"
-			count: 1
-			path: tests/Drupal/Tests/Core/Render/RendererPlaceholdersTest.php
-
-		-
 			message: "#^Cannot unset offset '\\#cache' on array\\{\\#lazy_builder\\: array\\{'Drupal\\\\\\\\Tests\\\\\\\\Core…', array\\{mixed\\}\\}\\}\\.$#"
 			count: 1
 			path: tests/Drupal/Tests/Core/Render/RendererPlaceholdersTest.php
@@ -3932,31 +2582,6 @@ parameters:
 			message: "#^\\#access_callback value ''Drupal\\\\\\\\Tests\\\\\\\\Core…'\\|'Drupal\\\\\\\\Tests\\\\\\\\Core…'\\|'Drupal\\\\\\\\Tests\\\\\\\\Core…'\\|'Drupal\\\\\\\\Tests\\\\\\\\Core…'' at key '0' is invalid\\.$#"
 			count: 1
 			path: tests/Drupal/Tests/Core/Render/RendererTest.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\Core\\\\Render\\\\RendererTestBase\\:\\:\\$cacheContextsManager\\.$#"
-			count: 1
-			path: tests/Drupal/Tests/Core/Render/RendererTestBase.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\Core\\\\Render\\\\TestCacheableDependency\\:\\:\\$contexts\\.$#"
-			count: 2
-			path: tests/Drupal/Tests/Core/Render/TestCacheableDependency.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\Core\\\\Render\\\\TestCacheableDependency\\:\\:\\$maxAge\\.$#"
-			count: 2
-			path: tests/Drupal/Tests/Core/Render/TestCacheableDependency.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\Core\\\\Render\\\\TestCacheableDependency\\:\\:\\$tags\\.$#"
-			count: 2
-			path: tests/Drupal/Tests/Core/Render/TestCacheableDependency.php
-
-		-
-			message: "#^Access to an undefined property Drupal\\\\Tests\\\\Core\\\\Routing\\\\AccessAwareRouterTest\\:\\:\\$router\\.$#"
-			count: 2
-			path: tests/Drupal/Tests/Core/Routing/AccessAwareRouterTest.php
 
 		-
 			message: "#^Call to an undefined method Drupal\\\\Tests\\\\Core\\\\Test\\\\TestClass\\:\\:assertArrayHasKey\\(\\)\\.$#"
@@ -4021,29 +2646,4 @@ parameters:
 		-
 			message: "#^Call to an undefined method Drupal\\\\Tests\\\\Core\\\\Test\\\\TestClass\\:\\:fail\\(\\)\\.$#"
 			count: 3
-			path: tests/Drupal/Tests/Core/Test/AssertContentTraitTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\Core\\\\Test\\\\TestClass\\:\\:assertEscaped\\(\\) should return bool but return statement is missing\\.$#"
-			count: 1
-			path: tests/Drupal/Tests/Core/Test/AssertContentTraitTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\Core\\\\Test\\\\TestClass\\:\\:assertNoEscaped\\(\\) should return bool but return statement is missing\\.$#"
-			count: 1
-			path: tests/Drupal/Tests/Core/Test/AssertContentTraitTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\Core\\\\Test\\\\TestClass\\:\\:assertNoRaw\\(\\) should return bool but return statement is missing\\.$#"
-			count: 1
-			path: tests/Drupal/Tests/Core/Test/AssertContentTraitTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\Core\\\\Test\\\\TestClass\\:\\:assertRaw\\(\\) should return bool but return statement is missing\\.$#"
-			count: 1
-			path: tests/Drupal/Tests/Core/Test/AssertContentTraitTest.php
-
-		-
-			message: "#^Method Drupal\\\\Tests\\\\Core\\\\Test\\\\TestClass\\:\\:assertTextHelper\\(\\) should return bool but return statement is missing\\.$#"
-			count: 1
 			path: tests/Drupal/Tests/Core/Test/AssertContentTraitTest.php
