@@ -81,7 +81,7 @@ class Drupal {
   /**
    * The current system version.
    */
-  const VERSION = '8.3.0-alpha1';
+  const VERSION = '8.3.0-beta1';
 
   /**
    * Core API compatibility.
@@ -460,7 +460,7 @@ class Drupal {
    *   The query object that can query the given entity type.
    */
   public static function entityQuery($entity_type, $conjunction = 'AND') {
-    return static::getContainer()->get('entity.query')->get($entity_type, $conjunction);
+    return static::entityTypeManager()->getStorage($entity_type)->getQuery($conjunction);
   }
 
   /**
@@ -477,7 +477,7 @@ class Drupal {
    *   The query object that can query the given entity type.
    */
   public static function entityQueryAggregate($entity_type, $conjunction = 'AND') {
-    return static::getContainer()->get('entity.query')->getAggregate($entity_type, $conjunction);
+    return static::entityTypeManager()->getStorage($entity_type)->getAggregateQuery($conjunction);
   }
 
   /**

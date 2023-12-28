@@ -18,6 +18,21 @@ use Drupal\Core\Session\AccountInterface;
 interface WorkflowTypeInterface extends PluginInspectionInterface, DerivativeInspectionInterface, ConfigurablePluginInterface {
 
   /**
+   * Initializes a workflow.
+   *
+   * Used to create required states and default transitions.
+   *
+   * @param \Drupal\workflows\WorkflowInterface $workflow
+   *   The workflow to initialize.
+   *
+   * @return \Drupal\workflows\WorkflowInterface
+   *   The initialized workflow.
+   *
+   * @see \Drupal\workflows\Form\WorkflowAddForm::save()
+   */
+  public function initializeWorkflow(WorkflowInterface $workflow);
+
+  /**
    * Gets the label for the workflow type.
    *
    * @return string
@@ -47,7 +62,7 @@ interface WorkflowTypeInterface extends PluginInspectionInterface, DerivativeIns
    * @param \Drupal\workflows\StateInterface $state
    *   The state object to decorate.
    *
-   * @return \Drupal\workflows\StateInterface $state
+   * @return \Drupal\workflows\StateInterface
    *   The decorated state object.
    */
   public function decorateState(StateInterface $state);
@@ -65,7 +80,7 @@ interface WorkflowTypeInterface extends PluginInspectionInterface, DerivativeIns
    * @param \Drupal\workflows\TransitionInterface $transition
    *   The transition object to decorate.
    *
-   * @return \Drupal\workflows\TransitionInterface $transition
+   * @return \Drupal\workflows\TransitionInterface
    *   The decorated transition object.
    */
   public function decorateTransition(TransitionInterface $transition);
@@ -116,5 +131,32 @@ interface WorkflowTypeInterface extends PluginInspectionInterface, DerivativeIns
    * @see \Drupal\workflows\Form\WorkflowTransitionEditForm::form()
    */
   public function buildTransitionConfigurationForm(FormStateInterface $form_state, WorkflowInterface $workflow, TransitionInterface $transition = NULL);
+
+  /**
+   * Gets the required states of workflow type.
+   *
+   * This are usually configured in the workflow type annotation.
+   *
+   * @return array[]
+   *   The required states.
+   *
+   * @see \Drupal\workflows\Annotation\WorkflowType
+   */
+  public function getRequiredStates();
+
+  /**
+   * Informs the plugin that a dependency of the workflow will be deleted.
+   *
+   * @param array $dependencies
+   *   An array of dependencies that will be deleted keyed by dependency type.
+   *
+   * @return bool
+   *   TRUE if the workflow settings have been changed, FALSE if not.
+   *
+   * @see \Drupal\Core\Config\ConfigEntityInterface::onDependencyRemoval()
+   *
+   * @todo https://www.drupal.org/node/2579743 make part of a generic interface.
+   */
+  public function onDependencyRemoval(array $dependencies);
 
 }

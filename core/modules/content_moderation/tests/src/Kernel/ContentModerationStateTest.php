@@ -4,6 +4,7 @@ namespace Drupal\Tests\content_moderation\Kernel;
 
 use Drupal\content_moderation\Entity\ContentModerationState;
 use Drupal\Core\Entity\EntityPublishedInterface;
+use Drupal\Core\Entity\EntityStorageException;
 use Drupal\entity_test\Entity\EntityTestBundle;
 use Drupal\entity_test\Entity\EntityTestWithBundle;
 use Drupal\Core\Entity\EntityInterface;
@@ -151,6 +152,11 @@ class ContentModerationStateTest extends KernelTestBase {
     if ($entity instanceof EntityPublishedInterface) {
       $this->assertTrue($entity->isPublished());
     }
+
+    // Set an invalid moderation state.
+    $this->setExpectedException(EntityStorageException::class);
+    $entity->moderation_state->value = 'foobar';
+    $entity->save();
   }
 
   /**
@@ -379,6 +385,48 @@ class ContentModerationStateTest extends KernelTestBase {
     $entity_type->set('entity_keys', $keys + $original_keys);
     \Drupal::state()->set('entity_test_with_bundle.entity_type', $entity_type);
     \Drupal::entityDefinitionUpdateManager()->applyUpdates();
+  }
+
+  /**
+   * Tests the dependencies of the workflow when using content moderation.
+   */
+  public function testWorkflowDependencies() {
+    $node_type = NodeType::create([
+      'type' => 'example',
+    ]);
+    $node_type->save();
+
+    $workflow = Workflow::load('editorial');
+    // Test both a config and non-config based bundle and entity type.
+    $workflow->getTypePlugin()->addEntityTypeAndBundle('node', 'example');
+    $workflow->getTypePlugin()->addEntityTypeAndBundle('entity_test_rev', 'entity_test_rev');
+    $workflow->save();
+
+    $this->assertEquals([
+      'module' => [
+        'content_moderation',
+        'entity_test',
+      ],
+      'config' => [
+        'node.type.example',
+      ],
+    ], $workflow->getDependencies());
+
+    $entity_types = $workflow->getTypePlugin()->getEntityTypes();
+    $this->assertTrue(in_array('node', $entity_types));
+    $this->assertTrue(in_array('entity_test_rev', $entity_types));
+
+    // Delete the node type and ensure it is removed from the workflow.
+    $node_type->delete();
+    $workflow = Workflow::load('editorial');
+    $entity_types = $workflow->getTypePlugin()->getEntityTypes();
+    $this->assertFalse(in_array('node', $entity_types));
+
+    // Uninstall entity test and ensure it's removed from the workflow.
+    $this->container->get('config.manager')->uninstall('module', 'entity_test');
+    $workflow = Workflow::load('editorial');
+    $entity_types = $workflow->getTypePlugin()->getEntityTypes();
+    $this->assertFalse(in_array('entity_test_rev', $entity_types));
   }
 
   /**

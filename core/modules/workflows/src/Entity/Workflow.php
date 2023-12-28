@@ -3,8 +3,10 @@
 namespace Drupal\workflows\Entity;
 
 use Drupal\Core\Config\Entity\ConfigEntityBase;
+use Drupal\Core\Entity\EntityStorageInterface;
 use Drupal\Core\Entity\EntityWithPluginCollectionInterface;
 use Drupal\Core\Plugin\DefaultSingleLazyPluginCollection;
+use Drupal\workflows\Exception\RequiredStateMissingException;
 use Drupal\workflows\State;
 use Drupal\workflows\Transition;
 use Drupal\workflows\WorkflowInterface;
@@ -15,6 +17,7 @@ use Drupal\workflows\WorkflowInterface;
  * @ConfigEntityType(
  *   id = "workflow",
  *   label = @Translation("Workflow"),
+ *   label_collection = @Translation("Workflows"),
  *   handlers = {
  *     "access" = "Drupal\workflows\WorkflowAccessControlHandler",
  *     "route_provider" = {
@@ -110,6 +113,18 @@ class Workflow extends ConfigEntityBase implements WorkflowInterface, EntityWith
    * @var \Drupal\Component\Plugin\LazyPluginCollection
    */
   protected $pluginCollection;
+
+  /**
+   * {@inheritdoc}
+   */
+  public function preSave(EntityStorageInterface $storage) {
+    $workflow_type = $this->getTypePlugin();
+    $missing_states = array_diff($workflow_type->getRequiredStates(), array_keys($this->getStates()));
+    if (!empty($missing_states)) {
+      throw new RequiredStateMissingException(sprintf("Workflow type '{$workflow_type->label()}' requires states with the ID '%s' in workflow '{$this->id()}'", implode("', '", $missing_states)));
+    }
+    parent::preSave($storage);
+  }
 
   /**
    * {@inheritdoc}
@@ -503,6 +518,16 @@ class Workflow extends ConfigEntityBase implements WorkflowInterface, EntityWith
   public function status() {
     // In order for a workflow to be usable it must have at least one state.
     return !empty($this->status) && !empty($this->states);
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function onDependencyRemoval(array $dependencies) {
+    $changed = $this->getTypePlugin()->onDependencyRemoval($dependencies);
+    // Ensure the parent method is called in order to process dependencies that
+    // affect third party settings.
+    return parent::onDependencyRemoval($dependencies) || $changed;
   }
 
 }

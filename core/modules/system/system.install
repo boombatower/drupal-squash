@@ -535,14 +535,20 @@ function system_requirements($phase) {
         ],
       ];
     }
-    $cron_url = \Drupal::url('system.cron', ['key' => \Drupal::state()->get('system.cron_key'), ['absolute' => TRUE]]);
     $requirements['cron']['description'][] = [
       [
-        '#markup' => t('You can <a href=":cron">run cron manually</a>.', [':cron' => \Drupal::url('system.run_cron')]),
+        '#type' => 'link',
+        '#prefix' => '(',
+        '#title' => t('more information'),
+        '#suffix' => ')',
+        '#url' => Url::fromRoute('system.cron_settings'),
       ],
       [
-        '#prefix' => '<br />',
-        '#markup' => t('To run cron from outside the site, go to <a href=":url">@cron</a>', [':url' => $cron_url, '@cron' => $cron_url]),
+        '#prefix' => '<span class="cron-description__run-cron">',
+        '#suffix' => '</span>',
+        '#type' => 'link',
+        '#title' => t('Run cron'),
+        '#url' => Url::fromRoute('system.run_cron'),
       ],
     ];
   }
@@ -899,6 +905,23 @@ function system_requirements($phase) {
         'title' => t('IIS httpoxy protection'),
         'value' => t('Your PHP runtime version is affected by the httpoxy vulnerability.'),
         'description' => t('Either update your PHP runtime version or uncomment the "Erase HTTP_PROXY" rule in your web.config file and add HTTP_PROXY to the allowed headers list. See more details in the <a href=":link">security advisory</a>.', [':link' => 'https://www.drupal.org/SA-CORE-2016-003']),
+        'severity' => REQUIREMENT_ERROR,
+      ];
+    }
+  }
+
+  // Installations on Windows can run into limitations with MAX_PATH if the
+  // Drupal root directory is too deep in the filesystem. Generally this shows
+  // up in cached Twig templates and other public files with long directory or
+  // file names. There is no definite root directory depth below which Drupal is
+  // guaranteed to function correctly on Windows. Since problems are likely
+  // with more than 100 characters in the Drupal root path, show an error.
+  if (substr(PHP_OS, 0, 3) == 'WIN') {
+    $depth = strlen(realpath(DRUPAL_ROOT . '/' . PublicStream::basePath()));
+    if ($depth > 120) {
+      $requirements['max_path_on_windows'] = [
+        'title' => t('Windows installation depth'),
+        'description' => t('The public files directory path is %depth characters. Paths longer than 120 characters will cause problems on Windows.', ['%depth' => $depth]),
         'severity' => REQUIREMENT_ERROR,
       ];
     }

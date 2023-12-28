@@ -374,6 +374,10 @@ class MigrateUpgradeForm extends ConfirmFormBase {
       'source_module' => 'node',
       'destination_module' => 'node',
     ],
+    'd7_node_translation' => [
+      'source_module' => 'node',
+      'destination_module' => 'node',
+    ],
     'd7_node_title_label' => [
       'source_module' => 'node',
       'destination_module' => 'node',
@@ -648,6 +652,10 @@ class MigrateUpgradeForm extends ConfirmFormBase {
     ],
     'user_profile_field_instance' => [
       'source_module' => 'profile',
+      'destination_module' => 'user',
+    ],
+    'd6_i18n_user_profile_field_instance' => [
+      'source_module' => 'i18n',
       'destination_module' => 'user',
     ],
   ];

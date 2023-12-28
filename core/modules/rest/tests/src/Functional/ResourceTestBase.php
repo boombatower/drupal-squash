@@ -119,6 +119,7 @@ abstract class ResourceTestBase extends BrowserTestBase {
 
     // Ensure there's a clean slate: delete all REST resource config entities.
     $this->resourceConfigStorage->delete($this->resourceConfigStorage->loadMultiple());
+    $this->refreshTestStateAfterRestConfigChange();
   }
 
   /**
@@ -141,8 +142,25 @@ abstract class ResourceTestBase extends BrowserTestBase {
         'authentication' => $authentication,
       ]
     ])->save();
-    // @todo Remove this in https://www.drupal.org/node/2815845.
-    drupal_flush_all_caches();
+    $this->refreshTestStateAfterRestConfigChange();
+  }
+
+  /**
+   * Refreshes the state of the tester to be in sync with the testee.
+   *
+   * Should be called after every change made to:
+   * - RestResourceConfig entities
+   * - the 'rest.settings' simple configuration
+   */
+  protected function refreshTestStateAfterRestConfigChange() {
+    // Ensure that the cache tags invalidator has its internal values reset.
+    // Otherwise the http_response cache tag invalidation won't work.
+    $this->refreshVariables();
+
+    // Tests using this base class may trigger route rebuilds due to changes to
+    // RestResourceConfig entities or 'rest.settings'. Ensure the test generates
+    // routes using an up-to-date router.
+    \Drupal::service('router.builder')->rebuildIfNeeded();
   }
 
   /**
@@ -202,6 +220,29 @@ abstract class ResourceTestBase extends BrowserTestBase {
    *   Request options to apply.
    */
   abstract protected function assertAuthenticationEdgeCases($method, Url $url, array $request_options);
+
+  /**
+   * Return the expected error message.
+   *
+   * @param string $method
+   *   The HTTP method (GET, POST, PATCH, DELETE).
+   *
+   * @return string
+   *    The error string.
+   */
+  abstract protected function getExpectedUnauthorizedAccessMessage($method);
+
+  /**
+   * Return the default expected error message if the
+   * bc_entity_resource_permissions is true.
+   *
+   * @param string $method
+   *   The HTTP method (GET, POST, PATCH, DELETE).
+   *
+   * @return string
+   *   The error string.
+   */
+  abstract protected function getExpectedBcUnauthorizedAccessMessage($method);
 
   /**
    * Initializes authentication.
@@ -321,7 +362,7 @@ abstract class ResourceTestBase extends BrowserTestBase {
    *   The error response to assert.
    */
   protected function assertResourceErrorResponse($expected_status_code, $expected_message, ResponseInterface $response) {
-    $expected_body = $this->serializer->encode(['message' => $expected_message], static::$format);
+    $expected_body = ($expected_message !== FALSE) ? $this->serializer->encode(['message' => $expected_message], static::$format) : FALSE;
     $this->assertResourceResponse($expected_status_code, $expected_body, $response);
   }
 

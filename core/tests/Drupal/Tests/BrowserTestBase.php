@@ -74,13 +74,6 @@ abstract class BrowserTestBase extends \PHPUnit_Framework_TestCase {
   protected $databasePrefix;
 
   /**
-   * The site directory of the original parent site.
-   *
-   * @var string
-   */
-  protected $originalSiteDirectory;
-
-  /**
    * Time limit in seconds for the test.
    *
    * @var int
@@ -261,9 +254,13 @@ abstract class BrowserTestBase extends \PHPUnit_Framework_TestCase {
 
     if ($driver instanceof GoutteDriver) {
       // Turn off curl timeout. Having a timeout is not a problem in a normal
-      // test running, but it is a problem when debugging.
+      // test running, but it is a problem when debugging. Also, disable SSL
+      // peer verification so that testing under HTTPS always works.
       /** @var \GuzzleHttp\Client $client */
-      $client = $this->container->get('http_client_factory')->fromOptions(['timeout' => NULL]);
+      $client = $this->container->get('http_client_factory')->fromOptions([
+        'timeout' => NULL,
+        'verify' => FALSE,
+      ]);
 
       // Inject a Guzzle middleware to generate debug output for every request
       // performed in the test.
@@ -716,7 +713,7 @@ abstract class BrowserTestBase extends \PHPUnit_Framework_TestCase {
       $this->drupalLogout();
     }
 
-    $this->drupalGet('user');
+    $this->drupalGet('user/login');
     $this->assertSession()->statusCodeEquals(200);
     $this->submitForm(array(
       'name' => $account->getUsername(),
@@ -992,10 +989,8 @@ abstract class BrowserTestBase extends \PHPUnit_Framework_TestCase {
           ),
           // form_type_checkboxes_value() requires NULL instead of FALSE values
           // for programmatic form submissions to disable a checkbox.
-          'update_status_module' => array(
-            1 => NULL,
-            2 => NULL,
-          ),
+          'enable_update_status_module' => NULL,
+          'enable_update_status_emails' => NULL,
         ),
       ),
     );
@@ -1023,7 +1018,7 @@ abstract class BrowserTestBase extends \PHPUnit_Framework_TestCase {
     $kernel->prepareLegacyRequest($request);
     $this->prepareDatabasePrefix();
 
-    $this->originalSiteDirectory = $kernel->findSitePath($request);
+    $this->originalSite = $kernel->findSitePath($request);
 
     // Create test directory ahead of installation so fatal errors and debug
     // information can be logged during installation process.
