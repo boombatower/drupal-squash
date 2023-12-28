@@ -7,7 +7,7 @@
         "webflo/drupal-core-require-dev": "*"
     },
     "require": {
-        "drupal/core": "10.0.9",
+        "drupal/core": "10.0.10",
         "behat/mink": "v1.10.0",
         "behat/mink-browserkit-driver": "v2.1.0",
         "behat/mink-selenium2-driver": "v1.6.0",
@@ -23,7 +23,7 @@
         "drupal/coder": "8.3.16",
         "instaclick/php-webdriver": "1.4.16",
         "justinrainbow/json-schema": "5.2.12",
-        "mglaman/phpstan-drupal": "1.1.31",
+        "mglaman/phpstan-drupal": "1.1.35",
         "mikey179/vfsstream": "v1.6.11",
         "myclabs/deep-copy": "1.11.0",
         "nikic/php-parser": "v4.15.2",
