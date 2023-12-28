@@ -125,43 +125,41 @@ class BrowserTestBaseTest extends BrowserTestBase {
     $value = $config_factory->get('form_test.object')->get('bananas');
     $this->assertSame('green', $value);
 
-    // Test drupalPostForm().
-    $edit = ['bananas' => 'red'];
+    // Test submitForm().
+    $this->drupalGet('form-test/object-builder');
+
     // Submit the form using the button label.
-    $result = $this->drupalPostForm('form-test/object-builder', $edit, 'Save');
-    $this->assertSame($this->getSession()->getPage()->getContent(), $result);
+    $this->submitForm(['bananas' => 'red'], 'Save');
     $value = $config_factory->get('form_test.object')->get('bananas');
     $this->assertSame('red', $value);
 
-    $this->drupalPostForm('form-test/object-builder', [], 'Save');
+    $this->submitForm([], 'Save');
     $value = $config_factory->get('form_test.object')->get('bananas');
     $this->assertSame('', $value);
 
     // Submit the form using the button id.
-    $edit = ['bananas' => 'blue'];
-    $result = $this->drupalPostForm('form-test/object-builder', $edit, 'edit-submit');
-    $this->assertSame($this->getSession()->getPage()->getContent(), $result);
+    $this->submitForm(['bananas' => 'blue'], 'edit-submit');
     $value = $config_factory->get('form_test.object')->get('bananas');
     $this->assertSame('blue', $value);
 
     // Submit the form using the button name.
-    $edit = ['bananas' => 'purple'];
-    $result = $this->drupalPostForm('form-test/object-builder', $edit, 'op');
-    $this->assertSame($this->getSession()->getPage()->getContent(), $result);
+    $this->submitForm(['bananas' => 'purple'], 'op');
     $value = $config_factory->get('form_test.object')->get('bananas');
     $this->assertSame('purple', $value);
 
-    // Test drupalPostForm() with no-html response.
-    $values = Json::decode($this->drupalPostForm('form_test/form-state-values-clean', [], 'Submit'));
+    // Test submitForm() with no-html response.
+    $this->drupalGet('form_test/form-state-values-clean');
+    $this->submitForm([], 'Submit');
+    $values = Json::decode($this->getSession()->getPage()->getContent());
     $this->assertSame(1000, $values['beer']);
 
-    // Test drupalPostForm() with form by HTML id.
+    // Test submitForm() with form by HTML id.
     $this->drupalCreateContentType(['type' => 'page']);
     $this->drupalLogin($this->drupalCreateUser(['create page content']));
     $this->drupalGet('form-test/two-instances-of-same-form');
     $this->getSession()->getPage()->fillField('edit-title-0-value', 'form1');
     $this->getSession()->getPage()->fillField('edit-title-0-value--2', 'form2');
-    $this->drupalPostForm(NULL, [], 'Save', [], 'node-page-form--2');
+    $this->submitForm([], 'Save', 'node-page-form--2');
     $this->assertSession()->pageTextContains('Page form2 has been created.');
   }
 
@@ -864,6 +862,8 @@ class BrowserTestBaseTest extends BrowserTestBase {
   public function testLegacyDrupalPostForm(): void {
     $this->expectDeprecation('Calling Drupal\Tests\UiHelperTrait::drupalPostForm() with $edit set to NULL is deprecated in drupal:9.1.0 and the method is removed in drupal:10.0.0. Use $this->submitForm() instead. See https://www.drupal.org/node/3168858');
     $this->drupalPostForm('form-test/object-builder', NULL, t('Save'));
+    $this->expectDeprecation('Calling Drupal\Tests\UiHelperTrait::drupalPostForm() with $path set to NULL is deprecated in drupal:9.2.0 and the method is removed in drupal:10.0.0. Use $this->submitForm() instead. See https://www.drupal.org/node/3168858');
+    $this->drupalPostForm(NULL, [], 'Save');
   }
 
   /**

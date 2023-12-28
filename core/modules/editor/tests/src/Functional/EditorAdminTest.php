@@ -86,14 +86,14 @@ class EditorAdminTest extends BrowserTestBase {
     $edit = $this->selectUnicornEditor();
     // Configure Unicorn Editor's setting to another value.
     $edit['editor[settings][ponies_too]'] = FALSE;
-    $this->drupalPostForm(NULL, $edit, 'Save configuration');
+    $this->submitForm($edit, 'Save configuration');
     $this->verifyUnicornEditorConfiguration('filtered_html', FALSE);
 
     // Switch back to 'None' and check the Unicorn Editor's settings are gone.
     $edit = [
       'editor[editor]' => '',
     ];
-    $this->drupalPostForm(NULL, $edit, 'Configure');
+    $this->submitForm($edit, 'Configure');
     $unicorn_setting = $this->xpath('//input[@name="editor[settings][ponies_too]" and @type="checkbox" and @checked]');
     $this->assertCount(0, $unicorn_setting, "Unicorn Editor's settings form is no longer present.");
   }
@@ -157,6 +157,23 @@ class EditorAdminTest extends BrowserTestBase {
   }
 
   /**
+   * Tests switching text editor to none does not throw a TypeError.
+   */
+  public function testSwitchEditorToNone() {
+    $this->enableUnicornEditor();
+    $this->drupalLogin($this->adminUser);
+    $this->drupalGet('admin/config/content/formats/manage/filtered_html');
+    $edit = $this->selectUnicornEditor();
+
+    // Switch editor to 'None'.
+    $edit = [
+      'editor[editor]' => '',
+    ];
+    $this->submitForm($edit, 'Configure');
+    $this->submitForm($edit, 'Save configuration');
+  }
+
+  /**
    * Adds an editor to a new format using the UI.
    *
    * @param string $format_id
@@ -174,7 +191,7 @@ class EditorAdminTest extends BrowserTestBase {
       'format' => $format_id,
     ];
     $edit += $this->selectUnicornEditor();
-    $this->drupalPostForm(NULL, $edit, 'Save configuration');
+    $this->submitForm($edit, 'Save configuration');
   }
 
   /**
@@ -210,7 +227,7 @@ class EditorAdminTest extends BrowserTestBase {
     $edit = [
       'editor[editor]' => 'unicorn',
     ];
-    $this->drupalPostForm(NULL, $edit, 'Configure');
+    $this->submitForm($edit, 'Configure');
     $unicorn_setting = $this->xpath('//input[@name="editor[settings][ponies_too]" and @type="checkbox" and @checked]');
     $this->assertCount(1, $unicorn_setting, "Unicorn Editor's settings form is present.");
 
