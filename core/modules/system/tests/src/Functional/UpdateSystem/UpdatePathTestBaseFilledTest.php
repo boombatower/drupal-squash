@@ -25,7 +25,7 @@ class UpdatePathTestBaseFilledTest extends UpdatePathTestBaseTest {
    */
   protected function setDatabaseDumpFiles() {
     parent::setDatabaseDumpFiles();
-    $this->databaseDumpFiles[0] = __DIR__ . '/../../../../tests/fixtures/update/drupal-9.3.0.filled.standard.php.gz';
+    $this->databaseDumpFiles[0] = __DIR__ . '/../../../../tests/fixtures/update/drupal-9.4.0.filled.standard.php.gz';
   }
 
   /**
@@ -83,9 +83,6 @@ class UpdatePathTestBaseFilledTest extends UpdatePathTestBaseTest {
         $this->assertSession()->pageTextContains('Test ' . $i);
       }
     }
-
-    // Make sure the translated slogan appears.
-    $this->assertSession()->pageTextContains('drupal Spanish');
 
     // Make sure the custom block appears.
     $this->drupalGet('<front>');
@@ -346,8 +343,7 @@ class UpdatePathTestBaseFilledTest extends UpdatePathTestBaseTest {
       'block_content',
       'book',
       'breakpoint',
-      'ckeditor',
-      'color',
+      'ckeditor5',
       'comment',
       'config',
       'config_translation',
@@ -374,8 +370,6 @@ class UpdatePathTestBaseFilledTest extends UpdatePathTestBaseTest {
       'options',
       'page_cache',
       'path',
-      'quickedit',
-      'rdf',
       'responsive_image',
       'rest',
       'search',
@@ -404,8 +398,8 @@ class UpdatePathTestBaseFilledTest extends UpdatePathTestBaseTest {
 
     // Make sure our themes are still enabled.
     $expected_enabled_themes = [
-      'bartik',
-      'seven',
+      'olivero',
+      'claro',
       'stark',
     ];
     foreach ($expected_enabled_themes as $theme) {

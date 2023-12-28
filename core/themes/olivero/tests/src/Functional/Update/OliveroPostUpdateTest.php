@@ -21,8 +21,7 @@ class OliveroPostUpdateTest extends UpdatePathTestBase {
    */
   protected function setDatabaseDumpFiles() {
     $this->databaseDumpFiles = [
-      __DIR__ . '/../../../../../../modules/system/tests/fixtures/update/drupal-9.3.0.filled.standard.php.gz',
-      __DIR__ . '/../../../fixtures/update/olivero-3257274.php',
+      __DIR__ . '/../../../../../../modules/system/tests/fixtures/update/drupal-9.4.0.filled.standard.php.gz',
     ];
   }
 

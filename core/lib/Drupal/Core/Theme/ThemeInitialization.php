@@ -112,13 +112,6 @@ class ThemeInitialization implements ThemeInitializationInterface {
     while ($ancestor && isset($themes[$ancestor]->base_theme)) {
       $ancestor = $themes[$ancestor]->base_theme;
       if (!$this->themeHandler->themeExists($ancestor)) {
-        if ($ancestor == 'stable') {
-          // Themes that depend on Stable will be fixed by system_update_8014().
-          // There is no harm in not adding it as an ancestor since at worst
-          // some people might experience slight visual regressions on
-          // update.php.
-          continue;
-        }
         throw new MissingThemeDependencyException(sprintf('Base theme %s has not been installed.', $ancestor), $ancestor);
       }
       $base_themes[] = $themes[$ancestor];
@@ -135,7 +128,7 @@ class ThemeInitialization implements ThemeInitializationInterface {
    */
   public function loadActiveTheme(ActiveTheme $active_theme) {
     // Initialize the theme.
-    if ($theme_engine = $active_theme->getEngine()) {
+    if ($active_theme->getEngine()) {
       // Include the engine.
       include_once $this->root . '/' . $active_theme->getOwner();
       foreach ($active_theme->getBaseThemeExtensions() as $base) {

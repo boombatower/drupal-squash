@@ -332,7 +332,7 @@ ckeditor5_invalid_plugin_foo_bar:
     elements:
       - <foo>
       - <bar>
-    admin_library: ckeditor5/admin.basic
+    admin_library: ckeditor5/internal.admin.basic
 YAML,
       NULL,
     ];
@@ -348,7 +348,7 @@ ckeditor5_invalid_plugin_foo_bar:
     elements:
       - <foo>
       - <bar>
-    admin_library: ckeditor5/admin.basic
+    admin_library: ckeditor5/internal.admin.basic
     conditions:
       foo: bar
 YAML,
@@ -364,7 +364,7 @@ ckeditor5_invalid_plugin_foo_bar:
     elements:
       - <foo>
       - <bar>
-    admin_library: ckeditor5/admin.basic
+    admin_library: ckeditor5/internal.admin.basic
     conditions:
       toolbarItem: [bold, italic]
 YAML,
@@ -380,7 +380,7 @@ ckeditor5_invalid_plugin_foo_bar:
     elements:
       - <foo>
       - <bar>
-    admin_library: ckeditor5/admin.basic
+    admin_library: ckeditor5/internal.admin.basic
     conditions:
       toolbarItem: bold
 YAML,
@@ -396,7 +396,7 @@ ckeditor5_invalid_plugin_foo_bar:
     elements:
       - <foo>
       - <bar>
-    admin_library: ckeditor5/admin.basic
+    admin_library: ckeditor5/internal.admin.basic
     conditions:
       toolbarItem: bold
       filter: true
@@ -413,7 +413,7 @@ ckeditor5_invalid_plugin_foo_bar:
     elements:
       - <foo>
       - <bar>
-    admin_library: ckeditor5/admin.basic
+    admin_library: ckeditor5/internal.admin.basic
     conditions:
       toolbarItem: bold
       filter: filter_caption
@@ -430,7 +430,7 @@ ckeditor5_invalid_plugin_foo_bar:
     elements:
       - <foo>
       - <bar>
-    admin_library: ckeditor5/admin.basic
+    admin_library: ckeditor5/internal.admin.basic
     conditions:
       toolbarItem: bold
       filter: filter_caption
@@ -448,7 +448,7 @@ ckeditor5_invalid_plugin_foo_bar:
     elements:
       - <foo>
       - <bar>
-    admin_library: ckeditor5/admin.basic
+    admin_library: ckeditor5/internal.admin.basic
     conditions:
       toolbarItem: bold
       filter: filter_caption
@@ -466,7 +466,7 @@ ckeditor5_invalid_plugin_foo_bar:
     elements:
       - <foo>
       - <bar>
-    admin_library: ckeditor5/admin.basic
+    admin_library: ckeditor5/internal.admin.basic
     conditions:
       toolbarItem: bold
       filter: filter_caption
@@ -485,7 +485,7 @@ ckeditor5_invalid_plugin_foo_bar:
     elements:
       - <foo>
       - <bar>
-    admin_library: ckeditor5/admin.basic
+    admin_library: ckeditor5/internal.admin.basic
     conditions:
       toolbarItem: bold
       filter: filter_caption
@@ -504,7 +504,7 @@ ckeditor5_invalid_plugin_foo_bar:
     elements:
       - <foo>
       - <bar>
-    admin_library: ckeditor5/admin.basic
+    admin_library: ckeditor5/internal.admin.basic
     conditions: []
 YAML,
       NULL,
@@ -519,7 +519,7 @@ ckeditor5_invalid_plugin_foo_bar:
     elements:
       - <foo>
       - <bar>
-    admin_library: ckeditor5/admin.basic
+    admin_library: ckeditor5/internal.admin.basic
     conditions: false
 YAML,
       NULL,
@@ -537,7 +537,7 @@ ckeditor5_invalid_plugin_foo_bar:
     elements:
       - <foo>
       - <bar>
-    admin_library: ckeditor5/admin.basic
+    admin_library: ckeditor5/internal.admin.basic
 YAML,
       'The CKEditor 5 "ckeditor5_invalid_plugin_foo_bar" provides a plugin class: "Drupal\ckeditor5_invalid_plugin\Plugin\CKEditor5Plugin\FooBar", but it does not exist.',
     ];
@@ -553,7 +553,7 @@ ckeditor5_invalid_plugin_foo_bar:
     elements:
       - <foo>
       - <bar>
-    admin_library: ckeditor5/admin.basic
+    admin_library: ckeditor5/internal.admin.basic
 YAML,
       'CKEditor 5 plugins must implement \Drupal\ckeditor5\Plugin\CKEditor5PluginInterface. "ckeditor5_invalid_plugin_foo_bar" does not.',
       [
@@ -582,7 +582,7 @@ ckeditor5_invalid_plugin_foo_bar:
     elements:
       - <foo>
       - <bar>
-    admin_library: ckeditor5/admin.basic
+    admin_library: ckeditor5/internal.admin.basic
 YAML,
       NULL,
       [
@@ -614,7 +614,7 @@ ckeditor5_invalid_plugin_foo_bar:
     elements:
       - <foo>
       - <bar>
-    admin_library: ckeditor5/admin.basic
+    admin_library: ckeditor5/internal.admin.basic
 YAML,
       NULL,
       [
@@ -653,7 +653,7 @@ ckeditor5_invalid_plugin_foo_bar:
     elements:
       - <foo>
       - <bar>
-    admin_library: ckeditor5/admin.basic
+    admin_library: ckeditor5/internal.admin.basic
 YAML,
       'The "ckeditor5_invalid_plugin_foo_bar" CKEditor 5 plugin definition is configurable, has non-empty default configuration but has no config schema. Config schema is required for validation.',
       [
@@ -692,7 +692,7 @@ ckeditor5_invalid_plugin_foo_bar:
     elements:
       - <foo>
       - <bar>
-    admin_library: ckeditor5/admin.basic
+    admin_library: ckeditor5/internal.admin.basic
 YAML,
       NULL,
       [
@@ -744,7 +744,7 @@ ckeditor5_invalid_plugin_foo_bar:
     elements:
       - <foo>
       - <bar>
-    admin_library: ckeditor5/admin.basic
+    admin_library: ckeditor5/internal.admin.basic
 YAML,
       'The "ckeditor5_invalid_plugin_foo_bar" CKEditor 5 plugin definition is configurable, but its default configuration does not match its config schema. The following errors were found: [foo] The configuration property foo.bar doesn\'t exist, [baz] missing schema.',
       [
@@ -796,7 +796,7 @@ ckeditor5_invalid_plugin_foo_bar:
     elements:
       - <foo>
       - <bar>
-    admin_library: ckeditor5/admin.basic
+    admin_library: ckeditor5/internal.admin.basic
 YAML,
       NULL,
       [
@@ -975,25 +975,29 @@ PHP,
   }
 
   /**
-   * Tests detection of invalid CKEditor5PluginElementsSubsetInterface class.
+   * Tests detection of invalid CKEditor5PluginElementsSubsetInterface classes.
+   *
+   * @dataProvider providerProvidedElementsInvalidElementSubset
    */
-  public function testProvidedElementsInvalidElementSubset(): void {
+  public function testProvidedElementsInvalidElementSubset(array $configured_subset, string $expected_exception_message): void {
     $this->enableModules(['ckeditor5_plugin_elements_subset']);
 
-    // Configure the sneaky superset plugin to have a random tag as the subset.
+    // Configure the sneaky superset plugin.
     $sneaky_plugin_id = 'ckeditor5_plugin_elements_subset_sneakySuperset';
-    $random_tag_name = strtolower($this->randomMachineName());
-    $random_tag = "<$random_tag_name>";
     $text_editor = Editor::create([
       'format' => 'dummy',
       'editor' => 'ckeditor5',
       'settings' => [
         'plugins' => [
-          $sneaky_plugin_id => ['configured_subset' => [$random_tag]],
+          $sneaky_plugin_id => ['configured_subset' => $configured_subset],
         ],
       ],
       'image_upload' => [],
     ]);
+
+    // Invalid subsets are allowed on unsaved Text Editor config entities,
+    // because they may have invalid configuration.
+    $text_editor->enforceIsNew(FALSE);
 
     // No exception when getting all provided elements.
     $this->assertGreaterThan(0, count($this->manager->getProvidedElements()));
@@ -1005,8 +1009,33 @@ PHP,
     // editor config entity is passed: only then can a subset be generated based
     // on configuration.
     $this->expectException(\LogicException::class);
-    $this->expectExceptionMessage("The \"ckeditor5_plugin_elements_subset_sneakySuperset\" CKEditor 5 plugin implements ::getElementsSubset() and did not return a subset, the following tags are absent from the plugin definition: \"$random_tag\".");
+    $this->expectExceptionMessage($expected_exception_message);
     $this->manager->getProvidedElements([$sneaky_plugin_id], $text_editor);
+  }
+
+  /**
+   * Data provider.
+   *
+   * @return array
+   *   Test scenarios.
+   */
+  public function providerProvidedElementsInvalidElementSubset(): array {
+    $random_tag_name = strtolower($this->randomMachineName());
+    $random_tag = "<$random_tag_name>";
+    return [
+      'superset: random tag not listed in the plugin definition' => [
+        [$random_tag],
+        "The \"ckeditor5_plugin_elements_subset_sneakySuperset\" CKEditor 5 plugin implements ::getElementsSubset() and did not return a subset, the following tags are absent from the plugin definition: \"$random_tag\".",
+      ],
+      'subset that omits the essential creatable tag' => [
+        ['<bar baz>'],
+        'The "ckeditor5_plugin_elements_subset_sneakySuperset" CKEditor 5 plugin implements ::getElementsSubset() and did return a subset ("<bar baz>") but the following tags can no longer be created: "<bar>".',
+      ],
+      'subset that tries to leverage the `<$any-html5-element>` wildcard tag but picks a concrete tag that the wildcard tag does not resolve into' => [
+        ['<drupal-media class="sensational">'],
+        'The "ckeditor5_plugin_elements_subset_sneakySuperset" CKEditor 5 plugin implements ::getElementsSubset() and did not return a subset, the following tags are absent from the plugin definition: "<drupal-media class="sensational">".',
+      ],
+    ];
   }
 
   /**
@@ -1029,12 +1058,12 @@ PHP,
     ];
     $this->assertSame($default_plugins, $definitions, 'No CKEditor 5 plugins found besides the built-in ones.');
     $default_libraries = [
-      'ckeditor5/drupal.ckeditor5',
-      'ckeditor5/drupal.ckeditor5.emphasis',
-      'ckeditor5/drupal.ckeditor5.internal',
+      'ckeditor5/internal.drupal.ckeditor5',
+      'ckeditor5/internal.drupal.ckeditor5.emphasis',
+      'ckeditor5/internal.drupal.ckeditor5.htmlEngine',
       'core/ckeditor5.basic',
+      'core/ckeditor5.essentials',
       'core/ckeditor5.htmlSupport',
-      'core/ckeditor5.internal',
       'core/ckeditor5.pasteFromOffice',
     ];
     $this->assertSame($default_libraries, $this->manager->getEnabledLibraries($editor));
@@ -1080,8 +1109,8 @@ PHP,
     sort($expected_plugins);
     $this->assertSame($expected_plugins, $plugin_ids);
     $expected_libraries = array_merge($default_libraries, [
-      'ckeditor5/drupal.ckeditor5.media',
-      'ckeditor5/drupal.ckeditor5.mediaAlign',
+      'ckeditor5/internal.drupal.ckeditor5.media',
+      'ckeditor5/internal.drupal.ckeditor5.mediaAlign',
       'ckeditor5_test/layercake',
     ]);
     sort($expected_libraries);
@@ -1109,8 +1138,8 @@ PHP,
     sort($expected_plugins);
     $this->assertSame(array_values($expected_plugins), $plugin_ids);
     $expected_libraries = array_merge($default_libraries, [
-      'ckeditor5/drupal.ckeditor5.media',
-      'ckeditor5/drupal.ckeditor5.mediaAlign',
+      'ckeditor5/internal.drupal.ckeditor5.media',
+      'ckeditor5/internal.drupal.ckeditor5.mediaAlign',
       'ckeditor5_test/layercake',
       'core/ckeditor5.table',
     ]);
@@ -1149,12 +1178,12 @@ PHP,
     ];
     $this->assertSame($default_plugins, $definitions, 'No CKEditor 5 plugins found besides the built-in ones.');
     $default_libraries = [
-      'ckeditor5/drupal.ckeditor5',
-      'ckeditor5/drupal.ckeditor5.emphasis',
-      'ckeditor5/drupal.ckeditor5.internal',
+      'ckeditor5/internal.drupal.ckeditor5',
+      'ckeditor5/internal.drupal.ckeditor5.emphasis',
+      'ckeditor5/internal.drupal.ckeditor5.htmlEngine',
       'core/ckeditor5.basic',
+      'core/ckeditor5.essentials',
       'core/ckeditor5.htmlSupport',
-      'core/ckeditor5.internal',
       'core/ckeditor5.pasteFromOffice',
     ];
     $this->assertSame($default_libraries, $this->manager->getEnabledLibraries($editor));

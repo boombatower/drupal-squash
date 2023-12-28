@@ -75,7 +75,7 @@ class Drupal {
   /**
    * The current system version.
    */
-  const VERSION = '10.0.0-alpha7';
+  const VERSION = '10.0.0-beta1';
 
   /**
    * Core API compatibility.
@@ -126,7 +126,7 @@ class Drupal {
   /**
    * The currently active container object, or NULL if not initialized yet.
    *
-   * @var \Symfony\Component\DependencyInjection\ContainerInterface|null
+   * @var \Drupal\Component\DependencyInjection\ContainerInterface|null
    */
   protected static $container;
 
@@ -150,7 +150,7 @@ class Drupal {
   /**
    * Returns the currently active global container.
    *
-   * @return \Symfony\Component\DependencyInjection\ContainerInterface
+   * @return \Drupal\Component\DependencyInjection\ContainerInterface
    *
    * @throws \Drupal\Core\DependencyInjection\ContainerNotInitializedException
    */

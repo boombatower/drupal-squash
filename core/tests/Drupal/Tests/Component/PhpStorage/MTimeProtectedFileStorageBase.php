@@ -35,6 +35,11 @@ abstract class MTimeProtectedFileStorageBase extends PhpStorageTestBase {
   protected $settings;
 
   /**
+   * The expected test results for the security test.
+   */
+  protected array $expected;
+
+  /**
    * {@inheritdoc}
    */
   protected function setUp(): void {
@@ -76,7 +81,7 @@ abstract class MTimeProtectedFileStorageBase extends PhpStorageTestBase {
    */
   public function testSecurity() {
     $php = new $this->storageClass($this->settings);
-    $name = 'simpletest.php';
+    $name = 'test.php';
     $php->save($name, '<?php');
     $expected_root_directory = $this->directory . '/test';
     if (substr($name, -4) === '.php') {

@@ -585,9 +585,13 @@ function hook_preprocess(&$variables, $hook) {
  *   The variables array (modify in place).
  */
 function hook_preprocess_HOOK(&$variables) {
-  // This example is from rdf_preprocess_image(). It adds an RDF attribute
-  // to the image hook's variables.
-  $variables['attributes']['typeof'] = ['foaf:Image'];
+  // This example is from node_preprocess_html(). It adds the node type to
+  // the body classes, when on an individual node page or node preview page.
+  if (($node = \Drupal::routeMatch()->getParameter('node')) || ($node = \Drupal::routeMatch()->getParameter('node_preview'))) {
+    if ($node instanceof NodeInterface) {
+      $variables['node_type'] = $node->getType();
+    }
+  }
 }
 
 /**
@@ -963,24 +967,24 @@ function hook_js_settings_alter(array &$settings, \Drupal\Core\Asset\AttachedAss
  * @see \Drupal\Core\Asset\LibraryDiscoveryParser::parseLibraryInfo()
  */
 function hook_library_info_alter(&$libraries, $extension) {
-  // Update Farbtastic to version 2.0.
-  if ($extension == 'core' && isset($libraries['jquery.farbtastic'])) {
+  // Update imaginary library 'foo' to version 2.0.
+  if ($extension === 'core' && isset($libraries['foo'])) {
     // Verify existing version is older than the one we are updating to.
-    if (version_compare($libraries['jquery.farbtastic']['version'], '2.0', '<')) {
-      // Update the existing Farbtastic to version 2.0.
-      $libraries['jquery.farbtastic']['version'] = '2.0';
+    if (version_compare($libraries['foo']['version'], '2.0', '<')) {
+      // Update the existing 'foo' to version 2.0.
+      $libraries['foo']['version'] = '2.0';
       // To accurately replace library files, the order of files and the options
       // of each file have to be retained; e.g., like this:
-      $old_path = 'assets/vendor/farbtastic';
+      $old_path = 'assets/vendor/foo';
       // Since the replaced library files are no longer located in a directory
       // relative to the original extension, specify an absolute path (relative
       // to DRUPAL_ROOT / base_path()) to the new location.
-      $new_path = '/' . \Drupal::service('extension.list.module')->getPath('farbtastic_update') . '/js';
+      $new_path = '/' . \Drupal::service('extension.list.module')->getPath('foo_update') . '/js';
       $new_js = [];
       $replacements = [
-        $old_path . '/farbtastic.js' => $new_path . '/farbtastic-2.0.js',
+        $old_path . '/foo.js' => $new_path . '/foo-2.0.js',
       ];
-      foreach ($libraries['jquery.farbtastic']['js'] as $source => $options) {
+      foreach ($libraries['foo']['js'] as $source => $options) {
         if (isset($replacements[$source])) {
           $new_js[$replacements[$source]] = $options;
         }
@@ -988,7 +992,7 @@ function hook_library_info_alter(&$libraries, $extension) {
           $new_js[$source] = $options;
         }
       }
-      $libraries['jquery.farbtastic']['js'] = $new_js;
+      $libraries['foo']['js'] = $new_js;
     }
   }
 }
@@ -1181,8 +1185,8 @@ function hook_page_bottom(array &$page_bottom) {
  *     variables are set.
  *   - type: (automatically derived) Where the theme hook is defined:
  *     'module', 'theme_engine', or 'theme'.
- *   - theme path: (automatically derived) The directory path of the theme or
- *     module, so that it doesn't need to be looked up.
+ *   - theme path: The directory path of the theme or module. If not defined,
+ *     it is determined during the registry process.
  *
  * @see themeable
  * @see hook_theme_registry_alter()
@@ -1223,9 +1227,9 @@ function hook_theme($existing, $type, $theme, $path) {
  * @code
  * $theme_registry['block_content_add_list'] = array (
  *   'template' => 'block-content-add-list',
- *   'path' => 'core/themes/seven/templates',
+ *   'path' => 'core/themes/claro/templates',
  *   'type' => 'theme_engine',
- *   'theme path' => 'core/themes/seven',
+ *   'theme path' => 'core/themes/claro',
  *   'includes' => array (
  *     0 => 'core/modules/block_content/block_content.pages.inc',
  *   ),
@@ -1236,7 +1240,7 @@ function hook_theme($existing, $type, $theme, $path) {
  *     0 => 'template_preprocess',
  *     1 => 'template_preprocess_block_content_add_list',
  *     2 => 'contextual_preprocess',
- *     3 => 'seven_preprocess_block_content_add_list',
+ *     3 => 'claro_preprocess_block_content_add_list',
  *   ),
  * );
  * @endcode

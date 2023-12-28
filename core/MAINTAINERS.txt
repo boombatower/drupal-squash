@@ -74,9 +74,6 @@ Automated Cron
 Ban
 - ?
 
-Bartik
-- Emma Maria Karayiannis 'emma.maria' https://www.drupal.org/u/emma.maria
-
 Base system
 - ?
 
@@ -96,6 +93,7 @@ Block
 
 Block Content
 - Lee Rowlands 'larowlan' https://www.drupal.org/u/larowlan
+- Stephen Mustgrave 'smustgrave' https://www.drupal.org/u/smustgrave
 
 Book
 - Peter Wolanin 'pwolanin' https://www.drupal.org/u/pwolanin
@@ -110,11 +108,6 @@ Breakpoint
 Cache
 - Nathaniel Catchpole 'catch' https://www.drupal.org/u/catch
 
-CKEditor
-- Henrik Danielsson 'TwoD' https://www.drupal.org/u/TwoD
-- Wim Leers 'Wim Leers' https://www.drupal.org/u/wim-leers
-- Marek 'mlewand' Lewandowski https://www.drupal.org/u/mlewand
-
 CKEditor 5
 - Lauri Eskola 'lauriii' https://www.drupal.org/u/lauriii
 - Wim Leers 'Wim Leers' https://www.drupal.org/u/wim-leers
@@ -125,12 +118,6 @@ Claro
 - Sascha Eggenberger 'saschaeggi' https://www.drupal.org/u/saschaeggi
 - Lauri Eskola 'lauriii' https://www.drupal.org/u/lauriii
 - Ben Mullins 'bnjmnm' https://www.drupal.org/u/bnjmnm
-
-Classy
-- David Hernandez 'davidhernandez' https://www.drupal.org/u/davidhernandez
-
-Color
-- ?
 
 Comment
 - Lee Rowlands 'larowlan' https://www.drupal.org/u/larowlan
@@ -354,9 +341,6 @@ Quick Edit
 - Wim Leers 'Wim Leers' https://www.drupal.org/u/wim-leers
 - Théodore Biadala 'nod_' https://www.drupal.org/u/nod_
 
-RDF
-- ?
-
 Render API
 - Alex Bronstein 'effulgentsia' https://www.drupal.org/u/effulgentsia
 - Moshe Weitzman 'moshe weitzman' https://www.drupal.org/u/moshe-weitzman
@@ -384,15 +368,9 @@ Serialization
 Settings Tray
 - Ted Bowman 'tedbow' https://www.drupal.org/u/tedbow
 
-Seven
-- ?
-
 Shortcut
 - Tobias Zimmermann 'tstoeckler' https://www.drupal.org/u/tstoeckler
 - Jibran Ijaz 'jibran' https://www.drupal.org/u/jibran
-
-Stable
-- ?
 
 Stark
 - John Albin Wilkins 'JohnAlbin' https://www.drupal.org/u/johnalbin

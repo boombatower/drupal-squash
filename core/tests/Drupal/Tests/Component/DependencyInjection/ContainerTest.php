@@ -30,7 +30,7 @@ class ContainerTest extends TestCase {
   /**
    * The tested container.
    *
-   * @var \Symfony\Component\DependencyInjection\ContainerInterface
+   * @var \Drupal\Component\DependencyInjection\ContainerInterface
    */
   protected $container;
 
@@ -686,6 +686,20 @@ class ContainerTest extends TestCase {
   }
 
   /**
+   * @covers \Drupal\Component\DependencyInjection\ServiceIdHashTrait::getServiceIdMappings
+   * @covers \Drupal\Component\DependencyInjection\ServiceIdHashTrait::generateServiceIdHash
+   */
+  public function testGetServiceIdMappings() {
+    $this->assertEquals([], $this->container->getServiceIdMappings());
+    $s1 = $this->container->get('other.service');
+    $s2 = $this->container->get('late.service');
+    $this->assertEquals([
+      $this->container->generateServiceIdHash($s1) => 'other.service',
+      $this->container->generateServiceIdHash($s2) => 'late.service',
+    ], $this->container->getServiceIdMappings());
+  }
+
+  /**
    * Gets a mock container definition.
    *
    * @return array
@@ -868,12 +882,9 @@ class ContainerTest extends TestCase {
     $services['synthetic'] = [
       'synthetic' => TRUE,
     ];
-    // The file could have been named as a .php file. The reason it is a .data
-    // file is that SimpleTest tries to load it. SimpleTest does not like such
-    // fixtures and hence we use a neutral name like .data.
     $services['container_test_file_service_test'] = [
       'class' => '\stdClass',
-      'file' => __DIR__ . '/Fixture/container_test_file_service_test_service_function.data',
+      'file' => __DIR__ . '/Fixture/container_test_file_service_test_service_function.php',
     ];
 
     // Test multiple arguments.
