@@ -2,8 +2,15 @@
 
 namespace Drupal\basic_auth\Tests;
 
+@trigger_error(__FILE__ . ' is deprecated in Drupal 8.3.0 and will be removed before Drupal 9.0.0. Use \Drupal\Tests\basic_auth\Traits\BasicAuthTestTrait instead. See https://www.drupal.org/node/2862800.', E_USER_DEPRECATED);
+
 /**
  * Provides common functionality for Basic Authentication test classes.
+ *
+ * @deprecated in Drupal 8.3.0 and will be removed before Drupal 9.0.0.
+ *   Use \Drupal\Tests\basic_auth\Traits\BasicAuthTestTrait instead.
+ *
+ * @see https://www.drupal.org/node/2862800
  */
 trait BasicAuthTestTrait {
 

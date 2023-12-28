@@ -670,4 +670,112 @@ class DateTimePlusTest extends UnitTestCase {
     ];
   }
 
+  /**
+   * Tests invalid values passed to constructor.
+   *
+   * @param string $time
+   *   A date/time string.
+   * @param string[] $errors
+   *   An array of error messages.
+   *
+   * @covers ::__construct
+   *
+   * @dataProvider providerTestInvalidConstructor
+   */
+  public function testInvalidConstructor($time, array $errors) {
+    $date = new DateTimePlus($time);
+
+    $this->assertEquals(TRUE, $date->hasErrors());
+    $this->assertEquals($errors, $date->getErrors());
+  }
+
+  /**
+   * Provider for testInvalidConstructor().
+   *
+   * @return array
+   *   An array of invalid date/time strings, and corresponding error messages.
+   */
+  public function providerTestInvalidConstructor() {
+    return [
+      [
+        'YYYY-MM-DD',
+        [
+          'The timezone could not be found in the database',
+          'Unexpected character',
+          'Double timezone specification',
+        ],
+      ],
+      [
+        '2017-MM-DD',
+        [
+          'Unexpected character',
+          'The timezone could not be found in the database',
+        ],
+      ],
+      [
+        'YYYY-03-DD',
+        [
+          'The timezone could not be found in the database',
+          'Unexpected character',
+          'Double timezone specification',
+        ],
+      ],
+      [
+        'YYYY-MM-07',
+        [
+          'The timezone could not be found in the database',
+          'Unexpected character',
+          'Double timezone specification',
+        ],
+      ],
+      [
+        '2017-13-55',
+        [
+          'Unexpected character',
+        ],
+      ],
+      [
+        'YYYY-MM-DD hh:mm:ss',
+        [
+          'The timezone could not be found in the database',
+          'Unexpected character',
+          'Double timezone specification',
+        ],
+      ],
+      [
+        '2017-03-07 25:70:80',
+        [
+          'Unexpected character',
+          'Double time specification',
+        ],
+      ],
+      [
+        'lorem ipsum dolor sit amet',
+        [
+          'The timezone could not be found in the database',
+          'Double timezone specification',
+        ],
+      ],
+    ];
+  }
+
+  /**
+   * Tests the $settings['validate_format'] parameter in ::createFromFormat().
+   */
+  public function testValidateFormat() {
+    // Check that an input that does not strictly follow the input format will
+    // produce the desired date. In this case the year string '11' doesn't
+    // precisely match the 'Y' formater parameter, but PHP will parse it
+    // regardless. However, when formatted with the same string, the year will
+    // be output with four digits. With the ['validate_format' => FALSE]
+    // $settings, this will not thrown an exception.
+    $date = DateTimePlus::createFromFormat('Y-m-d H:i:s', '11-03-31 17:44:00', 'UTC', ['validate_format' => FALSE]);
+    $this->assertEquals('0011-03-31 17:44:00', $date->format('Y-m-d H:i:s'));
+
+    // Parse the same date with ['validate_format' => TRUE] and make sure we
+    // get the expected exception.
+    $this->setExpectedException(\UnexpectedValueException::class);
+    $date = DateTimePlus::createFromFormat('Y-m-d H:i:s', '11-03-31 17:44:00', 'UTC', ['validate_format' => TRUE]);
+  }
+
 }

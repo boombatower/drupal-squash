@@ -179,4 +179,76 @@ class ContentEntityCloneTest extends EntityKernelTestBase {
     $this->assertFalse($entity_translation->isNewRevision());
   }
 
+  /**
+   * Tests modifications on entity keys of a cloned entity object.
+   */
+  public function testEntityKeysModifications() {
+    // Create a test entity with a translation, which will internally trigger
+    // entity cloning for the new translation and create references for some of
+    // the entity properties.
+    $entity = EntityTestMulRev::create([
+      'name' => 'original-name',
+      'uuid' => 'original-uuid',
+      'language' => 'en',
+    ]);
+    $entity->addTranslation('de');
+    $entity->save();
+
+    // Clone the entity.
+    $clone = clone $entity;
+
+    // Alter a non-translatable and a translatable entity key fields of the
+    // cloned entity and assert that retrieving the value through the entity
+    // keys local cache will be different for the cloned and the original
+    // entity.
+    // We first have to call the ::uuid() and ::label() method on the original
+    // entity as it is going to cache the field values into the $entityKeys and
+    // $translatableEntityKeys properties of the entity object and we want to
+    // check that the cloned and the original entity aren't sharing the same
+    // reference to those local cache properties.
+    $uuid_field_name = $entity->getEntityType()->getKey('uuid');
+    $this->assertFalse($entity->getFieldDefinition($uuid_field_name)->isTranslatable());
+    $clone->$uuid_field_name->value = 'clone-uuid';
+    $this->assertEquals('original-uuid', $entity->uuid());
+    $this->assertEquals('clone-uuid', $clone->uuid());
+
+    $label_field_name = $entity->getEntityType()->getKey('label');
+    $this->assertTrue($entity->getFieldDefinition($label_field_name)->isTranslatable());
+    $clone->$label_field_name->value = 'clone-name';
+    $this->assertEquals('original-name', $entity->label());
+    $this->assertEquals('clone-name', $clone->label());
+  }
+
+  /**
+   * Tests the field values after serializing an entity and its clone.
+   */
+  public function testFieldValuesAfterSerialize() {
+    // Create a test entity with a translation, which will internally trigger
+    // entity cloning for the new translation and create references for some of
+    // the entity properties.
+    $entity = EntityTestMulRev::create([
+      'name' => 'original',
+      'language' => 'en',
+    ]);
+    $entity->addTranslation('de');
+    $entity->save();
+
+    // Clone the entity.
+    $clone = clone $entity;
+
+    // Alter the name field value of the cloned entity object.
+    $clone->setName('clone');
+
+    // Serialize the entity and the cloned object in order to destroy the field
+    // objects and put the field values into the entity property $values, so
+    // that on accessing a field again it will be newly created with the value
+    // from the $values property.
+    serialize($entity);
+    serialize($clone);
+
+    // Assert that the original and the cloned entity both have different names.
+    $this->assertEquals('original', $entity->getName());
+    $this->assertEquals('clone', $clone->getName());
+  }
+
 }
