@@ -159,8 +159,6 @@ class EntityTypeInfo implements ContainerInjectionInterface {
       $type->setLinkTemplate('latest-version', $type->getLinkTemplate('canonical') . '/latest');
     }
 
-    // @todo Core forgot to add a direct way to manipulate route_provider, so
-    // we have to do it the sloppy way for now.
     $providers = $type->getRouteProviderClasses() ?: [];
     if (empty($providers['moderation'])) {
       $providers['moderation'] = EntityModerationRouteProvider::class;
@@ -288,9 +286,12 @@ class EntityTypeInfo implements ContainerInjectionInterface {
   public function formAlter(array &$form, FormStateInterface $form_state, $form_id) {
     $form_object = $form_state->getFormObject();
     if ($form_object instanceof BundleEntityFormBase) {
-      $type = $form_object->getEntity()->getEntityType();
-      if ($this->moderationInfo->canModerateEntitiesOfEntityType($type)) {
-        $this->entityTypeManager->getHandler($type->getBundleOf(), 'moderation')->enforceRevisionsBundleFormAlter($form, $form_state, $form_id);
+      $config_entity_type = $form_object->getEntity()->getEntityType();
+      $bundle_of = $config_entity_type->getBundleOf();
+      if ($bundle_of
+          && ($bundle_of_entity_type = $this->entityTypeManager->getDefinition($bundle_of))
+          && $this->moderationInfo->canModerateEntitiesOfEntityType($bundle_of_entity_type)) {
+        $this->entityTypeManager->getHandler($config_entity_type->getBundleOf(), 'moderation')->enforceRevisionsBundleFormAlter($form, $form_state, $form_id);
       }
     }
     elseif ($form_object instanceof ContentEntityFormInterface && in_array($form_object->getOperation(), ['edit', 'default'])) {

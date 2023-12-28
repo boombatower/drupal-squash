@@ -9,6 +9,12 @@ use Drupal\Core\Url;
  * Provides test assertions for testing page-level cache contexts & tags.
  *
  * Can be used by test classes that extend \Drupal\simpletest\WebTestBase.
+ *
+ * @deprecated Scheduled for removal in Drupal 9.0.0. Use
+ *  \Drupal\Tests\system\Functional\Cache\AssertPageCacheContextsAndTagsTrait
+ *  instead.
+ *
+ * @see https://www.drupal.org/node/2896632
  */
 trait AssertPageCacheContextsAndTagsTrait {
 

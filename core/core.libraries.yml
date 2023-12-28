@@ -391,23 +391,28 @@ jquery.form:
 
 jquery.joyride:
   remote: https://github.com/zurb/joyride
-  version: "v2.1.0"
+  # We rely on a fix (commit c2b3866) that occurred after 2.1.0 was released.
+  # @see https://www.drupal.org/node/2898808.
+  # @todo Update to 2.1.1 or later when that's released.
+  # Version is set at 2.1.0.1 allowing version_compare to consider this lower
+  # than 2.1.1 however greater than 2.1.0
+  version: "2.1.0.1"
   license:
     name: MIT
     url: https://github.com/zurb/joyride/blob/v2.1.0/README.markdown
     gpl-compatible: true
   js:
-    assets/vendor/jquery-joyride/jquery.joyride-2.1.min.js: { minified: true }
+    assets/vendor/jquery-joyride/jquery.joyride-2.1.js: { }
   dependencies:
     - core/jquery
     - core/jquery.cookie
 
 jquery.once:
   remote: https://github.com/RobLoach/jquery-once
-  version: "2.1.1"
+  version: "2.2.0"
   license:
     name: GNU-GPL-2.0-or-later
-    url: https://github.com/RobLoach/jquery-once/blob/2.1.1/LICENSE.md
+    url: https://raw.githubusercontent.com/RobLoach/jquery-once/2.2.0/LICENSE.md
     gpl-compatible: true
   js:
     assets/vendor/jquery-once/jquery.once.min.js: { weight: -19, minified: true }

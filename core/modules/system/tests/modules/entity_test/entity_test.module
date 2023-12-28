@@ -94,23 +94,12 @@ function entity_test_entity_type_alter(array &$entity_types) {
     }
   }
 
-  // Allow entity_test_with_bundle tests to override the entity type definition.
-  $entity_types['entity_test_with_bundle'] = $state->get('entity_test_with_bundle.entity_type', $entity_types['entity_test_with_bundle']);
+  // Allow entity_test_rev tests to override the entity type definition.
+  $entity_types['entity_test_rev'] = $state->get('entity_test_rev.entity_type', $entity_types['entity_test_rev']);
 
   // Enable the entity_test_new only when needed.
   if (!$state->get('entity_test_new')) {
     unset($entity_types['entity_test_new']);
-  }
-}
-
-/**
- * Implements hook_module_implements_alter().
- */
-function entity_test_module_implements_alter(&$implementations, $hook) {
-  // Move our hook_entity_type_alter() implementation to the beginning of the
-  // list in order to run before content_moderation_entity_type_alter().
-  if ($hook === 'entity_type_alter') {
-    $implementations = ['entity_test' => $implementations['entity_test']] + $implementations;
   }
 }
 
@@ -746,6 +735,16 @@ function entity_test_entity_access(EntityInterface $entity, $operation, AccountI
   // \Drupal\entity_test\EntityTestAccessControlHandler::checkAccess().
   if ($entity->label() == 'forbid_access') {
     return AccessResult::allowed();
+  }
+
+  // Create specific labels to allow or deny access based on certain test
+  // conditions.
+  // @see \Drupal\KernelTests\Core\Entity\EntityAccessControlHandlerTest
+  if ($entity->label() == 'Accessible') {
+    return AccessResult::allowed();
+  }
+  if ($entity->label() == 'Inaccessible') {
+    return AccessResult::forbidden();
   }
 
   // Uncacheable because the access result depends on a State key-value pair and

@@ -3,9 +3,7 @@
 namespace Drupal\workflows\Plugin;
 
 use Drupal\Component\Plugin\PluginBase;
-use Drupal\Core\Access\AccessResult;
 use Drupal\Core\Plugin\PluginWithFormsTrait;
-use Drupal\Core\Session\AccountInterface;
 use Drupal\workflows\State;
 use Drupal\workflows\StateInterface;
 use Drupal\workflows\Transition;
@@ -46,13 +44,6 @@ abstract class WorkflowTypeBase extends PluginBase implements WorkflowTypeInterf
     // The label can be an object.
     // @see \Drupal\Core\StringTranslation\TranslatableMarkup
     return $definition['label'];
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  public function checkWorkflowAccess(WorkflowInterface $entity, $operation, AccountInterface $account) {
-    return AccessResult::neutral();
   }
 
   /**
@@ -117,7 +108,7 @@ abstract class WorkflowTypeBase extends PluginBase implements WorkflowTypeInterf
   /**
    * {@inheritdoc}
    */
-  public function getInitialState(WorkflowInterface $workflow) {
+  public function getInitialState() {
     $ordered_states = $this->getStates();
     return reset($ordered_states);
   }

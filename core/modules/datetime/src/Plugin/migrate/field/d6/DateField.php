@@ -2,6 +2,8 @@
 
 namespace Drupal\datetime\Plugin\migrate\field\d6;
 
+@trigger_error('DateField is deprecated in Drupal 8.4.x and will be removed before Drupal 9.0.x. Use \Drupal\datetime\Plugin\migrate\field\DateField instead.', E_USER_DEPRECATED);
+
 use Drupal\migrate\Plugin\MigrationInterface;
 use Drupal\migrate\MigrateException;
 use Drupal\migrate_drupal\Plugin\migrate\field\FieldPluginBase;
@@ -16,6 +18,9 @@ use Drupal\migrate_drupal\Plugin\migrate\field\FieldPluginBase;
  *   },
  *   core = {6}
  * )
+ *
+ * @deprecated in Drupal 8.4.x, to be removed before Drupal 9.0.x. Use
+ * \Drupal\datetime\Plugin\migrate\field\DateField instead.
  */
 class DateField extends FieldPluginBase {
 
