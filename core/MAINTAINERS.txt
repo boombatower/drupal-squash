@@ -23,9 +23,10 @@ Drupal 8
   (Release Manager)
 - Alex Pott 'alexpott' https://www.drupal.org/u/alexpott
   (Framework Manager)
-
-Provisional membership:
 - Scott Reeves 'Cottser' https://www.drupal.org/u/cottser
+  (Framework Manager - Frontend)
+
+Provisional membership: None at this time.
 
 Drupal 7
 - Fabian Franz 'Fabianx' https://www.drupal.org/u/fabianx
@@ -320,6 +321,10 @@ Database Logging module
 - Khalid Baheyeldin 'kbahey' https://www.drupal.org/u/kbahey
 
 DateTime module
+- Jonathan Hedstrom 'jhedstrom' https://www.drupal.org/u/jhedstrom
+- Matthew Donadio 'mpdonadio' https://www.drupal.org/u/mpdonadio
+
+DateTime range module
 - Jonathan Hedstrom 'jhedstrom' https://www.drupal.org/u/jhedstrom
 - Matthew Donadio 'mpdonadio' https://www.drupal.org/u/mpdonadio
 
