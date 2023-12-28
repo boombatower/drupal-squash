@@ -7,6 +7,7 @@
 
 namespace Drupal\system\Tests\Common;
 
+use Drupal\Component\Utility\Html;
 use Drupal\simpletest\DrupalUnitTestBase;
 
 /**
@@ -452,7 +453,7 @@ class RenderTest extends DrupalUnitTestBase {
    * Tests post-render cache callbacks functionality.
    */
   function testDrupalRenderPostRenderCache() {
-    $context = array('foo' => $this->randomString());
+    $context = array('foo' => $this->randomContextValue());
     $test_element = array();
     $test_element['#markup'] = '';
     $test_element['#attached']['js'][] = array('type' => 'setting', 'data' => array('foo' => 'bar'));
@@ -552,9 +553,9 @@ class RenderTest extends DrupalUnitTestBase {
     // Create an element with a child and subchild. Each element has the same
     // #post_render_cache callback, but with different contexts.
     drupal_static_reset('_drupal_add_js');
-    $context_1 = array('foo' => $this->randomString());
-    $context_2 = array('bar' => $this->randomString());
-    $context_3 = array('baz' => $this->randomString());
+    $context_1 = array('foo' => $this->randomContextValue());
+    $context_2 = array('bar' => $this->randomContextValue());
+    $context_3 = array('baz' => $this->randomContextValue());
     $test_element = array(
       '#type' => 'details',
       '#cache' => array(
@@ -598,9 +599,6 @@ class RenderTest extends DrupalUnitTestBase {
     $element = array('#cache' => $element['#cache']);
     $cached_element = cache()->get(drupal_render_cid_create($element))->data;
     $expected_element = array(
-      '#markup' => '<details class="form-wrapper" open="open"><summary role="button" aria-expanded>Parent</summary><div class="details-wrapper"><details class="form-wrapper" open="open"><summary role="button" aria-expanded>Child</summary><div class="details-wrapper">Subchild</div></details>
-</div></details>
-',
       '#attached' => array(
         'js' => array(
           array('type' => 'setting', 'data' => array('foo' => 'bar'))
@@ -618,7 +616,17 @@ class RenderTest extends DrupalUnitTestBase {
         )
       ),
     );
-    $this->assertIdentical($cached_element, $expected_element, 'The correct data is cached: the stored #markup and #attached properties are not affected by #post_render_cache callbacks.');
+
+    $dom = Html::load($cached_element['#markup']);
+    $xpath = new \DOMXPath($dom);
+    $parent = $xpath->query('//details[@class="form-wrapper" and @open="open"]/summary[@role="button" and @aria-expanded and text()="Parent"]')->length;
+    $child =  $xpath->query('//details[@class="form-wrapper" and @open="open"]/div[@class="details-wrapper"]/details[@class="form-wrapper" and @open="open"]/summary[@role="button" and @aria-expanded and text()="Child"]')->length;
+    $subchild = $xpath->query('//details[@class="form-wrapper" and @open="open"]/div[@class="details-wrapper"]/details[@class="form-wrapper" and @open="open"]/div [@class="details-wrapper" and text()="Subchild"]')->length;
+    $this->assertTrue($parent && $child && $subchild, 'The correct data is cached: the stored #markup is not affected by #post_render_cache callbacks.');
+
+    // Remove markup because it's compared above in the xpath.
+    unset($cached_element['#markup']);
+    $this->assertIdentical($cached_element, $expected_element, 'The correct data is cached: the stored #attached properties are not affected by #post_render_cache callbacks.');
 
     // GET request: #cache enabled, cache hit.
     drupal_static_reset('_drupal_add_js');
@@ -674,9 +682,6 @@ class RenderTest extends DrupalUnitTestBase {
     $cached_parent_element = cache()->get(drupal_render_cid_create($element))->data;
     $cached_child_element = cache()->get(drupal_render_cid_create($element['child']))->data;
     $expected_parent_element = array(
-      '#markup' => '<details class="form-wrapper" open="open"><summary role="button" aria-expanded>Parent</summary><div class="details-wrapper"><details class="form-wrapper" open="open"><summary role="button" aria-expanded>Child</summary><div class="details-wrapper">Subchild</div></details>
-</div></details>
-',
       '#attached' => array(
         'js' => array(
           array('type' => 'setting', 'data' => array('foo' => 'bar'))
@@ -694,10 +699,19 @@ class RenderTest extends DrupalUnitTestBase {
         )
       ),
     );
-    $this->assertIdentical($cached_parent_element, $expected_parent_element, 'The correct data is cached for the parent: the stored #markup and #attached properties are not affected by #post_render_cache callbacks.');
+
+    $dom = Html::load($cached_parent_element['#markup']);
+    $xpath = new \DOMXPath($dom);
+    $parent = $xpath->query('//details[@class="form-wrapper" and @open="open"]/summary[@role="button" and @aria-expanded and text()="Parent"]')->length;
+    $child =  $xpath->query('//details[@class="form-wrapper" and @open="open"]/div[@class="details-wrapper"]/details[@class="form-wrapper" and @open="open"]/summary[@role="button" and @aria-expanded and text()="Child"]')->length;
+    $subchild = $xpath->query('//details[@class="form-wrapper" and @open="open"]/div[@class="details-wrapper"]/details[@class="form-wrapper" and @open="open"]/div [@class="details-wrapper" and text()="Subchild"]')->length;
+    $this->assertTrue($parent && $child && $subchild, 'The correct data is cached for the parent: the stored #markup is not affected by #post_render_cache callbacks.');
+
+    // Remove markup because it's compared above in the xpath.
+    unset($cached_parent_element['#markup']);
+    $this->assertIdentical($cached_parent_element, $expected_parent_element, 'The correct data is cached for the parent: the stored #attached properties are not affected by #post_render_cache callbacks.');
+
     $expected_child_element = array(
-      '#markup' => '<details class="form-wrapper" open="open"><summary role="button" aria-expanded>Child</summary><div class="details-wrapper">Subchild</div></details>
-',
       '#attached' => array(
         'library' => array(
           array('system', 'drupal.collapse'),
@@ -710,7 +724,16 @@ class RenderTest extends DrupalUnitTestBase {
         )
       ),
     );
-    $this->assertIdentical($cached_child_element, $expected_child_element, 'The correct data is cached for the child: the stored #markup and #attached properties are not affected by #post_render_cache callbacks.');
+
+    $dom = Html::load($cached_child_element['#markup']);
+    $xpath = new \DOMXPath($dom);
+    $child =  $xpath->query('//details[@class="form-wrapper" and @open="open"]/summary[@role="button" and @aria-expanded and text()="Child"]')->length;
+    $subchild = $xpath->query('//details[@class="form-wrapper" and @open="open"]/div [@class="details-wrapper" and text()="Subchild"]')->length;
+    $this->assertTrue($child && $subchild, 'The correct data is cached for the child: the stored #markup is not affected by #post_render_cache callbacks.');
+
+    // Remove markup because it's compared above in the xpath.
+    unset($cached_child_element['#markup']);
+    $this->assertIdentical($cached_child_element, $expected_child_element, 'The correct data is cached for the child: the stored #attached properties are not affected by #post_render_cache callbacks.');
 
     // GET request: #cache enabled, cache hit, parent element.
     drupal_static_reset('_drupal_add_js');
@@ -747,7 +770,7 @@ class RenderTest extends DrupalUnitTestBase {
    * Tests post-render cache-integrated 'render_cache_placeholder' element.
    */
   function testDrupalRenderRenderCachePlaceholder() {
-    $context = array('bar' => $this->randomString());
+    $context = array('bar' => $this->randomContextValue());
     $test_element = array(
       '#type' => 'render_cache_placeholder',
       '#context' => $context,
@@ -784,7 +807,7 @@ class RenderTest extends DrupalUnitTestBase {
     $element = array('#cache' => array('cid' => 'render_cache_placeholder_test_GET'));
     $cached_element = cache()->get(drupal_render_cid_create($element))->data;
     // Parse unique token out of the markup.
-    $dom = filter_dom_load($cached_element['#markup']);
+    $dom = Html::load($cached_element['#markup']);
     $xpath = new \DOMXPath($dom);
     $nodes = $xpath->query('//*[@token]');
     $token = $nodes->item(0)->getAttribute('token');
@@ -821,6 +844,27 @@ class RenderTest extends DrupalUnitTestBase {
     $json  = drupal_substr($html, $start, $end - $start + 1);
     $parsed_settings = drupal_json_decode($json);
     return $parsed_settings;
+  }
+
+  /**
+   * Generates a random context value for the post-render cache tests.
+   *
+   * The #context array used by the post-render cache callback will generally
+   * be used to provide metadata like entity IDs, field machine names, paths,
+   * etc. for JavaScript replacement of content or assets. In this test, the
+   * callbacks common_test_post_render_cache() and
+   * common_test_post_render_cache_placeholder() render the context inside test
+   * HTML, so using any random string would sometimes cause random test
+   * failures because the test output would be unparseable. Instead, we provide
+   * random tokens for replacement.
+   *
+   * @see common_test_post_render_cache()
+   * @see common_test_post_render_cache_placeholder()
+   * @see https://drupal.org/node/2151609
+   */
+  protected function randomContextValue() {
+    $tokens = array('llama', 'alpaca', 'camel', 'moose', 'elk');
+    return $tokens[mt_rand(0, 4)];
   }
 
 }

@@ -31,9 +31,7 @@ class BlockFormControllerTest extends UnitTestCase {
    * @see \Drupal\block\BlockFormController::getUniqueMachineName()
    */
   public function testGetUniqueMachineName() {
-    $block_storage = $this->getMockBuilder('Drupal\Core\Config\Entity\ConfigStorageController')
-      ->disableOriginalConstructor()
-      ->getMock();
+    $block_storage = $this->getMock('Drupal\Core\Config\Entity\ConfigStorageControllerInterface');
     $blocks = array();
 
     $blocks['test'] = $this->getBlockMockWithMachineName('test');
@@ -68,9 +66,7 @@ class BlockFormControllerTest extends UnitTestCase {
 
     $language_manager = $this->getMock('Drupal\Core\Language\LanguageManagerInterface');
 
-    $config_factory = $this->getMockBuilder('Drupal\Core\Config\ConfigFactory')
-      ->disableOriginalConstructor()
-      ->getMock();
+    $config_factory = $this->getMock('Drupal\Core\Config\ConfigFactoryInterface');
 
     $block_form_controller = new BlockFormController($entity_manager, $query_factory, $language_manager, $config_factory);
 

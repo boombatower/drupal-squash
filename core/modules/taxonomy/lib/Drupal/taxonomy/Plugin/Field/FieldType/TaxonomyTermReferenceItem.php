@@ -7,9 +7,9 @@
 
 namespace Drupal\taxonomy\Plugin\Field\FieldType;
 
-use Drupal\Core\Field\ConfigEntityReferenceItemBase;
 use Drupal\Core\Field\ConfigFieldItemInterface;
 use Drupal\Core\Field\FieldDefinitionInterface;
+use Drupal\Core\Field\Plugin\Field\FieldType\EntityReferenceItem;
 use Drupal\Core\Session\AccountInterface;
 use Drupal\Core\TypedData\AllowedValuesInterface;
 
@@ -35,7 +35,7 @@ use Drupal\Core\TypedData\AllowedValuesInterface;
  *   list_class = "\Drupal\taxonomy\Plugin\Field\FieldType\TaxonomyTermReferenceFieldItemList"
  * )
  */
-class TaxonomyTermReferenceItem extends ConfigEntityReferenceItemBase implements ConfigFieldItemInterface, AllowedValuesInterface {
+class TaxonomyTermReferenceItem extends EntityReferenceItem implements ConfigFieldItemInterface, AllowedValuesInterface {
 
   /**
    * {@inheritdoc}
@@ -68,12 +68,12 @@ class TaxonomyTermReferenceItem extends ConfigEntityReferenceItemBase implements
    * {@inheritdoc}
    */
   public function getSettableOptions(AccountInterface $account = NULL) {
-    if ($callback = $this->getFieldSetting('options_list_callback')) {
+    if ($callback = $this->getSetting('options_list_callback')) {
       return call_user_func_array($callback, array($this->getFieldDefinition(), $this->getEntity()));
     }
     else {
       $options = array();
-      foreach ($this->getFieldSetting('allowed_values') as $tree) {
+      foreach ($this->getSetting('allowed_values') as $tree) {
         if ($vocabulary = entity_load('taxonomy_vocabulary', $tree['vocabulary'])) {
           if ($terms = taxonomy_get_tree($vocabulary->id(), $tree['parent'], NULL, TRUE)) {
             foreach ($terms as $term) {
@@ -131,7 +131,7 @@ class TaxonomyTermReferenceItem extends ConfigEntityReferenceItemBase implements
     $element = array();
     $element['#tree'] = TRUE;
 
-    foreach ($this->getFieldSetting('allowed_values') as $delta => $tree) {
+    foreach ($this->getSetting('allowed_values') as $delta => $tree) {
       $element['allowed_values'][$delta]['vocabulary'] = array(
         '#type' => 'select',
         '#title' => t('Vocabulary'),

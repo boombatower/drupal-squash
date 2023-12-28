@@ -7,10 +7,14 @@
 
 namespace Drupal\entity_reference;
 
-use Drupal\Core\TypedData\DataDefinition;
-use Drupal\Core\Field\FieldDefinitionInterface;
-use Drupal\Core\Field\ConfigEntityReferenceItemBase;
+use Drupal\Component\Utility\String;
 use Drupal\Core\Field\ConfigFieldItemInterface;
+use Drupal\Core\Field\FieldDefinitionInterface;
+use Drupal\Core\Field\Plugin\Field\FieldType\EntityReferenceItem;
+use Drupal\Core\Session\AccountInterface;
+use Drupal\Core\TypedData\AllowedValuesInterface;
+use Drupal\Core\TypedData\DataDefinition;
+use Drupal\Core\Validation\Plugin\Validation\Constraint\AllowedValuesConstraint;
 
 /**
  * Alternative plugin implementation of the 'entity_reference' field type.
@@ -22,9 +26,54 @@ use Drupal\Core\Field\ConfigFieldItemInterface;
  *  - target_type: The entity type to reference.
  *
  * @see entity_reference_field_info_alter().
- *
  */
-class ConfigurableEntityReferenceItem extends ConfigEntityReferenceItemBase implements ConfigFieldItemInterface {
+class ConfigurableEntityReferenceItem extends EntityReferenceItem implements ConfigFieldItemInterface, AllowedValuesInterface {
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getPossibleValues(AccountInterface $account = NULL) {
+    return $this->getSettableValues($account);
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getPossibleOptions(AccountInterface $account = NULL) {
+    return $this->getSettableOptions($account);
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getSettableValues(AccountInterface $account = NULL) {
+    // Flatten options first, because "settable options" may contain group
+    // arrays.
+    $flatten_options = \Drupal::formBuilder()->flattenOptions($this->getSettableOptions($account));
+    return array_keys($flatten_options);
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getSettableOptions(AccountInterface $account = NULL) {
+    $field_definition = $this->getFieldDefinition();
+    if (!$options = \Drupal::service('plugin.manager.entity_reference.selection')->getSelectionHandler($field_definition, $this->getEntity())->getReferenceableEntities()) {
+      return array();
+    }
+
+    // Rebuild the array by changing the bundle key into the bundle label.
+    $target_type = $field_definition->getSetting('target_type');
+    $bundles = \Drupal::entityManager()->getBundleInfo($target_type);
+
+    $return = array();
+    foreach ($options as $bundle => $entity_ids) {
+      $bundle_label = String::checkPlain($bundles[$bundle]['label']);
+      $return[$bundle_label] = $entity_ids;
+    }
+
+    return count($return) == 1 ? reset($return) : $return;
+  }
 
   /**
    * Definitions of the contained properties.
@@ -66,6 +115,23 @@ class ConfigurableEntityReferenceItem extends ConfigEntityReferenceItemBase impl
   /**
    * {@inheritdoc}
    */
+  public function getConstraints() {
+    $constraints = parent::getConstraints();
+
+    // Remove the 'AllowedValuesConstraint' validation constraint because entity
+    // reference fields already use the 'ValidReference' constraint.
+    foreach ($constraints as $key => $constraint) {
+      if ($constraint instanceof AllowedValuesConstraint) {
+        unset($constraints[$key]);
+      }
+    }
+
+    return $constraints;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
   public static function schema(FieldDefinitionInterface $field_definition) {
     $schema = parent::schema($field_definition);
 
@@ -92,7 +158,7 @@ class ConfigurableEntityReferenceItem extends ConfigEntityReferenceItemBase impl
       '#type' => 'select',
       '#title' => t('Type of item to reference'),
       '#options' => \Drupal::entityManager()->getEntityTypeLabels(),
-      '#default_value' => $this->getFieldSetting('target_type'),
+      '#default_value' => $this->getSetting('target_type'),
       '#required' => TRUE,
       '#disabled' => $has_data,
       '#size' => 1,
@@ -108,7 +174,7 @@ class ConfigurableEntityReferenceItem extends ConfigEntityReferenceItemBase impl
     $instance = $form_state['instance'];
 
     // Get all selection plugins for this entity type.
-    $selection_plugins = \Drupal::service('plugin.manager.entity_reference.selection')->getSelectionGroups($this->getFieldSetting('target_type'));
+    $selection_plugins = \Drupal::service('plugin.manager.entity_reference.selection')->getSelectionGroups($this->getSetting('target_type'));
     $handler_groups = array_keys($selection_plugins);
 
     $handlers = \Drupal::service('plugin.manager.entity_reference.selection')->getDefinitions();

@@ -7,7 +7,7 @@
 
 namespace Drupal\user\Form;
 
-use Drupal\Core\Config\ConfigFactory;
+use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Entity\ContentEntityConfirmFormBase;
 use Drupal\Core\Entity\EntityManagerInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -27,7 +27,7 @@ class UserCancelForm extends ContentEntityConfirmFormBase {
   /**
    * The config factory.
    *
-   * @var \Drupal\Core\Config\ConfigFactory
+   * @var \Drupal\Core\Config\ConfigFactoryInterface
    */
   protected $configFactory;
 
@@ -41,12 +41,12 @@ class UserCancelForm extends ContentEntityConfirmFormBase {
   /**
    * Constructs an EntityFormController object.
    *
-   * @param \Drupal\Core\Config\ConfigFactory $config_factory
+   * @param \Drupal\Core\Config\ConfigFactoryInterface $config_factory
    *   The config factory.
    * @param \Drupal\Core\Entity\EntityManagerInterface $entity_manager
    *   The entity manager.
    */
-  public function __construct(EntityManagerInterface $entity_manager, ConfigFactory $config_factory) {
+  public function __construct(EntityManagerInterface $entity_manager, ConfigFactoryInterface $config_factory) {
     parent::__construct($entity_manager);
     $this->configFactory = $config_factory;
   }
@@ -144,8 +144,9 @@ class UserCancelForm extends ContentEntityConfirmFormBase {
     $form = parent::buildForm($form, $form_state);
 
     // @todo Convert to getCancelRoute() after https://drupal.org/node/1987896.
-    $uri = $this->entity->uri();
-    $form['actions']['cancel']['#href'] = $uri['path'];
+    $uri = $this->entity->urlInfo();
+    $form['actions']['cancel']['#route_name'] = $uri['route_name'];
+    $form['actions']['cancel']['#route_parameters'] = $uri['route_parameters'];
     return $form;
   }
 

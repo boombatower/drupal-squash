@@ -17,7 +17,7 @@ use Drupal\taxonomy\TermInterface;
 /**
  * Defines the taxonomy term entity.
  *
- * @EntityType(
+ * @ContentEntityType(
  *   id = "taxonomy_term",
  *   label = @Translation("Taxonomy term"),
  *   bundle_label = @Translation("Vocabulary"),
@@ -41,12 +41,10 @@ use Drupal\taxonomy\TermInterface;
  *     "label" = "name",
  *     "uuid" = "uuid"
  *   },
- *   bundle_keys = {
- *     "bundle" = "vid"
- *   },
  *   bundle_entity_type = "taxonomy_vocabulary",
  *   links = {
  *     "canonical" = "taxonomy.term_page",
+ *     "delete-form" = "taxonomy.term_delete",
  *     "edit-form" = "taxonomy.term_edit",
  *     "admin-form" = "taxonomy.overview_terms"
  *   },
@@ -210,9 +208,10 @@ class Term extends ContentEntityBase implements TermInterface {
       ->setDescription(t('The term UUID.'))
       ->setReadOnly(TRUE);
 
-    $fields['vid'] = FieldDefinition::create('string')
-      ->setLabel(t('Vocabulary ID'))
-      ->setDescription(t('The ID of the vocabulary to which the term is assigned.'));
+    $fields['vid'] = FieldDefinition::create('entity_reference')
+      ->setLabel(t('Vocabulary'))
+      ->setDescription(t('The vocabulary to which the term is assigned.'))
+      ->setSetting('target_type', 'taxonomy_vocabulary');
 
     $fields['langcode'] = FieldDefinition::create('language')
       ->setLabel(t('Language code'))
@@ -220,7 +219,9 @@ class Term extends ContentEntityBase implements TermInterface {
 
     $fields['name'] = FieldDefinition::create('string')
       ->setLabel(t('Name'))
-      ->setDescription(t('The term name.'));
+      ->setDescription(t('The term name.'))
+      ->setRequired(TRUE)
+      ->setSetting('max_length', 255);
 
     $fields['description'] = FieldDefinition::create('text_long')
       ->setLabel(t('Description'))
@@ -232,12 +233,14 @@ class Term extends ContentEntityBase implements TermInterface {
       ->setDescription(t('The weight of this term in relation to other terms.'))
       ->setSetting('default_value', 0);
 
+    // @todo Convert this to an entity_reference field, see
+    // https://drupal.org/node/1915056
     $fields['parent'] = FieldDefinition::create('integer')
       ->setLabel(t('Term Parents'))
       ->setDescription(t('The parents of this term.'))
       // Save new terms with no parents by default.
       ->setSetting('default_value', 0)
-      ->setComputed(TRUE);
+      ->setConstraints(array('TermParent' => array()));
 
     $fields['changed'] = FieldDefinition::create('integer')
       ->setLabel(t('Changed'))

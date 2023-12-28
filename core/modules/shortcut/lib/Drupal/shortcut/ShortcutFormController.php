@@ -83,7 +83,7 @@ class ShortcutFormController extends ContentEntityFormController {
     $form['title'] = array(
       '#type' => 'textfield',
       '#title' => t('Name'),
-      '#default_value' => $entity->title->value,
+      '#default_value' => $entity->getTitle(),
       '#size' => 40,
       '#maxlength' => 255,
       '#required' => TRUE,
@@ -154,26 +154,16 @@ class ShortcutFormController extends ContentEntityFormController {
     $entity->save();
 
     if ($entity->isNew()) {
-      $message = $this->t('The shortcut %link has been updated.', array('%link' => $entity->title->value));
+      $message = $this->t('The shortcut %link has been updated.', array('%link' => $entity->getTitle()));
     }
     else {
-      $message = $this->t('Added a shortcut for %title.', array('%title' => $entity->title->value));
+      $message = $this->t('Added a shortcut for %title.', array('%title' => $entity->getTitle()));
     }
     drupal_set_message($message);
 
     $form_state['redirect_route'] = array(
       'route_name' => 'shortcut.set_customize',
       'route_parameters' => array('shortcut_set' => $entity->bundle()),
-    );
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  public function delete(array $form, array &$form_state) {
-    $form_state['redirect_route'] = array(
-      'route_name' => 'shortcut.link_delete',
-      'route_parameters' => array('shortcut' => $this->entity->id()),
     );
   }
 

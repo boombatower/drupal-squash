@@ -6,4 +6,4 @@ version: VERSION
 core: 8.x
 dependencies:
   - field
-required: true
+  - filter

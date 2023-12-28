@@ -8,6 +8,7 @@
 namespace Drupal\content_translation;
 
 use Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Entity\EntityTypeInterface;
 use Drupal\Core\Language\Language;
 
 /**
@@ -20,24 +21,24 @@ class ContentTranslationController implements ContentTranslationControllerInterf
    *
    * @var string
    */
-  protected $entityType;
+  protected $entityTypeId;
 
   /**
-   * The entity info of the entity being translated.
+   * Information about the entity type.
    *
    * @var \Drupal\Core\Entity\EntityTypeInterface
    */
-  protected $entityInfo;
+  protected $entityType;
 
   /**
    * Initializes an instance of the content translation controller.
    *
-   * @param \Drupal\Core\Entity\EntityTypeInterface $entity_info
+   * @param \Drupal\Core\Entity\EntityTypeInterface $entity_type
    *   The info array of the given entity type.
    */
-  public function __construct($entity_info) {
-    $this->entityType = $entity_info->id();
-    $this->entityInfo = $entity_info;
+  public function __construct(EntityTypeInterface $entity_type) {
+    $this->entityTypeId = $entity_type->id();
+    $this->entityType = $entity_type;
   }
 
   /**
@@ -57,12 +58,12 @@ class ContentTranslationController implements ContentTranslationControllerInterf
   public function getTranslationAccess(EntityInterface $entity, $op) {
     // @todo Move this logic into a translation access controller checking also
     //   the translation language and the given account.
-    $info = $entity->entityInfo();
+    $entity_type = $entity->getEntityType();
     $translate_permission = TRUE;
     // If no permission granularity is defined this entity type does not need an
     // explicit translate permission.
-    if (!user_access('translate any entity') && $permission_granularity = $info->getPermissionGranularity()) {
-      $translate_permission = user_access($permission_granularity == 'bundle' ? "translate {$entity->bundle()} {$entity->entityType()}" : "translate {$entity->entityType()}");
+    if (!user_access('translate any entity') && $permission_granularity = $entity_type->getPermissionGranularity()) {
+      $translate_permission = user_access($permission_granularity == 'bundle' ? "translate {$entity->bundle()} {$entity->getEntityTypeId()}" : "translate {$entity->getEntityTypeId()}");
     }
     return $translate_permission && user_access("$op content translations");
   }
@@ -431,9 +432,8 @@ class ContentTranslationController implements ContentTranslationControllerInterf
     $entity = $form_controller->getEntity();
     $source = $form_state['values']['source_langcode']['source'];
 
-    $uri = $entity->uri('drupal:content-translation-overview');
-    $path = $uri['path'] . '/add/' . $source . '/' . $form_controller->getFormLangcode($form_state);
-    $form_state['redirect'] = $path;
+    $path = $entity->getSystemPath('drupal:content-translation-overview');
+    $form_state['redirect'] = $path . '/add/' . $source . '/' . $form_controller->getFormLangcode($form_state);
     $languages = language_list();
     drupal_set_message(t('Source language set to: %language', array('%language' => $languages[$source]->name)));
   }
@@ -459,9 +459,9 @@ class ContentTranslationController implements ContentTranslationControllerInterf
   function entityFormDeleteTranslation($form, &$form_state) {
     $form_controller = content_translation_form_controller($form_state);
     $entity = $form_controller->getEntity();
-    $uri = $entity->uri('drupal:content-translation-overview');
+    $path = $entity->getSystemPath('drupal:content-translation-overview');
     $form_langcode = $form_controller->getFormLangcode($form_state);
-    $form_state['redirect'] = $uri['path'] . '/delete/' . $form_langcode;
+    $form_state['redirect'] = $path . '/delete/' . $form_langcode;
   }
 
   /**

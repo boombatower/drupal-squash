@@ -93,6 +93,19 @@ function menu_menu() {
 }
 
 /**
+ * Implements hook_menu_link_defaults().
+ */
+function menu_menu_link_defaults() {
+  $links['menu.admin.overview'] = array(
+    'link_title' => 'Menus',
+    'description' => 'Add new menus to your site, edit existing menus, and rename and reorganize menu links.',
+    'route_name' => 'menu.overview_page',
+    'parent' => 'system.admin.structure',
+  );
+  return $links;
+}
+
+/**
  * Implements hook_entity_info().
  */
 function menu_entity_info(&$entity_info) {
@@ -102,11 +115,14 @@ function menu_entity_info(&$entity_info) {
     ->setFormClass('edit', 'Drupal\menu\MenuFormController')
     ->setFormClass('delete', 'Drupal\menu\Form\MenuDeleteForm')
     ->setListClass('Drupal\menu\MenuListController')
+    ->setLinkTemplate('add-form', 'menu.link_add')
+    ->setLinkTemplate('delete-form', 'menu.delete_menu')
     ->setLinkTemplate('edit-form', 'menu.menu_edit');
 
   $entity_info['menu_link']
     ->setFormClass('delete', 'Drupal\menu\Form\MenuLinkDeleteForm')
-    ->setFormClass('reset', 'Drupal\menu\Form\MenuLinkResetForm');
+    ->setFormClass('reset', 'Drupal\menu\Form\MenuLinkResetForm')
+    ->setLinkTemplate('delete-form', 'menu.link_delete');
 }
 
 /**
@@ -155,7 +171,7 @@ function menu_load($menu_name) {
 function menu_menu_insert(Menu $menu) {
   menu_cache_clear_all();
   // Invalidate the block cache to update menu-based derivatives.
-  if (module_exists('block')) {
+  if (\Drupal::moduleHandler()->moduleExists('block')) {
     \Drupal::service('plugin.manager.block')->clearCachedDefinitions();
   }
   // Make sure the menu is present in the active menus variable so that its
@@ -178,7 +194,7 @@ function menu_menu_insert(Menu $menu) {
 function menu_menu_update(Menu $menu) {
   menu_cache_clear_all();
   // Invalidate the block cache to update menu-based derivatives.
-  if (module_exists('block')) {
+  if (\Drupal::moduleHandler()->moduleExists('block')) {
     \Drupal::service('plugin.manager.block')->clearCachedDefinitions();
   }
 }
@@ -211,7 +227,7 @@ function menu_menu_delete(Menu $menu) {
   menu_cache_clear_all();
 
   // Invalidate the block cache to update menu-based derivatives.
-  if (module_exists('block')) {
+  if (\Drupal::moduleHandler()->moduleExists('block')) {
     \Drupal::service('plugin.manager.block')->clearCachedDefinitions();
   }
 }
@@ -319,7 +335,7 @@ function menu_block_view_system_menu_block_alter(array &$build, BlockPluginInter
   $menu_name = $block->getDerivativeId();
   if (isset($menus[$menu_name]) && isset($build['content'])) {
     foreach (element_children($build['content']) as $key) {
-      $build['content']['#contextual_links']['menu'] = array(
+      $build['#contextual_links']['menu'] = array(
         'route_parameters' => array('menu' => $build['content'][$key]['#original_link']['menu_name']),
       );
     }
@@ -574,11 +590,13 @@ function menu_form_node_form_alter(&$form, $form_state) {
  * @see menu_form_node_form_alter()
  */
 function menu_node_submit(EntityInterface $node, $form, $form_state) {
-  $node->menu = entity_create('menu_link', $form_state['values']['menu']);
-  // Decompose the selected menu parent option into 'menu_name' and 'plid', if
-  // the form used the default parent selection widget.
-  if (!empty($form_state['values']['menu']['parent'])) {
-    list($node->menu['menu_name'], $node->menu['plid']) = explode(':', $form_state['values']['menu']['parent']);
+  if (!empty($form_state['values']['menu'])) {
+    $node->menu = entity_create('menu_link', $form_state['values']['menu']);
+    // Decompose the selected menu parent option into 'menu_name' and 'plid', if
+    // the form used the default parent selection widget.
+    if (!empty($form_state['values']['menu']['parent'])) {
+      list($node->menu['menu_name'], $node->menu['plid']) = explode(':', $form_state['values']['menu']['parent']);
+    }
   }
 }
 

@@ -9,7 +9,7 @@ namespace Drupal\forum\Form;
 
 use Drupal\Core\Entity\EntityManagerInterface;
 use Drupal\taxonomy\Form\OverviewTerms;
-use Drupal\Core\Config\ConfigFactory;
+use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Extension\ModuleHandlerInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -40,7 +40,7 @@ class Overview extends OverviewTerms {
   }
 
   /**
-   * {@inheritdoc}.
+   * {@inheritdoc}
    */
   public static function create(ContainerInterface $container) {
     return new static(
@@ -77,14 +77,14 @@ class Overview extends OverviewTerms {
         unset($form['terms'][$key]['operations']['#links']['delete']);
         if (!empty($term->forum_container->value)) {
           $form['terms'][$key]['operations']['#links']['edit']['title'] = $this->t('edit container');
-          $form['terms'][$key]['operations']['#links']['edit']['href'] = 'admin/structure/forum/edit/container/' . $term->id();
+          $form['terms'][$key]['operations']['#links']['edit']['route_name'] = 'forum.edit_container';
           // We don't want the redirect from the link so we can redirect the
           // delete action.
           unset($form['terms'][$key]['operations']['#links']['edit']['query']['destination']);
         }
         else {
           $form['terms'][$key]['operations']['#links']['edit']['title'] = $this->t('edit forum');
-          $form['terms'][$key]['operations']['#links']['edit']['href'] = 'admin/structure/forum/edit/forum/' . $term->id();
+          $form['terms'][$key]['operations']['#links']['edit']['route_name'] = 'forum.edit_forum';
           // We don't want the redirect from the link so we can redirect the
           // delete action.
           unset($form['terms'][$key]['operations']['#links']['edit']['query']['destination']);

@@ -7,6 +7,7 @@
 
 namespace Drupal\views;
 
+use Drupal\Core\DependencyInjection\DependencySerialization;
 use Drupal\Core\Session\AccountInterface;
 use Drupal\views\Plugin\views\query\QueryPluginBase;
 use Drupal\views\ViewStorageInterface;
@@ -25,7 +26,7 @@ use Symfony\Component\HttpFoundation\Response;
  * An object to contain all of the data to generate a view, plus the member
  * functions to build the view query, execute the query and render the output.
  */
-class ViewExecutable {
+class ViewExecutable extends DependencySerialization {
 
   /**
    * The config entity in which the view is stored.
@@ -78,7 +79,7 @@ class ViewExecutable {
    *
    * The array must use a numeric index starting at 0.
    *
-   * @var array
+   * @var \Drupal\views\ResultRow[]
    */
   public $result = array();
 
@@ -1360,7 +1361,7 @@ class ViewExecutable {
       // Let the themes play too, because pre render is a very themey thing.
       if (isset($GLOBALS['base_theme_info']) && isset($GLOBALS['theme'])) {
         foreach ($GLOBALS['base_theme_info'] as $base) {
-          $module_handler->invoke($base, 'views_pre_render', array($this));
+          $module_handler->invoke($base->name, 'views_pre_render', array($this));
         }
 
         $module_handler->invoke($GLOBALS['theme'], 'views_pre_render', array($this));
@@ -1384,7 +1385,7 @@ class ViewExecutable {
     // Let the themes play too, because post render is a very themey thing.
     if (isset($GLOBALS['base_theme_info']) && isset($GLOBALS['theme'])) {
       foreach ($GLOBALS['base_theme_info'] as $base) {
-        $module_handler->invoke($base, 'views_post_render', array($this));
+        $module_handler->invoke($base->name, 'views_post_render', array($this));
       }
 
       $module_handler->invoke($GLOBALS['theme'], 'views_post_render', array($this));
@@ -1529,6 +1530,30 @@ class ViewExecutable {
     // Execute the view
     if (isset($this->display_handler)) {
       return $this->display_handler->executeHookMenu($callbacks);
+    }
+  }
+
+  /**
+   * Returns default menu links from the view and the named display handler.
+   *
+   * @param string $display_id
+   *   A display ID.
+   * @param array $links
+   *   An array of default menu link items passed from
+   *   views_menu_link_defaults_alter().
+   *
+   * @return array|bool
+   */
+  public function executeHookMenuLinkDefaults($display_id = NULL, &$links = array()) {
+    // Prepare the view with the information we have. This was probably already
+    // called, but it's good to be safe.
+    if (!$this->setDisplay($display_id)) {
+      return FALSE;
+    }
+
+    // Execute the hook.
+    if (isset($this->display_handler)) {
+      return $this->display_handler->executeHookMenuLinkDefaults($links);
     }
   }
 
@@ -2210,6 +2235,30 @@ class ViewExecutable {
     $themes[] = $hook;
 
     return $themes;
+  }
+
+  /**
+   * Determines if this view has form elements.
+   *
+   * @return bool
+   *   Returns TRUE if this view contains handlers with views form
+   *   implementations, FALSE otherwise.
+   */
+  public function hasFormElements() {
+    foreach ($this->field as $field) {
+      if (property_exists($field, 'views_form_callback') || method_exists($field, 'viewsForm')) {
+        return TRUE;
+      }
+    }
+    $area_handlers = array_merge(array_values($this->header), array_values($this->footer));
+    $empty = empty($this->result);
+    foreach ($area_handlers as $area) {
+      if (method_exists($area, 'viewsForm') && !$area->viewsFormEmpty($empty)) {
+        return TRUE;
+      }
+    }
+
+    return FALSE;
   }
 
 }

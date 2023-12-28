@@ -57,6 +57,20 @@ function action_menu() {
 }
 
 /**
+ * Implements hook_menu_link_defaults().
+ */
+function action_menu_link_defaults() {
+  $links['action.admin.actions'] = array(
+    'link_title' => 'Actions',
+    'description' => 'Manage the actions defined for your site.',
+    'route_name' => 'action.admin',
+    'parent' => 'system.admin.config.system',
+  );
+
+  return $links;
+}
+
+/**
  * Implements hook_entity_info().
  */
 function action_entity_info(&$entity_info) {
@@ -66,5 +80,6 @@ function action_entity_info(&$entity_info) {
     ->setFormClass('edit', 'Drupal\action\ActionEditFormController')
     ->setFormClass('delete', 'Drupal\action\Form\ActionDeleteForm')
     ->setListClass('Drupal\action\ActionListController')
+    ->setLinkTemplate('delete-form', 'action.delete')
     ->setLinkTemplate('edit-form', 'action.admin_configure');
 }

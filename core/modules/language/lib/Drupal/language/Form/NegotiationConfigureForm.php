@@ -11,7 +11,7 @@ use Drupal\block\Plugin\Type\BlockManager;
 use Drupal\Component\Utility\String;
 use Drupal\Component\Utility\Unicode;
 use Drupal\Component\Utility\Xss;
-use Drupal\Core\Config\ConfigFactory;
+use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Extension\ModuleHandlerInterface;
 use Drupal\Core\Form\FormBase;
 use Drupal\language\ConfigurableLanguageManagerInterface;
@@ -55,7 +55,7 @@ class NegotiationConfigureForm extends FormBase {
   /**
    * Constructs a NegotiationConfigureForm object.
    *
-   * @param \Drupal\Core\Config\ConfigFactory $config_factory
+   * @param \Drupal\Core\Config\ConfigFactoryInterface $config_factory
    *   The factory for configuration objects.
    * @param \Drupal\language\ConfigurableLanguageManagerInterface $language_manager
    *   The language manager.
@@ -64,7 +64,7 @@ class NegotiationConfigureForm extends FormBase {
    * @param \Drupal\block\Plugin\Type\BlockManager $block_manager
    *   The block manager, or NULL if not available.
    */
-  public function __construct(ConfigFactory $config_factory, ConfigurableLanguageManagerInterface $language_manager, LanguageNegotiatorInterface $negotiator, BlockManager $block_manager = NULL) {
+  public function __construct(ConfigFactoryInterface $config_factory, ConfigurableLanguageManagerInterface $language_manager, LanguageNegotiatorInterface $negotiator, BlockManager $block_manager = NULL) {
     $this->languageTypes = $config_factory->get('language.types');
     $this->languageManager = $language_manager;
     $this->negotiator = $negotiator;
@@ -150,8 +150,7 @@ class NegotiationConfigureForm extends FormBase {
       }
 
       $method_weights_type[$type] = $method_weights;
-      // @todo convert this to config.
-      variable_set("language_negotiation_methods_weight_$type", $method_weights_input);
+      $this->config('language.types')->set('negotiation.' . $type . '.method_weights', $method_weights_input)->save();
     }
 
     // Update non-configurable language types and the related language
@@ -213,8 +212,8 @@ class NegotiationConfigureForm extends FormBase {
     }
 
     $negotiation_info = $form['#language_negotiation_info'];
-    $enabled_methods = variable_get("language_negotiation_$type", array());
-    $methods_weight = variable_get("language_negotiation_methods_weight_$type", array());
+    $enabled_methods = $this->config('language.types')->get('negotiation.' . $type . '.enabled') ?: array();
+    $methods_weight = $this->config('language.types')->get('negotiation.' . $type . '.method_weights') ?: array();
 
     // Add missing data to the methods lists.
     foreach ($negotiation_info as $method_id => $method) {

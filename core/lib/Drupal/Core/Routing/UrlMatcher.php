@@ -30,36 +30,16 @@ class UrlMatcher extends BaseUrlMatcher {
     $context = new RequestContext();
     $context->fromRequest($request);
     $this->setContext($context);
-    return $this->match('/' . $request->attributes->get('_system_path'));
-  }
-
-  /**
-   * Returns the route_name and route parameters matching a system path.
-   *
-   * @todo Find a better place for this method in
-   *   https://drupal.org/node/2153891.
-   *
-   * @param string $link_path
-   *   The link path to find a route name for.
-   *
-   * @return array
-   *   Returns an array with both the route name and parameters, or an empty
-   *   array if no route was matched.
-   */
-  public function findRouteNameParameters($link_path) {
-    // Look up the route_name used for the given path.
-    $request = Request::create('/' . $link_path);
-    $request->attributes->set('_system_path', $link_path);
-    try {
-      $result = \Drupal::service('router')->matchRequest($request);
-      $return = array();
-      $return[] = isset($result['_route']) ? $result['_route'] : '';
-      $return[] = $result['_raw_variables']->all();
-      return $return;
+    if ($request->attributes->has('_system_path')) {
+      // _system_path never has leading or trailing slashes.
+      $path = '/' . $request->attributes->get('_system_path');
     }
-    catch (\Exception $e) {
-      return array();
+    else {
+      // getPathInfo() always has leading slash, and might or might not have a
+      // trailing slash.
+      $path = rtrim($request->getPathInfo(), '/');
     }
+    return $this->match($path);
   }
 
 }

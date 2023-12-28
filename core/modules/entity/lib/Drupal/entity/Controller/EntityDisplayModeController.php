@@ -7,40 +7,12 @@
 
 namespace Drupal\entity\Controller;
 
-use Drupal\Core\DependencyInjection\ContainerInjectionInterface;
-use Drupal\Core\Entity\EntityManagerInterface;
-use Symfony\Component\DependencyInjection\ContainerInterface;
+use Drupal\Core\Controller\ControllerBase;
 
 /**
  * Provides methods for entity display mode routes.
  */
-class EntityDisplayModeController implements ContainerInjectionInterface {
-
-  /**
-   * The entity manager.
-   *
-   * @var \Drupal\Core\Entity\EntityManagerInterface
-   */
-  protected $entityManager;
-
-  /**
-   * Constructs a new EntityDisplayModeFormBase.
-   *
-   * @param \Drupal\Core\Entity\EntityManagerInterface $entity_manager
-   *   The entity manager.
-   */
-  public function __construct(EntityManagerInterface $entity_manager) {
-    $this->entityManager = $entity_manager;
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  public static function create(ContainerInterface $container) {
-    return new static(
-      $container->get('entity.manager')
-    );
-  }
+class EntityDisplayModeController extends ControllerBase {
 
   /**
    * Provides a list of eligible entity types for adding view modes.
@@ -50,11 +22,11 @@ class EntityDisplayModeController implements ContainerInjectionInterface {
    */
   public function viewModeTypeSelection() {
     $entity_types = array();
-    foreach ($this->entityManager->getDefinitions() as $entity_type => $entity_info) {
-      if ($entity_info->isFieldable() && $entity_info->hasViewBuilderClass()) {
-        $entity_types[$entity_type] = array(
-          'title' => $entity_info->getLabel(),
-          'href' => 'admin/structure/display-modes/view/add/' . $entity_type,
+    foreach ($this->entityManager()->getDefinitions() as $entity_type_id => $entity_type) {
+      if ($entity_type->isFieldable() && $entity_type->hasViewBuilderClass()) {
+        $entity_types[$entity_type_id] = array(
+          'title' => $entity_type->getLabel(),
+          'link_path' => 'admin/structure/display-modes/view/add/' . $entity_type_id,
           'localized_options' => array(),
         );
       }
@@ -73,11 +45,11 @@ class EntityDisplayModeController implements ContainerInjectionInterface {
    */
   public function formModeTypeSelection() {
     $entity_types = array();
-    foreach ($this->entityManager->getDefinitions() as $entity_type => $entity_info) {
-      if ($entity_info->isFieldable() && $entity_info->hasFormClasses()) {
-        $entity_types[$entity_type] = array(
-          'title' => $entity_info->getLabel(),
-          'href' => 'admin/structure/display-modes/form/add/' . $entity_type,
+    foreach ($this->entityManager()->getDefinitions() as $entity_type_id => $entity_type) {
+      if ($entity_type->isFieldable() && $entity_type->hasFormClasses()) {
+        $entity_types[$entity_type_id] = array(
+          'title' => $entity_type->getLabel(),
+          'link_path' => 'admin/structure/display-modes/form/add/' . $entity_type_id,
           'localized_options' => array(),
         );
       }

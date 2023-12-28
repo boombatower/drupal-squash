@@ -29,6 +29,7 @@ class NodeFormController extends ContentEntityFormController {
    * {@inheritdoc}
    */
   protected function prepareEntity() {
+    /** @var \Drupal\node\NodeInterface $node */
     $node = $this->entity;
     // Set up default values, if required.
     $type = entity_load('node_type', $node->bundle());
@@ -47,7 +48,7 @@ class NodeFormController extends ContentEntityFormController {
           $node->$key = (int) !empty($this->settings['options'][$key]);
         }
       }
-      $node->setAuthorId(\Drupal::currentUser()->id());
+      $node->setOwnerId(\Drupal::currentUser()->id());
       $node->setCreatedTime(REQUEST_TIME);
     }
     else {
@@ -63,6 +64,7 @@ class NodeFormController extends ContentEntityFormController {
    * Overrides Drupal\Core\Entity\EntityFormController::form().
    */
   public function form(array $form, array &$form_state) {
+    /** @var \Drupal\node\NodeInterface $node */
     $node = $this->entity;
 
     if ($this->operation == 'edit') {
@@ -100,7 +102,7 @@ class NodeFormController extends ContentEntityFormController {
       '#default_value' => $node->getChangedTime(),
     );
 
-    $language_configuration = module_invoke('language', 'get_default_configuration', 'node', $node->getType());
+    $language_configuration = \Drupal::moduleHandler()->invoke('language', 'get_default_configuration', array('node', $node->getType()));
     $form['langcode'] = array(
       '#title' => t('Language'),
       '#type' => 'language_select',
@@ -180,7 +182,7 @@ class NodeFormController extends ContentEntityFormController {
       '#title' => t('Authored by'),
       '#maxlength' => 60,
       '#autocomplete_route_name' => 'user.autocomplete',
-      '#default_value' => $node->getAuthorId()? $node->getAuthor()->getUsername() : '',
+      '#default_value' => $node->getOwnerId()? $node->getOwner()->getUsername() : '',
       '#weight' => -1,
       '#description' => t('Leave blank for %anonymous.', array('%anonymous' => $user_config->get('anonymous'))),
     );
@@ -219,13 +221,6 @@ class NodeFormController extends ContentEntityFormController {
       '#title' => t('Sticky at top of lists'),
       '#default_value' => $node->isSticky(),
     );
-
-    // This form uses a button-level #submit handler for the form's main submit
-    // action. node_form_submit() manually invokes all form-level #submit
-    // handlers of the form. Without explicitly setting #submit, Form API would
-    // auto-detect node_form_submit() as submit handler, but that is the
-    // button-level #submit handler for the 'Save' action.
-    $form += array('#submit' => array());
 
     return parent::form($form, $form_state, $node);
   }
@@ -424,14 +419,15 @@ class NodeFormController extends ContentEntityFormController {
    * {@inheritdoc}
    */
   public function buildEntity(array $form, array &$form_state) {
+    /** @var \Drupal\node\NodeInterface $entity */
     $entity = parent::buildEntity($form, $form_state);
     // A user might assign the node author by entering a user name in the node
     // form, which we then need to translate to a user ID.
     if (!empty($form_state['values']['name']) && $account = user_load_by_name($form_state['values']['name'])) {
-      $entity->setAuthorId($account->id());
+      $entity->setOwnerId($account->id());
     }
     else {
-      $entity->setAuthorId(0);
+      $entity->setOwnerId(0);
     }
 
     if (!empty($form_state['values']['date']) && $form_state['values']['date'] instanceOf DrupalDateTime) {
@@ -488,27 +484,6 @@ class NodeFormController extends ContentEntityFormController {
 
     // Clear the page and block caches.
     cache_invalidate_tags(array('content' => TRUE));
-  }
-
-  /**
-   * Overrides Drupal\Core\Entity\EntityFormController::delete().
-   */
-  public function delete(array $form, array &$form_state) {
-    $destination = array();
-    $query = \Drupal::request()->query;
-    if ($query->has('destination')) {
-      $destination = drupal_get_destination();
-      $query->remove('destination');
-    }
-    $form_state['redirect_route'] = array(
-      'route_name' => 'node.delete_confirm',
-      'route_parameters' => array(
-        'node' => $this->entity->id(),
-      ),
-      'options' => array(
-        'query' => $destination,
-      ),
-    );
   }
 
 }

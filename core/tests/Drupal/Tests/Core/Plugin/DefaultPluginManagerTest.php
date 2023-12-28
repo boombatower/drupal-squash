@@ -172,6 +172,8 @@ class DefaultPluginManagerTest extends UnitTestCase {
       ->expects($this->never())
       ->method('deleteMultiple');
 
+    $this->getContainerWithCacheBins($cache_backend);
+
     $language = new Language(array('id' => 'en'));
     $language_manager = $this->getMock('Drupal\Core\Language\LanguageManagerInterface');
     $language_manager->expects($this->once())

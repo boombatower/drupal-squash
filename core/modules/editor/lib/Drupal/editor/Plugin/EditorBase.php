@@ -24,8 +24,11 @@ use Drupal\editor\Plugin\EditorPluginInterface;
  * - id: The unique, system-wide identifier of the text editor. Typically named
  *   the same as the editor library.
  * - label: The human-readable name of the text editor, translated.
+ * - supports_content_filtering: Whether the editor supports "allowed content
+ *   only" filtering.
  * - supports_inline_editing: Whether the editor supports the inline editing
  *   provided by the Edit module.
+ * - is_xss_safe: Whether this text editor is not vulnerable to XSS attacks.
  *
  * A complete sample plugin definition should be defined as in this example:
  *
@@ -33,7 +36,9 @@ use Drupal\editor\Plugin\EditorPluginInterface;
  * @Editor(
  *   id = "myeditor",
  *   label = @Translation("My Editor"),
- *   supports_inline_editing = FALSE
+ *   supports_content_filtering = FALSE,
+ *   supports_inline_editing = FALSE,
+ *   is_xss_safe = FALSE
  * )
  * @endcode
  */

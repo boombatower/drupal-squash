@@ -6,7 +6,6 @@
 
 namespace Drupal\comment\Tests\Entity {
 
-use Drupal\comment\Entity\Comment;
 use Drupal\Core\DependencyInjection\ContainerBuilder;
 use Drupal\Tests\UnitTestCase;
 
@@ -14,6 +13,7 @@ use Drupal\Tests\UnitTestCase;
  * Unit tests for the comment entity lock behavior.
  *
  * @group Drupal
+ * @group Comment
  */
 class CommentLockTest extends UnitTestCase {
 
@@ -37,7 +37,7 @@ class CommentLockTest extends UnitTestCase {
     $container->register('request', 'Symfony\Component\HttpFoundation\Request');
     $lock = $this->getMock('Drupal\Core\Lock\LockBackendInterface');
     $cid = 2;
-    $lock_name = "comment:$cid:01.00/";
+    $lock_name = "comment:$cid:.00/";
     $lock->expects($this->at(0))
       ->method('acquire')
       ->with($lock_name, 30)
@@ -52,6 +52,7 @@ class CommentLockTest extends UnitTestCase {
     $methods = get_class_methods('Drupal\comment\Entity\Comment');
     unset($methods[array_search('preSave', $methods)]);
     unset($methods[array_search('postSave', $methods)]);
+    $methods[] = 'onSaveOrDelete';
     $comment = $this->getMockBuilder('Drupal\comment\Entity\Comment')
       ->disableOriginalConstructor()
       ->setMethods($methods)
@@ -59,28 +60,25 @@ class CommentLockTest extends UnitTestCase {
     $comment->expects($this->once())
       ->method('isNew')
       ->will($this->returnValue(TRUE));
-    foreach (array('status', 'pid', 'created', 'changed', 'entity_id', 'uid', 'thread', 'hostname') as $property) {
-      $comment->$property = new \stdClass();
-    }
-    $comment->status->value = 1;
-    $comment->entity_id->value = $cid;
-    $comment->uid->target_id = 3;
-    // Parent comment is the first in thread.
-    $comment->pid->target_id = 42;
-    $comment->pid->entity = new \stdClass();
-    $comment->pid->entity->thread = (object) array('value' => '01/');
+    $comment->expects($this->once())
+      ->method('hasParentComment')
+      ->will($this->returnValue(TRUE));
+    $comment->expects($this->once())
+      ->method('getParentComment')
+      ->will($this->returnValue($comment));
+    $comment->expects($this->once())
+      ->method('getCommentedEntityId')
+      ->will($this->returnValue($cid));
+    $comment->expects($this->any())
+      ->method('getThread')
+      ->will($this->returnValue(''));
+    $comment->expects($this->at(0))
+      ->method('get')
+      ->with('status')
+      ->will($this->returnValue((object) array('value' => NULL)));
     $storage_controller = $this->getMock('Drupal\comment\CommentStorageControllerInterface');
     $comment->preSave($storage_controller);
     $comment->postSave($storage_controller);
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  protected function tearDown() {
-    parent::tearDown();
-    $container = new ContainerBuilder();
-    \Drupal::setContainer($container);
   }
 
 }

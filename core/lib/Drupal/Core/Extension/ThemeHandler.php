@@ -8,8 +8,9 @@
 namespace Drupal\Core\Extension;
 
 use Drupal\Component\Utility\String;
+use Drupal\Core\Cache\Cache;
 use Drupal\Core\Cache\CacheBackendInterface;
-use Drupal\Core\Config\ConfigFactory;
+use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Config\ConfigInstallerInterface;
 use Drupal\Core\Routing\RouteBuilder;
 use Drupal\Core\SystemListingInfo;
@@ -46,7 +47,7 @@ class ThemeHandler implements ThemeHandlerInterface {
   /**
    * The config factory to get the enabled themes.
    *
-   * @var \Drupal\Core\Config\ConfigFactory
+   * @var \Drupal\Core\Config\ConfigFactoryInterface
    */
   protected $configFactory;
 
@@ -83,7 +84,7 @@ class ThemeHandler implements ThemeHandlerInterface {
    *
    * @var \Drupal\Core\Routing\RouteBuilder
    */
-  protected $routerBuilder;
+  protected $routeBuilder;
 
   /**
    * The system listing info
@@ -95,7 +96,7 @@ class ThemeHandler implements ThemeHandlerInterface {
   /**
    * Constructs a new ThemeHandler.
    *
-   * @param \Drupal\Core\Config\ConfigFactory $config_factory
+   * @param \Drupal\Core\Config\ConfigFactoryInterface $config_factory
    *   The config factory to get the enabled themes.
    * @param \Drupal\Core\Extension\ModuleHandlerInterface $module_handler
    *   The module handler to fire themes_enabled/themes_disabled hooks.
@@ -112,7 +113,7 @@ class ThemeHandler implements ThemeHandlerInterface {
    * @param \Drupal\Core\SystemListingInfo $system_list_info
    *   (optional) The system listing info.
    */
-  public function __construct(ConfigFactory $config_factory, ModuleHandlerInterface $module_handler, CacheBackendInterface $cache_backend, InfoParserInterface $info_parser, ConfigInstallerInterface $config_installer = NULL, RouteBuilder $route_builder = NULL, SystemListingInfo $system_list_info = NULL) {
+  public function __construct(ConfigFactoryInterface $config_factory, ModuleHandlerInterface $module_handler, CacheBackendInterface $cache_backend, InfoParserInterface $info_parser, ConfigInstallerInterface $config_installer = NULL, RouteBuilder $route_builder = NULL, SystemListingInfo $system_list_info = NULL) {
     $this->configFactory = $config_factory;
     $this->moduleHandler = $module_handler;
     $this->cacheBackend = $cache_backend;
@@ -459,13 +460,13 @@ class ThemeHandler implements ThemeHandlerInterface {
    */
   protected function resetSystem() {
     if ($this->routeBuilder) {
-      $this->routeBuilder->rebuild();
+      $this->routeBuilder->setRebuildNeeded();
     }
     $this->systemListReset();
 
     // @todo It feels wrong to have the requirement to clear the local tasks
     //   cache here.
-    $this->cacheBackend->deleteTags(array('local_task' => 1));
+    Cache::deleteTags(array('local_task' => 1));
     $this->themeRegistryRebuild();
   }
 

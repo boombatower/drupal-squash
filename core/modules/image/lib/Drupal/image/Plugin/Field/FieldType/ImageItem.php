@@ -175,7 +175,7 @@ class ImageItem extends FileItem {
     // Get base form from FileItem::instanceSettingsForm().
     $element = parent::instanceSettingsForm($form, $form_state);
 
-    $settings = $this->getFieldSettings();
+    $settings = $this->getSettings();
 
     // Add maximum and minimum resolution settings.
     $max_resolution = explode('x', $settings['max_resolution']) + array('', '');
@@ -284,6 +284,8 @@ class ImageItem extends FileItem {
    * {@inheritdoc}
    */
   public function preSave() {
+    parent::preSave();
+
     $width = $this->width;
     $height = $this->height;
 

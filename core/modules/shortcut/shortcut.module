@@ -6,7 +6,9 @@
  */
 
 use Drupal\Core\Routing\UrlMatcher;
+use Drupal\Core\Url;
 use Drupal\shortcut\ShortcutSetInterface;
+use Symfony\Cmf\Component\Routing\RouteObjectInterface;
 use Symfony\Component\HttpFoundation\Request;
 
 /**
@@ -84,6 +86,20 @@ function shortcut_menu() {
   );
 
   return $items;
+}
+
+/**
+ * Implements hook_menu_link_defaults().
+ */
+function shortcut_menu_link_defaults() {
+  $links['shortcut.admin.config.user-interface.shortcut'] = array(
+    'link_title' => 'Shortcuts',
+    'description' => 'Add and modify shortcut sets.',
+    'route_name' => 'shortcut.set_admin',
+    'parent' => 'system.admin.config.user-interface',
+  );
+
+  return $links;
 }
 
 /**
@@ -373,9 +389,19 @@ function shortcut_preprocess_page(&$variables) {
   // shortcuts and if the page's actual content is being shown (for example,
   // we do not want to display it on "access denied" or "page not found"
   // pages).
-  if (shortcut_set_edit_access() && ($item = menu_get_item()) && $item['access']) {
+
+  // Load the router item corresponding to the current page.
+  $request = \Drupal::request();
+  $item = array();
+  if ($route = $request->attributes->get(RouteObjectInterface::ROUTE_NAME)) {
+    $item['href'] = $request->attributes->get('_system_path');
+    // @todo What should be done on a 404/403 page?
+    $item['access'] = TRUE;
+  }
+
+  if (shortcut_set_edit_access() && !empty($item['access'])) {
     $link = current_path();
-    if (!($route_info = \Drupal::service('router.matcher.final_matcher')->findRouteNameParameters($link))) {
+    if (!($url = Url::createFromPath($link))) {
       // Bail out early if we couldn't find a matching route.
       return;
     }
@@ -391,7 +417,7 @@ function shortcut_preprocess_page(&$variables) {
     // Check if $link is already a shortcut and set $link_mode accordingly.
     $shortcuts = \Drupal::entityManager()->getStorageController('shortcut')->loadByProperties(array('shortcut_set' => $shortcut_set->id()));
     foreach ($shortcuts as $shortcut) {
-      if ($shortcut->getRouteName() == $route_info[0] && $shortcut->getRouteParams() == $route_info[1]) {
+      if ($shortcut->getRouteName() == $url->getRouteName() && $shortcut->getRouteParams() == $url->getRouteParameters()) {
         $shortcut_id = $shortcut->id();
         break;
       }
@@ -419,7 +445,7 @@ function shortcut_preprocess_page(&$variables) {
         ),
         '#prefix' => '<div class="add-or-remove-shortcuts ' . $link_mode . '-shortcut">',
         '#type' => 'link',
-        '#title' => '<span class="icon">'. t('Add or remove shortcut') .'</span><span class="text">' . $link_text . '</span>',
+        '#title' => '<span class="icon"></span><span class="text">'. $link_text .'</span>',
         '#route_name' => $route_name,
         '#route_parameters' => $route_parameters,
         '#options' => array('query' => $query, 'html' => TRUE),

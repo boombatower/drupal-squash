@@ -5,6 +5,7 @@
  * Enables the organization of content into categories.
  */
 
+use Drupal\Component\Utility\Tags;
 use Drupal\Core\Entity\FieldableDatabaseStorageController;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\file\FileInterface;
@@ -125,7 +126,10 @@ function taxonomy_entity_bundle_info() {
  */
 function taxonomy_term_uri($term) {
   return array(
-    'path' => 'taxonomy/term/' . $term->id(),
+    'route_name' => 'taxonomy.term_page',
+    'route_parameters' => array(
+      'taxonomy_term' => $term->id(),
+    ),
   );
 }
 
@@ -252,13 +256,21 @@ function taxonomy_menu() {
     'type' => MENU_CALLBACK,
   );
 
-  $items['admin/structure/taxonomy/manage/%taxonomy_vocabulary'] = array(
-    'route_name' => 'taxonomy.overview_terms',
-    'title callback' => 'entity_page_label',
-    'title arguments' => array(4),
+  return $items;
+}
+
+/**
+ * Implements hook_menu_link_defaults().
+ */
+function taxonomy_menu_link_defaults() {
+  $links['taxonomy.admin.structure.vocabulary'] = array(
+    'link_title' => 'Taxonomy',
+    'parent' => 'system.admin.structure',
+    'description' => 'Manage tagging, categorization, and classification of your content.',
+    'route_name' => 'taxonomy.vocabulary_list',
   );
 
-  return $items;
+  return $links;
 }
 
 /**
@@ -331,7 +343,7 @@ function taxonomy_check_vocabulary_hierarchy(VocabularyInterface $vocabulary, $c
  *   content language of the current request.
  *
  * @return array
- *   A $page element suitable for use by drupal_page_render().
+ *   A $page element suitable for use by drupal_render().
  */
 function taxonomy_term_view(Term $term, $view_mode = 'full', $langcode = NULL) {
   return entity_view($term, $view_mode, $langcode);
@@ -361,7 +373,8 @@ function taxonomy_term_view_multiple(array $terms, $view_mode = 'full', $langcod
 function taxonomy_theme_suggestions_taxonomy_term(array $variables) {
   $suggestions = array();
 
-  $term = $variables['elements']['#term'];
+  /** @var \Drupal\taxonomy\TermInterface $term */
+  $term = $variables['elements']['#taxonomy_term'];
 
   $suggestions[] = 'taxonomy_term__' . $term->bundle();
   $suggestions[] = 'taxonomy_term__' . $term->id();
@@ -378,18 +391,18 @@ function taxonomy_theme_suggestions_taxonomy_term(array $variables) {
  *   An associative array containing:
  *   - elements: An associative array containing the taxonomy term and any
  *     fields attached to the term. Properties used:
- *     - #term: The term object.
+ *     - #taxonomy_term: A \Drupal\taxonomy\TermInterface object.
  *     - #view_mode: The current view mode for this taxonomy term, e.g.
  *       'full' or 'teaser'.
  *   - attributes: HTML attributes for the containing element.
  */
 function template_preprocess_taxonomy_term(&$variables) {
   $variables['view_mode'] = $variables['elements']['#view_mode'];
-  $variables['term'] = $variables['elements']['#term'];
+  $variables['term'] = $variables['elements']['#taxonomy_term'];
+  /** @var \Drupal\taxonomy\TermInterface $term */
   $term = $variables['term'];
 
-  $uri = $term->uri();
-  $variables['url']  = url($uri['path'], $uri['options']);
+  $variables['url'] = $term->url();
   // We use name here because that is what appears in the UI.
   $variables['name'] = check_plain($term->label());
   $variables['page'] = $variables['view_mode'] == 'full' && taxonomy_term_is_page($term);
@@ -711,18 +724,6 @@ function taxonomy_vocabulary_load_multiple(array $vids = NULL) {
 }
 
 /**
- * Sorts vocabularies by its weight and label.
- *
- * @param array $vocabularies
- *   An array of \Drupal\taxonomy\Entity\Vocabulary objects.
- */
-function taxonomy_vocabulary_sort(array &$vocabularies = array()) {
-  // @todo Remove error suppressing when http://drupal.org/node/1799600 is
-  // fixed.
-  @uasort($vocabularies, 'Drupal\Core\Config\Entity\ConfigEntityBase::sort');
-}
-
-/**
  * Return the taxonomy vocabulary entity matching a vocabulary ID.
  *
  * @deprecated use entity_load('taxonomy_vocabulary', $vid) instead.
@@ -761,7 +762,7 @@ function taxonomy_term_load($tid) {
  * Implements hook_file_download_access().
  */
 function taxonomy_file_download_access($field, EntityInterface $entity, FileInterface $file) {
-  if ($entity->entityType() == 'taxonomy_term') {
+  if ($entity->getEntityTypeId() == 'taxonomy_term') {
     return $entity->access('view');
   }
 }
@@ -779,12 +780,7 @@ function taxonomy_implode_tags($tags, $vid = NULL) {
       // Make sure we have a completed loaded taxonomy term.
       if ($tag instanceof EntityInterface && $label = $tag->label()) {
         // Commas and quotes in tag names are special cases, so encode 'em.
-        if (strpos($label, ',') !== FALSE || strpos($label, '"') !== FALSE) {
-          $typed_tags[] = '"' . str_replace('"', '""', $label) . '"';
-        }
-        else {
-          $typed_tags[] = $label;
-        }
+        $typed_tags[] = Tags::encode($label);
       }
     }
   }

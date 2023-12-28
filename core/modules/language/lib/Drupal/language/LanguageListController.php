@@ -27,7 +27,7 @@ class LanguageListController extends DraggableListController {
 
     // Sort the entities using the entity class's sort() method.
     // See \Drupal\Core\Config\Entity\ConfigEntityBase::sort().
-    uasort($entities, array($this->entityInfo->getClass(), 'sort'));
+    uasort($entities, array($this->entityType->getClass(), 'sort'));
     return $entities;
   }
 
@@ -44,16 +44,6 @@ class LanguageListController extends DraggableListController {
   public function getOperations(EntityInterface $entity) {
     $operations = parent::getOperations($entity);
     $default = language_default();
-
-    // Edit and delete path for Languages entities have a different pattern
-    // than other config entities.
-    $path = 'admin/config/regional/language';
-    if (isset($operations['edit'])) {
-      $operations['edit']['href'] = $path . '/edit/' . $entity->id();
-    }
-    if (isset($operations['delete'])) {
-      $operations['delete']['href'] = $path . '/delete/' . $entity->id();
-    }
 
     // Deleting the site default language is not allowed.
     if ($entity->id() == $default->id) {

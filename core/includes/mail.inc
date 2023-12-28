@@ -5,6 +5,9 @@
  * API functions for processing and sending e-mail.
  */
 
+use Drupal\Component\Utility\Html;
+use Drupal\Component\Utility\Xss;
+
 /**
  * Composes and optionally sends an e-mail message.
  *
@@ -151,8 +154,9 @@ function drupal_mail($module, $key, $to, $langcode, $params = array(), $reply = 
   $message['headers'] = $headers;
 
   // Build the e-mail (get subject and body, allow additional headers) by
-  // invoking hook_mail() on this module. We cannot use module_invoke() as
-  // we need to have $message by reference in hook_mail().
+  // invoking hook_mail() on this module. We cannot use
+  // moduleHandler()->invoke() as we need to have $message by reference in
+  // hook_mail().
   if (function_exists($function = $module . '_mail')) {
     $function($key, $message, $params);
   }
@@ -287,7 +291,7 @@ function drupal_html_to_text($string, $allowed_tags = NULL) {
   $allowed_tags = isset($allowed_tags) ? array_intersect($supported_tags, $allowed_tags) : $supported_tags;
 
   // Make sure tags, entities and attributes are well-formed and properly nested.
-  $string = _filter_htmlcorrector(filter_xss($string, $allowed_tags));
+  $string = Html::normalize(Xss::filter($string, $allowed_tags));
 
   // Apply inline styles.
   $string = preg_replace('!</?(em|i)((?> +)[^>]*)?>!i', '/', $string);

@@ -143,8 +143,8 @@ class CommentDefaultFormatter extends FormatterBase implements ContainerFactoryP
       }
 
       // Append comment form if the comments are open and the form is set to
-      // display below the entity.
-      if ($status == COMMENT_OPEN && $comment_settings['form_location'] == COMMENT_FORM_BELOW) {
+      // display below the entity. Do not show the form for the print view mode.
+      if ($status == COMMENT_OPEN && $comment_settings['form_location'] == COMMENT_FORM_BELOW && $this->viewMode != 'print') {
         // Only show the add comment form if the user has permission.
         if ($this->currentUser->hasPermission('post comments')) {
           // All users in the "anonymous" role can use the same form: it is fine
@@ -159,7 +159,7 @@ class CommentDefaultFormatter extends FormatterBase implements ContainerFactoryP
               '#type' => 'render_cache_placeholder',
               '#callback' => '\Drupal\comment\Plugin\Field\FieldFormatter\CommentDefaultFormatter::renderForm',
               '#context' => array(
-                'entity_type' => $entity->entityType(),
+                'entity_type' => $entity->getEntityTypeId(),
                 'entity_id' => $entity->id(),
                 'field_name' => $field_name,
               ),
@@ -169,7 +169,7 @@ class CommentDefaultFormatter extends FormatterBase implements ContainerFactoryP
       }
 
       $elements[] = $output + array(
-        '#theme' => 'comment_wrapper__' . $entity->entityType() . '__' . $entity->bundle() . '__' . $field_name,
+        '#theme' => 'comment_wrapper__' . $entity->getEntityTypeId() . '__' . $entity->bundle() . '__' . $field_name,
         '#entity' => $entity,
         '#display_mode' => $this->getFieldSetting('default_mode'),
         'comments' => array(),

@@ -5,6 +5,7 @@
  * Add language handling functionality to Drupal.
  */
 
+use Drupal\Component\PhpStorage\PhpStorageFactory;
 use Drupal\Core\Language\Language;
 use Drupal\language\ConfigurableLanguageManager;
 use Drupal\language\ConfigurableLanguageManagerInterface;
@@ -91,6 +92,29 @@ function language_menu() {
 }
 
 /**
+ * Implements hook_menu_link_defaults().
+ */
+function language_menu_link_defaults() {
+  // Base language management and configuration.
+  $links['language.admin.language.admin_overview'] = array(
+    'link_title' => 'Languages',
+    'description' => 'Configure languages for content and the user interface.',
+    'route_name' => 'language.admin_overview',
+    'parent' => 'system.admin.config.regional',
+  );
+  // Content language settings.
+  $links['language.admin.language.content_settings_page'] = array(
+    'link_title' => 'Content language',
+    'description' => 'Configure language support for content.',
+    'route_name' => 'language.content_settings_page',
+    'parent' => 'system.admin.config.regional',
+    'weight' => 10,
+  );
+
+  return $links;
+}
+
+/**
  * Editing or deleting locked languages should not be possible.
  *
  * @deprecated Use \Drupal\language\LanguageAccessController instead.
@@ -138,9 +162,9 @@ function language_theme() {
  */
 function language_entity_supported() {
   $supported = array();
-  foreach (\Drupal::entityManager()->getDefinitions() as $entity_type => $info) {
-    if ($info->isTranslatable()) {
-      $supported[$entity_type] = $entity_type;
+  foreach (\Drupal::entityManager()->getDefinitions() as $entity_type_id => $entity_type) {
+    if ($entity_type->isTranslatable()) {
+      $supported[$entity_type_id] = $entity_type_id;
     }
   }
   return $supported;
@@ -469,8 +493,10 @@ function language_save($language) {
   }
 
   if (!empty($language->default)) {
-    // Set the new version of this language as default in a variable.
-    variable_set('language_default', (array) $language);
+    // Update the config. Saving the configuration fires and event that causes
+    // the container to be rebuilt.
+    \Drupal::config('system.site')->set('langcode', $language->id)->save();
+    \Drupal::service('language.default')->set($language);
   }
 
   $language_manager = \Drupal::languageManager();

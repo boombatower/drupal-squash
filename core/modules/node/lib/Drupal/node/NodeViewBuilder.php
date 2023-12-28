@@ -50,7 +50,7 @@ class NodeViewBuilder extends EntityViewBuilder {
         $entity->content['langcode'] = array(
           '#type' => 'item',
           '#title' => t('Language'),
-          '#markup' => $this->languageManager->getLanguageName($langcode),
+          '#markup' => $entity->language()->name,
           '#prefix' => '<div id="field-language-display">',
           '#suffix' => '</div>'
         );
@@ -137,16 +137,18 @@ class NodeViewBuilder extends EntityViewBuilder {
    * {@inheritdoc}
    */
   protected function alterBuild(array &$build, EntityInterface $entity, EntityViewDisplayInterface $display, $view_mode, $langcode = NULL) {
+    /** @var \Drupal\node\NodeInterface $entity */
     parent::alterBuild($build, $entity, $display, $view_mode, $langcode);
     if ($entity->id()) {
       $build['#contextual_links']['node'] = array(
         'route_parameters' =>array('node' => $entity->id()),
+        'metadata' => array('changed' => $entity->getChangedTime()),
       );
     }
 
     // The node 'submitted' info is not rendered in a standard way (renderable
     // array) so we have to add a cache tag manually.
-    $build['#cache']['tags']['user'][] = $entity->getAuthorId();
+    $build['#cache']['tags']['user'][] = $entity->getOwnerId();
   }
 
 }

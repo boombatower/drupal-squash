@@ -7,10 +7,7 @@
 
 namespace Drupal\Core\Config;
 
-use Drupal\Core\Config\TypedConfigManager;
-use Drupal\Core\Entity\EntityManagerInterface;
 use Drupal\Core\Lock\LockBackendInterface;
-use Drupal\Component\Uuid\UuidInterface;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 
 /**
@@ -23,11 +20,11 @@ use Symfony\Component\EventDispatcher\EventDispatcherInterface;
  *
  * The ConfigImporter has a identifier which is used to construct event names.
  * The events fired during an import are:
- * - 'config.importer.validate': Events listening can throw a
+ * - ConfigEvents::VALIDATE: Events listening can throw a
  *   \Drupal\Core\Config\ConfigImporterException to prevent an import from
  *   occurring.
  *   @see \Drupal\Core\EventSubscriber\ConfigImportSubscriber
- * - 'config.importer.import': Events listening can react to a successful import.
+ * - ConfigEvents::IMPORT: Events listening can react to a successful import.
  *   @see \Drupal\Core\EventSubscriber\ConfigSnapshotSubscriber
  *
  * @see \Drupal\Core\Config\ConfigImporterEvent
@@ -49,23 +46,16 @@ class ConfigImporter {
   /**
    * The event dispatcher used to notify subscribers.
    *
-   * @var \Symfony\Component\EventDispatcher\EventDispatcher
+   * @var \Symfony\Component\EventDispatcher\EventDispatcherInterface
    */
   protected $eventDispatcher;
 
   /**
-   * The configuration factory.
+   * The configuration manager.
    *
-   * @var \Drupal\Core\Config\ConfigFactory
+   * @var \Drupal\Core\Config\ConfigManagerInterface
    */
-  protected $configFactory;
-
-  /**
-   * The plugin manager for entities.
-   *
-   * @var \Drupal\Core\Entity\EntityManagerInterface
-   */
-  protected $entityManager;
+  protected $configManager;
 
   /**
    * The used lock backend instance.
@@ -73,6 +63,13 @@ class ConfigImporter {
    * @var \Drupal\Core\Lock\LockBackendInterface
    */
   protected $lock;
+
+  /**
+   * The typed config manager.
+   *
+   * @var \Drupal\Core\Config\TypedConfigManager
+   */
+  protected $typedConfigManager;
 
   /**
    * List of changes processed by the import().
@@ -89,20 +86,6 @@ class ConfigImporter {
   protected $validated;
 
   /**
-   * The UUID service.
-   *
-   * @var \Drupal\Component\Uuid\UuidInterface
-   */
-  protected $uuidService;
-
-  /**
-   * The typed config manager.
-   *
-   * @var \Drupal\Core\Config\TypedConfigManager
-   */
-  protected $typedConfigManager;
-
-  /**
    * Constructs a configuration import object.
    *
    * @param \Drupal\Core\Config\StorageComparerInterface $storage_comparer
@@ -110,24 +93,18 @@ class ConfigImporter {
    *   access the source and target storage objects.
    * @param \Symfony\Component\EventDispatcher\EventDispatcherInterface $event_dispatcher
    *   The event dispatcher used to notify subscribers of config import events.
-   * @param \Drupal\Core\Config\ConfigFactory $config_factory
-   *   The config factory that statically caches config objects.
-   * @param \Drupal\Core\Entity\EntityManagerInterface $entity_manager
-   *   The entity manager used to import config entities.
+   * @param \Drupal\Core\Config\ConfigManagerInterface $config_manager
+   *   The configuration manager.
    * @param \Drupal\Core\Lock\LockBackendInterface
    *   The lock backend to ensure multiple imports do not occur at the same time.
-   * @param \Drupal\Component\Uuid\UuidInterface $uuid_service
-   *   The UUID service.
    * @param \Drupal\Core\Config\TypedConfigManager $typed_config
    *   The typed configuration manager.
    */
-  public function __construct(StorageComparerInterface $storage_comparer, EventDispatcherInterface $event_dispatcher, ConfigFactory $config_factory, EntityManagerInterface $entity_manager, LockBackendInterface $lock, UuidInterface $uuid_service, TypedConfigManager $typed_config) {
+  public function __construct(StorageComparerInterface $storage_comparer, EventDispatcherInterface $event_dispatcher, ConfigManagerInterface $config_manager, LockBackendInterface $lock, TypedConfigManager $typed_config) {
     $this->storageComparer = $storage_comparer;
     $this->eventDispatcher = $event_dispatcher;
-    $this->configFactory = $config_factory;
-    $this->entityManager = $entity_manager;
+    $this->configManager = $config_manager;
     $this->lock = $lock;
-    $this->uuidService = $uuid_service;
     $this->typedConfigManager = $typed_config;
     $this->processed = $this->storageComparer->getEmptyChangelist();
   }
@@ -294,9 +271,11 @@ class ConfigImporter {
         $handled_by_module = FALSE;
         // Validate the configuration object name before importing it.
         // Config::validateName($name);
-        if ($entity_type = config_get_entity_type_by_name($name)) {
+        if ($entity_type = $this->configManager->getEntityTypeIdByName($name)) {
           $old_config = new Config($name, $this->storageComparer->getTargetStorage(), $this->eventDispatcher, $this->typedConfigManager);
-          $old_config->load();
+          if ($old_data = $this->storageComparer->getTargetStorage()->read($name)) {
+            $old_config->initWithData($old_data);
+          }
 
           $data = $this->storageComparer->getSourceStorage()->read($name);
           $new_config = new Config($name, $this->storageComparer->getTargetStorage(), $this->eventDispatcher, $this->typedConfigManager);
@@ -305,7 +284,7 @@ class ConfigImporter {
           }
 
           $method = 'import' . ucfirst($op);
-          $handled_by_module = $this->entityManager->getStorageController($entity_type)->$method($name, $new_config, $old_config);
+          $handled_by_module = $this->configManager->getEntityManager()->getStorageController($entity_type)->$method($name, $new_config, $old_config);
         }
         if (!empty($handled_by_module)) {
           $this->setProcessed($op, $name);

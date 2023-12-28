@@ -8,7 +8,7 @@
 namespace Drupal\config_translation\Tests;
 
 use Drupal\config_translation\ConfigNamesMapper;
-use Drupal\Core\Config\ConfigFactory;
+use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Language\Language;
 use Drupal\Tests\UnitTestCase;
 use Symfony\Component\Routing\Route;
@@ -176,7 +176,7 @@ class ConfigNamesMapperTest extends UnitTestCase {
   public function testGetOverviewRoute() {
     $expected = new Route('/admin/config/system/site-information/translate',
       array(
-        '_controller' => '\Drupal\config_translation\Controller\ConfigTranslationController::itemPage',
+        '_content' => '\Drupal\config_translation\Controller\ConfigTranslationController::itemPage',
         'plugin_id' => 'system.site_information_settings',
       ),
       array(
@@ -646,10 +646,10 @@ class TestConfigNamesMapper extends ConfigNamesMapper {
   /**
    * Sets the configuration factory.
    *
-   * @var \Drupal\Core\Config\ConfigFactory $config_factory
+   * @var \Drupal\Core\Config\ConfigFactoryInterface $config_factory
    *   The config factory to set.
    */
-  public function setConfigFactory(ConfigFactory $config_factory) {
+  public function setConfigFactory(ConfigFactoryInterface $config_factory) {
     $this->configFactory = $config_factory;
   }
 

@@ -7,6 +7,8 @@
 
 namespace Drupal\taxonomy\Tests;
 
+use Drupal\Component\Utility\Json;
+use Drupal\Component\Utility\Tags;
 use Drupal\Core\Field\FieldDefinitionInterface;
 
 /**
@@ -273,22 +275,19 @@ class TermTest extends TaxonomyTestBase {
       'value' => check_plain($first_term->label()),
       'label' => $first_term->label(),
     ));
-    $this->assertRaw(drupal_json_encode($target), 'Autocomplete returns only the expected matching term.');
+    $this->assertRaw(Json::encode($target), 'Autocomplete returns only the expected matching term.');
 
     // Try to autocomplete a term name with both a comma and a slash.
     $input = '"term with, comma and / a';
     $path = 'taxonomy/autocomplete/node/taxonomy_' . $this->vocabulary->id();
     $this->drupalGet($path, array('query' => array('q' => $input)));
-    $n = $third_term->label();
     // Term names containing commas or quotes must be wrapped in quotes.
-    if (strpos($third_term->label(), ',') !== FALSE || strpos($third_term->label(), '"') !== FALSE) {
-      $n = '"' . str_replace('"', '""', $third_term->label()) . '"';
-    }
+    $n = Tags::encode($third_term->label());
     $target = array(array(
       'value' => $n,
       'label' => check_plain($third_term->label()),
     ));
-    $this->assertRaw(drupal_json_encode($target), 'Autocomplete returns a term containing a comma and a slash.');
+    $this->assertRaw(Json::encode($target), 'Autocomplete returns a term containing a comma and a slash.');
   }
 
   /**
@@ -311,7 +310,7 @@ class TermTest extends TaxonomyTestBase {
     $this->assertNotNull($term, 'Term found in database.');
 
     // Submitting a term takes us to the add page; we need the List page.
-    $this->drupalGet('admin/structure/taxonomy/manage/' . $this->vocabulary->id());
+    $this->drupalGet('admin/structure/taxonomy/manage/' . $this->vocabulary->id() . '/overview');
 
     // Test edit link as accessed from Taxonomy administration pages.
     // Because Simpletest creates its own database when running tests, we know
@@ -330,7 +329,7 @@ class TermTest extends TaxonomyTestBase {
     $this->drupalPostForm('taxonomy/term/' . $term->id() . '/edit', $edit, t('Save'));
 
     // Check that the term is still present at admin UI after edit.
-    $this->drupalGet('admin/structure/taxonomy/manage/' . $this->vocabulary->id());
+    $this->drupalGet('admin/structure/taxonomy/manage/' . $this->vocabulary->id() . '/overview');
     $this->assertText($edit['name'], 'The randomly generated term name is present.');
     $this->assertLink(t('edit'));
 
@@ -383,7 +382,7 @@ class TermTest extends TaxonomyTestBase {
     drupal_static_reset('taxonomy_get_treeterms');
     list($term1, $term2, $term3) = taxonomy_get_tree($this->vocabulary->id(), 0, NULL, TRUE);
 
-    $this->drupalGet('admin/structure/taxonomy/manage/' . $this->vocabulary->id());
+    $this->drupalGet('admin/structure/taxonomy/manage/' . $this->vocabulary->id() . '/overview');
 
     // Each term has four hidden fields, "tid:1:0[tid]", "tid:1:0[parent]",
     // "tid:1:0[depth]", and "tid:1:0[weight]". Change the order to term2,
@@ -413,7 +412,7 @@ class TermTest extends TaxonomyTestBase {
     $this->assertEqual($terms[1]->parents, array($term2->id()), 'Term 3 was made a child of term 2.');
     $this->assertEqual($terms[2]->tid, $term1->id(), 'Term 1 was moved below term 2.');
 
-    $this->drupalPostForm('admin/structure/taxonomy/manage/' . $this->vocabulary->id(), array(), t('Reset to alphabetical'));
+    $this->drupalPostForm('admin/structure/taxonomy/manage/' . $this->vocabulary->id() . '/overview', array(), t('Reset to alphabetical'));
     // Submit confirmation form.
     $this->drupalPostForm(NULL, array(), t('Reset to alphabetical'));
 

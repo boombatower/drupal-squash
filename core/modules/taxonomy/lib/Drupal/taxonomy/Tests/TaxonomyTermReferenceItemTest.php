@@ -78,7 +78,7 @@ class TaxonomyTermReferenceItemTest extends FieldUnitTestBase {
   public function testTaxonomyTermReferenceItem() {
     $tid = $this->term->id();
     // Just being able to create the entity like this verifies a lot of code.
-    $entity = entity_create('entity_test', array());
+    $entity = entity_create('entity_test');
     $entity->field_test_taxonomy->target_id = $this->term->id();
     $entity->name->value = $this->randomName();
     $entity->save();
@@ -102,7 +102,7 @@ class TaxonomyTermReferenceItemTest extends FieldUnitTestBase {
     // Make sure the computed term reflects updates to the term id.
     $term2 = entity_create('taxonomy_term', array(
       'name' => $this->randomName(),
-      'vid' => $this->term->vid->value,
+      'vid' => $this->term->bundle(),
       'langcode' => Language::LANGCODE_NOT_SPECIFIED,
     ));
     $term2->save();

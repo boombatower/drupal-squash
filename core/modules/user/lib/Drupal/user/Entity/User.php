@@ -16,7 +16,7 @@ use Drupal\user\UserInterface;
 /**
  * Defines the user entity class.
  *
- * @EntityType(
+ * @ContentEntityType(
  *   id = "user",
  *   label = @Translation("User"),
  *   controllers = {
@@ -44,7 +44,8 @@ use Drupal\user\UserInterface;
  *   links = {
  *     "canonical" = "user.view",
  *     "edit-form" = "user.edit",
- *     "admin-form" = "user.account_settings"
+ *     "admin-form" = "user.account_settings",
+ *     "cancel-form" = "user.cancel"
  *   }
  * )
  */
@@ -471,8 +472,7 @@ class User extends ContentEntityBase implements UserInterface {
     // @todo Convert to a text field in https://drupal.org/node/1548204.
     $fields['signature'] = FieldDefinition::create('string')
       ->setLabel(t('Signature'))
-      ->setDescription(t('The signature of this user.'))
-      ->setPropertyConstraints('value', array('Length' => array('max' => 255)));
+      ->setDescription(t('The signature of this user.'));
     $fields['signature_format'] = FieldDefinition::create('string')
       ->setLabel(t('Signature format'))
       ->setDescription(t('The signature format of this user.'));
@@ -480,7 +480,7 @@ class User extends ContentEntityBase implements UserInterface {
     $fields['timezone'] = FieldDefinition::create('string')
       ->setLabel(t('Timezone'))
       ->setDescription(t('The timezone of this user.'))
-      ->setPropertyConstraints('value', array('Length' => array('max' => 32)));
+      ->setSetting('max_length', 32);
 
     $fields['status'] = FieldDefinition::create('boolean')
       ->setLabel(t('User status'))

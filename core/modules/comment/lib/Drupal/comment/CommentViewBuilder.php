@@ -46,9 +46,9 @@ class CommentViewBuilder extends EntityViewBuilder {
   /**
    * {@inheritdoc}
    */
-  public static function createInstance(ContainerInterface $container, EntityTypeInterface $entity_info) {
+  public static function createInstance(ContainerInterface $container, EntityTypeInterface $entity_type) {
     return new static(
-      $entity_info,
+      $entity_type,
       $container->get('entity.manager'),
       $container->get('language_manager'),
       $container->get('field.info'),
@@ -59,8 +59,8 @@ class CommentViewBuilder extends EntityViewBuilder {
   /**
    * Constructs a new CommentViewBuilder.
    *
-   * @param \Drupal\Core\Entity\EntityTypeInterface $entity_info
-   *   The entity information array.
+   * @param \Drupal\Core\Entity\EntityTypeInterface $entity_type
+   *   The entity type definition.
    * @param \Drupal\Core\Entity\EntityManagerInterface $entity_manager
    *   The entity manager service.
    * @param \Drupal\Core\Language\LanguageManagerInterface $language_manager
@@ -70,8 +70,8 @@ class CommentViewBuilder extends EntityViewBuilder {
    * @param \Drupal\Core\Access\CsrfTokenGenerator $csrf_token
    *   The CSRF token manager service.
    */
-  public function __construct(EntityTypeInterface $entity_info, EntityManagerInterface $entity_manager, LanguageManagerInterface $language_manager, FieldInfo $field_info, CsrfTokenGenerator $csrf_token) {
-    parent::__construct($entity_info, $entity_manager, $language_manager);
+  public function __construct(EntityTypeInterface $entity_type, EntityManagerInterface $entity_manager, LanguageManagerInterface $language_manager, FieldInfo $field_info, CsrfTokenGenerator $csrf_token) {
+    parent::__construct($entity_type, $entity_manager, $language_manager);
     $this->fieldInfo = $field_info;
     $this->csrfToken = $csrf_token;
   }
@@ -86,6 +86,7 @@ class CommentViewBuilder extends EntityViewBuilder {
    *   Thrown when a comment is attached to an entity that no longer exists.
    */
   public function buildContent(array $entities, array $displays, $view_mode, $langcode = NULL) {
+    /** @var \Drupal\comment\CommentInterface[] $entities */
     $return = array();
     if (empty($entities)) {
       return $return;
@@ -94,7 +95,7 @@ class CommentViewBuilder extends EntityViewBuilder {
     // Pre-load associated users into cache to leverage multiple loading.
     $uids = array();
     foreach ($entities as $entity) {
-      $uids[] = $entity->uid->target_id;
+      $uids[] = $entity->getOwnerId();
     }
     $this->entityManager->getStorageController('user')->loadMultiple(array_unique($uids));
 
@@ -104,23 +105,23 @@ class CommentViewBuilder extends EntityViewBuilder {
     $commented_entity_ids = array();
     $commented_entities = array();
     foreach ($entities as $entity) {
-      $commented_entity_ids[$entity->entity_type->value][] = $entity->entity_id->value;
+      $commented_entity_ids[$entity->getCommentedEntityTypeId()][] = $entity->getCommentedEntityId();
     }
     // Load entities in bulk. This is more performant than using
-    // $comment->entity_id->value as we can load them in bulk per type.
+    // $comment->getCommentedEntity() as we can load them in bulk per type.
     foreach ($commented_entity_ids as $entity_type => $entity_ids) {
       $commented_entities[$entity_type] = $this->entityManager->getStorageController($entity_type)->loadMultiple($entity_ids);
     }
 
     foreach ($entities as $entity) {
-      if (isset($commented_entities[$entity->entity_type->value][$entity->entity_id->value])) {
-        $commented_entity = $commented_entities[$entity->entity_type->value][$entity->entity_id->value];
+      if (isset($commented_entities[$entity->getCommentedEntityTypeId()][$entity->getCommentedEntityId()])) {
+        $commented_entity = $commented_entities[$entity->getCommentedEntityTypeId()][$entity->getCommentedEntityId()];
       }
       else {
         throw new \InvalidArgumentException(t('Invalid entity for comment.'));
       }
       $entity->content['#entity'] = $entity;
-      $entity->content['#theme'] = 'comment__' . $entity->field_id->value . '__' . $commented_entity->bundle();
+      $entity->content['#theme'] = 'comment__' . $entity->getFieldId() . '__' . $commented_entity->bundle();
       $entity->content['links'] = array(
         '#type' => 'render_cache_placeholder',
         '#callback' => '\Drupal\comment\CommentViewBuilder::renderLinks',
@@ -128,7 +129,7 @@ class CommentViewBuilder extends EntityViewBuilder {
           'comment_entity_id' => $entity->id(),
           'view_mode' => $view_mode,
           'langcode' => $langcode,
-          'commented_entity_type' => $commented_entity->entityType(),
+          'commented_entity_type' => $commented_entity->getEntityTypeId(),
           'commented_entity_id' => $commented_entity->id(),
           'in_preview' => !empty($entity->in_preview),
         ),
@@ -204,7 +205,7 @@ class CommentViewBuilder extends EntityViewBuilder {
    */
   protected static function buildLinks(CommentInterface $entity, EntityInterface $commented_entity) {
     $links = array();
-    $status = $commented_entity->get($entity->field_name->value)->status;
+    $status = $commented_entity->get($entity->getFieldName())->status;
 
     $container = \Drupal::getContainer();
 
@@ -227,11 +228,11 @@ class CommentViewBuilder extends EntityViewBuilder {
       if ($entity->access('create')) {
         $links['comment-reply'] = array(
           'title' => t('Reply'),
-          'href' => "comment/reply/{$entity->entity_type->value}/{$entity->entity_id->value}/{$entity->field_name->value}/{$entity->id()}",
+          'href' => "comment/reply/{$entity->getCommentedEntityId()}/{$entity->getCommentedEntityId()}/{$entity->getFieldName()}/{$entity->id()}",
           'html' => TRUE,
         );
       }
-      if ($entity->status->value == CommentInterface::NOT_PUBLISHED && $entity->access('approve')) {
+      if (!$entity->isPublished() && $entity->access('approve')) {
         $links['comment-approve'] = array(
           'title' => t('Approve'),
           'route_name' => 'comment.approve',
@@ -240,12 +241,7 @@ class CommentViewBuilder extends EntityViewBuilder {
         );
       }
       if (empty($links)) {
-        $comment_post_forbidden = array(
-          '#theme' => 'comment_post_forbidden',
-          '#commented_entity' => $commented_entity,
-          '#field_name' => $entity->field_name->value,
-        );
-        $links['comment-forbidden']['title'] = drupal_render($comment_post_forbidden);
+        $links['comment-forbidden']['title'] = \Drupal::service('comment.manager')->forbiddenMessage($commented_entity, $entity->getFieldName());
         $links['comment-forbidden']['html'] = TRUE;
       }
     }
@@ -275,8 +271,8 @@ class CommentViewBuilder extends EntityViewBuilder {
     parent::alterBuild($build, $comment, $display, $view_mode, $langcode);
     if (empty($comment->in_preview)) {
       $prefix = '';
-      $commented_entity = $this->entityManager->getStorageController($comment->entity_type->value)->load($comment->entity_id->value);
-      $instance = $this->fieldInfo->getInstance($commented_entity->entityType(), $commented_entity->bundle(), $comment->field_name->value);
+      $commented_entity = $comment->getCommentedEntity();
+      $instance = $this->fieldInfo->getInstance($commented_entity->getEntityTypeId(), $commented_entity->bundle(), $comment->getFieldName());
       $is_threaded = isset($comment->divs)
         && $instance->getSetting('default_mode') == COMMENT_MODE_THREADED;
 

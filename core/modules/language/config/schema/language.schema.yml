@@ -1,5 +1,22 @@
 # Schema for the configuration files of the Language module.
 
+language_type_negotiation:
+  type: mapping
+  label: 'Language negotiation per type setting'
+  mapping:
+    enabled:
+      type: sequence
+      label: 'Enabled negotiators'
+      sequence:
+        - type: integer
+          label: Weight
+    method_weights:
+      type: sequence
+      label: 'Negotiator weights'
+      sequence:
+        - type: integer
+          label: Weight
+
 language.types:
   type: mapping
   label: 'Language types'
@@ -16,14 +33,12 @@ language.types:
       sequence:
         - type: string
           label: 'Language type'
-
-language.detection:
-  type: mapping
-  label: 'Language detection settings'
-  mapping:
-    selected_langcode:
-      type: string
-      label: 'Selected language code'
+    negotiation:
+      type: sequence
+      label: 'Language negotiation per type settings'
+      sequence:
+        - type: language_type_negotiation
+          label: 'Language negotiation per type setting'
 
 language.negotiation:
   type: mapping

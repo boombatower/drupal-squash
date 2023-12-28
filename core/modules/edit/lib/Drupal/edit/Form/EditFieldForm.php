@@ -7,13 +7,14 @@
 
 namespace Drupal\edit\Form;
 
-use Drupal\Core\Form\FormBase;
-use Symfony\Component\DependencyInjection\ContainerInterface;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Entity\EntityStorageControllerInterface;
-use Drupal\Core\Extension\ModuleHandlerInterface;
-use Drupal\user\TempStoreFactory;
 use Drupal\Core\Entity\EntityChangedInterface;
+use Drupal\Core\Extension\ModuleHandlerInterface;
+use Drupal\Core\Form\FormBase;
+use Drupal\entity\Entity\EntityFormDisplay;
+use Drupal\user\TempStoreFactory;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
  * Builds and process a form for editing a single entity field.
@@ -116,7 +117,7 @@ class EditFieldForm extends FormBase {
   protected function init(array &$form_state, EntityInterface $entity, $field_name) {
     // @todo Rather than special-casing $node->revision, invoke prepareEdit()
     //   once http://drupal.org/node/1863258 lands.
-    if ($entity->entityType() == 'node') {
+    if ($entity->getEntityTypeId() == 'node') {
       $node_type_settings = $this->nodeTypeStorage->load($entity->bundle())->getModuleSettings('node');
       $options = (isset($node_type_settings['options'])) ? $node_type_settings['options'] : array();
       $entity->setNewRevision(!empty($options['revision']));
@@ -128,7 +129,7 @@ class EditFieldForm extends FormBase {
 
     // @todo Allow the usage of different form modes by exposing a hook and the
     //   UI for them.
-    $form_state['form_display'] = entity_get_render_form_display($entity, 'default');
+    $form_state['form_display'] = EntityFormDisplay::collectRenderDisplay($entity, 'default');
   }
 
   /**
@@ -168,6 +169,7 @@ class EditFieldForm extends FormBase {
    * it back to the form state and save it.
    */
   protected function buildEntity(array $form, array &$form_state) {
+    /** @var $entity \Drupal\Core\Entity\EntityInterface */
     $entity = clone $form_state['entity'];
     $field_name = $form_state['field_name'];
 
@@ -175,7 +177,7 @@ class EditFieldForm extends FormBase {
 
     // @todo Refine automated log messages and abstract them to all entity
     //   types: http://drupal.org/node/1678002.
-    if ($entity->entityType() == 'node' && $entity->isNewRevision() && !isset($entity->log)) {
+    if ($entity->getEntityTypeId() == 'node' && $entity->isNewRevision() && !isset($entity->log)) {
       $entity->log = t('Updated the %field-name field through in-place editing.', array('%field-name' => $entity->get($field_name)->getFieldDefinition()->getLabel()));
     }
 

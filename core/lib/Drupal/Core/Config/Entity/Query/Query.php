@@ -7,9 +7,10 @@
 
 namespace Drupal\Core\Config\Entity\Query;
 
-use Drupal\Core\Config\ConfigFactory;
+use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Config\StorageInterface;
 use Drupal\Core\Entity\EntityManagerInterface;
+use Drupal\Core\Entity\EntityTypeInterface;
 use Drupal\Core\Entity\Query\QueryBase;
 use Drupal\Core\Entity\Query\QueryInterface;
 
@@ -17,13 +18,6 @@ use Drupal\Core\Entity\Query\QueryInterface;
  * Defines the entity query for configuration entities.
  */
 class Query extends QueryBase implements QueryInterface {
-
-  /**
-   * Stores the entity manager.
-   *
-   * @var \Drupal\Core\Entity\EntityManagerInterface
-   */
-  protected $entityManager;
 
   /**
    * The config storage used by the config entity query.
@@ -35,28 +29,27 @@ class Query extends QueryBase implements QueryInterface {
   /**
    * The config factory used by the config entity query.
    *
-   * @var \Drupal\Core\Config\ConfigFactory;
+   * @var \Drupal\Core\Config\ConfigFactoryInterface
    */
   protected $configFactory;
 
   /**
    * Constructs a Query object.
    *
-   * @param string $entity_type
-   *   The entity type.
+   * @param \Drupal\Core\Entity\EntityTypeInterface $entity_type
+   *   The entity type definition.
    * @param string $conjunction
    *   - AND: all of the conditions on the query need to match.
    *   - OR: at least one of the conditions on the query need to match.
-   * @param \Drupal\Core\Entity\EntityManagerInterface $entity_manager
-   *   The entity manager that stores all meta information.
    * @param \Drupal\Core\Config\StorageInterface $config_storage
    *   The actual config storage which is used to list all config items.
+   * @param \Drupal\Core\Config\ConfigFactoryInterface $config_factory
+   *   The config factory.
    * @param array $namespaces
    *   List of potential namespaces of the classes belonging to this query.
    */
-  function __construct($entity_type, $conjunction, EntityManagerInterface $entity_manager, StorageInterface $config_storage, ConfigFactory $config_factory, array $namespaces) {
+  function __construct(EntityTypeInterface $entity_type, $conjunction, StorageInterface $config_storage, ConfigFactoryInterface $config_factory, array $namespaces) {
     parent::__construct($entity_type, $conjunction, $namespaces);
-    $this->entityManager = $entity_manager;
     $this->configStorage = $config_storage;
     $this->configFactory = $config_factory;
   }
@@ -84,17 +77,10 @@ class Query extends QueryBase implements QueryInterface {
    * Implements \Drupal\Core\Entity\Query\QueryInterface::execute().
    */
   public function execute() {
-    // Load all config files.
-    $entity_info = $this->entityManager->getDefinition($this->getEntityType());
-    $prefix = $entity_info->getConfigPrefix() . '.';
-    $prefix_length = strlen($prefix);
-    $names = $this->configStorage->listAll($prefix);
-    $configs = array();
-    $config_objects = $this->configFactory->loadMultiple($names);
-    foreach ($config_objects as $config) {
-      $configs[substr($config->getName(), $prefix_length)] = $config->get();
-    }
+    // Load the relevant config records.
+    $configs = $this->loadRecords();
 
+    // Apply conditions.
     $result = $this->condition->compile($configs);
 
     // Apply sort settings.
@@ -122,6 +108,58 @@ class Query extends QueryBase implements QueryInterface {
       $value = (string) $key;
     }
     return $result;
+  }
+
+  /**
+   * Loads the config records to examine for the query.
+   *
+   * @return array
+   *   Config records keyed by entity IDs.
+   */
+  protected function loadRecords() {
+    $prefix = $this->entityType->getConfigPrefix() . '.';
+    $prefix_length = strlen($prefix);
+
+    // Search the conditions for restrictions on entity IDs.
+    $ids = array();
+    if ($this->condition->getConjunction() == 'AND') {
+      foreach ($this->condition->conditions() as $condition) {
+        if (is_string($condition['field']) && $condition['field'] == $this->entityType->getKey('id')) {
+          $operator = $condition['operator'] ?: (is_array($condition['value']) ? 'IN' : '=');
+          if ($operator == '=') {
+            $ids = array($condition['value']);
+          }
+          elseif ($operator == 'IN') {
+            $ids = $condition['value'];
+          }
+          // We stop at the first restricting condition on ID. In the (weird)
+          // case where there are additional restricting conditions, results
+          // will be eliminated when the conditions are checked on the loaded
+          // records.
+          if ($ids) {
+            break;
+          }
+        }
+      }
+    }
+    // If there are conditions restricting config ID, we can narrow the list of
+    // records to load and parse.
+    if ($ids) {
+      $names = array_map(function ($id) use ($prefix) {
+        return $prefix . $id;
+      }, $ids);
+    }
+    // If no restrictions on IDs were found, we need to parse all records.
+    else {
+      $names = $this->configStorage->listAll($prefix);
+    }
+
+    // Load the corresponding records.
+    $records = array();
+    foreach ($this->configFactory->loadMultiple($names) as $config) {
+      $records[substr($config->getName(), $prefix_length)] = $config->get();
+    }
+    return $records;
   }
 
 }

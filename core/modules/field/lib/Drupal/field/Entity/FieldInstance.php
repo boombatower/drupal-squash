@@ -17,7 +17,7 @@ use Drupal\field\FieldInstanceInterface;
 /**
  * Defines the Field instance entity.
  *
- * @EntityType(
+ * @ConfigEntityType(
  *   id = "field_instance",
  *   label = @Translation("Field instance"),
  *   controllers = {
@@ -431,7 +431,7 @@ class FieldInstance extends ConfigEntityBase implements FieldInstanceInterface {
       if (!$instance->deleted) {
         $view_modes = array('default' => array()) + entity_get_view_modes($instance->entity_type);
         foreach (array_keys($view_modes) as $mode) {
-          $displays_to_update['entity_display'][$instance->entity_type . '.' . $instance->bundle . '.' . $mode][] = $instance->field->name;
+          $displays_to_update['entity_view_display'][$instance->entity_type . '.' . $instance->bundle . '.' . $mode][] = $instance->field->name;
         }
         $form_modes = array('default' => array()) + entity_get_form_modes($instance->entity_type);
         foreach (array_keys($form_modes) as $mode) {
@@ -511,6 +511,9 @@ class FieldInstance extends ConfigEntityBase implements FieldInstanceInterface {
     $link_templates = parent::linkTemplates();
     if (\Drupal::moduleHandler()->moduleExists('field_ui')) {
       $link_templates['edit-form'] = 'field_ui.instance_edit_' . $this->entity_type;
+      if (isset($link_templates['drupal:config-translation-overview'])) {
+        $link_templates['drupal:config-translation-overview'] .= $link_templates['edit-form'];
+      }
     }
     return $link_templates;
   }
@@ -518,14 +521,11 @@ class FieldInstance extends ConfigEntityBase implements FieldInstanceInterface {
   /**
    * {@inheritdoc}
    */
-  protected function uriPlaceholderReplacements() {
-    if (empty($this->uriPlaceholderReplacements)) {
-      parent::uriPlaceholderReplacements();
-      $entity_info = \Drupal::entityManager()->getDefinition($this->entity_type);
-      $key = '{' . $entity_info->getBundleEntityType() . '}';
-      $this->uriPlaceholderReplacements[$key] = $this->bundle;
-    }
-    return $this->uriPlaceholderReplacements;
+  protected function urlRouteParameters($rel) {
+    $parameters = parent::urlRouteParameters($rel);
+    $entity_type = \Drupal::entityManager()->getDefinition($this->entity_type);
+    $parameters[$entity_type->getBundleEntityType()] = $this->bundle;
+    return $parameters;
   }
 
   /**
@@ -596,6 +596,13 @@ class FieldInstance extends ConfigEntityBase implements FieldInstanceInterface {
   public function getDisplayOptions($display_context) {
     // Hide configurable fields by default.
     return array('type' => 'hidden');
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getTargetEntityTypeId() {
+    return $this->entity_type;
   }
 
   /**

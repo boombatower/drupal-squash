@@ -76,10 +76,17 @@ class MockRouteProvider implements RouteProviderInterface {
   }
 
   /**
-   * @inheritdoc}
+   * {@inheritdoc}
    */
   public function getAllRoutes() {
     return $this->routes->all();
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function reset() {
+    $this->routes = array();
   }
 
 }

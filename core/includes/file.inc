@@ -42,6 +42,17 @@ const STREAM_WRAPPERS_WRITE = 0x0008;
  */
 const STREAM_WRAPPERS_VISIBLE = 0x0010;
 
+
+/**
+ * Default mode for new directories. See drupal_chmod().
+ */
+const FILE_CHMOD_DIRECTORY = 0775;
+
+/**
+ * Default mode for new files. See drupal_chmod().
+ */
+const FILE_CHMOD_FILE = 0664;
+
 /**
  * Composite stream wrapper bit flags that are usually used as the types.
  */
@@ -191,12 +202,16 @@ function file_get_stream_wrappers($filter = STREAM_WRAPPERS_ALL) {
   $wrappers_storage = &drupal_static(__FUNCTION__);
 
   if (!isset($wrappers_storage)) {
-    $wrappers = \Drupal::moduleHandler()->invokeAll('stream_wrappers');
-    foreach ($wrappers as $scheme => $info) {
-      // Add defaults.
-      $wrappers[$scheme] += array('type' => STREAM_WRAPPERS_NORMAL);
+    $wrappers = array();
+    $container = \Drupal::getContainer();
+    if (is_object($container) && $container->has('module_handler')) {
+      $wrappers = \Drupal::moduleHandler()->invokeAll('stream_wrappers');
+      foreach ($wrappers as $scheme => $info) {
+        // Add defaults.
+        $wrappers[$scheme] += array('type' => STREAM_WRAPPERS_NORMAL);
+      }
+      \Drupal::moduleHandler()->alter('stream_wrappers', $wrappers);
     }
-    drupal_alter('stream_wrappers', $wrappers);
     $existing = stream_get_wrappers();
     foreach ($wrappers as $scheme => $info) {
       // We only register classes that implement our interface.
@@ -518,15 +533,12 @@ function file_url_transform_relative($file_url) {
  *   A bitmask to indicate if the directory should be created if it does
  *   not exist (FILE_CREATE_DIRECTORY) or made writable if it is read-only
  *   (FILE_MODIFY_PERMISSIONS).
- * @param int $mode
- *   Octal value for the permissions. Consult PHP chmod() documentation for
- *   more information.
  *
  * @return
  *   TRUE if the directory exists (or was created) and is writable. FALSE
  *   otherwise.
  */
-function file_prepare_directory(&$directory, $options = FILE_MODIFY_PERMISSIONS, $mode = NULL) {
+function file_prepare_directory(&$directory, $options = FILE_MODIFY_PERMISSIONS) {
   if (!file_stream_wrapper_valid_scheme(file_uri_scheme($directory))) {
     // Only trim if we're not dealing with a stream.
     $directory = rtrim($directory, '/\\');
@@ -537,14 +549,14 @@ function file_prepare_directory(&$directory, $options = FILE_MODIFY_PERMISSIONS,
     // Let mkdir() recursively create directories and use the default directory
     // permissions.
     if ($options & FILE_CREATE_DIRECTORY) {
-      return @drupal_mkdir($directory, $mode, TRUE);
+      return @drupal_mkdir($directory, NULL, TRUE);
     }
     return FALSE;
   }
   // The directory exists, so check to see if it is writable.
   $writable = is_writable($directory);
   if (!$writable && ($options & FILE_MODIFY_PERMISSIONS)) {
-    return drupal_chmod($directory, $mode);
+    return drupal_chmod($directory);
   }
 
   return $writable;
@@ -572,19 +584,23 @@ function file_ensure_htaccess() {
  * @param $private
  *   FALSE indicates that $directory should be an open and public directory.
  *   The default is TRUE which indicates a private and protected directory.
+ *
+ * @return bool
+ *   TRUE if the .htaccess file could be created or existed already, FALSE
+ *   otherwise.
  */
 function file_save_htaccess($directory, $private = TRUE) {
   if (file_uri_scheme($directory)) {
-    $directory = file_stream_wrapper_uri_normalize($directory);
+    $htaccess_path = file_stream_wrapper_uri_normalize($directory . '/.htaccess');
   }
   else {
     $directory = rtrim($directory, '/\\');
+    $htaccess_path = $directory . '/.htaccess';
   }
-  $htaccess_path =  $directory . '/.htaccess';
 
   if (file_exists($htaccess_path)) {
     // Short circuit if the .htaccess file already exists.
-    return;
+    return TRUE;
   }
 
   if ($private) {
@@ -597,12 +613,13 @@ function file_save_htaccess($directory, $private = TRUE) {
   }
 
   // Write the .htaccess file.
-  if (file_put_contents($htaccess_path, $htaccess_lines)) {
-    drupal_chmod($htaccess_path, 0444);
+  if (file_exists($directory) && is_writable($directory) && file_put_contents($htaccess_path, $htaccess_lines)) {
+    return drupal_chmod($htaccess_path, 0444);
   }
   else {
     $variables = array('%directory' => $directory, '!htaccess' => '<br />' . nl2br(String::checkPlain($htaccess_lines)));
     watchdog('security', "Security warning: Couldn't write .htaccess file. Please create a .htaccess file in your %directory directory which contains the following lines: <code>!htaccess</code>", $variables, WATCHDOG_ERROR);
+    return FALSE;
   }
 }
 
@@ -1137,18 +1154,18 @@ function file_unmanaged_save_data($data, $destination = NULL, $replace = FILE_EX
 /**
  * Finds all files that match a given mask in a given directory.
  *
- * Directories and files beginning with a period are excluded; this
- * prevents hidden files and directories (such as SVN working directories)
- * from being scanned.
+ * Directories and files beginning with a dot are excluded; this prevents
+ * hidden files and directories (such as SVN working directories) from being
+ * scanned.
  *
  * @param $dir
  *   The base directory or URI to scan, without trailing slash.
  * @param $mask
- *   The preg_match() regular expression of the files to find.
+ *   The preg_match() regular expression for files to be included.
  * @param $options
  *   An associative array of additional options, with the following elements:
- *   - 'nomask': The preg_match() regular expression of the files to ignore.
- *     Defaults to '/(\.\.?|CVS)$/'.
+ *   - 'nomask': The preg_match() regular expression for files to be excluded.
+ *     There is no default.
  *   - 'callback': The callback function to call for each match. There is no
  *     default callback.
  *   - 'recurse': When TRUE, the directory scan will recurse the entire tree
@@ -1160,17 +1177,16 @@ function file_unmanaged_save_data($data, $destination = NULL, $replace = FILE_EX
  *   - 'min_depth': Minimum depth of directories to return files from. Defaults
  *     to 0.
  * @param $depth
- *   Current depth of recursion. This parameter is only used internally and
+ *   The current depth of recursion. This parameter is only used internally and
  *   should not be passed in.
  *
  * @return
  *   An associative array (keyed on the chosen key) of objects with 'uri',
- *   'filename', and 'name' members corresponding to the matching files.
+ *   'filename', and 'name' properties corresponding to the matched files.
  */
 function file_scan_directory($dir, $mask, $options = array(), $depth = 0) {
   // Merge in defaults.
   $options += array(
-    'nomask' => '/^CVS$/',
     'callback' => 0,
     'recurse' => TRUE,
     'key' => 'uri',
@@ -1190,7 +1206,7 @@ function file_scan_directory($dir, $mask, $options = array(), $depth = 0) {
     if ($handle = @opendir($dir)) {
       while (FALSE !== ($filename = readdir($handle))) {
         // Skip this file if it matches the nomask or starts with a dot.
-        if ($filename[0] != '.' && !preg_match($options['nomask'], $filename)) {
+        if ($filename[0] != '.' && !(isset($options['nomask']) && preg_match($options['nomask'], $filename))) {
           if ($depth == 0 && $dir_has_slash) {
             $uri = "$dir$filename";
           }
@@ -1284,8 +1300,8 @@ function file_get_mimetype($uri, $mapping = NULL) {
 /**
  * Sets the permissions on a file or directory.
  *
- * This function will use the system.file:chmod.directory and
- * system.file:chmod.file configuration for the default modes for directories
+ * This function will use the file_chmod_directory and
+ * file_chmod_file settings for the default modes for directories
  * and uploaded/generated files. By default these will give everyone read access
  * so that users accessing the files with a user account without the webserver
  * group (e.g. via FTP) can read these files, and give group write permissions
@@ -1298,8 +1314,8 @@ function file_get_mimetype($uri, $mapping = NULL) {
  *
  * @param $uri
  *   A string containing a URI file, or directory path.
- * @param int $mode
- *   Octal value for the permissions. Consult PHP chmod() documentation for
+ * @param $mode
+ *   Integer value for the permissions. Consult PHP chmod() documentation for
  *   more information.
  *
  * @return bool
@@ -1309,20 +1325,11 @@ function file_get_mimetype($uri, $mapping = NULL) {
  */
 function drupal_chmod($uri, $mode = NULL) {
   if (!isset($mode)) {
-    // Configuration system stores default modes as strings. We use octdec() so
-    // that the octal permission numbers can be expressed as integers or strings
-    // and will be converted correctly in both cases.
     if (is_dir($uri)) {
-      $mode = octdec(\Drupal::config('system.file')->get('chmod.directory'));
-      if (!$mode) {
-        $mode = 0775;
-      }
+      $mode = settings()->get('file_chmod_directory', FILE_CHMOD_DIRECTORY);
     }
     else {
-      $mode = octdec(\Drupal::config('system.file')->get('chmod.file'));
-      if (!$mode) {
-        $mode = 0664;
-      }
+      $mode = settings()->get('file_chmod_file', FILE_CHMOD_FILE);
     }
   }
 
@@ -1490,18 +1497,13 @@ function drupal_basename($uri, $suffix = NULL) {
  * @see mkdir()
  * @see http://drupal.org/node/515192
  * @ingroup php_wrappers
+ *
+ * @todo Update with open_basedir compatible recursion logic from
+ *   \Drupal\Component\PhpStorage\FileStorage::ensureDirectory().
  */
 function drupal_mkdir($uri, $mode = NULL, $recursive = FALSE, $context = NULL) {
   if (!isset($mode)) {
-    // Configuration system stores default mode as strings.
-    $mode = FALSE;
-    // During early update there's no container.
-    if (is_object(\Drupal::getContainer())) {
-      $mode = octdec(\Drupal::config('system.file')->get('chmod.directory'));
-    }
-    if (!$mode) {
-      $mode = 0775;
-    }
+    $mode = settings()->get('file_chmod_directory', FILE_CHMOD_DIRECTORY);
   }
 
   // If the URI has a scheme, don't override the umask - schemes can handle this

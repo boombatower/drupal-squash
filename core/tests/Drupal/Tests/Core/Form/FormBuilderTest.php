@@ -7,8 +7,10 @@
 
 namespace Drupal\Tests\Core\Form {
 
+use Drupal\Core\DependencyInjection\ContainerBuilder;
 use Drupal\Core\DependencyInjection\ContainerInjectionInterface;
 use Drupal\Core\Form\FormInterface;
+use Drupal\Core\Url;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 
@@ -29,6 +31,17 @@ class FormBuilderTest extends FormTestBase {
       'description' => 'Tests the form builder.',
       'group' => 'Form API',
     );
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function setUp() {
+    parent::setUp();
+
+    $container = new ContainerBuilder();
+    $container->set('url_generator', $this->urlGenerator);
+    \Drupal::setContainer($container);
   }
 
   /**
@@ -225,6 +238,7 @@ class FormBuilderTest extends FormTestBase {
     return array(
       array(array('redirect_route' => array('route_name' => 'test_route_a')), 'test-route'),
       array(array('redirect_route' => array('route_name' => 'test_route_b', 'route_parameters' => array('key' => 'value'))), 'test-route/value'),
+      array(array('redirect_route' => new Url('test_route_b', array('key' => 'value'))), 'test-route/value'),
     );
   }
 
@@ -325,31 +339,6 @@ class FormBuilderTest extends FormTestBase {
     $this->assertFormElement($expected_form, $form, 'test');
     $this->assertSame($form_id, $form_state['build_info']['form_id']);
     $this->assertSame($form_id, $form['#id']);
-  }
-
-  /**
-   * Tests the buildForm() method with a hook_forms() based form ID.
-   */
-  public function testBuildFormWithHookForms() {
-    $form_id = 'test_form_id_specific';
-    $base_form_id = 'test_form_id';
-    $expected_form = $base_form_id();
-    // Set the module handler to return information from hook_forms().
-    $this->moduleHandler->expects($this->once())
-      ->method('invokeAll')
-      ->with('forms', array($form_id, array()))
-      ->will($this->returnValue(array(
-        'test_form_id_specific' => array(
-          'callback' => $base_form_id,
-        ),
-      )));
-
-    $form_state = array();
-    $form = $this->formBuilder->buildForm($form_id, $form_state);
-    $this->assertFormElement($expected_form, $form, 'test');
-    $this->assertSame($form_id, $form_state['build_info']['form_id']);
-    $this->assertSame($form_id, $form['#id']);
-    $this->assertSame($base_form_id, $form_state['build_info']['base_form_id']);
   }
 
   /**

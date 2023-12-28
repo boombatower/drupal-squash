@@ -185,7 +185,7 @@ function hook_views_data() {
   //   - filter: A description of any filter handler for the table field.
   //   - argument: A description of any argument handler for the table field.
   //   - area: A description of any handler for adding content to header,
-  //     footer or as no result behaviour.
+  //     footer or as no result behavior.
   //
   // The handler descriptions are described with examples below.
 
@@ -627,7 +627,7 @@ function hook_views_ui_display_top_links_alter(array &$links, ViewExecutable $vi
  * @see views_invalidate_cache()
  */
 function hook_views_invalidate_cache() {
-  cache('mymodule')->invalidateTags(array('views' => TRUE));
+  \Drupal\Core\Cache\Cache::invalidateTags(array('views' => TRUE));
 }
 
 /**

@@ -81,7 +81,21 @@ class FieldItemList extends ItemList implements FieldItemListInterface {
   /**
    * {@inheritdoc}
    */
-  public function filterEmptyValues() {
+  public function getSettings() {
+    return $this->definition->getSettings();
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getSetting($setting_name) {
+    return $this->definition->getSetting($setting_name);
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function filterEmptyItems() {
     if (isset($this->list)) {
       $this->list = array_values(array_filter($this->list, function($item) {
         return !$item->isEmpty();
@@ -144,56 +158,49 @@ class FieldItemList extends ItemList implements FieldItemListInterface {
    * {@inheritdoc}
    */
   public function getPropertyDefinition($name) {
-    return $this->offsetGet(0)->getPropertyDefinition($name);
+    return $this->first()->getPropertyDefinition($name);
   }
 
   /**
    * {@inheritdoc}
    */
   public function getPropertyDefinitions() {
-    return $this->offsetGet(0)->getPropertyDefinitions();
+    return $this->first()->getPropertyDefinitions();
   }
 
   /**
    * {@inheritdoc}
    */
   public function __get($property_name) {
-    return $this->offsetGet(0)->__get($property_name);
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  public function get($property_name) {
-    return $this->offsetGet(0)->get($property_name);
+    return $this->first()->__get($property_name);
   }
 
   /**
    * {@inheritdoc}
    */
   public function __set($property_name, $value) {
-    $this->offsetGet(0)->__set($property_name, $value);
+    $this->first()->__set($property_name, $value);
   }
 
   /**
    * {@inheritdoc}
    */
   public function __isset($property_name) {
-    return $this->offsetGet(0)->__isset($property_name);
+    return $this->first()->__isset($property_name);
   }
 
   /**
    * {@inheritdoc}
    */
   public function __unset($property_name) {
-    return $this->offsetGet(0)->__unset($property_name);
+    return $this->first()->__unset($property_name);
   }
 
   /**
    * {@inheritdoc}
    */
   public function access($operation = 'view', AccountInterface $account = NULL) {
-    $access_controller = \Drupal::entityManager()->getAccessController($this->getParent()->entityType());
+    $access_controller = \Drupal::entityManager()->getAccessController($this->getEntity()->getEntityTypeId());
     return $access_controller->fieldAccess($operation, $this->getFieldDefinition(), $account, $this);
   }
 
@@ -215,7 +222,7 @@ class FieldItemList extends ItemList implements FieldItemListInterface {
     // are valid default values.
     if (!isset($value) || (is_array($value) && empty($value))) {
       // Create one field item and apply defaults.
-      $this->offsetGet(0)->applyDefaultValue(FALSE);
+      $this->first()->applyDefaultValue(FALSE);
     }
     else {
       $this->setValue($value, $notify);
@@ -238,7 +245,7 @@ class FieldItemList extends ItemList implements FieldItemListInterface {
    */
   public function preSave() {
     // Filter out empty items.
-    $this->filterEmptyValues();
+    $this->filterEmptyItems();
 
     $this->delegateMethod('presave');
   }

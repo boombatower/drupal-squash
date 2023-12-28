@@ -11,17 +11,17 @@ use Drupal\Core\Entity\ContentEntityBase;
 use Drupal\Core\Entity\EntityStorageControllerInterface;
 use Drupal\Core\Field\FieldDefinition;
 use Drupal\Core\Routing\UrlMatcher;
+use Drupal\Core\Url;
 use Drupal\shortcut\ShortcutInterface;
 
 /**
  * Defines the shortcut entity class.
  *
- * @EntityType(
+ * @ContentEntityType(
  *   id = "shortcut",
  *   label = @Translation("Shortcut link"),
  *   module = "shortcut",
  *   controllers = {
- *     "storage" = "Drupal\Core\Entity\FieldableDatabaseStorageController",
  *     "access" = "Drupal\shortcut\ShortcutAccessController",
  *     "form" = {
  *       "default" = "Drupal\shortcut\ShortcutFormController",
@@ -40,7 +40,8 @@ use Drupal\shortcut\ShortcutInterface;
  *     "label" = "title"
  *   },
  *   links = {
- *     "edit-form" = "/admin/config/user-interface/shortcut/link/{shortcut}"
+ *     "delete-form" = "shortcut.link_delete",
+ *     "edit-form" = "shortcut.link_edit"
  *   }
  * )
  */
@@ -124,10 +125,9 @@ class Shortcut extends ContentEntityBase implements ShortcutInterface {
   public function preSave(EntityStorageControllerInterface $storage_controller) {
     parent::preSave($storage_controller);
 
-    if ($route_info = \Drupal::service('router.matcher.final_matcher')->findRouteNameParameters($this->path->value)) {
-      $this->setRouteName($route_info[0]);
-      $this->setRouteParams($route_info[1]);
-    }
+    $url = Url::createFromPath($this->path->value);
+    $this->setRouteName($url->getRouteName());
+    $this->setRouteParams($url->getRouteParameters());
   }
 
   /**
@@ -181,7 +181,7 @@ class Shortcut extends ContentEntityBase implements ShortcutInterface {
       ->setComputed(TRUE);
 
     $item_definition = $fields['path']->getItemDefinition();
-    $item_definition->setClass('\Drupal\shortcut\ShortcutPath');
+    $item_definition->setClass('\Drupal\shortcut\ShortcutPathItem');
     $fields['path']->setItemDefinition($item_definition);
 
     return $fields;
