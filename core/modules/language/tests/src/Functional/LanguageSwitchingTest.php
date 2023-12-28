@@ -36,6 +36,9 @@ class LanguageSwitchingTest extends BrowserTestBase {
    */
   protected $defaultTheme = 'starterkit_theme';
 
+  /**
+   * {@inheritdoc}
+   */
   protected function setUp(): void {
     parent::setUp();
 
@@ -105,8 +108,8 @@ class LanguageSwitchingTest extends BrowserTestBase {
 
       $link = $list_item->find('xpath', 'a');
       $anchors[] = [
-         'hreflang' => $link->getAttribute('hreflang'),
-         'data-drupal-link-system-path' => $link->getAttribute('data-drupal-link-system-path'),
+        'hreflang' => $link->getAttribute('hreflang'),
+        'data-drupal-link-system-path' => $link->getAttribute('data-drupal-link-system-path'),
       ];
       $labels[] = $link->getText();
     }

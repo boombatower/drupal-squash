@@ -23,6 +23,7 @@ use Symfony\Component\HttpFoundation\Request;
 /**
  * Stores UI related temporary settings.
  */
+#[\AllowDynamicProperties]
 class ViewUI implements ViewEntityInterface {
 
   /**
@@ -677,9 +678,9 @@ class ViewUI implements ViewEntityInterface {
                 [
                   'data' => [
                     '#prefix' => '<pre>',
-                     'queries' => $queries,
-                     '#suffix' => '</pre>',
-                    ],
+                    'queries' => $queries,
+                    '#suffix' => '</pre>',
+                  ],
                 ],
               ];
             }
@@ -834,7 +835,7 @@ class ViewUI implements ViewEntityInterface {
   /**
    * Get the user's current progress through the form stack.
    *
-   * @return
+   * @return array|bool
    *   FALSE if the user is not currently in a multiple-form stack. Otherwise,
    *   an associative array with the following keys:
    *   - current: The number of the current form on the stack.
