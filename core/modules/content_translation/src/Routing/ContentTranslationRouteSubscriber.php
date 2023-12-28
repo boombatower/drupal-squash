@@ -56,7 +56,7 @@ class ContentTranslationRouteSubscriber extends RouteSubscriberBase {
       }
 
       $path = $base_path . '/translations';
-      $load_latest_revision = ContentTranslationManager::isPendingRevisionSupportEnabled();
+      $load_latest_revision = ContentTranslationManager::isPendingRevisionSupportEnabled($entity_type_id);
 
       $route = new Route(
         $path,
@@ -164,6 +164,14 @@ class ContentTranslationRouteSubscriber extends RouteSubscriberBase {
         ]
       );
       $collection->add("entity.$entity_type_id.content_translation_delete", $route);
+
+      // Add our custom translation deletion access checker.
+      if ($load_latest_revision) {
+        $entity_delete_route = $collection->get("entity.$entity_type_id.delete_form");
+        if ($entity_delete_route) {
+          $entity_delete_route->addRequirements(['_access_content_translation_delete' => "$entity_type_id.delete"]);
+        }
+      }
     }
   }
 

@@ -62,6 +62,13 @@ class ContentTranslationHandler implements ContentTranslationHandlerInterface, E
   protected $manager;
 
   /**
+   * The entity type manager.
+   *
+   * @var \Drupal\Core\Entity\EntityTypeManagerInterface
+   */
+  protected $entityTypeManager;
+
+  /**
    * The current user.
    *
    * @var \Drupal\Core\Session\AccountInterface
@@ -104,6 +111,7 @@ class ContentTranslationHandler implements ContentTranslationHandlerInterface, E
     $this->entityType = $entity_type;
     $this->languageManager = $language_manager;
     $this->manager = $manager;
+    $this->entityTypeManager = $entity_manager;
     $this->currentUser = $current_user;
     $this->fieldStorageDefinitions = $entity_manager->getLastInstalledFieldStorageDefinitions($this->entityTypeId);
     $this->messenger = $messenger;
@@ -382,7 +390,12 @@ class ContentTranslationHandler implements ContentTranslationHandlerInterface, E
             break;
           }
         }
-        $access = $this->getTranslationAccess($entity, 'delete')->isAllowed() || ($entity->access('delete') && $this->entityType->hasLinkTemplate('delete-form'));
+        /** @var \Drupal\Core\Access\AccessResultInterface $delete_access */
+        $delete_access = \Drupal::service('content_translation.delete_access')->checkAccess($entity);
+        $access = $delete_access->isAllowed() && (
+          $this->getTranslationAccess($entity, 'delete')->isAllowed() ||
+          ($entity->access('delete') && $this->entityType->hasLinkTemplate('delete-form'))
+        );
         $form['actions']['delete_translation'] = [
           '#type' => 'submit',
           '#value' => t('Delete translation'),
@@ -445,12 +458,19 @@ class ContentTranslationHandler implements ContentTranslationHandlerInterface, E
       ];
 
       $translate = !$new_translation && $metadata->isOutdated();
-      if (!$translate) {
+      $outdated_access = !ContentTranslationManager::isPendingRevisionSupportEnabled($entity->getEntityTypeId(), $entity->bundle());
+      if (!$outdated_access) {
+        $form['content_translation']['outdated'] = [
+          '#markup' => $this->t('Translations cannot be flagged as outdated when content is moderated.'),
+        ];
+      }
+      elseif (!$translate) {
         $form['content_translation']['retranslate'] = [
           '#type' => 'checkbox',
           '#title' => t('Flag other translations as outdated'),
           '#default_value' => FALSE,
           '#description' => t('If you made a significant change, which means the other translations should be updated, you can flag all translations of this content as outdated. This will not change any other property of them, like whether they are published or not.'),
+          '#access' => $outdated_access,
         ];
       }
       else {
@@ -459,6 +479,7 @@ class ContentTranslationHandler implements ContentTranslationHandlerInterface, E
           '#title' => t('This translation needs to be updated'),
           '#default_value' => $translate,
           '#description' => t('When this option is checked, this translation needs to be updated. Uncheck when the translation is up to date again.'),
+          '#access' => $outdated_access,
         ];
         $form['content_translation']['#open'] = TRUE;
       }

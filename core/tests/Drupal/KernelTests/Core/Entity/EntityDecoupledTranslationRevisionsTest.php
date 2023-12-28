@@ -234,6 +234,7 @@ class EntityDecoupledTranslationRevisionsTest extends EntityKernelTestBase {
         ['en', TRUE, TRUE],
         ['it', FALSE, TRUE, FALSE],
         ['en', FALSE, TRUE],
+        ['it', TRUE, TRUE, FALSE],
         ['it', FALSE],
         ['it', TRUE],
         ['en', TRUE, TRUE],
@@ -493,6 +494,35 @@ class EntityDecoupledTranslationRevisionsTest extends EntityKernelTestBase {
   }
 
   /**
+   * Checks that changes to multiple translations are handled correctly.
+   *
+   * @covers ::createRevision
+   * @covers \Drupal\Core\Entity\Plugin\Validation\Constraint\EntityUntranslatableFieldsConstraintValidator::validate
+   */
+  public function testMultipleTranslationChanges() {
+    // Configure the untranslatable fields edit mode.
+    $this->state->set('entity_test.untranslatable_fields.default_translation_affected', TRUE);
+    $this->bundleInfo->clearCachedBundles();
+
+    $entity = EntityTestMulRev::create();
+    $entity->get('name')->value = 'Test 1.1 EN';
+    $entity->get('non_mul_field')->value = 'Test 1.1';
+    $this->storage->save($entity);
+
+    /** @var \Drupal\Core\Entity\ContentEntityInterface $revision */
+    $revision = $this->storage->createRevision($entity->addTranslation('it'));
+    $revision->get('name')->value = 'Test 1.2 IT';
+    $this->storage->save($revision);
+
+    $revision = $this->storage->createRevision($revision->getTranslation('en'), FALSE);
+    $revision->get('non_mul_field')->value = 'Test 1.3';
+    $revision->getTranslation('it')->get('name')->value = 'Test 1.3 IT';
+    $violations = $revision->validate();
+    $this->assertCount(1, $violations);
+    $this->assertEquals('Non-translatable fields can only be changed when updating the original language.', $violations[0]->getMessage());
+  }
+
+  /**
    * Tests that internal properties are preserved while creating a new revision.
    */
   public function testInternalProperties() {
@@ -521,6 +551,41 @@ class EntityDecoupledTranslationRevisionsTest extends EntityKernelTestBase {
     $this->assertTrue($entity->isValidationRequired());
     $new_revision = $this->storage->createRevision($entity);
     $this->assertTrue($new_revision->isValidationRequired());
+  }
+
+  /**
+   * Tests that deleted translations are not accidentally restored.
+   *
+   * @covers ::createRevision
+   */
+  public function testRemovedTranslations() {
+    /** @var \Drupal\Core\Entity\ContentEntityInterface $entity */
+    $entity = EntityTestMulRev::create(['name' => 'Test 1.1 EN']);
+    $this->storage->save($entity);
+
+    /** @var \Drupal\Core\Entity\ContentEntityInterface $it_revision */
+    $it_revision = $this->storage->createRevision($entity->addTranslation('it'));
+    $it_revision->set('name', 'Test 1.2 IT');
+    $this->storage->save($it_revision);
+
+    /** @var \Drupal\Core\Entity\ContentEntityInterface $en_revision */
+    $en_revision = $this->storage->createRevision($it_revision->getUntranslated(), FALSE);
+    $en_revision->set('name', 'Test 1.3 EN');
+    $this->storage->save($en_revision);
+
+    /** @var \Drupal\Core\Entity\ContentEntityInterface $en_revision */
+    $it_revision = $this->storage->createRevision($it_revision);
+    $en_revision = $it_revision->getUntranslated();
+    $en_revision->removeTranslation('it');
+    $this->storage->save($en_revision);
+
+    $revision_id = $this->storage->getLatestTranslationAffectedRevisionId($entity->id(), 'en');
+    $en_revision = $this->storage->loadRevision($revision_id);
+    $en_revision = $this->storage->createRevision($en_revision);
+    $en_revision->set('name', 'Test 1.5 EN');
+    $this->storage->save($en_revision);
+    $en_revision = $this->storage->loadRevision($en_revision->getRevisionId());
+    $this->assertFalse($en_revision->hasTranslation('it'));
   }
 
 }
