@@ -1,0 +1,16 @@
+/**
+ * @file
+ * Right-to-Left styling for the Book module.
+ */
+
+/**
+ * Book navigation.
+ */
+.book-pager .previous {
+  float: right;
+  text-align: right;
+}
+.book-pager .next {
+  float: left;
+  text-align: left;
+}

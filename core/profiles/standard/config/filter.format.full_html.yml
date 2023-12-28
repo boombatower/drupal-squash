@@ -1,0 +1,14 @@
+format: full_html
+name: 'Full HTML'
+status: '1'
+weight: '1'
+roles:
+  - administrator
+cache: '1'
+filters:
+  filter_htmlcorrector:
+    module: filter
+    status: '1'
+    weight: '10'
+    settings: {  }
+langcode: en

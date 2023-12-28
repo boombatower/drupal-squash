@@ -1,0 +1,20 @@
+filter_admin_disable:
+  pattern: '/admin/config/content/formats/{filter_format}/disable'
+  defaults:
+    _entity_form: 'filter_format.disable'
+  requirements:
+    _filter_disable_format_access: 'TRUE'
+
+filter_tips_all:
+  pattern: '/filter/tips'
+  defaults:
+    _content: '\Drupal\filter\Controller\FilterController::filterTips'
+  requirements:
+    _access: 'TRUE'
+
+filter_tips:
+  pattern: '/filter/tips/{filter_format}'
+  defaults:
+    _content: '\Drupal\filter\Controller\FilterController::filterTips'
+  requirements:
+    _filter_access: 'TRUE'

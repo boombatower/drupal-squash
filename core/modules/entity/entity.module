@@ -1,0 +1,65 @@
+<?php
+
+/**
+ * @file
+ * Manage the entity system.
+ *
+ * The module is mostly an anchor point for configuration items owned by the
+ * entity system.
+ */
+
+use Drupal\Core\Config\Entity\ConfigStorageController;
+
+/**
+ * Implements hook_entity_bundle_rename().
+ */
+function entity_entity_bundle_rename($entity_type, $bundle_old, $bundle_new) {
+  // Rename entity displays.
+  $entity_info = entity_get_info('entity_display');
+  if ($bundle_old !== $bundle_new) {
+    $ids = config_get_storage_names_with_prefix('entity.display.' . $entity_type . '.' . $bundle_old);
+    foreach ($ids as $id) {
+      $id = ConfigStorageController::getIDFromConfigName($id, $entity_info['config_prefix']);
+      $display = entity_load('entity_display', $id);
+      $new_id = $entity_type . '.' . $bundle_new . '.' . $display->mode;
+      $display->id = $new_id;
+      $display->bundle = $bundle_new;
+      $display->save();
+    }
+  }
+
+  // Rename entity form displays.
+  $entity_info = entity_get_info('entity_form_display');
+  if ($bundle_old !== $bundle_new) {
+    $ids = config_get_storage_names_with_prefix('entity.form_display.' . $entity_type . '.' . $bundle_old);
+    foreach ($ids as $id) {
+      $id = ConfigStorageController::getIDFromConfigName($id, $entity_info['config_prefix']);
+      $form_display = entity_load('entity_form_display', $id);
+      $new_id = $entity_type . '.' . $bundle_new . '.' . $form_display->mode;
+      $form_display->id = $new_id;
+      $form_display->bundle = $bundle_new;
+      $form_display->save();
+    }
+  }
+}
+
+/**
+ * Implements hook_entity_bundle_delete().
+ */
+function entity_entity_bundle_delete($entity_type, $bundle) {
+  $entity_info = entity_get_info('entity_display');
+
+  // Remove entity displays of the deleted bundle.
+  $ids = config_get_storage_names_with_prefix('entity.display.' . $entity_type . '.' . $bundle);
+  foreach ($ids as &$id) {
+    $id = ConfigStorageController::getIDFromConfigName($id, $entity_info['config_prefix']);
+  }
+  entity_delete_multiple('entity_display', $ids);
+
+  // Remove entity form displays of the deleted bundle.
+  $ids = config_get_storage_names_with_prefix('entity.form_display.' . $entity_type . '.' . $bundle);
+  foreach ($ids as &$id) {
+    $id = ConfigStorageController::getIDFromConfigName($id, $entity_info['config_prefix']);
+  }
+  entity_delete_multiple('entity_form_display', $ids);
+}

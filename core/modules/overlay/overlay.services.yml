@@ -1,0 +1,6 @@
+services:
+  overlay.subscriber:
+    class: Drupal\overlay\EventSubscriber\OverlaySubscriber
+    tags:
+      - { name: event_subscriber }
+    arguments: ['@content_negotiation', '@user.data', '@url_generator']

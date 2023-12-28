@@ -1,0 +1,27 @@
+custom_block_type_list:
+  pattern: '/admin/structure/custom-blocks'
+  defaults:
+    _entity_list: 'custom_block_type'
+  requirements:
+    _permission: 'administer blocks'
+
+custom_block_add_page:
+  pattern: block/add
+  defaults:
+    _content: 'Drupal\custom_block\Controller\CustomBlockController::add'
+  requirements:
+    _permission: 'administer blocks'
+
+custom_block_add_form:
+  pattern: block/add/{custom_block_type}
+  defaults:
+    _content: 'Drupal\custom_block\Controller\CustomBlockController::addForm'
+  requirements:
+    _permission: 'administer blocks'
+
+custom_block_type_delete:
+  pattern: '/admin/structure/custom-blocks/manage/{custom_block_type}/delete'
+  defaults:
+    _entity_form: 'custom_block_type.delete'
+  requirements:
+    _permission: 'administer blocks'

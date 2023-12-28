@@ -1,0 +1,119 @@
+<?php
+
+/**
+ * @file
+ * Defines simple link field types.
+ */
+
+use Drupal\Core\Entity\EntityInterface;
+
+/**
+ * Implements hook_help().
+ */
+function link_help($path, $arg) {
+  switch ($path) {
+    case 'admin/help#link':
+      $output = '';
+      $output .= '<h3>' . t('About') . '</h3>';
+      $output .= '<p>' . t('The Link module defines a simple link field type for the Field module. Links are external URLs, can have an optional link text for each link, and they can be formatted when displayed. See the <a href="@field-help">Field module help page</a> for more information about fields.', array('@field-help' => url('admin/help/field'))) . '</p>';
+      return $output;
+  }
+}
+
+/**
+ * Implements hook_field_info().
+ */
+function link_field_info() {
+  $types['link'] = array(
+    'label' => t('Link'),
+    'description' => t('Stores a URL string, optional varchar link text, and optional blob of attributes to assemble a link.'),
+    'instance_settings' => array(
+      'title' => DRUPAL_OPTIONAL,
+    ),
+    'default_widget' => 'link_default',
+    'default_formatter' => 'link',
+    'field item class' => '\Drupal\link\Type\LinkItem',
+  );
+  return $types;
+}
+
+/**
+ * Implements hook_field_instance_settings_form().
+ */
+function link_field_instance_settings_form($field, $instance) {
+  $form['title'] = array(
+    '#type' => 'radios',
+    '#title' => t('Allow link text'),
+    '#default_value' => isset($instance['settings']['title']) ? $instance['settings']['title'] : DRUPAL_OPTIONAL,
+    '#options' => array(
+      DRUPAL_DISABLED => t('Disabled'),
+      DRUPAL_OPTIONAL => t('Optional'),
+      DRUPAL_REQUIRED => t('Required'),
+    ),
+  );
+  return $form;
+}
+
+/**
+ * Implements hook_field_load().
+ */
+function link_field_load($entity_type, $entities, $field, $instances, $langcode, &$items, $age) {
+  foreach ($entities as $id => $entity) {
+    foreach ($items[$id] as $delta => &$item) {
+      // Unserialize the attributes into an array. The value stored in the
+      // field data should either be NULL or a non-empty serialized array.
+      if (empty($item['attributes'])) {
+        $item['attributes'] = array();
+      }
+      else {
+        $item['attributes'] = unserialize($item['attributes']);
+      }
+    }
+  }
+}
+
+/**
+ * Implements hook_field_is_empty().
+ */
+function link_field_is_empty($item, $field_type) {
+  return !isset($item['url']) || $item['url'] === '';
+}
+
+/**
+ * Implements hook_field_presave().
+ */
+function link_field_presave(EntityInterface $entity, $field, $instance, $langcode, &$items) {
+  foreach ($items as $delta => &$item) {
+    // Trim any spaces around the URL and link text.
+    $item['url'] = trim($item['url']);
+    $item['title'] = trim($item['title']);
+
+    // Serialize the attributes array.
+    $item['attributes'] = !empty($item['attributes']) ? serialize($item['attributes']) : NULL;
+  }
+}
+
+/**
+ * Implements hook_theme().
+ */
+function link_theme() {
+  return array(
+    'link_formatter_link_separate' => array(
+      'variables' => array('title' => NULL, 'url_title' => NULL, 'href' => NULL, 'options' => array()),
+    ),
+  );
+}
+
+/**
+ * Formats a link as separate link title and URL elements.
+ */
+function theme_link_formatter_link_separate($vars) {
+  $output = '';
+  $output .= '<div class="link-item">';
+  if (!empty($vars['title'])) {
+    $output .= '<div class="link-title">' . check_plain($vars['title']) . '</div>';
+  }
+  $output .= '<div class="link-url">' . l($vars['url_title'], $vars['href'], $vars['options']) . '</div>';
+  $output .= '</div>';
+  return $output;
+}

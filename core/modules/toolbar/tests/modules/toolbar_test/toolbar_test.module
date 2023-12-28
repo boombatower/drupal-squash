@@ -1,0 +1,48 @@
+<?php
+
+/**
+ * @file
+ * A dummy module to test API interaction with the Toolbar module.
+ */
+
+/**
+ * Implements hook_toolbar().
+ */
+function toolbar_test_toolbar() {
+
+    $items['testing'] = array(
+    '#type' => 'toolbar_item',
+    'tab' => array(
+      '#type' => 'link',
+      '#title' => t('Test tab'),
+      '#href' => '',
+      '#options' => array(
+        'html' => FALSE,
+        'attributes' => array(
+          'id' => 'toolbar-tab-testing',
+          'title' => t('Test tab'),
+        ),
+      ),
+    ),
+    'tray' => array(
+      '#wrapper_attributes' => array(
+        'id' => 'toolbar-tray-testing',
+      ),
+      'content' => array(
+        '#theme' => 'item_list',
+        '#items' => array(
+          l(t('link 1'), '<front>'),
+          l(t('link 2'), '<front>'),
+          l(t('link 3'), '<front>'),
+        ),
+        '#prefix' => '<h2 class="visually-hidden">' . t('Test tray') . '</h2>',
+        '#attributes' => array(
+          'class' => array('menu'),
+        ),
+      ),
+    ),
+    '#weight' => 50,
+  );
+
+  return $items;
+}
