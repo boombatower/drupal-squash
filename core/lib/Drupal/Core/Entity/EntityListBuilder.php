@@ -5,6 +5,7 @@ namespace Drupal\Core\Entity;
 use Drupal\Core\Messenger\MessengerTrait;
 use Drupal\Core\Routing\RedirectDestinationTrait;
 use Drupal\Core\Url;
+use Drupal\Component\Serialization\Json;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Drupal\Core\Entity\Query\QueryInterface;
 
@@ -95,7 +96,7 @@ class EntityListBuilder extends EntityHandlerBase implements EntityListBuilderIn
    *   An array of entity IDs.
    */
   protected function getEntityIds() {
-    return $this->getQuery()->execute();
+    return $this->getEntityListQuery()->execute();
   }
 
   /**
@@ -104,7 +105,7 @@ class EntityListBuilder extends EntityHandlerBase implements EntityListBuilderIn
    * @return \Drupal\Core\Entity\Query\QueryInterface
    *   A query object used to load entity IDs.
    */
-  protected function getQuery(): QueryInterface {
+  protected function getEntityListQuery(): QueryInterface {
     $query = $this->getStorage()->getQuery()
       ->accessCheck(TRUE)
       ->sort($this->entityType->getKey('id'));
@@ -151,6 +152,13 @@ class EntityListBuilder extends EntityHandlerBase implements EntityListBuilderIn
       $operations['delete'] = [
         'title' => $this->t('Delete'),
         'weight' => 100,
+        'attributes' => [
+          'class' => ['use-ajax'],
+          'data-dialog-type' => 'modal',
+          'data-dialog-options' => Json::encode([
+            'width' => 880,
+          ]),
+        ],
         'url' => $this->ensureDestination($entity->toUrl('delete-form')),
       ];
     }
@@ -202,6 +210,10 @@ class EntityListBuilder extends EntityHandlerBase implements EntityListBuilderIn
     $build = [
       '#type' => 'operations',
       '#links' => $this->getOperations($entity),
+      // Allow links to use modals.
+      '#attached' => [
+        'library' => ['core/drupal.dialog.ajax'],
+      ],
     ];
 
     return $build;
