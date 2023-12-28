@@ -239,10 +239,10 @@ printf "\n"
 printf -- '-%.0s' {1..100}
 printf "\n"
 
-# When the file core/phpcs.xml.dist has been changed, then PHPCS must check all files.
-if [[ $PHPCS_XML_DIST_FILE_CHANGED == "1" ]]; then
+# Run PHPCS on all files on DrupalCI or when phpcs files are changed.
+if [[ $PHPCS_XML_DIST_FILE_CHANGED == "1" ]] || [[ "$DRUPALCI" == "1" ]]; then
   # Test all files with phpcs rules.
-  vendor/bin/phpcs -ps --standard="$TOP_LEVEL/core/phpcs.xml.dist"
+  vendor/bin/phpcs -ps --parallel=$(nproc) --standard="$TOP_LEVEL/core/phpcs.xml.dist"
   PHPCS=$?
   if [ "$PHPCS" -ne "0" ]; then
     # If there are failures set the status to a number other than 0.
@@ -351,7 +351,7 @@ for FILE in $FILES; do
   ############################################################################
   ### PHP AND YAML FILES
   ############################################################################
-  if [[ -f "$TOP_LEVEL/$FILE" ]] && [[ $FILE =~ \.(inc|install|module|php|profile|test|theme|yml)$ ]] && [[ $PHPCS_XML_DIST_FILE_CHANGED == "0" ]]; then
+  if [[ -f "$TOP_LEVEL/$FILE" ]] && [[ $FILE =~ \.(inc|install|module|php|profile|test|theme|yml)$ ]] && [[ $PHPCS_XML_DIST_FILE_CHANGED == "0" ]] && [[ "$DRUPALCI" == "0" ]]; then
     # Test files with phpcs rules.
     vendor/bin/phpcs "$TOP_LEVEL/$FILE" --standard="$TOP_LEVEL/core/phpcs.xml.dist"
     PHPCS=$?
