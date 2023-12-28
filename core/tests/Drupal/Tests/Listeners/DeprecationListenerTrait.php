@@ -113,9 +113,8 @@ trait DeprecationListenerTrait {
     $dynamic_skipped_deprecations = [
       '%The "[^"]+" class extends "Symfony\\\\Component\\\\EventDispatcher\\\\Event" that is deprecated since Symfony 4\.3, use "Symfony\\\\Contracts\\\\EventDispatcher\\\\Event" instead\.$%',
       '%The "Symfony\\\\Component\\\\Validator\\\\Context\\\\ExecutionContextInterface::.*\(\)" method is considered internal Used by the validator engine. Should not be called by user\s\*\s*code\. It may change without further notice\. You should not extend it from "[^"]+".%',
-      '%Non-object services are deprecated since Symfony 4\.4, please fix the ".*" service which is of type ".*" right now\.%',
-      '%Non-object services are deprecated since Symfony 4\.4, setting the ".*" service to a value of type ".*" should be avoided\.%',
       '%The ".*" service relies on the deprecated "Symfony\\\\Component\\\\Debug\\\\BufferingLogger" class\. It should either be deprecated or its implementation upgraded\.%',
+      '%The "PHPUnit\\\\Framework\\\\TestCase::addWarning\(\)" method is considered internal%',
     ];
     return (bool) preg_filter($dynamic_skipped_deprecations, '$0', $message);
   }
@@ -140,21 +139,9 @@ trait DeprecationListenerTrait {
     return [
       // The following deprecation message is skipped for testing purposes.
       '\Drupal\Tests\SkippedDeprecationTest deprecation',
-      // These deprecations are triggered by symfony/psr-http-message-factory
-      // 1.2, which can be installed if you update dependencies on php 7 or
-      // higher.
-      'The "Symfony\Bridge\PsrHttpMessage\Factory\DiactorosFactory" class is deprecated since symfony/psr-http-message-bridge 1.2, use PsrHttpFactory instead.',
-      'The "psr7.http_message_factory" service relies on the deprecated "Symfony\Bridge\PsrHttpMessage\Factory\DiactorosFactory" class. It should either be deprecated or its implementation upgraded.',
       // This deprecation comes from behat/mink-browserkit-driver when updating
       // symfony/browser-kit to 4.3+.
       'The "Symfony\Component\BrowserKit\Response::getStatus()" method is deprecated since Symfony 4.3, use getStatusCode() instead.',
-      // The following deprecations are introduced in by the new
-      // DebugClassLoader in Symfony 4 we cannot immediately fix them without
-      // breaking backwards compatibility.
-      // @see https://www.drupal.org/project/drupal/issues/3030494
-      // @see https://www.drupal.org/project/drupal/issues/3030474
-      'The "Drupal\Core\Template\Loader\StringLoader" class implements "Twig\Loader\ExistsLoaderInterface" that is deprecated since 1.12 (to be removed in 3.0).',
-      'The "Drupal\Core\Template\Loader\StringLoader" class implements "Twig\Loader\SourceContextLoaderInterface" that is deprecated since 1.27 (to be removed in 3.0).',
       // The following Symfony deprecations are introduced in the Symfony 4
       // development cycle. They will need to be resolved prior to Symfony 5
       // compatibility.
@@ -165,8 +152,8 @@ trait DeprecationListenerTrait {
       'The "Symfony\Component\HttpFoundation\File\MimeType\FileinfoMimeTypeGuesser" class is deprecated since Symfony 4.3, use "Symfony\Component\Mime\FileinfoMimeTypeGuesser" instead.',
       'The signature of the "Drupal\Component\EventDispatcher\ContainerAwareEventDispatcher::dispatch()" method should be updated to "dispatch($event, string $eventName = null)", not doing so is deprecated since Symfony 4.3.',
       'Calling the "Symfony\Component\EventDispatcher\EventDispatcherInterface::dispatch()" method with the event name as the first argument is deprecated since Symfony 4.3, pass it as the second argument and provide the event object as the first argument instead.',
+      'The "Drupal\Component\EventDispatcher\ContainerAwareEventDispatcher::dispatch()" method will require a new "string|null $eventName" argument in the next major version of its interface "Symfony\Contracts\EventDispatcher\EventDispatcherInterface", not defining it is deprecated.',
       'The "Drupal\Component\EventDispatcher\ContainerAwareEventDispatcher::dispatch()" method will require a new "string|null $eventName" argument in the next major version of its parent class "Symfony\Contracts\EventDispatcher\EventDispatcherInterface", not defining it is deprecated.',
-      'The "Goutte\Client" class extends "Symfony\Component\BrowserKit\Client" that is deprecated since Symfony 4.3, use "\Symfony\Component\BrowserKit\AbstractBrowser" instead.',
       'Passing a command as string when creating a "Symfony\Component\Process\Process" instance is deprecated since Symfony 4.2, pass it as an array of its arguments instead, or use the "Process::fromShellCommandline()" constructor if you need features provided by the shell.',
       'Passing arguments to "Symfony\Component\HttpFoundation\Request::isMethodSafe()" has been deprecated since Symfony 4.4; use "Symfony\Component\HttpFoundation\Request::isMethodCacheable()" to check if the method is cacheable instead.',
       'The "Symfony\Component\Process\Process::inheritEnvironmentVariables()" method is deprecated since Symfony 4.4, env variables are always inherited.',

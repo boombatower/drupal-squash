@@ -78,9 +78,13 @@ const FILE_NOT_EXECUTABLE = 128;
  * Loads .install files for installed modules to initialize the update system.
  */
 function drupal_load_updates() {
+  /** @var \Drupal\Core\Extension\ModuleExtensionList $extension_list_module */
+  $extension_list_module = \Drupal::service('extension.list.module');
   foreach (drupal_get_installed_schema_version(NULL, FALSE, TRUE) as $module => $schema_version) {
-    if ($schema_version > -1) {
-      module_load_install($module);
+    if ($extension_list_module->exists($module) && !$extension_list_module->checkIncompatibility($module)) {
+      if ($schema_version > -1) {
+        module_load_install($module);
+      }
     }
   }
 }
@@ -217,7 +221,7 @@ function drupal_get_database_types() {
  */
 function drupal_rewrite_settings($settings = [], $settings_file = NULL) {
   if (!isset($settings_file)) {
-    $settings_file = \Drupal::service('site.path') . '/settings.php';
+    $settings_file = \Drupal::getContainer()->getParameter('site.path') . '/settings.php';
   }
   // Build list of setting names and insert the values into the global namespace.
   $variable_names = [];
@@ -1087,12 +1091,12 @@ function install_profile_info($profile, $langcode = 'en') {
 function db_installer_object($driver) {
   // We cannot use Database::getConnection->getDriverClass() here, because
   // the connection object is not yet functional.
-  $task_class = "Drupal\\Core\\Database\\Driver\\{$driver}\\Install\\Tasks";
+  $task_class = "Drupal\\Driver\\Database\\{$driver}\\Install\\Tasks";
   if (class_exists($task_class)) {
     return new $task_class();
   }
   else {
-    $task_class = "Drupal\\Driver\\Database\\{$driver}\\Install\\Tasks";
+    $task_class = "Drupal\\Core\\Database\\Driver\\{$driver}\\Install\\Tasks";
     return new $task_class();
   }
 }

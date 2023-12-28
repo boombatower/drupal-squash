@@ -35,15 +35,30 @@ class Upgrade7Test extends MigrateUpgradeExecuteTestBase {
     'rdf',
     'statistics',
     'migration_provider_test',
-    // Required for translation migrations.
-    'migrate_drupal_multilingual',
   ];
+
+  /**
+   * The entity storage for node.
+   *
+   * @var \Drupal\Core\Entity\EntityStorageInterface
+   */
+  protected $nodeStorage;
 
   /**
    * {@inheritdoc}
    */
   protected function setUp() {
     parent::setUp();
+
+    // Delete the existing content made to test the ID Conflict form. Migrations
+    // are to be done on a site without content. The test of the ID Conflict
+    // form is being moved to its own issue which will remove the deletion
+    // of the created nodes.
+    // See https://www.drupal.org/project/drupal/issues/3087061.
+    $this->nodeStorage = $this->container->get('entity_type.manager')
+      ->getStorage('node');
+    $this->nodeStorage->delete($this->nodeStorage->loadMultiple());
+
     $this->loadFixture(drupal_get_path('module', 'migrate_drupal') . '/tests/fixtures/drupal7.php');
   }
 
@@ -149,6 +164,7 @@ class Upgrade7Test extends MigrateUpgradeExecuteTestBase {
       'link',
       'list',
       'menu',
+      'node',
       'number',
       'options',
       'path',
@@ -190,7 +206,6 @@ class Upgrade7Test extends MigrateUpgradeExecuteTestBase {
       'i18n_taxonomy',
       'i18n_translation',
       'locale',
-      'node',
       'variable',
       'variable_realm',
       'variable_store',

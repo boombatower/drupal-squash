@@ -113,7 +113,7 @@ class DbUpdateController extends ControllerBase {
    */
   public static function create(ContainerInterface $container) {
     return new static(
-      $container->get('app.root'),
+      $container->getParameter('app.root'),
       $container->get('keyvalue.expirable'),
       $container->get('cache.default'),
       $container->get('state'),
@@ -144,7 +144,6 @@ class DbUpdateController extends ControllerBase {
     require_once $this->root . '/core/includes/update.inc';
 
     drupal_load_updates();
-    update_fix_compatibility();
 
     if ($request->query->get('continue')) {
       $_SESSION['update_ignore_warnings'] = TRUE;

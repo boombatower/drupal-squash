@@ -80,7 +80,7 @@ class Drupal {
   /**
    * The current system version.
    */
-  const VERSION = '9.0.0-alpha2';
+  const VERSION = '9.0.0-beta1';
 
   /**
    * Core API compatibility.
@@ -176,7 +176,7 @@ class Drupal {
    * @return string
    */
   public static function root() {
-    return static::getContainer()->get('app.root');
+    return static::getContainer()->getParameter('app.root');
   }
 
   /**

@@ -18,6 +18,7 @@ global-styling:
       css/components/breadcrumb.css: {}
       css/components/captions.css: {}
       css/components/comments.css: {}
+      css/components/container-inline.module.css: {}
       css/components/contextual.css: {}
       css/components/demo-block.css: {}
       # @see https://www.drupal.org/node/2389735
@@ -131,6 +132,12 @@ user:
   js:
     # @todo remove this file from library in https://drupal.org/node/3111468
     js/user.theme.temporary.js: {}
+
+filter:
+  version: VERSION
+  css:
+    component:
+      css/theme/filter.admin.css: {}
 
 classy.book-navigation:
   version: VERSION

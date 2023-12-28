@@ -19,6 +19,7 @@ use Drupal\Core\File\FileSystemInterface;
 use Drupal\Core\Site\Settings;
 use Drupal\Core\StreamWrapper\PrivateStream;
 use Drupal\Core\StreamWrapper\PublicStream;
+use Drupal\Core\StringTranslation\PluralTranslatableMarkup;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\Core\Url;
 use Symfony\Component\HttpFoundation\Request;
@@ -28,6 +29,9 @@ use Symfony\Component\HttpFoundation\Request;
  */
 function system_requirements($phase) {
   global $install_state;
+  // Reset the extension lists.
+  \Drupal::service('extension.list.module')->reset();
+  \Drupal::service('extension.list.theme')->reset();
   $requirements = [];
 
   // Report Drupal version
@@ -487,7 +491,7 @@ function system_requirements($phase) {
     // Find the site path. Kernel service is not always available at this point,
     // but is preferred, when available.
     if (\Drupal::hasService('kernel')) {
-      $site_path = \Drupal::service('site.path');
+      $site_path = \Drupal::getContainer()->getParameter('site.path');
     }
     else {
       $site_path = DrupalKernel::findSitePath(Request::createFromGlobals());
@@ -833,28 +837,65 @@ function system_requirements($phase) {
   }
 
   // Display an error if a newly introduced dependency in a module is not resolved.
-  if ($phase == 'update') {
+  if ($phase === 'update' || $phase === 'runtime') {
+    $create_extension_incompatibility_list = function ($extension_names, $description, $title) {
+      // Use an inline twig template to:
+      // - Concatenate two MarkupInterface objects and preserve safeness.
+      // - Use the item_list theme for the extension list.
+      $template = [
+        '#type' => 'inline_template',
+        '#template' => '{{ description }}{{ extensions }}',
+        '#context' => [
+          'extensions' => [
+            '#theme' => 'item_list',
+          ],
+        ],
+      ];
+      $template['#context']['extensions']['#items'] = $extension_names;
+      $template['#context']['description'] = $description;
+      return [
+        'title' => $title,
+        'value' => [
+          'list' => $template,
+          'handbook_link' => [
+            '#markup' => t(
+              'Review the <a href=":url"> suggestions for resolving this incompatibility</a> to repair your installation, and then re-run update.php.',
+              [':url' => 'https://www.drupal.org/docs/8/update/troubleshooting-database-updates']
+            ),
+          ],
+        ],
+        'severity' => REQUIREMENT_ERROR,
+      ];
+    };
     $profile = \Drupal::installProfile();
     $files = \Drupal::service('extension.list.module')->getList();
-    foreach ($files as $module => $file) {
-      // Ignore disabled modules and installation profiles.
-      if (!$file->status || $module == $profile) {
+    $files += \Drupal::service('extension.list.theme')->getList();
+    $core_incompatible_extensions = [];
+    $php_incompatible_extensions = [];
+    foreach ($files as $extension_name => $file) {
+      // Ignore uninstalled extensions and installation profiles.
+      if (!$file->status || $extension_name == $profile) {
         continue;
       }
-      // Check the module's PHP version.
+
       $name = $file->info['name'];
+      if (!empty($file->info['core_incompatible'])) {
+        $core_incompatible_extensions[$file->info['type']][] = $name;
+      }
+
+      // Check the extension's PHP version.
       $php = $file->info['php'];
       if (version_compare($php, PHP_VERSION, '>')) {
-        $requirements['php']['description'] .= t('@name requires at least PHP @version.', ['@name' => $name, '@version' => $php]);
-        $requirements['php']['severity'] = REQUIREMENT_ERROR;
+        $php_incompatible_extensions[$file->info['type']][] = $name;
       }
+
       // Check the module's required modules.
       /** @var \Drupal\Core\Extension\Dependency $requirement */
       foreach ($file->requires as $requirement) {
         $required_module = $requirement->getName();
         // Check if the module exists.
         if (!isset($files[$required_module])) {
-          $requirements["$module-$required_module"] = [
+          $requirements["$extension_name-$required_module"] = [
             'title' => t('Unresolved dependency'),
             'description' => t('@name requires this module.', ['@name' => $name]),
             'value' => t('@required_name (Missing)', ['@required_name' => $required_module]),
@@ -867,7 +908,7 @@ function system_requirements($phase) {
         $required_name = $required_file->info['name'];
         $version = str_replace(\Drupal::CORE_COMPATIBILITY . '-', '', $required_file->info['version']);
         if (!$requirement->isCompatible($version)) {
-          $requirements["$module-$required_module"] = [
+          $requirements["$extension_name-$required_module"] = [
             'title' => t('Unresolved dependency'),
             'description' => t('@name requires this module and version. Currently using @required_name version @version', ['@name' => $name, '@required_name' => $required_name, '@version' => $version]),
             'value' => t('@required_name (Version @compatibility required)', ['@required_name' => $required_name, '@compatibility' => $requirement->getConstraintString()]),
@@ -876,6 +917,115 @@ function system_requirements($phase) {
           continue;
         }
       }
+    }
+    if (!empty($core_incompatible_extensions['module'])) {
+      $requirements['module_core_incompatible'] = $create_extension_incompatibility_list(
+        $core_incompatible_extensions['module'],
+        new PluralTranslatableMarkup(
+          count($core_incompatible_extensions['module']),
+        'The following module is installed, but it is incompatible with Drupal @version:',
+        'The following modules are installed, but they are incompatible with Drupal @version:',
+        ['@version' => \Drupal::VERSION]
+        ),
+        new PluralTranslatableMarkup(
+          count($core_incompatible_extensions['module']),
+          'Incompatible module',
+          'Incompatible modules'
+        )
+      );
+    }
+    if (!empty($core_incompatible_extensions['theme'])) {
+      $requirements['theme_core_incompatible'] = $create_extension_incompatibility_list(
+        $core_incompatible_extensions['theme'],
+        new PluralTranslatableMarkup(
+          count($core_incompatible_extensions['theme']),
+          'The following theme is installed, but it is incompatible with Drupal @version:',
+          'The following themes are installed, but they are incompatible with Drupal @version:',
+          ['@version' => \Drupal::VERSION]
+        ),
+        new PluralTranslatableMarkup(
+          count($core_incompatible_extensions['theme']),
+          'Incompatible theme',
+          'Incompatible themes'
+        )
+      );
+    }
+    if (!empty($php_incompatible_extensions['module'])) {
+      $requirements['module_php_incompatible'] = $create_extension_incompatibility_list(
+        $php_incompatible_extensions['module'],
+        new PluralTranslatableMarkup(
+          count($php_incompatible_extensions['module']),
+          'The following module is installed, but it is incompatible with PHP @version:',
+          'The following modules are installed, but they are incompatible with PHP @version:',
+          ['@version' => phpversion()]
+        ),
+        new PluralTranslatableMarkup(
+          count($php_incompatible_extensions['module']),
+          'Incompatible module',
+          'Incompatible modules'
+        )
+      );
+    }
+    if (!empty($php_incompatible_extensions['theme'])) {
+      $requirements['theme_php_incompatible'] = $create_extension_incompatibility_list(
+        $php_incompatible_extensions['theme'],
+        new PluralTranslatableMarkup(
+          count($php_incompatible_extensions['theme']),
+          'The following theme is installed, but it is incompatible with PHP @version:',
+          'The following themes are installed, but they are incompatible with PHP @version:',
+          ['@version' => phpversion()]
+        ),
+        new PluralTranslatableMarkup(
+          count($php_incompatible_extensions['theme']),
+          'Incompatible theme',
+          'Incompatible themes'
+        )
+      );
+    }
+
+    // Look for invalid modules.
+    $extension_config = \Drupal::configFactory()->get('core.extension');
+    /** @var \Drupal\Core\Extension\ExtensionList $extension_list */
+    $extension_list = \Drupal::service('extension.list.module');
+    $is_missing_extension = function ($extension_name) use (&$extension_list) {
+      return !$extension_list->exists($extension_name);
+    };
+
+    $invalid_modules = array_filter(array_keys($extension_config->get('module')), $is_missing_extension);
+
+    if (!empty($invalid_modules)) {
+      $requirements['invalid_module'] = $create_extension_incompatibility_list(
+        $invalid_modules,
+        new PluralTranslatableMarkup(
+          count($invalid_modules),
+          'The following module is marked as installed in the core.extension configuration, but it is missing:',
+          'The following modules are marked as installed in the core.extension configuration, but they are missing:'
+        ),
+        new PluralTranslatableMarkup(
+          count($invalid_modules),
+          'Missing or invalid module',
+          'Missing or invalid modules'
+        )
+      );
+    }
+
+    // Look for invalid themes.
+    $extension_list = \Drupal::service('extension.list.theme');
+    $invalid_themes = array_filter(array_keys($extension_config->get('theme')), $is_missing_extension);
+    if (!empty($invalid_themes)) {
+      $requirements['invalid_theme'] = $create_extension_incompatibility_list(
+        $invalid_themes,
+        new PluralTranslatableMarkup(
+          count($invalid_themes),
+          'The following theme is marked as installed in the core.extension configuration, but it is missing:',
+          'The following themes are marked as installed in the core.extension configuration, but they are missing:'
+        ),
+        new PluralTranslatableMarkup(
+          count($invalid_themes),
+          'Missing or invalid theme',
+          'Missing or invalid themes'
+        )
+      );
     }
   }
 
@@ -1106,14 +1256,16 @@ function system_requirements($phase) {
       }
     }
 
-    // If system.module is in the list then only show a specific message for
-    // Drupal core, otherwise show a more generic message for each module.
-    if (isset($module_list['system'])) {
+    // If system or workspaces is in the list then only show a specific message
+    // for Drupal core.
+    if (isset($module_list['system']) || isset($module_list['workspaces'])) {
       $requirements['system_update_last_removed'] = [
         'title' => t('The version of Drupal you are trying to update from is too old'),
         'description' => t('Updating to Drupal @current_major is only supported from Drupal version @required_min_version or higher. If you are trying to update from an older version, first update to the latest version of Drupal @previous_major. (<a href=":url">Drupal 9 upgrade guide</a>)', [
           '@current_major' => 9,
-          '@required_min_version' => '8.8.0',
+          // Workspaces is special cased due to updates being removed after
+          // 8.8.0.
+          '@required_min_version' => isset($module_list['workspaces']) ? '8.8.2' : '8.8.0',
           '@previous_major' => 8,
           ':url' => 'https://www.drupal.org/docs/9/how-to-prepare-your-drupal-7-or-8-site-for-drupal-9/upgrading-a-drupal-8-site-to-drupal-9',
         ]),
@@ -1131,6 +1283,35 @@ function system_requirements($phase) {
           ]),
           'severity' => REQUIREMENT_ERROR,
         ];
+      }
+    }
+    // Also check post-updates. Only do this if we're not already showing an
+    // error for hook_update_N().
+    if (empty($module_list)) {
+      $existing_updates = \Drupal::service('keyvalue')->get('post_update')->get('existing_updates', []);
+      $post_update_registry = \Drupal::service('update.post_update_registry');
+      $modules = \Drupal::moduleHandler()->getModuleList();
+      $module_extension_list = \Drupal::service('extension.list.module');
+      foreach ($modules as $module => $extension) {
+        $module_info = $module_extension_list->get($module);
+        $removed_post_updates = $post_update_registry->getRemovedPostUpdates($module);
+        if ($missing_updates = array_diff(array_keys($removed_post_updates), $existing_updates)) {
+          $versions = array_unique(array_intersect_key($removed_post_updates, array_flip($missing_updates)));
+          $description = new PluralTranslatableMarkup(count($versions),
+            'The installed version of the %module module is too old to update. Update to a version prior to @versions first (missing updates: @missing_updates).',
+            'The installed version of the %module module is too old to update. Update first to a version prior to all of the following: @versions (missing updates: @missing_updates).',
+            [
+              '%module' => $module_info->info['name'],
+              '@missing_updates' => implode(', ', $missing_updates),
+              '@versions' => implode(', ', $versions),
+            ]
+          );
+          $requirements[$module . '_post_update_removed'] = [
+            'title' => t('Missing updates for: @module', ['@module' => $module_info->info['name']]),
+            'description' => $description,
+            'severity' => REQUIREMENT_ERROR,
+          ];
+        }
       }
     }
   }
