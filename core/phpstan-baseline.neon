@@ -196,11 +196,6 @@ parameters:
 			path: lib/Drupal/Component/Gettext/PoStreamReader.php
 
 		-
-			message: "#^Variable \\$rgb might not be defined\\.$#"
-			count: 1
-			path: lib/Drupal/Component/Utility/Color.php
-
-		-
 			message: "#^Variable \\$permission might not be defined\\.$#"
 			count: 1
 			path: lib/Drupal/Core/Access/AccessResult.php
@@ -806,16 +801,6 @@ parameters:
 			path: modules/action/src/Form/ActionFormBase.php
 
 		-
-			message: "#^Method Drupal\\\\ban\\\\Plugin\\\\migrate\\\\destination\\\\BlockedIp\\:\\:import\\(\\) should return array\\|bool but return statement is missing\\.$#"
-			count: 1
-			path: modules/ban/src/Plugin/migrate/destination/BlockedIp.php
-
-		-
-			message: "#^Anonymous function has an unused use \\$session\\.$#"
-			count: 1
-			path: modules/basic_auth/tests/src/Functional/BasicAuthTest.php
-
-		-
 			message: "#^\\#lazy_builder callback 'hello_or_yarhar' at key '0' is not callable\\.$#"
 			count: 1
 			path: modules/big_pipe/tests/modules/big_pipe_test/src/BigPipePlaceholderTestCases.php
@@ -1026,11 +1011,6 @@ parameters:
 			path: modules/config/src/Form/ConfigSingleImportForm.php
 
 		-
-			message: "#^Anonymous function has an unused use \\$validation_reasons\\.$#"
-			count: 1
-			path: modules/config/tests/src/Functional/ConfigImportAllTest.php
-
-		-
 			message: "#^Relying on entity queries to check access by default is deprecated in drupal\\:9\\.2\\.0 and an error will be thrown from drupal\\:10\\.0\\.0\\. Call \\\\Drupal\\\\Core\\\\Entity\\\\Query\\\\QueryInterface\\:\\:accessCheck\\(\\) with TRUE or FALSE to specify whether access should be checked\\.$#"
 			count: 1
 			path: modules/config_translation/src/Controller/ConfigTranslationFieldListBuilder.php
@@ -1114,11 +1094,6 @@ parameters:
 			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:11\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
 			count: 1
 			path: modules/content_translation/tests/src/Functional/ContentTranslationUITestBase.php
-
-		-
-			message: "#^Anonymous function has an unused use \\$web_assert\\.$#"
-			count: 1
-			path: modules/contextual/tests/src/FunctionalJavascript/EditModeTest.php
 
 		-
 			message: "#^Variable \\$unrestricted_tab_count might not be defined\\.$#"
@@ -2031,11 +2006,6 @@ parameters:
 			path: modules/rest/src/Routing/ResourceRoutes.php
 
 		-
-			message: "#^Anonymous function has an unused use \\$link_relation_type_manager\\.$#"
-			count: 1
-			path: modules/rest/tests/src/Functional/EntityResource/EntityResourceTestBase.php
-
-		-
 			message: "#^Variable \\$created_entity might not be defined\\.$#"
 			count: 4
 			path: modules/rest/tests/src/Functional/EntityResource/EntityResourceTestBase.php
@@ -2241,11 +2211,6 @@ parameters:
 			path: modules/system/tests/src/Functional/FileTransfer/TestFileTransfer.php
 
 		-
-			message: "#^Variable \\$checked might not be defined\\.$#"
-			count: 1
-			path: modules/system/tests/src/Functional/Form/CheckboxTest.php
-
-		-
 			message: "#^Variable \\$form_output in empty\\(\\) always exists and is not falsy\\.$#"
 			count: 2
 			path: modules/system/tests/src/Functional/Form/FormTest.php
@@ -2269,11 +2234,6 @@ parameters:
 			message: "#^Variable \\$expected_required_list_items might not be defined\\.$#"
 			count: 2
 			path: modules/system/tests/src/Functional/Theme/ThemeUiTest.php
-
-		-
-			message: "#^Anonymous function has an unused use \\$renderer\\.$#"
-			count: 1
-			path: modules/system/tests/src/Kernel/Common/UrlTest.php
 
 		-
 			message: "#^Call to deprecated constant REQUEST_TIME\\: Deprecated in drupal\\:8\\.3\\.0 and is removed from drupal\\:11\\.0\\.0\\. Use \\\\Drupal\\:\\:time\\(\\)\\-\\>getRequestTime\\(\\); $#"
@@ -3286,11 +3246,6 @@ parameters:
 			path: tests/Drupal/Tests/Core/Plugin/TestPluginManager.php
 
 		-
-			message: "#^Anonymous function has an unused use \\$self\\.$#"
-			count: 1
-			path: tests/Drupal/Tests/Core/Render/MetadataBubblingUrlGeneratorTest.php
-
-		-
 			message: "#^\\#access_callback callback class '\\$this\\(Drupal\\\\Tests\\\\Core\\\\Render\\\\RendererCallbackTest\\)' at key '0' does not implement Drupal\\\\Core\\\\Security\\\\TrustedCallbackInterface\\.$#"
 			count: 1
 			path: tests/Drupal/Tests/Core/Render/RendererCallbackTest.php
@@ -3309,21 +3264,6 @@ parameters:
 			message: "#^\\#pre_render callback '\\\\\\\\Drupal\\\\\\\\Tests\\\\\\\\Core…' at key '0' is not trusted\\.$#"
 			count: 1
 			path: tests/Drupal/Tests/Core/Render/RendererCallbackTest.php
-
-		-
-			message: "#^Anonymous function has an unused use \\$complex_child_template\\.$#"
-			count: 1
-			path: tests/Drupal/Tests/Core/Render/RendererRecursionTest.php
-
-		-
-			message: "#^Anonymous function has an unused use \\$parent_markup\\.$#"
-			count: 1
-			path: tests/Drupal/Tests/Core/Render/RendererRecursionTest.php
-
-		-
-			message: "#^Anonymous function has an unused use \\$renderer\\.$#"
-			count: 1
-			path: tests/Drupal/Tests/Core/Render/RendererRecursionTest.php
 
 		-
 			message: "#^Variable \\$value in isset\\(\\) always exists and is not nullable\\.$#"
