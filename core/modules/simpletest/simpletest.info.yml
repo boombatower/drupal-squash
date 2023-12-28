@@ -1,0 +1,6 @@
+name: Testing
+type: module
+description: 'Provides a framework for unit and functional testing.'
+package: Core
+version: VERSION
+configure: simpletest.settings
