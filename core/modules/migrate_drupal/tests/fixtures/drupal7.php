@@ -19142,7 +19142,7 @@ $connection->insert('file_managed')
   'filename' => 'ds9.txt',
   'uri' => 'public://ds9.txt',
   'filemime' => 'text/plain',
-  'filesize' => '4720',
+  'filesize' => '4',
   'status' => '1',
   'timestamp' => '1421727516',
 ))
@@ -34445,7 +34445,7 @@ $connection->insert('menu_links')
   'link_path' => 'node/2',
   'router_path' => 'node/%',
   'link_title' => 'node link test',
-  'options' => 'a:1:{s:10:"attributes";a:1:{s:5:"title";s:6:"node 2";}}',
+  'options' => 'a:2:{s:10:"attributes";a:1:{s:5:"title";s:6:"node 2";}s:5:"query";a:2:{s:4:"name";s:6:"ferret";s:5:"color";s:6:"purple";}}',
   'module' => 'menu',
   'hidden' => '0',
   'external' => '0',
