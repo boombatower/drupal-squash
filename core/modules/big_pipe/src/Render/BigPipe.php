@@ -282,8 +282,8 @@ class BigPipe {
     $attachments = $response->getAttachments();
 
     // First, gather the BigPipe placeholders that must be replaced.
-    $placeholders = isset($attachments['big_pipe_placeholders']) ? $attachments['big_pipe_placeholders'] : [];
-    $nojs_placeholders = isset($attachments['big_pipe_nojs_placeholders']) ? $attachments['big_pipe_nojs_placeholders'] : [];
+    $placeholders = $attachments['big_pipe_placeholders'] ?? [];
+    $nojs_placeholders = $attachments['big_pipe_nojs_placeholders'] ?? [];
 
     // BigPipe sends responses using "Transfer-Encoding: chunked". To avoid
     // sending already-sent assets, it is necessary to track cumulative assets
@@ -330,7 +330,7 @@ class BigPipe {
     // Extract the scripts_bottom markup: the no-JS BigPipe placeholders that we
     // will render may attach additional asset libraries, and if so, it will be
     // necessary to re-render scripts_bottom.
-    list($pre_scripts_bottom, $scripts_bottom, $post_scripts_bottom) = explode('<drupal-big-pipe-scripts-bottom-marker>', $pre_body, 3);
+    [$pre_scripts_bottom, $scripts_bottom, $post_scripts_bottom] = explode('<drupal-big-pipe-scripts-bottom-marker>', $pre_body, 3);
     $cumulative_assets_initial = clone $cumulative_assets;
 
     $this->sendNoJsPlaceholders($pre_scripts_bottom . $post_scripts_bottom, $no_js_placeholders, $cumulative_assets);

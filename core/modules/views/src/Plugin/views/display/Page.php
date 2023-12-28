@@ -348,7 +348,7 @@ class Page extends PathPluginBase {
         $form['menu']['weight'] = [
           '#title' => $this->t('Weight'),
           '#type' => 'textfield',
-          '#default_value' => isset($menu['weight']) ? $menu['weight'] : 0,
+          '#default_value' => $menu['weight'] ?? 0,
           '#description' => $this->t('In the menu, the heavier links will sink and the lighter links will be positioned nearer the top.'),
           '#states' => [
             'visible' => [
@@ -488,7 +488,7 @@ class Page extends PathPluginBase {
     switch ($form_state->get('section')) {
       case 'menu':
         $menu = $form_state->getValue('menu');
-        list($menu['menu_name'], $menu['parent']) = explode(':', $menu['parent'], 2);
+        [$menu['menu_name'], $menu['parent']] = explode(':', $menu['parent'], 2);
         $this->setOption('menu', $menu);
         // send ajax form to options page if we use it.
         if ($form_state->getValue(['menu', 'type']) == 'default tab') {

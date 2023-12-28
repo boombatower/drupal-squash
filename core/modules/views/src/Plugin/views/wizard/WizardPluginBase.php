@@ -871,8 +871,8 @@ abstract class WizardPluginBase extends PluginBase implements WizardInterface {
       'table' => $default_table,
       'field' => $default_field,
       'id' => $default_field,
-      'entity_type' => isset($data[$default_field]['entity type']) ? $data[$default_field]['entity type'] : NULL,
-      'entity_field' => isset($data[$default_field]['entity field']) ? $data[$default_field]['entity field'] : NULL,
+      'entity_type' => $data[$default_field]['entity type'] ?? NULL,
+      'entity_field' => $data[$default_field]['entity field'] ?? NULL,
       'plugin_id' => $data[$default_field]['field']['id'],
     ];
 
@@ -965,8 +965,8 @@ abstract class WizardPluginBase extends PluginBase implements WizardInterface {
           'table' => $table,
           'field' => $bundle_key,
           'value' => $value,
-          'entity_type' => isset($table_data['table']['entity type']) ? $table_data['table']['entity type'] : NULL,
-          'entity_field' => isset($table_data[$bundle_key]['entity field']) ? $table_data[$bundle_key]['entity field'] : NULL,
+          'entity_type' => $table_data['table']['entity type'] ?? NULL,
+          'entity_field' => $table_data[$bundle_key]['entity field'] ?? NULL,
           'plugin_id' => $handler,
         ];
       }
@@ -1022,7 +1022,7 @@ abstract class WizardPluginBase extends PluginBase implements WizardInterface {
     // Don't add a sort if there is no form value or the user set the sort to
     // 'none'.
     if (($sort_type = $form_state->getValue(['show', 'sort'])) && $sort_type != 'none') {
-      list($column, $sort) = explode(':', $sort_type);
+      [$column, $sort] = explode(':', $sort_type);
       // Column either be a column-name or the table-column-name.
       $column = explode('-', $column);
       if (count($column) > 1) {
@@ -1045,8 +1045,8 @@ abstract class WizardPluginBase extends PluginBase implements WizardInterface {
           'table' => $table,
           'field' => $column,
           'order' => $sort,
-          'entity_type' => isset($data['table']['entity type']) ? $data['table']['entity type'] : NULL,
-          'entity_field' => isset($data[$column]['entity field']) ? $data[$column]['entity field'] : NULL,
+          'entity_type' => $data['table']['entity type'] ?? NULL,
+          'entity_field' => $data[$column]['entity field'] ?? NULL,
           'plugin_id' => $data[$column]['sort']['id'],
        ];
       }
@@ -1096,7 +1096,7 @@ abstract class WizardPluginBase extends PluginBase implements WizardInterface {
     if (!empty($page['link'])) {
       $display_options['menu']['type'] = 'normal';
       $display_options['menu']['title'] = $page['link_properties']['title'];
-      list($display_options['menu']['menu_name'], $display_options['menu']['parent']) = explode(':', $page['link_properties']['parent'], 2);
+      [$display_options['menu']['menu_name'], $display_options['menu']['parent']] = explode(':', $page['link_properties']['parent'], 2);
     }
     return $display_options;
   }
@@ -1254,7 +1254,7 @@ abstract class WizardPluginBase extends PluginBase implements WizardInterface {
     // @todo Figure out why all this hashing is done. Wouldn't it be easier to
     //   store a single entry and that's it?
     $key = hash('sha256', serialize($form_state->getValues()));
-    $view = (isset($this->validated_views[$key]) ? $this->validated_views[$key] : NULL);
+    $view = ($this->validated_views[$key] ?? NULL);
     if ($unset) {
       unset($this->validated_views[$key]);
     }

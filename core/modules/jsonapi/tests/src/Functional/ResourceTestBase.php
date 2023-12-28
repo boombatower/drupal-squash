@@ -1705,7 +1705,7 @@ abstract class ResourceTestBase extends BrowserTestBase {
       ])
       ->addCacheableDependency($entity)
       ->addCacheableDependency($access);
-    $status_code = isset($expected_document['errors'][0]['status']) ? $expected_document['errors'][0]['status'] : 200;
+    $status_code = $expected_document['errors'][0]['status'] ?? 200;
     $resource_response = new CacheableResourceResponse($expected_document, $status_code);
     $resource_response->addCacheableDependency($expected_cacheability);
     return $resource_response;
@@ -2284,7 +2284,7 @@ abstract class ResourceTestBase extends BrowserTestBase {
     $this->assertResourceErrorResponse(403, "The current user is not allowed to PATCH the selected field (field_rest_test).", $url, $response, '/data/attributes/field_rest_test');
 
     // DX: 403 when sending PATCH request with updated read-only fields.
-    list($modified_entity, $original_values) = static::getModifiedEntityForPatchTesting($this->entity);
+    [$modified_entity, $original_values] = static::getModifiedEntityForPatchTesting($this->entity);
     // Send PATCH request by serializing the modified entity, assert the error
     // response, change the modified entity field that caused the error response
     // back to its original value, repeat.

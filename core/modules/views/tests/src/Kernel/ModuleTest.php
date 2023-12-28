@@ -175,7 +175,7 @@ class ModuleTest extends ViewsKernelTestBase {
     $expected_opt_groups = [];
     foreach ($all_views as $view) {
       foreach ($view->get('display') as $display) {
-        $expected_opt_groups[$view->id()][$view->id() . ':' . $display['id']] = (string) t('@view : @display', ['@view' => $view->id(), '@display' => $display['id']]);
+        $expected_opt_groups[$view->id()][$view->id() . ':' . $display['id']] = $view->id() . ' : ' . $display['id'];
       }
     }
     $this->assertEquals($expected_opt_groups, Views::getViewsAsOptions(FALSE, 'all', NULL, TRUE), 'Expected option array for an option group returned.');
@@ -229,7 +229,7 @@ class ModuleTest extends ViewsKernelTestBase {
     $plugin_list = Views::pluginList();
     // Only plugins used by 'test_view' should be in the plugin list.
     foreach (['display:default', 'pager:none'] as $key) {
-      list($plugin_type, $plugin_id) = explode(':', $key);
+      [$plugin_type, $plugin_id] = explode(':', $key);
       $plugin_def = $this->container->get("plugin.manager.views.$plugin_type")->getDefinition($plugin_id);
 
       $this->assertTrue(isset($plugin_list[$key]), new FormattableMarkup('The expected @key plugin list key was found.', ['@key' => $key]));
@@ -325,8 +325,7 @@ class ModuleTest extends ViewsKernelTestBase {
     $expected_options = [];
     foreach ($views as $view) {
       foreach ($view->get('display') as $display) {
-        $expected_options[$view->id() . ':' . $display['id']] = (string) t('View: @view - Display: @display',
-          ['@view' => $view->id(), '@display' => $display['id']]);
+        $expected_options[$view->id() . ':' . $display['id']] = "View: {$view->id()} - Display: {$display['id']}";
       }
     }
 
