@@ -20,7 +20,7 @@ a {
 a:hover,
 a:focus {
   background-color: #e6eee0;
-  color: #444444;
+  color: #444;
   text-decoration: none;
 }
 
@@ -82,7 +82,7 @@ button:focus,
 .button:focus {
   background-color: #e6eee0;
   border: 3px solid #00836d;
-  color: #000000;
+  color: #000;
   text-decoration: none;
   transition: background-color 0.5s ease;
 }
@@ -198,6 +198,20 @@ input {
   max-width: 100%;
   font-size: 1rem;
   padding: 0.8rem 0.4rem;
+}
+input:focus {
+  border: 3px solid #00836d;
+  margin-bottom: 2px;
+}
+
+textarea {
+  border: 2px solid #767775;
+  color: #000;
+  padding: 0.8rem 0.4rem;
+}
+textarea:focus {
+  border: 3px solid #00836d;
+  margin-bottom: 2px;
 }
 
 label {

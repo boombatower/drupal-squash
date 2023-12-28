@@ -2,6 +2,7 @@ id: d7_url_alias
 label: URL aliases
 migration_tags:
   - Drupal 7
+  - Content
 source:
   plugin: d7_url_alias
   constants:
@@ -24,7 +25,9 @@ process:
       source: source
       delimiter: /
     -
+      # If the source path has no slashes return a dummy default value.
       plugin: extract
+      default: 'INVALID_NID'
       index:
         - 1
     -
