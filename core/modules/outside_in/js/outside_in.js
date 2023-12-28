@@ -1,6 +1,6 @@
 /**
  * @file
- * Drupal's Outside-In library.
+ * Drupal's Settings Tray library.
  */
 
 (function ($, Drupal) {
@@ -52,7 +52,7 @@
 
     // Bind a listener to all 'Quick edit' links for blocks
     // Click "Edit" button in toolbar to force Contextual Edit which starts
-    // Outside-In edit mode also.
+    // Settings Tray edit mode also.
     data.$el.find('.outside-inblock-configure a').on('click', function () {
       if (!isActiveMode()) {
         $('div.contextual-toolbar-tab.toolbar-tab button').click();
@@ -143,8 +143,28 @@
           // @todo Move logic for data-dialog-renderer attribute into ajax.js
           //   https://www.drupal.org/node/2784443
           instance.options.url = instance.options.url.replace(search, replace);
+          instance.options.data.dialogOptions = {outsideInActiveEditableId: $(instance.element).parents('.outside-in-editable').attr('id')};
+          instance.progress = {type: 'fullscreen'};
         });
     }
   };
+
+  // Manage Active editable class on opening and closing of the dialog.
+  $(window).on({
+    'dialog:beforecreate': function (event, dialog, $element, settings) {
+      if ($element.is('#drupal-offcanvas')) {
+        $('body .outside-in-active-editable').removeClass('outside-in-active-editable');
+        var $activeElement = $('#' + settings.outsideInActiveEditableId);
+        if ($activeElement) {
+          $activeElement.addClass('outside-in-active-editable');
+        }
+      }
+    },
+    'dialog:beforeclose': function (event, dialog, $element) {
+      if ($element.is('#drupal-offcanvas')) {
+        $('body .outside-in-active-editable').removeClass('outside-in-active-editable');
+      }
+    }
+  });
 
 })(jQuery, Drupal);

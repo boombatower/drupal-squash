@@ -15,6 +15,7 @@ use Drupal\Core\Entity\Sql\SqlEntityStorageInterface;
 use Drupal\Core\Extension\ExtensionDiscovery;
 use Drupal\Core\Language\Language;
 use Drupal\Core\Site\Settings;
+use Drupal\Core\Test\TestDatabase;
 use Drupal\simpletest\AssertContentTrait;
 use Drupal\simpletest\AssertHelperTrait;
 use Drupal\Tests\ConfigTestTrait;
@@ -131,7 +132,7 @@ abstract class KernelTestBase extends \PHPUnit_Framework_TestCase implements Ser
   /**
    * @var \Drupal\Core\DependencyInjection\ContainerBuilder
    */
-  protected static $initialContainerBuilder;
+  private static $initialContainerBuilder;
 
   /**
    * Modules to enable.
@@ -251,19 +252,14 @@ abstract class KernelTestBase extends \PHPUnit_Framework_TestCase implements Ser
     require_once $this->root . '/core/includes/bootstrap.inc';
 
     // Set up virtual filesystem.
-    // Ensure that the generated test site directory does not exist already,
-    // which may happen with a large amount of concurrent threads and
-    // long-running tests.
-    do {
-      $suffix = mt_rand(100000, 999999);
-      $this->siteDirectory = 'sites/simpletest/' . $suffix;
-      $this->databasePrefix = 'simpletest' . $suffix;
-    } while (is_dir($this->root . '/' . $this->siteDirectory));
+    Database::addConnectionInfo('default', 'test-runner', $this->getDatabaseConnectionInfo()['default']);
+    $test_db = new TestDatabase();
+    $this->siteDirectory = $test_db->getTestSitePath();
 
     // Ensure that all code that relies on drupal_valid_test_ua() can still be
     // safely executed. This primarily affects the (test) site directory
     // resolution (used by e.g. LocalStream and PhpStorage).
-    $this->databasePrefix = 'simpletest' . $suffix;
+    $this->databasePrefix = $test_db->getDatabasePrefix();
     drupal_valid_test_ua($this->databasePrefix);
 
     $settings = array(
@@ -287,15 +283,12 @@ abstract class KernelTestBase extends \PHPUnit_Framework_TestCase implements Ser
    * Sets up the filesystem, so things like the file directory.
    */
   protected function setUpFilesystem() {
-    $suffix = str_replace('simpletest', '', $this->databasePrefix);
-    $this->vfsRoot = vfsStream::setup('root', NULL, array(
-      'sites' => array(
-        'simpletest' => array(
-          $suffix => array(),
-        ),
-      ),
-    ));
-    $this->siteDirectory = vfsStream::url('root/sites/simpletest/' . $suffix);
+    $test_db = new TestDatabase($this->databasePrefix);
+    $test_site_path = $test_db->getTestSitePath();
+
+    $this->vfsRoot = vfsStream::setup('root');
+    $this->vfsRoot->addChild(vfsStream::newDirectory($test_site_path));
+    $this->siteDirectory = vfsStream::url('root/' . $test_site_path);
 
     mkdir($this->siteDirectory . '/files', 0775);
     mkdir($this->siteDirectory . '/files/config/' . CONFIG_SYNC_DIRECTORY, 0775, TRUE);
@@ -319,7 +312,7 @@ abstract class KernelTestBase extends \PHPUnit_Framework_TestCase implements Ser
   /**
    * Bootstraps a kernel for a test.
    */
-  protected function bootKernel() {
+  private function bootKernel() {
     $this->setSetting('container_yamls', []);
     // Allow for test-specific overrides.
     $settings_services_file = $this->root . '/sites/default' . '/testing.services.yml';
@@ -501,7 +494,7 @@ abstract class KernelTestBase extends \PHPUnit_Framework_TestCase implements Ser
    * @return \Drupal\Core\DependencyInjection\ContainerBuilder
    *   A clone of the precompiled, empty service container.
    */
-  protected function getCompiledContainerBuilder(array $modules) {
+  private function getCompiledContainerBuilder(array $modules) {
     if (!isset(self::$initialContainerBuilder)) {
       $kernel = new DrupalKernel('testing', $this->classLoader, FALSE);
       $kernel->setSitePath($this->siteDirectory);
@@ -567,7 +560,7 @@ abstract class KernelTestBase extends \PHPUnit_Framework_TestCase implements Ser
    * @see \Drupal\Tests\KernelTestBase::enableModules()
    * @see \Drupal\Core\Extension\ModuleHandler::add()
    */
-  protected function getExtensionsForModules(array $modules) {
+  private function getExtensionsForModules(array $modules) {
     $extensions = array();
     $discovery = new ExtensionDiscovery($this->root);
     $discovery->setProfileDirectories(array());
@@ -707,6 +700,10 @@ abstract class KernelTestBase extends \PHPUnit_Framework_TestCase implements Ser
     $this->classLoader = NULL;
     $this->vfsRoot = NULL;
     $this->configImporter = NULL;
+
+    // Release the prefix.
+    $test_db = new TestDatabase($test_prefix);
+    $test_db->releaseTestLock();
 
     // Free up memory: Custom test class properties.
     // Note: Private properties cannot be cleaned up.
@@ -1031,7 +1028,7 @@ abstract class KernelTestBase extends \PHPUnit_Framework_TestCase implements Ser
    *
    * @return array
    */
-  protected static function getModulesToEnable($class) {
+  private static function getModulesToEnable($class) {
     $modules = array();
     while ($class) {
       if (property_exists($class, 'modules')) {
