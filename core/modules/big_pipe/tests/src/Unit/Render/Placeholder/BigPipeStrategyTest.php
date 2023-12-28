@@ -3,7 +3,7 @@
 namespace Drupal\Tests\big_pipe\Unit\Render\Placeholder;
 
 use Drupal\big_pipe\Render\Placeholder\BigPipeStrategy;
-use Drupal\big_pipe\Tests\BigPipePlaceholderTestCases;
+use Drupal\big_pipe_test\BigPipePlaceholderTestCases;
 use Drupal\Core\Routing\RouteMatchInterface;
 use Drupal\Core\Session\SessionConfigurationInterface;
 use Drupal\Tests\UnitTestCase;
@@ -59,7 +59,7 @@ class BigPipeStrategyTest extends UnitTestCase {
   }
 
   /**
-   * @see \Drupal\big_pipe\Tests\BigPipePlaceholderTestCases
+   * @see \Drupal\big_pipe_test\BigPipePlaceholderTestCases
    */
   public function placeholdersProvider() {
     $cases = BigPipePlaceholderTestCases::cases();
@@ -83,25 +83,29 @@ class BigPipeStrategyTest extends UnitTestCase {
       '_no_big_pipe present, no session, no-JS cookie present' => [$placeholders, 'GET', TRUE, FALSE, TRUE, []],
       '_no_big_pipe present, session, no-JS cookie absent' => [$placeholders, 'GET', TRUE, TRUE, FALSE, []],
       '_no_big_pipe present, session, no-JS cookie present' => [$placeholders, 'GET', TRUE, TRUE, TRUE, []],
-      '_no_big_pipe absent, session, no-JS cookie absent: (JS-powered) BigPipe placeholder used for HTML placeholders' => [$placeholders, 'GET', FALSE, TRUE, FALSE, [
-        $cases['html']->placeholder                             => $cases['html']->bigPipePlaceholderRenderArray,
-        $cases['html_attribute_value']->placeholder             => $cases['html_attribute_value']->bigPipeNoJsPlaceholderRenderArray,
-        $cases['html_attribute_value_subset']->placeholder      => $cases['html_attribute_value_subset']->bigPipeNoJsPlaceholderRenderArray,
-        $cases['edge_case__invalid_html']->placeholder          => $cases['edge_case__invalid_html']->bigPipeNoJsPlaceholderRenderArray,
-        $cases['edge_case__html_non_lazy_builder']->placeholder => $cases['edge_case__html_non_lazy_builder']->bigPipePlaceholderRenderArray,
-        $cases['exception__lazy_builder']->placeholder          => $cases['exception__lazy_builder']->bigPipePlaceholderRenderArray,
-        $cases['exception__embedded_response']->placeholder     => $cases['exception__embedded_response']->bigPipePlaceholderRenderArray,
-      ]],
+      '_no_big_pipe absent, session, no-JS cookie absent: (JS-powered) BigPipe placeholder used for HTML placeholders' => [
+        $placeholders, 'GET', FALSE, TRUE, FALSE, [
+          $cases['html']->placeholder                             => $cases['html']->bigPipePlaceholderRenderArray,
+          $cases['html_attribute_value']->placeholder             => $cases['html_attribute_value']->bigPipeNoJsPlaceholderRenderArray,
+          $cases['html_attribute_value_subset']->placeholder      => $cases['html_attribute_value_subset']->bigPipeNoJsPlaceholderRenderArray,
+          $cases['edge_case__invalid_html']->placeholder          => $cases['edge_case__invalid_html']->bigPipeNoJsPlaceholderRenderArray,
+          $cases['edge_case__html_non_lazy_builder']->placeholder => $cases['edge_case__html_non_lazy_builder']->bigPipePlaceholderRenderArray,
+          $cases['exception__lazy_builder']->placeholder          => $cases['exception__lazy_builder']->bigPipePlaceholderRenderArray,
+          $cases['exception__embedded_response']->placeholder     => $cases['exception__embedded_response']->bigPipePlaceholderRenderArray,
+        ],
+      ],
       '_no_big_pipe absent, session, no-JS cookie absent: (JS-powered) BigPipe placeholder used for HTML placeholders — but unsafe method' => [$placeholders, 'POST', FALSE, TRUE, FALSE, []],
-      '_no_big_pipe absent, session, no-JS cookie present: no-JS BigPipe placeholder used for HTML placeholders' => [$placeholders, 'GET', FALSE, TRUE, TRUE, [
-        $cases['html']->placeholder                             => $cases['html']->bigPipeNoJsPlaceholderRenderArray,
-        $cases['html_attribute_value']->placeholder             => $cases['html_attribute_value']->bigPipeNoJsPlaceholderRenderArray,
-        $cases['html_attribute_value_subset']->placeholder      => $cases['html_attribute_value_subset']->bigPipeNoJsPlaceholderRenderArray,
-        $cases['edge_case__invalid_html']->placeholder          => $cases['edge_case__invalid_html']->bigPipeNoJsPlaceholderRenderArray,
-        $cases['edge_case__html_non_lazy_builder']->placeholder => $cases['edge_case__html_non_lazy_builder']->bigPipeNoJsPlaceholderRenderArray,
-        $cases['exception__lazy_builder']->placeholder          => $cases['exception__lazy_builder']->bigPipeNoJsPlaceholderRenderArray,
-        $cases['exception__embedded_response']->placeholder     => $cases['exception__embedded_response']->bigPipeNoJsPlaceholderRenderArray,
-      ]],
+      '_no_big_pipe absent, session, no-JS cookie present: no-JS BigPipe placeholder used for HTML placeholders' => [
+        $placeholders, 'GET', FALSE, TRUE, TRUE, [
+          $cases['html']->placeholder                             => $cases['html']->bigPipeNoJsPlaceholderRenderArray,
+          $cases['html_attribute_value']->placeholder             => $cases['html_attribute_value']->bigPipeNoJsPlaceholderRenderArray,
+          $cases['html_attribute_value_subset']->placeholder      => $cases['html_attribute_value_subset']->bigPipeNoJsPlaceholderRenderArray,
+          $cases['edge_case__invalid_html']->placeholder          => $cases['edge_case__invalid_html']->bigPipeNoJsPlaceholderRenderArray,
+          $cases['edge_case__html_non_lazy_builder']->placeholder => $cases['edge_case__html_non_lazy_builder']->bigPipeNoJsPlaceholderRenderArray,
+          $cases['exception__lazy_builder']->placeholder          => $cases['exception__lazy_builder']->bigPipeNoJsPlaceholderRenderArray,
+          $cases['exception__embedded_response']->placeholder     => $cases['exception__embedded_response']->bigPipeNoJsPlaceholderRenderArray,
+        ],
+      ],
       '_no_big_pipe absent, session, no-JS cookie present: no-JS BigPipe placeholder used for HTML placeholders — but unsafe method' => [$placeholders, 'POST', FALSE, TRUE, TRUE, []],
     ];
   }

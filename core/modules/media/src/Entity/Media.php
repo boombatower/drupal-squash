@@ -77,7 +77,6 @@ use Drupal\user\UserInterface;
  *     "delete-form" = "/media/{media}/delete",
  *     "edit-form" = "/media/{media}/edit",
  *     "revision" = "/media/{media}/revisions/{media_revision}/view",
- *     "admin-form" = "/admin/structure/media/manage/{media_type}"
  *   }
  * )
  */
@@ -153,7 +152,7 @@ class Media extends EditorialContentEntityBase implements MediaInterface {
    * {@inheritdoc}
    */
   public function setOwnerId($uid) {
-    $this->set('uid', $uid);
+    return $this->set('uid', $uid);
   }
 
   /**

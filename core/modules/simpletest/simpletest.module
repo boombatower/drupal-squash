@@ -363,7 +363,7 @@ function simpletest_phpunit_run_command(array $unescaped_test_classnames, $phpun
 
   // exec in a subshell so that the environment is isolated when running tests
   // via the simpletest UI.
-  $ret = exec(join($command, " "), $output, $status);
+  $ret = exec(implode(" ", $command), $output, $status);
 
   chdir($old_cwd);
   putenv('SIMPLETEST_DB=');
@@ -772,9 +772,10 @@ function simpletest_mail_alter(&$message) {
  * @param $phpunit_xml_file
  *   Path to the PHPUnit XML file.
  *
- * @return array[]
+ * @return array[]|null
  *   The results as array of rows in a format that can be inserted into
- *   {simpletest}.
+ *   {simpletest}. If the phpunit_xml_file does not have any contents then the
+ *   function will return NULL.
  */
 function simpletest_phpunit_xml_to_rows($test_id, $phpunit_xml_file) {
   $contents = @file_get_contents($phpunit_xml_file);
