@@ -249,7 +249,7 @@ function install_state_defaults() {
     // The server URL where the interface translation files can be downloaded.
     // Tokens in the pattern will be replaced by appropriate values for the
     // required translation file.
-    'server_pattern' => 'http://ftp.drupal.org/files/translations/%core/%project/%project-%version.%language.po',
+    'server_pattern' => 'https://ftp.drupal.org/files/translations/%core/%project/%project-%version.%language.po',
     // Installation tasks can set this to TRUE to force the page request to
     // end (even if there is no themeable output), in the case of an interactive
     // installation. This is needed only rarely; for example, it would be used
@@ -310,9 +310,6 @@ function install_begin_request($class_loader, &$install_state) {
   if (!empty($install_state['parameters']['langcode'])) {
     $install_state['parameters']['langcode'] = preg_replace('/[^a-zA-Z_0-9\-]/', '', $install_state['parameters']['langcode']);
   }
-
-  // Allow command line scripts to override server variables used by Drupal.
-  require_once __DIR__ . '/bootstrap.inc';
 
   // If the hash salt leaks, it becomes possible to forge a valid testing user
   // agent, install a new copy of Drupal, and take over the original site.
