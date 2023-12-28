@@ -5,6 +5,7 @@ namespace Drupal\Tests\system\Functional\Routing;
 use Drupal\Core\Cache\Cache;
 use Drupal\Core\EventSubscriber\MainContentViewSubscriber;
 use Drupal\Core\Language\LanguageInterface;
+use Drupal\router_test\TestControllers;
 use Drupal\Tests\BrowserTestBase;
 use Symfony\Component\Routing\Exception\RouteNotFoundException;
 use Drupal\Core\Url;
@@ -38,14 +39,16 @@ class RouterTest extends BrowserTestBase {
 
     // Confirm that the router can get to a controller.
     $this->drupalGet('router_test/test1');
-    $this->assertSession()->pageTextContains('test1');
+    $this->assertSession()->pageTextContains(TestControllers::LONG_TEXT);
     $session = $this->getSession();
 
     // Check expected headers from FinishResponseSubscriber.
     $this->assertSession()->responseHeaderEquals('Content-language', 'en');
     $this->assertSession()->responseHeaderEquals('X-Content-Type-Options', 'nosniff');
     $this->assertSession()->responseHeaderEquals('X-Frame-Options', 'SAMEORIGIN');
-    $this->assertSession()->responseHeaderDoesNotExist('Vary');
+    if (strcasecmp($session->getResponseHeader('vary'), 'accept-encoding') !== 0) {
+      $this->assertSession()->responseHeaderDoesNotExist('Vary');
+    }
 
     $this->drupalGet('router_test/test2');
     $this->assertSession()->pageTextContains('test2');
@@ -319,17 +322,18 @@ class RouterTest extends BrowserTestBase {
   }
 
   /**
-   * Ensure that multiple leading slashes are redirected.
+   * Ensure that multiple successive slashes are redirected.
    */
-  public function testLeadingSlashes() {
+  public function testSuccessiveSlashes() {
     $request = $this->container->get('request_stack')->getCurrentRequest();
-    $url = $request->getUriForPath('//router_test/test1');
+
+    // Test a simple path with successive leading slashes.
+    $url = $request->getUriForPath('//////router_test/test1');
     $this->drupalGet($url);
     $this->assertSession()->addressEquals($request->getUriForPath('/router_test/test1'));
 
-    // It should not matter how many leading slashes are used and query strings
-    // should be preserved.
-    $url = $request->getUriForPath('/////////////////////////////////////////////////router_test/test1') . '?qs=test';
+    // Test successive slashes in the middle.
+    $url = $request->getUriForPath('/router_test//////test1') . '?qs=test';
     $this->drupalGet($url);
     $this->assertSession()->addressEquals($request->getUriForPath('/router_test/test1') . '?qs=test');
 

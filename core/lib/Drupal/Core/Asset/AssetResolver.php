@@ -155,7 +155,7 @@ class AssetResolver implements AssetResolverInterface {
     $this->themeManager->alter('css', $css, $assets);
 
     // Sort CSS items, so that they appear in the correct order.
-    uasort($css, 'static::sort');
+    uasort($css, [static::class, 'sort']);
 
     if ($optimize) {
       $css = \Drupal::service('asset.css.collection_optimizer')->optimize($css);
@@ -262,7 +262,7 @@ class AssetResolver implements AssetResolverInterface {
       $this->themeManager->alter('js', $javascript, $assets);
 
       // Sort JavaScript assets, so that they appear in the correct order.
-      uasort($javascript, 'static::sort');
+      uasort($javascript, [static::class, 'sort']);
 
       // Prepare the return value: filter JavaScript assets per scope.
       $js_assets_header = [];
@@ -339,19 +339,22 @@ class AssetResolver implements AssetResolverInterface {
   /**
    * Sorts CSS and JavaScript resources.
    *
+   * Callback for uasort().
+   *
    * This sort order helps optimize front-end performance while providing
    * modules and themes with the necessary control for ordering the CSS and
    * JavaScript appearing on a page.
    *
-   * @param $a
+   * @param array $a
    *   First item for comparison. The compared items should be associative
    *   arrays of member items.
-   * @param $b
+   * @param array $b
    *   Second item for comparison.
    *
    * @return int
+   *   The comparison result for uasort().
    */
-  public static function sort($a, $b) {
+  public static function sort(array $a, array $b) {
     // First order by group, so that all items in the CSS_AGGREGATE_DEFAULT
     // group appear before items in the CSS_AGGREGATE_THEME group. Modules may
     // create additional groups by defining their own constants.
