@@ -28,13 +28,14 @@ class ClassyUninstallUpdateTest extends UpdatePathTestBase {
     /** @var \Drupal\Core\Extension\ThemeHandlerInterface $theme_handler */
     $theme_handler = $this->container->get('theme_handler');
     $this->assertTrue($theme_handler->themeExists('classy'));
+    $this->assertTrue($theme_handler->themeExists('seven'));
 
     $this->runUpdates();
 
     // Ensure that Classy is not installed after running updates.
     $theme_handler->refreshInfo();
     $this->assertFalse($theme_handler->themeExists('classy'));
-    $this->assertTrue($theme_handler->themeExists('stable'));
+    $this->assertTrue($theme_handler->themeExists('seven'));
   }
 
   /**
