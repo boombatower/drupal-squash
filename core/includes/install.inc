@@ -375,7 +375,7 @@ function drupal_rewrite_settings($settings = [], $settings_file = NULL) {
 
     // Write the new settings file.
     if (file_put_contents($settings_file, $buffer) === FALSE) {
-      throw new Exception(t('Failed to modify %settings. Verify the file permissions.', ['%settings' => $settings_file]));
+      throw new Exception("Failed to modify '$settings_file'. Verify the file permissions.");
     }
     else {
       // In case any $settings variables were written, import them into the
@@ -392,7 +392,7 @@ function drupal_rewrite_settings($settings = [], $settings_file = NULL) {
     }
   }
   else {
-    throw new Exception(t('Failed to open %settings. Verify the file permissions.', ['%settings' => $settings_file]));
+    throw new Exception("Failed to open '$settings_file'. Verify the file permissions.");
   }
 }
 
@@ -470,6 +470,7 @@ function _drupal_rewrite_settings_global(&$ref, $variable) {
  *   The container for variable values.
  * @param string $variable_name
  *   Name of variable.
+ *
  * @return string
  *   A string containing valid PHP code of the variable suitable for placing
  *   into settings.php.
@@ -500,6 +501,7 @@ function _drupal_rewrite_settings_dump($variable, $variable_name) {
  *   A string to prepend to the variable's value.
  * @param string $suffix
  *   A string to append to the variable's value.
+ *
  * @return string
  *   A string containing valid PHP code of the variable suitable for placing
  *   into settings.php.
